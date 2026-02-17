@@ -1,0 +1,41 @@
+---
+description: GENBA QUESTの技術スタック定義。依存関係・バージョン確認、新機能追加時の技術選定に参照
+globs:
+  - "*"
+alwaysApply: true
+---
+
+# GENBA QUEST 技術スタック
+
+## Frontend
+| Category | Technology | Version |
+|----------|------------|---------|
+| Framework | React | 19.2.0 |
+| Build Tool | Vite | 7.2.4 |
+| Language | TypeScript | 5.9.3 |
+| Routing | React Router | 7.13.0 |
+| State | Zustand | 5.0.10 |
+| Animation | Framer Motion | 12.29.2 |
+| Icons | Lucide React | 0.563.0 |
+| Styling | CSS Modules | - |
+
+## Backend
+| Category | Technology | Version |
+|----------|------------|---------|
+| Runtime | Node.js | 20+ |
+| Framework | Express | 5.1.0 |
+| Language | TypeScript | 5.9.3 |
+| Database | PostgreSQL (Supabase) | - |
+| ORM | Supabase JS | 2.89.0 |
+
+## AI Services
+| Service | SDK | Purpose |
+|---------|-----|---------|
+| Claude | @anthropic-ai/sdk 0.71.2 | AI Sherpa |
+| Gemini | @google/generative-ai 0.24.1 | OCR処理 |
+
+## Key Patterns
+- **Frontend**: Page-based + CSS Modules
+- **Backend**: Route-based Express
+- **State**: Zustand (client) + Supabase (server)
+- **Auth**: JWT via Supabase Auth

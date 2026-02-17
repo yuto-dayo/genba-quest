@@ -1,0 +1,82 @@
+---
+description: 経理Sherpa機能の実装ガイド。自然言語での経理操作、取引検索、集計、レポート生成
+globs:
+  - "**/accounting*.ts"
+  - "**/accounting*.tsx"
+  - "**/sherpa*.ts"
+  - "**/sherpa*.tsx"
+  - "**/invoice*.ts"
+  - "**/invoice*.tsx"
+  - "**/Accounting*.tsx"
+  - "**/Sherpa*.tsx"
+---
+
+# 経理Sherpa 実装ガイド
+
+## 概要
+建設業の経理業務を自然言語で支援するAIコンパニオン。
+
+## ParsedIntent インターフェース
+
+```typescript
+interface ParsedIntent {
+  action: "search" | "aggregate" | "create" | "analyze" | "help";
+  entity: "expense" | "sale" | "invoice" | "transaction";
+  filters?: {
+    vendor?: string;
+    category?: string;
+    site?: string;
+    dateRange?: { from: string; to: string };
+    amount?: { min?: number; max?: number };
+  };
+  aggregation?: {
+    type: "sum" | "count" | "average";
+    groupBy?: "category" | "vendor" | "site" | "month";
+  };
+}
+```
+
+## 日付解析パターン
+
+| 入力 | 解析結果 |
+|------|----------|
+| 今日 | 当日 |
+| 今週 | 週初〜本日 |
+| 今月 | 月初〜本日 |
+| 先月 | 前月1日〜末日 |
+
+## カテゴリマッピング
+
+| 入力 | category |
+|------|----------|
+| ガソリン、燃料 | travel |
+| 材料、資材 | material |
+| 工具 | tool |
+| 弁当、食事 | food |
+
+## 応答フォーマット例
+
+### 検索結果
+```
+📊 今月のガソリン代を集計しました！
+
+期間: 2026/01/01 〜 2026/01/31
+合計: ¥45,230（8件）
+```
+
+### 請求書作成
+```
+📋 A社への請求書を準備します。
+
+請求金額: ¥230,000（税込 ¥253,000）
+[作成する] [修正する] [キャンセル]
+```
+
+## エラーハンドリング
+
+情報不足時:
+```
+🤔 もう少し情報が必要です。
+- 金額は？
+- 支払先は？
+```

@@ -1,8 +1,13 @@
 import { BrowserRouter, Routes, Route, Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Home, Map, Award, MessageCircle, Menu, X } from "lucide-react";
+import { CalendarDays, Map, DollarSign, Menu, X, HardHat, Sun } from "lucide-react";
 import { useState } from "react";
-import { Dashboard } from "./pages/Dashboard";
+import { Today } from "./pages/Today";
+import { Calendar } from "./pages/Calendar";
+import { Sites } from "./pages/Sites";
+import { Money } from "./pages/Money";
+import { SherpaFAB } from "./components/FloatingActionButton";
+import { SherpaChat } from "./components/SherpaChat";
 import "./styles/genba-quest.css";
 import styles from "./App.module.css";
 
@@ -11,27 +16,27 @@ function Navigation() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const navItems = [
-    { path: "/", label: "ダッシュボード", icon: Home },
+    { path: "/", label: "今日", icon: Sun },
+    { path: "/calendar", label: "スケジュール", icon: CalendarDays },
     { path: "/sites", label: "現場", icon: Map },
-    { path: "/perks", label: "パーク", icon: Award },
-    { path: "/sherpa", label: "シェルパ", icon: MessageCircle },
+    { path: "/money", label: "お金", icon: DollarSign },
   ];
 
   return (
     <>
       <header className={styles.header}>
         <Link to="/" className={styles.logo}>
-          🏗️ GENBA QUEST
+          <HardHat size={24} className={styles.logoIcon} />
+          GENBA QUEST
         </Link>
 
-        {/* デスクトップナビ */}
+        {/* Desktop Nav */}
         <nav className={styles.desktopNav}>
           {navItems.map((item) => (
             <Link
               key={item.path}
               to={item.path}
-              className={`${styles.navLink} ${location.pathname === item.path ? styles.active : ""
-                }`}
+              className={`${styles.navLink} ${location.pathname === item.path ? styles.active : ""}`}
             >
               <item.icon size={18} />
               {item.label}
@@ -39,7 +44,7 @@ function Navigation() {
           ))}
         </nav>
 
-        {/* モバイルメニューボタン */}
+        {/* Mobile Menu Button */}
         <button
           className={styles.menuButton}
           onClick={() => setMenuOpen(!menuOpen)}
@@ -48,7 +53,7 @@ function Navigation() {
         </button>
       </header>
 
-      {/* モバイルナビ */}
+      {/* Mobile Nav */}
       <AnimatePresence>
         {menuOpen && (
           <motion.nav
@@ -61,8 +66,7 @@ function Navigation() {
               <Link
                 key={item.path}
                 to={item.path}
-                className={`${styles.mobileNavLink} ${location.pathname === item.path ? styles.active : ""
-                  }`}
+                className={`${styles.mobileNavLink} ${location.pathname === item.path ? styles.active : ""}`}
                 onClick={() => setMenuOpen(false)}
               >
                 <item.icon size={20} />
@@ -76,28 +80,28 @@ function Navigation() {
   );
 }
 
-function PlaceholderPage({ title }: { title: string }) {
-  return (
-    <div className={styles.placeholder}>
-      <h1>{title}</h1>
-      <p>このページは開発中です</p>
-    </div>
-  );
-}
-
 function App() {
+  const [sherpaOpen, setSherpaOpen] = useState(false);
+
   return (
     <BrowserRouter>
       <div className={styles.app}>
         <Navigation />
         <main className={styles.main}>
           <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/sites" element={<PlaceholderPage title="現場管理" />} />
-            <Route path="/perks" element={<PlaceholderPage title="パークツリー" />} />
-            <Route path="/sherpa" element={<PlaceholderPage title="シェルパチャット" />} />
+            <Route path="/" element={<Today />} />
+            <Route path="/calendar" element={<Calendar />} />
+            <Route path="/sites" element={<Sites />} />
+            <Route path="/money" element={<Money />} />
           </Routes>
         </main>
+
+        {/* Sherpa FAB + Chat */}
+        <SherpaFAB onClick={() => setSherpaOpen(true)} />
+        <SherpaChat
+          open={sherpaOpen}
+          onClose={() => setSherpaOpen(false)}
+        />
       </div>
     </BrowserRouter>
   );

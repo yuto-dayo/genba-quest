@@ -1,268 +1,458 @@
 /* ============================================================
-   GENBA QUEST - RPGスタイル デザインシステム
+   GENBA QUEST - Material 3 Expressive Design System
    ============================================================ */
 
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;600;700&display=swap');
+
 :root {
-    /* カラーパレット */
-    --gq-bg-primary: #0f0f1a;
-    --gq-bg-secondary: #1a1a2e;
-    --gq-bg-card: #16213e;
-    --gq-bg-glass: rgba(22, 33, 62, 0.8);
+    /* ============================================================
+       Color System — M3E Tonal Palettes
+       ============================================================ */
 
-    --gq-accent-gold: #ffd700;
-    --gq-accent-blue: #4da6ff;
-    --gq-accent-purple: #9d4edd;
-    --gq-accent-green: #00ff88;
-    --gq-accent-red: #ff4757;
-    --gq-accent-orange: #ff9f43;
+    /* Primary */
+    --md-sys-color-primary: #4F46E5;
+    --md-sys-color-on-primary: #FFFFFF;
+    --md-sys-color-primary-container: #E0E7FF;
+    --md-sys-color-on-primary-container: #312E81;
 
-    --gq-text-primary: #ffffff;
-    --gq-text-secondary: #a0a0b0;
-    --gq-text-muted: #6b6b7b;
+    /* Secondary */
+    --md-sys-color-secondary: #6366F1;
+    --md-sys-color-on-secondary: #FFFFFF;
+    --md-sys-color-secondary-container: #E0E7FF;
+    --md-sys-color-on-secondary-container: #3730A3;
 
-    /* グラデーション */
-    --gq-gradient-gold: linear-gradient(135deg, #ffd700 0%, #ff8c00 100%);
-    --gq-gradient-blue: linear-gradient(135deg, #4da6ff 0%, #9d4edd 100%);
-    --gq-gradient-stamina: linear-gradient(90deg, #00ff88 0%, #00cc6a 100%);
-    --gq-gradient-warning: linear-gradient(90deg, #ff9f43 0%, #ff6b35 100%);
-    --gq-gradient-danger: linear-gradient(90deg, #ff4757 0%, #c92a2a 100%);
+    /* Tertiary */
+    --md-sys-color-tertiary: #0EA5E9;
+    --md-sys-color-on-tertiary: #FFFFFF;
+    --md-sys-color-tertiary-container: #E0F2FE;
+    --md-sys-color-on-tertiary-container: #075985;
 
-    /* シャドウ */
-    --gq-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
-    --gq-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
-    --gq-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
-    --gq-shadow-glow: 0 0 20px rgba(77, 166, 255, 0.3);
+    /* Surface */
+    --md-sys-color-surface: #FAFAF9;
+    --md-sys-color-surface-dim: #E7E5E4;
+    --md-sys-color-surface-bright: #FFFFFF;
+    --md-sys-color-surface-container-lowest: #FFFFFF;
+    --md-sys-color-surface-container-low: #F5F5F4;
+    --md-sys-color-surface-container: #F0EFEE;
+    --md-sys-color-surface-container-high: #E7E5E4;
+    --md-sys-color-surface-container-highest: #D6D3D1;
 
-    /* スペーシング */
-    --gq-space-xs: 4px;
-    --gq-space-sm: 8px;
-    --gq-space-md: 16px;
-    --gq-space-lg: 24px;
-    --gq-space-xl: 32px;
+    /* Outline */
+    --md-sys-color-outline: #78716C;
+    --md-sys-color-outline-variant: #D6D3D1;
 
-    /* ボーダー */
-    --gq-radius-sm: 8px;
-    --gq-radius-md: 12px;
-    --gq-radius-lg: 16px;
-    --gq-radius-full: 9999px;
+    /* On-surface */
+    --md-sys-color-on-surface: #1C1917;
+    --md-sys-color-on-surface-variant: #57534E;
 
-    /* タイポグラフィ */
-    --gq-font-display: 'Outfit', system-ui, sans-serif;
-    --gq-font-body: 'Inter', system-ui, sans-serif;
+    /* Error */
+    --md-sys-color-error: #DC2626;
+    --md-sys-color-on-error: #FFFFFF;
+    --md-sys-color-error-container: #FEE2E2;
+    --md-sys-color-on-error-container: #991B1B;
+
+    /* Success (extended) */
+    --md-sys-color-success: #16A34A;
+    --md-sys-color-on-success: #FFFFFF;
+    --md-sys-color-success-container: #DCFCE7;
+    --md-sys-color-on-success-container: #14532D;
+
+    /* Warning (extended) */
+    --md-sys-color-warning: #F59E0B;
+    --md-sys-color-on-warning: #FFFFFF;
+    --md-sys-color-warning-container: #FEF3C7;
+    --md-sys-color-on-warning-container: #78350F;
+
+    /* Inverse */
+    --md-sys-color-inverse-surface: #292524;
+    --md-sys-color-inverse-on-surface: #F5F5F4;
+    --md-sys-color-inverse-primary: #A5B4FC;
+
+    /* Scrim */
+    --md-sys-color-scrim: rgba(0, 0, 0, 0.32);
+
+    /* ============================================================
+       Typography — Type Scale
+       ============================================================ */
+
+    --md-sys-typescale-font-display: 'Inter', 'Noto Sans JP', sans-serif;
+    --md-sys-typescale-font-body: 'Inter', 'Noto Sans JP', sans-serif;
+
+    /* Display */
+    --md-sys-typescale-display-large: 800 57px/64px var(--md-sys-typescale-font-display);
+    --md-sys-typescale-display-medium: 700 45px/52px var(--md-sys-typescale-font-display);
+    --md-sys-typescale-display-small: 700 36px/44px var(--md-sys-typescale-font-display);
+
+    /* Headline */
+    --md-sys-typescale-headline-large: 700 32px/40px var(--md-sys-typescale-font-display);
+    --md-sys-typescale-headline-medium: 600 28px/36px var(--md-sys-typescale-font-display);
+    --md-sys-typescale-headline-small: 600 24px/32px var(--md-sys-typescale-font-display);
+
+    /* Title */
+    --md-sys-typescale-title-large: 600 22px/28px var(--md-sys-typescale-font-display);
+    --md-sys-typescale-title-medium: 600 16px/24px var(--md-sys-typescale-font-display);
+    --md-sys-typescale-title-small: 500 14px/20px var(--md-sys-typescale-font-display);
+
+    /* Body */
+    --md-sys-typescale-body-large: 400 16px/24px var(--md-sys-typescale-font-body);
+    --md-sys-typescale-body-medium: 400 14px/20px var(--md-sys-typescale-font-body);
+    --md-sys-typescale-body-small: 400 12px/16px var(--md-sys-typescale-font-body);
+
+    /* Label */
+    --md-sys-typescale-label-large: 600 14px/20px var(--md-sys-typescale-font-display);
+    --md-sys-typescale-label-medium: 500 12px/16px var(--md-sys-typescale-font-display);
+    --md-sys-typescale-label-small: 500 11px/16px var(--md-sys-typescale-font-display);
+
+    /* ============================================================
+       Shape System — Corner Radius Tokens
+       ============================================================ */
+
+    --md-sys-shape-corner-none: 0px;
+    --md-sys-shape-corner-extra-small: 4px;
+    --md-sys-shape-corner-small: 8px;
+    --md-sys-shape-corner-medium: 12px;
+    --md-sys-shape-corner-large: 16px;
+    --md-sys-shape-corner-extra-large: 28px;
+    --md-sys-shape-corner-full: 9999px;
+
+    /* ============================================================
+       Elevation
+       ============================================================ */
+
+    --md-sys-elevation-level0: none;
+    --md-sys-elevation-level1: 0 1px 3px rgba(0, 0, 0, 0.07), 0 1px 2px rgba(0, 0, 0, 0.06);
+    --md-sys-elevation-level2: 0 4px 6px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.06);
+    --md-sys-elevation-level3: 0 10px 15px rgba(0, 0, 0, 0.07), 0 4px 6px rgba(0, 0, 0, 0.05);
+    --md-sys-elevation-level4: 0 20px 25px rgba(0, 0, 0, 0.07), 0 8px 10px rgba(0, 0, 0, 0.04);
+
+    /* ============================================================
+       Motion System
+       ============================================================ */
+
+    --md-sys-motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+    --md-sys-motion-easing-emphasized: cubic-bezier(0.2, 0, 0, 1);
+    --md-sys-motion-easing-emphasized-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1);
+    --md-sys-motion-easing-emphasized-accelerate: cubic-bezier(0.3, 0, 0.8, 0.15);
+    --md-sys-motion-easing-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+    --md-sys-motion-duration-short1: 50ms;
+    --md-sys-motion-duration-short2: 100ms;
+    --md-sys-motion-duration-medium1: 200ms;
+    --md-sys-motion-duration-medium2: 300ms;
+    --md-sys-motion-duration-long1: 400ms;
+    --md-sys-motion-duration-long2: 500ms;
+
+    /* ============================================================
+       Spacing
+       ============================================================ */
+
+    --md-sys-spacing-xs: 4px;
+    --md-sys-spacing-sm: 8px;
+    --md-sys-spacing-md: 16px;
+    --md-sys-spacing-lg: 24px;
+    --md-sys-spacing-xl: 32px;
+    --md-sys-spacing-2xl: 48px;
 }
 
-/* グローバルスタイル */
+/* ============================================================
+   Global Styles
+   ============================================================ */
+
 * {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
 }
 
+html {
+    scroll-behavior: smooth;
+}
+
 body {
-    font-family: var(--gq-font-body);
-    background: var(--gq-bg-primary);
-    color: var(--gq-text-primary);
+    font: var(--md-sys-typescale-body-large);
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
     min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
-/* グラスモーフィズムカード */
-.gq-card {
-    background: var(--gq-bg-glass);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: var(--gq-radius-md);
-    padding: var(--gq-space-md);
-    box-shadow: var(--gq-shadow-md);
+/* Accessibility: Focus */
+:focus {
+    outline: none;
 }
 
-.gq-card:hover {
-    border-color: rgba(77, 166, 255, 0.3);
-    box-shadow: var(--gq-shadow-glow);
+:focus-visible {
+    outline: 2px solid var(--md-sys-color-primary);
+    outline-offset: 2px;
 }
 
-/* ボタン */
-.gq-button {
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+    outline: 2px solid var(--md-sys-color-primary);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.15);
+}
+
+/* prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* ============================================================
+   M3E Card
+   ============================================================ */
+
+.m3-card {
+    background: var(--md-sys-color-surface-container-lowest);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-medium);
+    padding: var(--md-sys-spacing-md);
+    box-shadow: var(--md-sys-elevation-level1);
+    transition: box-shadow var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+}
+
+.m3-card:hover {
+    box-shadow: var(--md-sys-elevation-level2);
+}
+
+/* ============================================================
+   M3E Button
+   ============================================================ */
+
+.m3-button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: var(--gq-space-sm);
-    padding: var(--gq-space-sm) var(--gq-space-md);
+    gap: var(--md-sys-spacing-sm);
+    padding: 10px 24px;
+    height: 40px;
     border: none;
-    border-radius: var(--gq-radius-sm);
-    font-family: var(--gq-font-body);
-    font-weight: 600;
+    border-radius: var(--md-sys-shape-corner-full);
+    font: var(--md-sys-typescale-label-large);
     cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.gq-button-primary {
-    background: var(--gq-gradient-blue);
-    color: white;
-}
-
-.gq-button-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--gq-shadow-glow);
-}
-
-.gq-button-gold {
-    background: var(--gq-gradient-gold);
-    color: #1a1a2e;
-}
-
-/* スタミナバー */
-.gq-stamina-bar {
-    width: 100%;
-    height: 12px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: var(--gq-radius-full);
-    overflow: hidden;
+    transition: all var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
     position: relative;
+    overflow: hidden;
 }
 
-.gq-stamina-bar-fill {
-    height: 100%;
-    border-radius: var(--gq-radius-full);
-    transition: width 0.5s ease, background 0.3s ease;
+.m3-button::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: currentColor;
+    opacity: 0;
+    transition: opacity var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
 }
 
-.gq-stamina-good {
-    background: var(--gq-gradient-stamina);
+.m3-button:hover::after {
+    opacity: 0.08;
 }
 
-.gq-stamina-warning {
-    background: var(--gq-gradient-warning);
+.m3-button:active::after {
+    opacity: 0.12;
 }
 
-.gq-stamina-critical {
-    background: var(--gq-gradient-danger);
-    animation: pulse 1s ease-in-out infinite;
+.m3-button:active {
+    transform: scale(0.97);
 }
 
-@keyframes pulse {
-
-    0%,
-    100% {
-        opacity: 1;
-    }
-
-    50% {
-        opacity: 0.7;
-    }
+.m3-button:disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
 }
 
-/* バッジ */
-.gq-badge {
+.m3-button:disabled::after {
+    display: none;
+}
+
+.m3-button-filled {
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+}
+
+.m3-button-outlined {
+    background: transparent;
+    color: var(--md-sys-color-primary);
+    border: 1px solid var(--md-sys-color-outline);
+}
+
+.m3-button-text {
+    background: transparent;
+    color: var(--md-sys-color-primary);
+    padding: 10px 12px;
+}
+
+.m3-button-tonal {
+    background: var(--md-sys-color-secondary-container);
+    color: var(--md-sys-color-on-secondary-container);
+}
+
+/* ============================================================
+   M3E Badge
+   ============================================================ */
+
+.m3-badge {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 4px 10px;
-    border-radius: var(--gq-radius-full);
-    font-size: 12px;
+    padding: 4px 12px;
+    border-radius: var(--md-sys-shape-corner-full);
+    font: var(--md-sys-typescale-label-small);
     font-weight: 600;
 }
 
-.gq-badge-gold {
-    background: rgba(255, 215, 0, 0.2);
-    color: var(--gq-accent-gold);
-    border: 1px solid rgba(255, 215, 0, 0.4);
+.m3-badge-primary {
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
 }
 
-.gq-badge-blue {
-    background: rgba(77, 166, 255, 0.2);
-    color: var(--gq-accent-blue);
-    border: 1px solid rgba(77, 166, 255, 0.4);
+.m3-badge-error {
+    background: var(--md-sys-color-error-container);
+    color: var(--md-sys-color-on-error-container);
 }
 
-.gq-badge-green {
-    background: rgba(0, 255, 136, 0.2);
-    color: var(--gq-accent-green);
-    border: 1px solid rgba(0, 255, 136, 0.4);
+.m3-badge-success {
+    background: var(--md-sys-color-success-container);
+    color: var(--md-sys-color-on-success-container);
 }
 
-.gq-badge-red {
-    background: rgba(255, 71, 87, 0.2);
-    color: var(--gq-accent-red);
-    border: 1px solid rgba(255, 71, 87, 0.4);
+.m3-badge-warning {
+    background: var(--md-sys-color-warning-container);
+    color: var(--md-sys-color-on-warning-container);
 }
 
-/* アニメーション */
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
+/* ============================================================
+   M3E Input
+   ============================================================ */
 
+.m3-input {
+    width: 100%;
+    padding: 12px 16px;
+    background: var(--md-sys-color-surface-container-lowest);
+    border: 1px solid var(--md-sys-color-outline);
+    border-radius: var(--md-sys-shape-corner-small);
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-body-large);
+    transition: border-color var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+}
+
+.m3-input:focus {
+    border-color: var(--md-sys-color-primary);
+    border-width: 2px;
+    padding: 11px 15px;
+}
+
+.m3-input::placeholder {
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+/* ============================================================
+   M3E Modal
+   ============================================================ */
+
+.m3-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--md-sys-color-scrim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 24px;
+}
+
+.m3-modal {
+    background: var(--md-sys-color-surface-container-lowest);
+    border-radius: var(--md-sys-shape-corner-extra-large);
+    padding: 24px;
+    max-width: 560px;
+    width: 100%;
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: var(--md-sys-elevation-level4);
+}
+
+/* ============================================================
+   M3E Loading
+   ============================================================ */
+
+.m3-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 48px;
+}
+
+.m3-loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--md-sys-color-surface-container-high);
+    border-top-color: var(--md-sys-color-primary);
+    border-radius: 50%;
+    animation: m3-spin 0.8s linear infinite;
+}
+
+@keyframes m3-spin {
     to {
-        opacity: 1;
-        transform: translateY(0);
+        transform: rotate(360deg);
     }
 }
 
-@keyframes glow {
-
-    0%,
-    100% {
-        box-shadow: 0 0 5px rgba(77, 166, 255, 0.5);
-    }
-
-    50% {
-        box-shadow: 0 0 20px rgba(77, 166, 255, 0.8);
-    }
+.m3-loading-text {
+    font: var(--md-sys-typescale-title-small);
+    color: var(--md-sys-color-on-surface-variant);
 }
 
-.gq-animate-in {
-    animation: fadeIn 0.3s ease forwards;
-}
+/* ============================================================
+   Layout
+   ============================================================ */
 
-/* レイアウト */
-.gq-container {
+.m3-container {
     max-width: 1200px;
     margin: 0 auto;
-    padding: var(--gq-space-md);
+    padding: var(--md-sys-spacing-md);
 }
 
-.gq-grid {
-    display: grid;
-    gap: var(--gq-space-md);
+/* ============================================================
+   Scrollbar
+   ============================================================ */
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
 }
 
-.gq-grid-2 {
-    grid-template-columns: repeat(2, 1fr);
+::-webkit-scrollbar-track {
+    background: transparent;
 }
 
-.gq-grid-3 {
-    grid-template-columns: repeat(3, 1fr);
+::-webkit-scrollbar-thumb {
+    background: var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-full);
 }
 
-@media (max-width: 768px) {
-
-    .gq-grid-2,
-    .gq-grid-3 {
-        grid-template-columns: 1fr;
-    }
+::-webkit-scrollbar-thumb:hover {
+    background: var(--md-sys-color-outline);
 }
 
-/* ヘッダー */
-.gq-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--gq-space-md);
-    background: var(--gq-bg-glass);
-    backdrop-filter: blur(12px);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    position: sticky;
-    top: 0;
-    z-index: 100;
-}
+/* ============================================================
+   Selection
+   ============================================================ */
 
-.gq-logo {
-    font-family: var(--gq-font-display);
-    font-size: 24px;
-    font-weight: 700;
-    background: var(--gq-gradient-gold);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+::selection {
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
 }

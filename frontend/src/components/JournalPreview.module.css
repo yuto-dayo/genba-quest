@@ -1,0 +1,139 @@
+/* ============================================================
+   JournalPreview Component — Material 3 Expressive
+   ============================================================ */
+
+.journalPreview {
+    margin-top: 12px;
+    padding: 12px;
+    background: var(--md-sys-color-surface-container-low);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-small);
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.title {
+    font: var(--md-sys-typescale-label-medium);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.status {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font: var(--md-sys-typescale-label-small);
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: var(--md-sys-shape-corner-extra-small);
+}
+
+.status.balanced {
+    background: var(--md-sys-color-success-container);
+    color: var(--md-sys-color-on-success-container);
+}
+
+.status.unbalanced {
+    background: var(--md-sys-color-error-container);
+    color: var(--md-sys-color-on-error-container);
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    font: var(--md-sys-typescale-body-small);
+}
+
+.table th {
+    text-align: left;
+    padding: 6px 8px;
+    font: var(--md-sys-typescale-label-small);
+    color: var(--md-sys-color-on-surface-variant);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.accountCol {
+    width: 50%;
+}
+
+.amountCol {
+    width: 25%;
+    text-align: right !important;
+}
+
+.row {
+    transition: background var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+}
+
+.row:hover {
+    background: var(--md-sys-color-surface-container);
+}
+
+.accountCell {
+    display: flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-sm);
+    padding: 8px;
+}
+
+.accountCode {
+    font-family: 'SF Mono', 'Consolas', monospace;
+    font-size: 12px;
+    color: var(--md-sys-color-on-surface-variant);
+    padding: 2px 6px;
+    background: var(--md-sys-color-surface-container);
+    border-radius: var(--md-sys-shape-corner-extra-small);
+}
+
+.accountName {
+    color: var(--md-sys-color-on-surface);
+}
+
+.taxBadge {
+    font: var(--md-sys-typescale-label-small);
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: var(--md-sys-shape-corner-extra-small);
+    background: var(--md-sys-color-tertiary-container);
+    color: var(--md-sys-color-on-tertiary-container);
+    font-weight: 500;
+}
+
+.amountCell {
+    padding: 8px;
+    text-align: right;
+    color: var(--md-sys-color-on-surface-variant);
+    font-variant-numeric: tabular-nums;
+}
+
+.amountCell.hasAmount {
+    color: var(--md-sys-color-on-surface);
+    font-weight: 500;
+}
+
+.totalRow {
+    border-top: 1px solid var(--md-sys-color-outline);
+}
+
+.totalRow td {
+    padding: 10px 8px;
+    font-weight: 600;
+}
+
+.totalLabel {
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.totalAmount {
+    text-align: right;
+    color: var(--md-sys-color-primary);
+    font-variant-numeric: tabular-nums;
+}

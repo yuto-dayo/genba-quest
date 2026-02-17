@@ -1,0 +1,188 @@
+/* Calendar Components Styles */
+
+/* MonthCalendar */
+.monthGrid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px;
+    background: var(--md-sys-color-outline-variant);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-medium);
+    overflow: hidden;
+}
+
+.dayCell {
+    background: var(--md-sys-color-surface-container-lowest);
+    padding: 8px 4px;
+    min-height: 80px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    transition: background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+    position: relative;
+}
+
+.dayCell:hover {
+    background: var(--md-sys-color-surface-container-high);
+}
+
+.dayCell.selected {
+    background: var(--md-sys-color-secondary-container);
+    color: var(--md-sys-color-on-secondary-container);
+}
+
+.dayCell.today {
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
+}
+
+.dayCell.otherMonth {
+    background: var(--md-sys-color-surface-container-low);
+    color: var(--md-sys-color-on-surface-variant);
+    opacity: 0.6;
+}
+
+.dayNumber {
+    font: var(--md-sys-typescale-body-small);
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.indicators {
+    display: flex;
+    gap: 2px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+}
+
+.dot.assignment {
+    background: var(--md-sys-color-primary);
+}
+
+.dot.shift {
+    background: var(--md-sys-color-tertiary);
+}
+
+.dot.holiday {
+    background: var(--md-sys-color-error);
+}
+
+/* WeekCalendar */
+.weekGrid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    margin-bottom: 20px;
+}
+
+.weekDay {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 4px;
+    border-radius: var(--md-sys-shape-corner-medium);
+    background: var(--md-sys-color-surface-container);
+    cursor: pointer;
+    transition: all var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.weekDay:hover {
+    background: var(--md-sys-color-surface-container-high);
+}
+
+.weekDay.selected {
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+}
+
+.weekDayLabel {
+    font: var(--md-sys-typescale-label-small);
+    opacity: 0.8;
+}
+
+.weekDayNumber {
+    font: var(--md-sys-typescale-title-medium);
+    font-weight: 700;
+}
+
+/* DayDetail */
+.detailContainer {
+    background: var(--md-sys-color-surface-container-low);
+    border-radius: var(--md-sys-shape-corner-medium);
+    padding: 16px;
+    margin-top: 20px;
+}
+
+.detailHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.detailDate {
+    font: var(--md-sys-typescale-title-medium);
+    color: var(--md-sys-color-on-surface);
+}
+
+.assignmentList {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.assignmentCard {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: var(--md-sys-color-surface-container-lowest);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-small);
+}
+
+.timeSlot {
+    font: var(--md-sys-typescale-label-medium);
+    color: var(--md-sys-color-primary);
+    min-width: 48px;
+}
+
+.siteInfo {
+    flex: 1;
+}
+
+.siteName {
+    font: var(--md-sys-typescale-body-medium);
+    font-weight: 600;
+    color: var(--md-sys-color-on-surface);
+}
+
+.statusBadge {
+    font: var(--md-sys-typescale-label-small);
+    padding: 2px 8px;
+    border-radius: var(--md-sys-shape-corner-full);
+}
+
+.statusBadge.pending {
+    background: var(--md-sys-color-warning-container);
+    color: var(--md-sys-color-on-warning-container);
+}
+
+.statusBadge.scheduled {
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
+}
+
+.statusBadge.completed {
+    background: var(--md-sys-color-surface-variant);
+    color: var(--md-sys-color-on-surface-variant);
+}

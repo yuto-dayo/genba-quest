@@ -1,0 +1,427 @@
+/* ============================================================
+   ExpenseModal Component — Material 3 Expressive
+   ============================================================ */
+
+.overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--md-sys-color-scrim);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 24px;
+}
+
+.modal {
+    width: 100%;
+    max-width: 900px;
+    max-height: 90vh;
+    background: var(--md-sys-color-surface-container-lowest);
+    border-radius: var(--md-sys-shape-corner-extra-large);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--md-sys-elevation-level4);
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.title {
+    font: var(--md-sys-typescale-title-large);
+    color: var(--md-sys-color-on-surface);
+}
+
+.closeButton {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 50%;
+    background: var(--md-sys-color-surface-container);
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: pointer;
+    transition: all var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+}
+
+.closeButton:hover {
+    background: var(--md-sys-color-surface-container-high);
+    color: var(--md-sys-color-on-surface);
+}
+
+.error {
+    display: flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-sm);
+    margin: 12px 24px 0;
+    padding: 12px;
+    background: var(--md-sys-color-error-container);
+    border: 1px solid var(--md-sys-color-error);
+    border-radius: var(--md-sys-shape-corner-small);
+    color: var(--md-sys-color-on-error-container);
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    padding: 24px;
+    overflow-y: auto;
+}
+
+@media (max-width: 768px) {
+    .content {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* 画像セクション */
+.imageSection {
+    display: flex;
+    flex-direction: column;
+    min-height: 300px;
+}
+
+.dropzone {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    border: 2px dashed var(--md-sys-color-primary);
+    border-radius: var(--md-sys-shape-corner-medium);
+    background: var(--md-sys-color-primary-container);
+    cursor: pointer;
+    transition: all var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+}
+
+.dropzone:hover {
+    border-color: var(--md-sys-color-primary);
+    background: var(--md-sys-color-primary-container);
+    filter: brightness(0.97);
+}
+
+.fileInput {
+    display: none;
+}
+
+.dropzoneIcon {
+    color: var(--md-sys-color-on-primary-container);
+    margin-bottom: var(--md-sys-spacing-md);
+}
+
+.dropzoneText {
+    text-align: center;
+    color: var(--md-sys-color-on-primary-container);
+    font: var(--md-sys-typescale-body-medium);
+    margin-bottom: var(--md-sys-spacing-md);
+    line-height: 1.6;
+}
+
+.dropzoneHint {
+    display: flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-sm);
+    font: var(--md-sys-typescale-label-small);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.ocrLoading {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--md-sys-spacing-md);
+    color: var(--md-sys-color-primary);
+}
+
+.noImage {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px dashed var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-medium);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+/* フォーム */
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--md-sys-spacing-md);
+}
+
+.formRow {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.formGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.label {
+    display: flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-sm);
+    font: var(--md-sys-typescale-label-medium);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.ocrBadge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 6px;
+    border-radius: var(--md-sys-shape-corner-extra-small);
+    background: var(--md-sys-color-success-container);
+    color: var(--md-sys-color-on-success-container);
+    font: var(--md-sys-typescale-label-small);
+    font-size: 10px;
+    font-weight: 600;
+}
+
+.input,
+.select,
+.textarea {
+    padding: 12px 16px;
+    border: 1px solid var(--md-sys-color-outline);
+    border-radius: var(--md-sys-shape-corner-small);
+    background: var(--md-sys-color-surface-container-lowest);
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-body-large);
+    transition: border-color var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+}
+
+.input:focus,
+.select:focus,
+.textarea:focus {
+    outline: none;
+    border-color: var(--md-sys-color-primary);
+    border-width: 2px;
+    padding: 11px 15px;
+}
+
+.input:hover,
+.select:hover {
+    border-color: var(--md-sys-color-on-surface);
+}
+
+.totalInput {
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.select {
+    cursor: pointer;
+}
+
+.textarea {
+    resize: vertical;
+    min-height: 60px;
+}
+
+.radioGroup {
+    display: flex;
+    gap: var(--md-sys-spacing-md);
+}
+
+.radio {
+    display: flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-sm);
+    font: var(--md-sys-typescale-body-medium);
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: pointer;
+}
+
+.radio input {
+    accent-color: var(--md-sys-color-primary);
+}
+
+/* アクション */
+.formActions {
+    display: flex;
+    gap: 12px;
+    margin-top: var(--md-sys-spacing-sm);
+}
+
+.cancelButton,
+.submitButton {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--md-sys-spacing-sm);
+    height: 40px;
+    padding: 10px;
+    border: none;
+    border-radius: var(--md-sys-shape-corner-full);
+    font: var(--md-sys-typescale-label-large);
+    cursor: pointer;
+    transition: all var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+}
+
+.cancelButton {
+    background: var(--md-sys-color-surface-container);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.cancelButton:hover {
+    background: var(--md-sys-color-surface-container-high);
+    color: var(--md-sys-color-on-surface);
+}
+
+.submitButton {
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+}
+
+.submitButton:hover:not(:disabled) {
+    box-shadow: var(--md-sys-elevation-level2);
+}
+
+.submitButton:disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+}
+
+.spinner {
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* 商品明細 */
+.lineItems {
+    margin-top: var(--md-sys-spacing-xs);
+    padding: 12px;
+    background: var(--md-sys-color-surface-container-low);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-small);
+}
+
+.lineItemsHeader {
+    display: flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-sm);
+    margin-bottom: 10px;
+    font: var(--md-sys-typescale-label-small);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.lineItemsList {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.lineItem {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 10px;
+    background: var(--md-sys-color-surface-container-lowest);
+    border-radius: var(--md-sys-shape-corner-small);
+    font: var(--md-sys-typescale-body-small);
+}
+
+.lineItemName {
+    color: var(--md-sys-color-on-surface);
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.lineItemAmount {
+    color: var(--md-sys-color-primary);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    margin-left: 12px;
+}
+
+/* バリデーション警告 */
+.validationWarning {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--md-sys-spacing-sm);
+    padding: 10px 12px;
+    background: var(--md-sys-color-warning-container);
+    border: 1px solid var(--md-sys-color-warning);
+    border-radius: var(--md-sys-shape-corner-small);
+    color: var(--md-sys-color-on-warning-container);
+    font: var(--md-sys-typescale-label-small);
+    line-height: 1.4;
+}
+
+.validationWarning svg {
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+/* 重複警告 */
+.duplicateWarning {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--md-sys-spacing-sm);
+    padding: 10px 12px;
+    background: var(--md-sys-color-warning-container);
+    border: 1px solid var(--md-sys-color-warning);
+    border-radius: var(--md-sys-shape-corner-small);
+    color: var(--md-sys-color-on-warning-container);
+    font: var(--md-sys-typescale-label-small);
+    line-height: 1.4;
+}
+
+.duplicateWarning svg {
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+/* 税率バッジ */
+.taxRateBadge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 6px;
+    border-radius: var(--md-sys-shape-corner-extra-small);
+    font: var(--md-sys-typescale-label-small);
+    font-size: 10px;
+    font-weight: 600;
+    margin-left: 4px;
+}
+
+.taxRateBadge.standard {
+    background: var(--md-sys-color-tertiary-container);
+    color: var(--md-sys-color-on-tertiary-container);
+}
+
+.taxRateBadge.reduced {
+    background: var(--md-sys-color-success-container);
+    color: var(--md-sys-color-on-success-container);
+}
+
+.taxRateBadge.unknown {
+    background: var(--md-sys-color-warning-container);
+    color: var(--md-sys-color-on-warning-container);
+}

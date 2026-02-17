@@ -12,8 +12,8 @@ router.get("/status", async (_req: AuthenticatedRequest, res: Response) => {
             .from("profiles")
             .select(`
         id,
-        name,
-        email,
+        full_name,
+        username,
         stamina,
         holiday_days,
         holiday_target,
@@ -56,7 +56,7 @@ router.get("/status", async (_req: AuthenticatedRequest, res: Response) => {
 
                 return {
                     id: member.id,
-                    name: member.name,
+                    name: member.full_name || member.username || "名無し",
                     stamina: member.stamina,
                     staminaStatus: member.stamina > 60 ? "good" : member.stamina > 30 ? "warning" : "critical",
                     currentSite,

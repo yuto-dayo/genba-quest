@@ -1,0 +1,74 @@
+---
+description: コード品質監査（ln-624）。複雑度、ネスト、長さ、O(n²)、N+1、Constants Management、DRY/KISS/YAGNI違反を検出。リファクタリング時に使用
+---
+
+# Code Quality Auditor (ln-624)
+
+## 監査対象（8カテゴリ）
+
+### 複雑度指標
+
+| メトリクス | 警告 | エラー |
+|-----------|------|--------|
+| 関数行数 | >50 | >100 |
+| ネスト深度 | >3 | >5 |
+| パラメータ数 | >4 | >6 |
+| 循環的複雑度 | >10 | >20 |
+
+### DRY違反検出
+
+```typescript
+// ❌ DRY違反
+const tax1 = price1 * 0.1;
+const tax2 = price2 * 0.1;
+
+// ✅ 修正
+const TAX_RATE = 0.1;
+const calculateTax = (price: number) => price * TAX_RATE;
+```
+
+### Constants Management
+
+| 問題 | パターン | 重大度 |
+|------|---------|--------|
+| Magic numbers | `if (status === 2)` | HIGH |
+| Magic strings | `if (role === 'admin')` | MEDIUM |
+| 分散定数 | `MAX_SIZE = 100` が5ファイル | MEDIUM |
+| 重複定数 | `STATUS_ACTIVE = 1` が3箇所 | MEDIUM |
+
+**推奨:** `constants.ts` を作成、全定数を集約
+
+### O(n²) / N+1 検出
+
+- 入れ子ループでのDB/APIアクセス
+- ORM遅延読み込みによるN+1問題
+
+### KISS/YAGNI違反
+
+- 過度な抽象化、不必要な複雑性
+- 未使用コード、過度な将来対応
+
+## スコア計算
+
+```
+penalty = (critical × 2) + (high × 1) + (medium × 0.5) + (low × 0.2)
+score = max(0, 10 - penalty)
+```
+
+## 出力形式
+
+```json
+{
+  "category": "Code Quality",
+  "score": 8,
+  "findings": [
+    {
+      "severity": "MEDIUM",
+      "location": "src/routes/accounting.ts:150",
+      "issue": "DRY violation: duplicated validation logic",
+      "recommendation": "Extract to shared validation utility",
+      "effort": "M"
+    }
+  ]
+}
+```

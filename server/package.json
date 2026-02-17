@@ -6,21 +6,30 @@
     "scripts": {
         "dev": "nodemon --watch src --ext ts --exec \"ts-node src/index.ts\"",
         "build": "tsc",
-        "start": "node dist/index.js"
+        "start": "node dist/index.js",
+        "test": "jest",
+        "test:watch": "jest --watch",
+        "test:integration": "RUN_DB_INTEGRATION_TESTS=1 jest --runInBand --testPathPatterns=src/__tests__/integration/"
     },
     "type": "commonjs",
     "dependencies": {
         "@anthropic-ai/sdk": "^0.71.2",
+        "@google/generative-ai": "^0.24.1",
         "@supabase/supabase-js": "^2.89.0",
         "cors": "^2.8.5",
         "dotenv": "^17.2.3",
-        "express": "^5.1.0"
+        "express": "^5.1.0",
+        "googleapis": "^144.0.0",
+        "openai": "^6.17.0"
     },
     "devDependencies": {
         "@types/cors": "^2.8.19",
         "@types/express": "^5.0.5",
+        "@types/jest": "^30.0.0",
         "@types/node": "^24.10.0",
+        "jest": "^30.2.0",
         "nodemon": "^3.1.10",
+        "ts-jest": "^29.4.6",
         "ts-node": "^10.9.2",
         "typescript": "^5.9.3"
     }

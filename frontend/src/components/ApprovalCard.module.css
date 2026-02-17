@@ -1,0 +1,249 @@
+/* ============================================================
+   ApprovalCard Component — Material 3 Expressive
+   ============================================================ */
+
+.card {
+    padding: 20px;
+    background: var(--md-sys-color-surface-container-lowest);
+    border: 1px solid var(--md-sys-color-warning);
+    border-radius: var(--md-sys-shape-corner-medium);
+    box-shadow: var(--md-sys-elevation-level1);
+    transition: box-shadow var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+}
+
+.card:hover {
+    box-shadow: var(--md-sys-elevation-level2);
+}
+
+/* ヘッダー */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.riskBadge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: var(--md-sys-shape-corner-full);
+    background: var(--md-sys-color-warning-container);
+    color: var(--md-sys-color-on-warning-container);
+    font: var(--md-sys-typescale-label-small);
+    font-weight: 600;
+}
+
+.date {
+    font: var(--md-sys-typescale-label-small);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+/* メイン情報 */
+.main {
+    margin-bottom: 12px;
+}
+
+.vendor {
+    font: var(--md-sys-typescale-title-medium);
+    color: var(--md-sys-color-on-surface);
+    margin-bottom: var(--md-sys-spacing-xs);
+}
+
+.category {
+    font: var(--md-sys-typescale-body-small);
+    color: var(--md-sys-color-on-surface-variant);
+    margin-bottom: var(--md-sys-spacing-sm);
+}
+
+.amount {
+    font: var(--md-sys-typescale-headline-small);
+    color: var(--md-sys-color-error);
+}
+
+/* 説明 */
+.description {
+    padding: 12px;
+    margin-bottom: 12px;
+    background: var(--md-sys-color-surface-container-low);
+    border-radius: var(--md-sys-shape-corner-small);
+    font: var(--md-sys-typescale-body-medium);
+    color: var(--md-sys-color-on-surface-variant);
+    line-height: 1.5;
+}
+
+/* 展開ボタン */
+.expandButton {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 12px;
+    border: none;
+    border-radius: var(--md-sys-shape-corner-small);
+    background: var(--md-sys-color-surface-container);
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+    cursor: pointer;
+    transition: all var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+}
+
+.expandButton:hover {
+    background: var(--md-sys-color-surface-container-high);
+    color: var(--md-sys-color-on-surface);
+}
+
+/* 詳細セクション */
+.details {
+    padding: var(--md-sys-spacing-md);
+    margin-bottom: var(--md-sys-spacing-md);
+    background: var(--md-sys-color-surface-container-low);
+    border-radius: var(--md-sys-shape-corner-small);
+    overflow: hidden;
+}
+
+.documentPreview {
+    display: flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-sm);
+    padding: 12px;
+    margin-bottom: 12px;
+    background: var(--md-sys-color-tertiary-container);
+    border: 1px solid var(--md-sys-color-tertiary);
+    border-radius: var(--md-sys-shape-corner-small);
+    color: var(--md-sys-color-on-tertiary-container);
+    font: var(--md-sys-typescale-body-small);
+}
+
+.noDocument {
+    display: flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-sm);
+    padding: 12px;
+    margin-bottom: 12px;
+    background: var(--md-sys-color-surface-container);
+    border-radius: var(--md-sys-shape-corner-small);
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+}
+
+/* 金額内訳 */
+.breakdown {
+    margin-bottom: var(--md-sys-spacing-md);
+}
+
+.breakdownRow {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    font: var(--md-sys-typescale-body-medium);
+    color: var(--md-sys-color-on-surface-variant);
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.breakdownRow.total {
+    font-weight: 600;
+    color: var(--md-sys-color-on-surface);
+    border-bottom: none;
+}
+
+/* コメント */
+.commentSection {
+    margin-bottom: 12px;
+}
+
+.commentLabel {
+    display: block;
+    margin-bottom: 6px;
+    font: var(--md-sys-typescale-label-small);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.commentInput {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--md-sys-color-outline);
+    border-radius: var(--md-sys-shape-corner-small);
+    background: var(--md-sys-color-surface-container-lowest);
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-body-medium);
+    resize: vertical;
+    min-height: 60px;
+    transition: all var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+}
+
+.commentInput:focus {
+    outline: none;
+    border-color: var(--md-sys-color-primary);
+    border-width: 2px;
+    padding: 9px 11px;
+}
+
+.error {
+    display: flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-sm);
+    padding: 10px 12px;
+    background: var(--md-sys-color-error-container);
+    border: 1px solid var(--md-sys-color-error);
+    border-radius: var(--md-sys-shape-corner-small);
+    color: var(--md-sys-color-on-error-container);
+    font: var(--md-sys-typescale-body-small);
+}
+
+/* アクションボタン */
+.actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.actionButton {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--md-sys-spacing-sm);
+    padding: 10px;
+    height: 40px;
+    border: none;
+    border-radius: var(--md-sys-shape-corner-full);
+    font: var(--md-sys-typescale-label-large);
+    cursor: pointer;
+    transition: all var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+}
+
+.actionButton:disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+}
+
+.rejectButton {
+    background: var(--md-sys-color-error-container);
+    color: var(--md-sys-color-on-error-container);
+}
+
+.rejectButton:hover:not(:disabled) {
+    box-shadow: var(--md-sys-elevation-level1);
+}
+
+.approveButton {
+    background: var(--md-sys-color-success-container);
+    color: var(--md-sys-color-on-success-container);
+}
+
+.approveButton:hover:not(:disabled) {
+    box-shadow: var(--md-sys-elevation-level1);
+}
+
+.spinner {
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}

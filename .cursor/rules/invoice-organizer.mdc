@@ -1,0 +1,72 @@
+---
+description: 請求書の整理・管理ガイド。OCR処理、データ抽出、カテゴリ分類、リスク判定。請求書機能実装時に参照
+globs:
+  - "**/invoice*.ts"
+  - "**/invoice*.tsx"
+  - "**/ocr*.ts"
+  - "**/Invoice*.tsx"
+---
+
+# Invoice Organizer
+
+## OCR処理フロー
+
+```
+画像アップロード → Gemini OCR解析 → データ抽出 → リスク判定 → 検証 → 登録
+```
+
+## 抽出データ
+
+```typescript
+interface InvoiceData {
+  vendor_name: string;
+  invoice_number?: string;
+  invoice_date: string;
+  due_date?: string;
+  amount_subtotal: number;
+  amount_tax: number;
+  amount_total: number;
+  line_items: LineItem[];
+}
+
+interface LineItem {
+  description: string;
+  quantity: number;
+  unit_price: number;
+  amount: number;
+}
+```
+
+## カテゴリ分類（建設業特化）
+
+| パターン | category | リスク |
+|----------|----------|--------|
+| 材料、資材、木材 | material | medium |
+| ガソリン、燃料 | travel | low |
+| 工具、道具 | tool | low |
+| 外注、下請け | subcontract | high |
+| リース、レンタル | rental | medium |
+
+## リスク判定
+
+- HIGH: 10万円以上、外注費
+- MEDIUM: 5-10万円、材料費
+- LOW: 5万円未満、消耗品
+
+## OCRサービス連携
+
+```typescript
+// Gemini 2.0 Flash
+const result = await genAI.getGenerativeModel({
+  model: "gemini-2.0-flash-thinking-exp-1219"
+}).generateContent([
+  "Extract invoice data as JSON",
+  { inlineData: { mimeType: "image/jpeg", data: base64Image } }
+]);
+```
+
+## バリデーション
+
+- 金額の整合性チェック (小計 + 税 = 合計)
+- 日付フォーマット正規化
+- 重複請求書検出

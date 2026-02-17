@@ -1,34 +1,51 @@
+/* ============================================================
+   GENBA QUEST App — Material 3 Expressive
+   ============================================================ */
+
 .app {
     min-height: 100vh;
-    background: #0f0f1a;
+    background: var(--md-sys-color-surface);
 }
 
-/* ヘッダー */
+/* ============================================================
+   Header
+   ============================================================ */
+
 .header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 16px 24px;
-    background: rgba(22, 33, 62, 0.9);
-    backdrop-filter: blur(12px);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 8px 16px;
+    background: var(--md-sys-color-surface-container-lowest);
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
     position: sticky;
     top: 0;
     z-index: 100;
+    box-shadow: var(--md-sys-elevation-level1);
+    height: 64px;
 }
 
 .logo {
-    font-family: 'Outfit', sans-serif;
-    font-size: 20px;
-    font-weight: 700;
-    color: #ffd700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font: var(--md-sys-typescale-title-large);
+    color: var(--md-sys-color-primary);
     text-decoration: none;
+    letter-spacing: -0.5px;
 }
 
-/* デスクトップナビ */
+.logoIcon {
+    color: var(--md-sys-color-primary);
+}
+
+/* ============================================================
+   Desktop Nav
+   ============================================================ */
+
 .desktopNav {
     display: flex;
-    gap: 8px;
+    gap: 4px;
 }
 
 @media (max-width: 768px) {
@@ -42,81 +59,157 @@
     align-items: center;
     gap: 8px;
     padding: 10px 16px;
-    border-radius: 8px;
-    color: #a0a0b0;
+    min-height: 44px;
+    background: transparent;
+    border: none;
+    border-radius: var(--md-sys-shape-corner-full);
+    color: var(--md-sys-color-on-surface-variant);
     text-decoration: none;
-    font-size: 14px;
-    font-weight: 500;
-    transition: all 0.2s ease;
+    font: var(--md-sys-typescale-label-large);
+    transition: all var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+    cursor: pointer;
+    position: relative;
 }
 
 .navLink:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: #ffffff;
+    background: rgba(79, 70, 229, 0.08);
+    color: var(--md-sys-color-on-surface);
 }
 
 .navLink.active {
-    background: rgba(77, 166, 255, 0.2);
-    color: #4da6ff;
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
+    font-weight: 700;
 }
 
-/* モバイルメニュー */
+/* ============================================================
+   Header Right Controls
+   ============================================================ */
+
+.headerRight {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.bellButton {
+    position: relative;
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.bellButton:hover {
+    background: rgba(79, 70, 229, 0.08);
+    color: var(--md-sys-color-on-surface);
+}
+
+.bellBadge {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    background: var(--md-sys-color-error);
+    border-radius: var(--md-sys-shape-corner-full);
+    color: var(--md-sys-color-on-error);
+    font: var(--md-sys-typescale-label-small);
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+/* ============================================================
+   Mobile Menu
+   ============================================================ */
+
 .menuButton {
     display: none;
-    background: none;
-    border: none;
-    color: #ffffff;
+    background: transparent;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-medium);
+    color: var(--md-sys-color-on-surface);
     cursor: pointer;
     padding: 8px;
+    min-width: 44px;
+    min-height: 44px;
+    transition: background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.menuButton:hover {
+    background: rgba(79, 70, 229, 0.08);
 }
 
 @media (max-width: 768px) {
     .menuButton {
-        display: block;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 }
 
 .mobileNav {
     position: fixed;
-    top: 65px;
+    top: 64px;
     left: 0;
     right: 0;
-    background: rgba(22, 33, 62, 0.98);
-    backdrop-filter: blur(12px);
-    padding: 16px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--md-sys-color-surface-container-lowest);
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
+    padding: 8px;
     z-index: 99;
+    box-shadow: var(--md-sys-elevation-level2);
 }
 
 .mobileNavLink {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 16px;
-    border-radius: 8px;
-    color: #a0a0b0;
+    padding: 14px 16px;
+    min-height: 48px;
+    background: transparent;
+    border: none;
+    border-radius: var(--md-sys-shape-corner-medium);
+    color: var(--md-sys-color-on-surface);
     text-decoration: none;
-    font-size: 16px;
-    font-weight: 500;
-    transition: all 0.2s ease;
+    font: var(--md-sys-typescale-label-large);
+    margin-bottom: 2px;
+    cursor: pointer;
+    transition: all var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
 }
 
 .mobileNavLink:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: #ffffff;
+    background: rgba(79, 70, 229, 0.08);
 }
 
 .mobileNavLink.active {
-    background: rgba(77, 166, 255, 0.2);
-    color: #4da6ff;
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
+    font-weight: 700;
 }
 
-/* メインコンテンツ */
+/* ============================================================
+   Main Content
+   ============================================================ */
+
 .main {
-    min-height: calc(100vh - 65px);
+    min-height: calc(100vh - 64px);
 }
 
-/* プレースホルダー */
+/* ============================================================
+   Placeholder
+   ============================================================ */
+
 .placeholder {
     display: flex;
     flex-direction: column;
@@ -124,11 +217,16 @@
     justify-content: center;
     min-height: 60vh;
     text-align: center;
-    color: #a0a0b0;
+    color: var(--md-sys-color-on-surface-variant);
 }
 
 .placeholder h1 {
-    font-size: 24px;
-    margin-bottom: 8px;
-    color: #ffffff;
+    font: var(--md-sys-typescale-headline-medium);
+    margin-bottom: 16px;
+    color: var(--md-sys-color-primary);
+}
+
+.placeholder p {
+    font: var(--md-sys-typescale-body-large);
+    color: var(--md-sys-color-on-surface-variant);
 }

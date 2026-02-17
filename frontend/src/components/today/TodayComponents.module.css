@@ -1,0 +1,104 @@
+/* Today Components Styles */
+
+/* TodayAssignments */
+.assignmentsContainer {
+    background: var(--md-sys-color-surface-container-low);
+    border-radius: var(--md-sys-shape-corner-medium);
+    padding: 16px;
+    margin-bottom: 20px;
+}
+
+.assignmentsHeader {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    font: var(--md-sys-typescale-title-medium);
+    color: var(--md-sys-color-on-surface);
+}
+
+.emptyAssignments {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    color: var(--md-sys-color-on-surface-variant);
+    gap: 8px;
+}
+
+.assignmentCard {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: var(--md-sys-color-surface-container-lowest);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-small);
+    margin-bottom: 8px;
+    transition: all var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.assignmentCard:hover {
+    box-shadow: var(--md-sys-elevation-level1);
+    transform: translateY(-1px);
+}
+
+.timeSlot {
+    font: var(--md-sys-typescale-label-large);
+    color: var(--md-sys-color-primary);
+    min-width: 50px;
+}
+
+.siteName {
+    flex: 1;
+    font: var(--md-sys-typescale-body-large);
+    font-weight: 500;
+}
+
+/* MonthlySummary */
+.summaryContainer {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.summaryCard {
+    background: var(--md-sys-color-surface-container);
+    border-radius: var(--md-sys-shape-corner-medium);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.summaryLabel {
+    font: var(--md-sys-typescale-label-medium);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.summaryValue {
+    font: var(--md-sys-typescale-headline-small);
+    font-weight: 700;
+}
+
+.income {
+    color: var(--md-sys-color-success);
+}
+
+.expense {
+    color: var(--md-sys-color-error);
+}
+
+/* PendingBadge */
+.badgeContainer {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: var(--md-sys-shape-corner-full);
+    background: var(--md-sys-color-error-container);
+    color: var(--md-sys-color-on-error-container);
+    font: var(--md-sys-typescale-label-medium);
+    font-weight: 500;
+}
