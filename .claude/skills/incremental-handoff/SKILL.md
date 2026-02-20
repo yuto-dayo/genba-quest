@@ -16,6 +16,7 @@ description: 作業完了ごとにHANDOFF.mdを小刻みに更新し、Claude Co
 ## 目的
 
 `HANDOFF.md` を「最終まとめ」ではなく「常時最新の運用ログ」にする。
+加えて、L0/L1/L2/L3 のメモリ階層を自動同期する。
 
 ## 手順
 
@@ -53,6 +54,24 @@ description: 作業完了ごとにHANDOFF.mdを小刻みに更新し、Claude Co
 | `--landmine` | No | Landmines / Gotchas |
 | `--note` | No | その他メモ |
 
+補足:
+- `--context` 未指定時は `--done` から `Auto-captured decision` を自動生成
+- `--landmine` 未指定時は `validation` を見て自動補完（FAILがあれば追跡用Landmine、なければ `No new landmines...`）
+
+#### Layered Memory 挙動（自動）
+
+- 各追記エントリに `Entry-ID`（例: `H0007`）を付与
+- L1 (`Session Summary`) を最新履歴から3-7行で再生成
+- L2 (`Project Continuity`) を `Decisions/Landmines/Open Threads` で再生成
+- L3 (`Incremental Updates`) が閾値超過で自動コンパクション
+
+#### Compaction 設定（環境変数）
+
+| Env | 既定値 | 説明 |
+| --- | --- | --- |
+| `HANDOFF_COMPACTION_THRESHOLD` | `20` | L3圧縮を開始するエントリ件数 |
+| `HANDOFF_COMPACTION_KEEP_RECENT` | `12` | HANDOFFに残す最新エントリ件数（古い分はarchive退避） |
+
 ### 3) HANDOFF.md を最小更新
 
 毎回、最低でも次を更新:
@@ -81,7 +100,7 @@ Changed Files には以下のルールを適用する：
 ### 6) 破壊的変更を避ける
 
 - 他人が書いた履歴を消さない
-- 既存セクション構造（0-13）は維持する
+- 既存番号付きセクション（0-12）と L1/L2 の自動ブロックは維持する
 - 不明な点は `Risks / Blockers` に明記する
 
 ## ルール
@@ -91,6 +110,38 @@ Changed Files には以下のルールを適用する：
 - 引き継ぎ相手がすぐ動ける具体度（ファイル名、テスト件数、エラー件数）で書く
 - Working Context を書く（なぜそのパターンを選んだか、前提は何か）
 - Landmines があれば必ず書く（意図的な異常状態、触ると壊れるもの）
+
+## ドメイン別運用
+
+`--domain` でセッション開始した場合、`--handoff` で対象ドメインファイルを指定する：
+
+```bash
+# サーバー作業のインクリメンタル更新
+.claude/skills/incremental-handoff/scripts/append-handoff-update.sh \
+  --handoff handoff/server.md \
+  --done "approve()にatomic RPC優先パスを追加" \
+  --next "P0: SQL関数をSupabaseにデプロイ"
+
+# フロントページ単位（例: frontend/today）
+.claude/skills/incremental-handoff/scripts/append-handoff-update.sh \
+  --handoff handoff/frontend/today.md \
+  --done "Todayページの承認キュー表示を調整" \
+  --next "P0: Todayのモバイル崩れを修正"
+
+# 他ドメインへのクロス更新（サーバー作業中にフロント側にも影響がある場合）
+.claude/skills/incremental-handoff/scripts/append-handoff-update.sh \
+  --handoff handoff/frontend.md \
+  --done "ProposalStatus型をpendingに統一" \
+  --next "P0: ProposalDetailModalの表示確認"
+```
+
+`--domain` 未指定時は従来通り `HANDOFF.md` が対象（後方互換）。
+
+推奨命名:
+
+- Frontend page: `frontend/<page>`（例: `frontend/today`, `frontend/communications`）
+- Server feature: `server/<feature>`（例: `server/proposals`, `server/webhooks`）
+- Integration: `integration/<provider>`（例: `integration/gmail`）
 
 ## 併用
 

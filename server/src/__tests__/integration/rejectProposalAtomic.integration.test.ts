@@ -44,10 +44,10 @@ describeIntegration('reject_proposal_atomic integration', () => {
     await cleanupOrgData(orgId);
   });
 
-  it('rejects proposed proposal atomically and records rejection reason', async () => {
+  it('rejects pending proposal atomically and records rejection reason', async () => {
     const proposalId = await insertProposal({
       orgId,
-      status: 'proposed',
+      status: 'pending',
       amount: '8000.00',
     });
 
@@ -60,7 +60,7 @@ describeIntegration('reject_proposal_atomic integration', () => {
     expect(rejected?.approvals?.some((item) => item.decision === 'reject')).toBe(true);
   });
 
-  it('returns PROPOSAL_NOT_IN_PROPOSED_STATE for approved proposal', async () => {
+  it('returns PROPOSAL_NOT_IN_PENDING_STATE for approved proposal', async () => {
     const proposalId = await insertProposal({
       orgId,
       status: 'approved',
@@ -69,7 +69,7 @@ describeIntegration('reject_proposal_atomic integration', () => {
 
     const result = await rejectProposalAtomic(orgId, proposalId, rejector, 'should fail');
     expect(result.error).not.toBeNull();
-    expect(result.error?.message).toContain('PROPOSAL_NOT_IN_PROPOSED_STATE');
+    expect(result.error?.message).toContain('PROPOSAL_NOT_IN_PENDING_STATE');
 
     const proposal = await fetchProposalState(proposalId);
     expect(proposal.status).toBe('approved');
@@ -84,7 +84,7 @@ describeIntegration('reject_proposal_atomic integration', () => {
 
   async function insertProposal(params: {
     orgId: string;
-    status: 'proposed' | 'approved';
+    status: 'pending' | 'approved';
     amount: string;
   }): Promise<string> {
     const proposalId = randomUUID();

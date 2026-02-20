@@ -3,6 +3,8 @@ import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import { supabaseAdmin } from "../lib/supabaseClient";
 import { GoogleGenerativeAI, Part, Content } from "@google/generative-ai";
 import Anthropic from "@anthropic-ai/sdk";
+import { ProposalService } from "../services/ProposalService";
+import { ActorRef, ProposalType } from "../services/PolicyEngine";
 
 const router = Router();
 
@@ -11,6 +13,30 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || "" })
 
 // AI Provider設定（gemini / anthropic）
 const AI_PROVIDER = process.env.AI_PROVIDER || "anthropic";
+const DEFAULT_ORG_ID = process.env.DEFAULT_ORG_ID || "00000000-0000-0000-0000-000000000001";
+const SHERPA_ACTOR_ID = process.env.SHERPA_ACTOR_ID || "sherpa";
+const SHERPA_ACTOR_NAME = process.env.SHERPA_ACTOR_NAME || "Sherpa";
+const SHERPA_ALLOWED_PROPOSAL_TYPES: ReadonlySet<ProposalType> = new Set([
+    "expense.create",
+    "expense.update",
+    "expense.void",
+    "income.create",
+    "income.update",
+    "invoice.create",
+    "invoice.send",
+    "invoice.mark_paid",
+    "reward.calculate",
+    "reward.adjust",
+    "skill.achieve",
+    "skill.revoke",
+    "evaluation.submit",
+    "evaluation.finalize",
+    "assignment.create",
+    "assignment.update",
+    "assignment.cancel",
+    "site.create",
+    "site.complete",
+]);
 
 // ============================================================
 // シェルパ システムプロンプト（ドメイン知識を直接埋め込み）
@@ -170,6 +196,25 @@ const PURCHASE_ORDER_SYSTEM_PROMPT = `あなたは建設・内装業の発注書
 \`\`\`
 `;
 
+interface SherpaProposalRequestBody {
+    type?: ProposalType;
+    payload?: Record<string, unknown>;
+    description?: string;
+    submit?: boolean;
+}
+
+function buildSherpaActor(): ActorRef {
+    return {
+        type: "ai",
+        id: SHERPA_ACTOR_ID,
+        name: SHERPA_ACTOR_NAME,
+    };
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 // ============================================================
 // エンドポイント
 // ============================================================
@@ -267,67 +312,64 @@ const anthropicTools: Anthropic.Tool[] = [
     },
 ];
 
-// シェルパチャット（メイン）- Gemini版
+// シェルパチャット（メイン）- Anthropic版
 router.post("/chat", async (req: AuthenticatedRequest, res: Response) => {
     try {
         const { message, context } = req.body;
 
         // 今日の日付情報を追加（日付解析の補助）
         const today = new Date();
-        const dateInfo = `
-今日の日付: ${today.toISOString().split("T")[0]}
-今月: ${today.toISOString().slice(0, 7)}
-先月: ${new Date(today.getFullYear(), today.getMonth() - 1, 1).toISOString().slice(0, 7)}
-`;
+        const dateInfo = `今日: ${today.toISOString().split("T")[0]}, 今月: ${today.toISOString().slice(0, 7)}, 先月: ${new Date(today.getFullYear(), today.getMonth() - 1, 1).toISOString().slice(0, 7)}`;
 
-        const model = genAI.getGenerativeModel({
-            model: "gemini-3-pro-preview",
-            systemInstruction: SHERPA_SYSTEM_PROMPT,
-            tools: geminiTools,
+        // 会話履歴をAnthropic形式に変換
+        const messages: Anthropic.MessageParam[] = (context || []).map((msg: { role: string; content: string }) => ({
+            role: msg.role === "assistant" ? "assistant" as const : "user" as const,
+            content: msg.content,
+        }));
+        messages.push({ role: "user", content: `${dateInfo}\n\nユーザーからの質問: ${message}` });
+
+        let response = await anthropic.messages.create({
+            model: "claude-sonnet-4-5-20250929",
+            max_tokens: 1024,
+            system: SHERPA_SYSTEM_PROMPT,
+            tools: anthropicTools,
+            messages,
         });
 
-        // 会話履歴をGemini形式に変換
-        const history: Content[] = (context || []).map((msg: { role: string; content: string }) => ({
-            role: msg.role === "assistant" ? "model" : "user",
-            parts: [{ text: msg.content }],
-        }));
-
-        const chat = model.startChat({ history });
-
-        // 初回メッセージ送信
-        let result = await chat.sendMessage(`${dateInfo}\n\nユーザーからの質問: ${message}`);
-        let response = result.response;
-
         // ツール使用ループ
-        let functionCalls = response.functionCalls();
-        while (functionCalls && functionCalls.length > 0) {
-            const functionResponses: Part[] = [];
+        while (response.stop_reason === "tool_use") {
+            const toolUseBlocks = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
 
-            for (const call of functionCalls) {
-                const toolResult = await executeAccountingTool(
-                    call.name,
-                    call.args as Record<string, unknown>
-                );
-                functionResponses.push({
-                    functionResponse: {
-                        name: call.name,
-                        response: JSON.parse(toolResult),
-                    },
+            const toolResults: Anthropic.ToolResultBlockParam[] = [];
+            for (const toolUse of toolUseBlocks) {
+                const result = await executeAccountingTool(toolUse.name, toolUse.input as Record<string, unknown>);
+                toolResults.push({
+                    type: "tool_result",
+                    tool_use_id: toolUse.id,
+                    content: result,
                 });
             }
 
-            // ツール結果を送信
-            result = await chat.sendMessage(functionResponses);
-            response = result.response;
-            functionCalls = response.functionCalls();
+            response = await anthropic.messages.create({
+                model: "claude-sonnet-4-5-20250929",
+                max_tokens: 1024,
+                system: SHERPA_SYSTEM_PROMPT,
+                tools: anthropicTools,
+                messages: [
+                    ...messages,
+                    { role: "assistant", content: response.content },
+                    { role: "user", content: toolResults },
+                ],
+            });
         }
 
-        const reply = response.text() || "申し訳ありません、応答を生成できませんでした。";
+        const textBlock = response.content.find((b): b is Anthropic.TextBlock => b.type === "text");
+        const reply = textBlock?.text || "申し訳ありません、応答を生成できませんでした。";
 
         res.json({ reply });
     } catch (err: any) {
         console.error("Sherpa chat error:", err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -337,7 +379,7 @@ router.post("/check-purchase-order", async (req: AuthenticatedRequest, res: Resp
         const { imageBase64, textContent } = req.body;
 
         const model = genAI.getGenerativeModel({
-            model: "gemini-3-pro-preview",
+            model: "gemini-2.5-flash",
             systemInstruction: PURCHASE_ORDER_SYSTEM_PROMPT,
         });
 
@@ -373,7 +415,7 @@ router.post("/check-purchase-order", async (req: AuthenticatedRequest, res: Resp
         }
         res.json({ raw: reply });
     } catch (err: any) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -390,7 +432,7 @@ router.post("/process-expense", async (req: AuthenticatedRequest, res: Response)
 ${siteName ? `現場名: ${siteName}` : ""}`;
 
         const model = genAI.getGenerativeModel({
-            model: "gemini-3-pro-preview",
+            model: "gemini-2.5-flash",
             systemInstruction: EXPENSE_SYSTEM_PROMPT,
         });
 
@@ -410,7 +452,7 @@ ${siteName ? `現場名: ${siteName}` : ""}`;
         }
         res.json({ raw: reply });
     } catch (err: any) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -723,7 +765,7 @@ router.post("/accounting-chat", async (req: AuthenticatedRequest, res: Response)
         } else {
             // ===== Gemini版 =====
             const model = genAI.getGenerativeModel({
-                model: "gemini-3-pro-preview",
+                model: "gemini-2.5-flash",
                 systemInstruction: ACCOUNTING_SHERPA_SYSTEM_PROMPT,
                 tools: geminiTools,
             });
@@ -775,7 +817,67 @@ router.post("/accounting-chat", async (req: AuthenticatedRequest, res: Response)
         }
     } catch (err: any) {
         console.error("Accounting Sherpa error:", err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+/**
+ * Sherpaが提案した内容をProposalとして作成（必要に応じて即時submit）
+ * Phase B: Sherpa -> Proposal作成フローの正式化
+ */
+router.post("/proposals", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { type, payload, description, submit = true } = req.body as SherpaProposalRequestBody;
+
+        if (!type || !description || !isPlainObject(payload)) {
+            res.status(400).json({
+                error: "type, payload (object), description are required",
+            });
+            return;
+        }
+
+        if (!SHERPA_ALLOWED_PROPOSAL_TYPES.has(type)) {
+            res.status(400).json({
+                error: `proposal type is not allowed for sherpa: ${type}`,
+            });
+            return;
+        }
+
+        const service = new ProposalService(req.orgId || DEFAULT_ORG_ID);
+        const input = {
+            type,
+            payload,
+            description: description.trim(),
+            created_by: buildSherpaActor(),
+            org_id: req.orgId || DEFAULT_ORG_ID,
+        };
+
+        if (input.description.length === 0) {
+            res.status(400).json({ error: "description must not be empty" });
+            return;
+        }
+
+        if (submit) {
+            const result = await service.createAndSubmit(input);
+            res.status(201).json({
+                proposal: result.proposal,
+                auto_approved: result.autoApproved,
+                auto_executed: result.autoExecuted,
+                submitted: true,
+            });
+            return;
+        }
+
+        const proposal = await service.create(input);
+        res.status(201).json({
+            proposal,
+            auto_approved: false,
+            auto_executed: false,
+            submitted: false,
+        });
+    } catch (err: unknown) {
+        console.error("Sherpa proposal creation error:", err);
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -785,7 +887,7 @@ router.post("/expense-check", async (req: AuthenticatedRequest, res: Response) =
         const { description, amount, category } = req.body;
 
         const model = genAI.getGenerativeModel({
-            model: "gemini-3-pro-preview",
+            model: "gemini-2.5-flash",
             systemInstruction: `経費の妥当性を判定。回答はJSON: { "suspicious": boolean, "reason": string, "suggestion": string }`,
         });
 
@@ -807,7 +909,7 @@ router.post("/expense-check", async (req: AuthenticatedRequest, res: Response) =
         }
         res.json(JSON.parse(text));
     } catch (err: any) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 

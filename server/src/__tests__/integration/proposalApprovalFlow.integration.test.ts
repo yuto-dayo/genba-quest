@@ -59,7 +59,7 @@ describeIntegration('Proposal approval flow integration', () => {
       created_by: creator,
     });
 
-    expect(submitted.proposal.status).toBe('proposed');
+    expect(submitted.proposal.status).toBe('pending');
     expect(submitted.autoApproved).toBe(false);
     expect(submitted.autoExecuted).toBe(false);
 
@@ -91,7 +91,7 @@ describeIntegration('Proposal approval flow integration', () => {
       created_by: creator,
     });
 
-    expect(submitted.proposal.status).toBe('proposed');
+    expect(submitted.proposal.status).toBe('pending');
 
     const approved = await proposalService.approve(
       submitted.proposal.id,
@@ -108,7 +108,7 @@ describeIntegration('Proposal approval flow integration', () => {
     expect(ledgerEventCount).toBe(0);
   });
 
-  it('reject transitions proposed proposal to rejected with rejection reason', async () => {
+  it('reject transitions pending proposal to rejected with rejection reason', async () => {
     const submitted = await proposalService.createAndSubmit({
       org_id: orgId,
       type: 'expense.create',
@@ -121,7 +121,7 @@ describeIntegration('Proposal approval flow integration', () => {
       created_by: creator,
     });
 
-    expect(submitted.proposal.status).toBe('proposed');
+    expect(submitted.proposal.status).toBe('pending');
 
     const rejected = await proposalService.reject(
       submitted.proposal.id,

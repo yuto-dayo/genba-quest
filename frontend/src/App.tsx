@@ -6,6 +6,7 @@ import { Today } from "./pages/Today";
 import { Calendar } from "./pages/Calendar";
 import { Sites } from "./pages/Sites";
 import { Money } from "./pages/Money";
+import { Communications } from "./pages/Communications";
 import { SherpaFAB } from "./components/FloatingActionButton";
 import { SherpaChat } from "./components/SherpaChat";
 import "./styles/genba-quest.css";
@@ -93,6 +94,7 @@ function App() {
             <Route path="/calendar" element={<Calendar />} />
             <Route path="/sites" element={<Sites />} />
             <Route path="/money" element={<Money />} />
+            <Route path="/communications" element={<Communications />} />
           </Routes>
         </main>
 

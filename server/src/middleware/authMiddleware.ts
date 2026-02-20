@@ -7,7 +7,7 @@ export interface AuthenticatedRequest extends Request {
     orgId?: string;
 }
 
-const DEV_MODE = process.env.NODE_ENV !== "production" && process.env.DEV_SKIP_AUTH === "true";
+const DEV_MODE = process.env.NODE_ENV === "development" && process.env.DEV_SKIP_AUTH === "true";
 // 開発用UUID（実際のSupabaseユーザーIDに合わせる必要あり）
 const DEV_USER_ID = process.env.DEV_USER_UUID || "00000000-0000-0000-0000-000000000001";
 const DEFAULT_ORG_ID = process.env.DEFAULT_ORG_ID || "00000000-0000-0000-0000-000000000001";

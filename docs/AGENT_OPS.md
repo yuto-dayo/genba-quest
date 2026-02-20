@@ -16,6 +16,9 @@
 2. Session start (mandatory):
    - Codex: `scripts/session/session-start.sh --agent codex`
    - Claude: `scripts/session/session-start.sh --agent claude`
+   - Domain split (recommended for parallel work): `scripts/session/session-start.sh --agent codex --domain frontend/today`
+   - Feature split (recommended for backend): `scripts/session/session-start.sh --agent claude --domain server/proposals`
+   - `--domain` 指定時は `handoff/<domain>.md` を対象にする（例: `frontend/today` -> `handoff/frontend/today.md`）
    - すでに `.session/active_session` がある場合は開始を拒否（重複ログ防止）
    - 強制再開が必要な場合のみ: `--force-restart`（既存 active_session は stale として退避）
    - 既定動作で `HANDOFF.md` はセッション開始時に再生成（旧版は `.session/handoff_archive/` に退避）
@@ -35,14 +38,22 @@
 Guardrail:
 
 - `.githooks/pre-commit` blocks commit when non-handoff files are staged but:
-  - `HANDOFF.md` is not staged, or
+  - handoff markdown (`HANDOFF.md` or `handoff/*.md`) is not staged, or
   - `.session/active_session` is missing.
 - `append-handoff-update.sh` の自動ファイル収集はデフォルト無効（必要時のみ `APPEND_HANDOFF_AUTO_FILES=1` を明示）
+- `append-handoff-update.sh` は `--context/--landmine` 未指定時でも L2欠落を防ぐために自動補完する
+- L3圧縮の既定値:
+  - `HANDOFF_COMPACTION_THRESHOLD=20`
+  - `HANDOFF_COMPACTION_KEEP_RECENT=12`
 
 ## 3. AI-Optimized Handoff (Low-Context Resume)
 
-`HANDOFF.md` はセッション開始時に最小テンプレートで再生成され、以下の `Quick Resume` を先頭に置きます。
-長文説明より、次の行動に必要な情報を最短で提示します。
+`HANDOFF.md` はセッション開始時に最小テンプレートで再生成され、以下の4層メモリを維持します。
+
+- **L0**: `Quick Resume`（即実行の `NEXT_CMD`）
+- **L1**: `Session Summary (Compacted)`（3-7行の現在要約、Entry-ID参照）
+- **L2**: `Project Continuity (Compacted)`（Decisions/Landmines/Open Threads）
+- **L3**: `Incremental Updates`（生ログ + 閾値超過時コンパクション）
 
 ```md
 ## 0. Quick Resume (AI)
@@ -62,6 +73,19 @@ Guardrail:
   - DB migrations: `applied up to 012 / pending: 013, 014`
   - Tests: `88/88 pass, 6 skip`
   - Lint: `0 errors, 0 warnings`
+
+## L1. Session Summary (Compacted)
+- [focus] NEXT_CMD: `cd server && npm test -- --runInBand`. Source: realtime
+- [H0042] Completed: approve()にatomic RPC優先パスを追加
+- [H0042] Remaining: P0: SQL関数をSupabaseにデプロイ
+
+## L2. Project Continuity (Compacted)
+### Decisions
+- [H0041] RPC-first+fallbackパターンを採用
+### Landmines
+- [H0040] 013_execute_proposal_atomic.sql は未デプロイ
+### Open Threads
+- [H0042] P0: SQL関数をSupabaseにデプロイ
 ```
 
 Rules:
@@ -74,7 +98,7 @@ Rules:
 
 ## 4. Handoff Minimum Requirements
 
-セッション終了時は `HANDOFF.md` に最低限以下を反映すること。
+セッション終了時は対象 handoff（`HANDOFF.md` または `handoff/*.md`）に最低限以下を反映すること。
 
 1. Completed
 2. Remaining (P0/P1 優先度つき)
@@ -102,3 +126,13 @@ cd frontend && npx eslint src/
 - セッション運用を変更するときは、まず本ファイルを更新する。
 - `AGENTS.md` / `CLAUDE.md` には詳細を重複記述しない。
 - `scripts/session/README.md` は本書への導線を維持する。
+
+## 7. Domain Split Policy
+
+- 既定は `server` / `frontend` の2系統。並行開発が発生したら `frontend/<page>` や `server/<feature>` に分割する。
+- 分割の目安: 2セッション以上継続 / 複数担当が触る / 変更ファイルが広範囲。
+- 1セッションは1つの handoff を主担当にする。クロス影響は他 handoff に1行メモだけ残す。
+- 推奨例:
+  - Frontend page: `frontend/today`, `frontend/communications`
+  - Server feature: `server/proposals`, `server/webhooks`
+  - Integration: `integration/gmail`

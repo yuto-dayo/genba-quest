@@ -46,6 +46,7 @@ source "$session_file"
 
 handoff_file="${HANDOFF_FILE:-HANDOFF.md}"
 agent="${AGENT:-unknown}"
+session_domain="${DOMAIN:-}"
 
 if [[ ! -f "$handoff_file" ]]; then
   echo "Handoff file not found: $handoff_file" >&2
@@ -67,7 +68,7 @@ extract_first_remaining() {
 extract_quick_next_cmd() {
   awk '
     /^## 0\. Quick Resume \(AI\)/ { in_section=1; next }
-    /^## [0-9]+\./               { if (in_section) exit }
+    /^## /                       { if (in_section) exit }
     in_section && /NEXT_CMD:/ {
       line=$0
       sub(/^.*NEXT_CMD:[[:space:]]*/, "", line)
@@ -87,7 +88,7 @@ validate_handoff_quality() {
 
   # 履歴ログ(Incremental Updates)ではなく、現在の要約セクションのみ検証する。
   awk '
-    /^## 11\. Incremental Updates/ { exit }
+    /^## 1[13]\. Incremental Updates/ { exit }
     { print }
   ' "$file" > "$summary_snapshot"
 
@@ -127,7 +128,7 @@ fi
 
 if [[ "$allow_incomplete_handoff" -ne 1 ]]; then
   if ! validate_handoff_quality "$handoff_file"; then
-    echo "Fix HANDOFF.md (or run with --allow-incomplete-handoff when intentional)." >&2
+    echo "Fix ${handoff_file} (or run with --allow-incomplete-handoff when intentional)." >&2
     exit 1
   fi
 fi
@@ -157,7 +158,7 @@ cmd_args=(
   --handoff "$handoff_file"
   --done "Session ended (${agent}) - quality gate recorded"
   --next "$next_step"
-  --file "HANDOFF.md - session-end quality gate result recorded by ${agent}"
+  --file "${handoff_file} - session-end quality gate result recorded by ${agent}"
   --note "session-end handshake completed"
 )
 
@@ -170,6 +171,45 @@ done
 mkdir -p .session
 archive_path=".session/last_session_$(date '+%Y%m%d_%H%M%S').log"
 mv "$session_file" "$archive_path"
+
+# Sync root HANDOFF.md domain index when using --domain
+if [[ -n "$session_domain" ]]; then
+  # Extract status summary from domain handoff L0
+  domain_status="$(awk '
+    /^## 0\. Quick Resume/ { in_l0=1; next }
+    /^## / { if (in_l0) exit }
+    in_l0 && /NEXT_CMD:/ {
+      line=$0
+      sub(/^.*NEXT_CMD:[[:space:]]*/, "", line)
+      gsub(/`/, "", line)
+      if (length(line) > 60) line = substr(line, 1, 57) "..."
+      print line
+      exit
+    }
+  ' "$handoff_file")"
+  domain_status="${domain_status:-session ended}"
+  today="$(date '+%Y-%m-%d')"
+  root_index="HANDOFF.md"
+  if [[ -f "$root_index" ]] && grep -q '## Active Domains' "$root_index"; then
+    tmp_index="$(mktemp)"
+    LC_ALL=C awk -v dn="$session_domain" -v df="\`${handoff_file}\`" -v dt="$today" -v st="$domain_status" '
+      /^# Project Handoff Index/ { print "# Project Handoff Index - " dt; next }
+      /^\|[[:space:]]*--/ { print; separator_seen = 1; next }
+      separator_seen && /^\|/ {
+        split($0, cols, "|")
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", cols[2])
+        if (cols[2] == dn) {
+          printf "| %s | %s | %s | %s |\n", dn, df, dt, st
+          replaced = 1
+          next
+        }
+      }
+      { print }
+    ' "$root_index" > "$tmp_index"
+    mv "$tmp_index" "$root_index"
+    echo "Domain index synced: HANDOFF.md (domain=${session_domain})"
+  fi
+fi
 
 echo "=== Session End (${agent}) ==="
 printf '%s\n' "${validation_lines[@]}" | sed 's/^/  - /'

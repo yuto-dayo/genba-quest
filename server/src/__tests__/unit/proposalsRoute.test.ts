@@ -1,10 +1,14 @@
 const mockApproveBatch = jest.fn();
 const mockRejectBatch = jest.fn();
+const mockGetById = jest.fn();
+const mockCreateAndSubmit = jest.fn();
 
 jest.mock('../../services/ProposalService', () => ({
   ProposalService: jest.fn().mockImplementation(() => ({
     approveBatch: mockApproveBatch,
     rejectBatch: mockRejectBatch,
+    getById: mockGetById,
+    createAndSubmit: mockCreateAndSubmit,
   })),
 }));
 
@@ -42,6 +46,7 @@ function getPostHandler(path: string) {
 describe('proposals router batch endpoints', () => {
   const approveBatchHandler = getPostHandler('/approve/batch');
   const rejectBatchHandler = getPostHandler('/reject/batch');
+  const instructHandler = getPostHandler('/:id/instruct');
   const mockProposalServiceCtor = ProposalService as unknown as jest.Mock;
 
   beforeEach(() => {
@@ -127,7 +132,7 @@ describe('proposals router batch endpoints', () => {
 
     expect(mockApproveBatch).toHaveBeenCalledWith(
       ['p-1', 'p-2'],
-      { type: 'ai', id: 'user-1', name: 'Route Test User' },
+      { type: 'human', id: 'user-1', name: 'Route Test User' },
       'ok'
     );
     expect(mockProposalServiceCtor).toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111');
@@ -162,7 +167,7 @@ describe('proposals router batch endpoints', () => {
         {
           proposalId: 'p-2',
           success: false,
-          error: 'PROPOSAL_NOT_IN_PROPOSED_STATE',
+          error: 'PROPOSAL_NOT_IN_PENDING_STATE',
         },
       ],
     });
@@ -192,7 +197,7 @@ describe('proposals router batch endpoints', () => {
           proposal_id: 'p-2',
           success: false,
           proposal: undefined,
-          error: 'PROPOSAL_NOT_IN_PROPOSED_STATE',
+          error: 'PROPOSAL_NOT_IN_PENDING_STATE',
         },
       ],
     });
@@ -202,5 +207,68 @@ describe('proposals router batch endpoints', () => {
       { type: 'human', id: 'user-1', name: 'Route Test User' },
       'no'
     );
+  });
+
+  it('POST /:id/instruct validates instruction', async () => {
+    const req = {
+      params: { id: 'p-1' },
+      body: {},
+      userId: 'user-1',
+      userName: 'Route Test User',
+    } as any;
+    const res = createMockRes();
+
+    await instructHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: 'instruction is required' });
+    expect(mockGetById).not.toHaveBeenCalled();
+  });
+
+  it('POST /:id/instruct creates task.revision.request proposal for pending target', async () => {
+    mockGetById.mockResolvedValue({
+      id: 'p-1',
+      type: 'communication.task',
+      status: 'pending',
+      description: 'target proposal',
+      payload: {
+        source_message_id: 'msg-1',
+        parent_proposal_id: 'parent-1',
+        title: '確認タスク',
+      },
+    });
+    mockCreateAndSubmit.mockResolvedValue({
+      proposal: { id: 'instruction-1', type: 'task.revision.request', status: 'pending' },
+      autoApproved: false,
+      autoExecuted: false,
+    });
+
+    const req = {
+      params: { id: 'p-1' },
+      body: { instruction: '返信文を丁寧語に修正してください' },
+      userId: 'user-1',
+      userName: 'Route Test User',
+      orgId: '11111111-1111-4111-8111-111111111111',
+    } as any;
+    const res = createMockRes();
+
+    await instructHandler(req, res);
+
+    expect(mockGetById).toHaveBeenCalledWith('p-1');
+    expect(mockCreateAndSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'task.revision.request',
+        description: '提案への修正指示: 返信文を丁寧語に修正してください',
+        created_by: { type: 'human', id: 'user-1', name: 'Route Test User' },
+      })
+    );
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({
+      proposal: { id: 'instruction-1', type: 'task.revision.request', status: 'pending' },
+      auto_approved: false,
+      auto_executed: false,
+      submitted: true,
+    });
+    expect(mockProposalServiceCtor).toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111');
   });
 });

@@ -54,7 +54,7 @@ export function makeProposal(overrides: Partial<Proposal> = {}): Proposal {
 
 export const proposals = {
   draft: makeProposal({ status: 'draft' }),
-  proposed: makeProposal({ status: 'proposed' }),
+  pending: makeProposal({ status: 'pending' }),
   approved: makeProposal({ status: 'approved' }),
   executed: makeProposal({
     status: 'executed',
@@ -67,7 +67,7 @@ export const proposals = {
     rejection_reason: 'テスト却下理由',
   }),
   aiCreated: makeProposal({
-    status: 'proposed',
+    status: 'pending',
     created_by: actors.ai,
   }),
 };

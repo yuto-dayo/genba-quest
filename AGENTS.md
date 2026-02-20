@@ -186,6 +186,15 @@ Both Codex and Claude Code share the same SKILL.md files — single source of tr
 
 Invoke with `$skill-name` or let Codex auto-select based on task.
 
+### Skill Listing Guardrail (Context Window)
+
+When asked to list available skills:
+
+1. Use a single shell command (`awk`/`grep`/`sed`) to extract only YAML frontmatter fields (`name`, `description`) from `.claude/skills/*/SKILL.md` (or symlinked `.agents/skills/*/SKILL.md`, `.agent/skills/*/SKILL.md`).
+2. Do **not** open every `SKILL.md` one by one with `view_file`, `cat`, or similar tools.
+3. Read full `SKILL.md` content only for the specific skill(s) selected for the current task.
+4. If a `SKILL.md` is missing, report it explicitly.
+
 ### Project-Specific Skills
 
 | Skill | Purpose | Lines |
@@ -255,7 +264,10 @@ This project supports multiple AI coding agents:
 - **Claude Code**: `.claude/` (skills + settings) + `CLAUDE.md`
 - **Codex**: `AGENTS.md` (this file) + `.agents/skills/` (symlink to `.claude/skills/`)
 - **Cursor**: `.cursor/rules/`
-- **Gemini**: `.gemini/handoff/`
+- **Gemini CLI**: `GEMINI.md` + `.gemini/commands/`
+- **Antigravity (Gemini)**: `.agent/skills/` (symlink to `.claude/skills/`)
 
-Skills are shared via symlink: `.agents/skills/ → .claude/skills/`
-When modifying skills, changes propagate to both agents automatically.
+Skills are shared via symlink:
+- `.agents/skills/ → .claude/skills/` (Codex/Claude)
+- `.agent/skills/ → .claude/skills/` (Antigravity)
+When modifying skills, changes propagate across all connected agents automatically.

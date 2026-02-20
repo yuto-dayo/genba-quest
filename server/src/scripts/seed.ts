@@ -300,7 +300,7 @@ async function createAndExecuteProposal(
     let proposal = submitted.proposal;
 
     let approverIndex = 0;
-    while (proposal.status === "proposed" && approverIndex < approvers.length) {
+    while (proposal.status === "pending" && approverIndex < approvers.length) {
         const approver = approvers[approverIndex];
         approverIndex += 1;
 
@@ -324,7 +324,7 @@ async function createAndExecuteProposal(
         }
     }
 
-    if (proposal.status === "proposed") {
+    if (proposal.status === "pending") {
         throw new Error(`Failed to approve seeded proposal: ${proposal.id}`);
     }
 

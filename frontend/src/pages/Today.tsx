@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
     RefreshCw,
@@ -8,6 +9,7 @@ import {
     Zap,
     Clock,
     Bell,
+    Mail,
 } from "lucide-react";
 import { ProposalDetailModal } from "../components/ProposalDetailModal";
 import {
@@ -15,6 +17,7 @@ import {
     fetchExecutableProposals,
     approveProposal,
     rejectProposal,
+    instructProposal,
     executeProposal,
     approveProposalsBatch,
     rejectProposalsBatch,
@@ -49,6 +52,9 @@ const PROPOSAL_TYPE_LABELS: Record<string, string> = {
     "assignment.create": "アサイン作成",
     "assignment.update": "アサイン更新",
     "assignment.cancel": "アサイン取消",
+    "communication.review": "メール要点確認",
+    "communication.task": "メール対応タスク",
+    "task.revision.request": "修正指示",
     "site.create": "現場作成",
     "site.complete": "現場完了",
     "policy.update": "ポリシー更新",
@@ -119,6 +125,8 @@ const formatNotificationDate = (isoDate: string): string => {
 };
 
 export function Today() {
+    const location = useLocation();
+    const navigate = useNavigate();
     const [pendingProposals, setPendingProposals] = useState<ProposalRecord[]>([]);
     const [readyToExecuteProposals, setReadyToExecuteProposals] = useState<ProposalRecord[]>([]);
     const [selectedProposalIds, setSelectedProposalIds] = useState<string[]>([]);
@@ -134,14 +142,20 @@ export function Today() {
 
     const [markAllNotificationsLoading, setMarkAllNotificationsLoading] = useState(false);
 
-    const { calendarDays, selectDate, selectedDate } = useCalendar();
+    const { calendarDays, selectDate, selectedDate, reloadAssignments } = useCalendar();
     const todayAssignments = useMemo(() => {
         return calendarDays.find(d => d.isToday)?.assignments || [];
     }, [calendarDays]);
 
     const [selectedProposal, setSelectedProposal] = useState<ProposalRecord | null>(null);
+    const [focusProposalId, setFocusProposalId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        const searchParams = new URLSearchParams(location.search);
+        setFocusProposalId(searchParams.get("proposal"));
+    }, [location.search]);
 
     const loadProposalQueue = useCallback(async () => {
         try {
@@ -201,6 +215,38 @@ export function Today() {
         loadData();
     }, [loadData]);
 
+    useEffect(() => {
+        if (!focusProposalId) return;
+
+        const targetProposal =
+            pendingProposals.find((proposal) => proposal.id === focusProposalId) ||
+            readyToExecuteProposals.find((proposal) => proposal.id === focusProposalId);
+
+        if (!targetProposal) return;
+
+        setSelectedProposal(targetProposal);
+        setProposalActionNotice("Sherpa提案を開きました。内容を確認して承認または却下してください。");
+        setFocusProposalId(null);
+
+        const nextSearchParams = new URLSearchParams(location.search);
+        nextSearchParams.delete("proposal");
+        const nextSearch = nextSearchParams.toString();
+        navigate(
+            {
+                pathname: location.pathname,
+                search: nextSearch ? `?${nextSearch}` : "",
+            },
+            { replace: true }
+        );
+    }, [
+        focusProposalId,
+        pendingProposals,
+        readyToExecuteProposals,
+        location.pathname,
+        location.search,
+        navigate,
+    ]);
+
     const handleApproveProposal = async (proposalId: string, reason?: string) => {
         try {
             setActingProposalId(proposalId);
@@ -208,6 +254,7 @@ export function Today() {
             setProposalActionNotice(null);
             await approveProposal(proposalId, reason);
             await refreshLists();
+            reloadAssignments();
         } catch (err: unknown) {
             setProposalActionError(getErrorMessage(err));
         } finally {
@@ -229,6 +276,7 @@ export function Today() {
             setProposalActionNotice(null);
             await rejectProposal(proposalId, finalReason.trim());
             await refreshLists();
+            reloadAssignments();
         } catch (err: unknown) {
             setProposalActionError(getErrorMessage(err));
         } finally {
@@ -243,6 +291,23 @@ export function Today() {
             setProposalActionNotice(null);
             await executeProposal(proposalId);
             await refreshLists();
+            reloadAssignments();
+        } catch (err: unknown) {
+            setProposalActionError(getErrorMessage(err));
+        } finally {
+            setActingProposalId(null);
+        }
+    };
+
+    const handleInstructProposal = async (proposalId: string, instruction: string) => {
+        try {
+            setActingProposalId(proposalId);
+            setProposalActionError(null);
+            setProposalActionNotice(null);
+            await instructProposal(proposalId, instruction);
+            await refreshLists();
+            reloadAssignments();
+            setProposalActionNotice("指示を作成しました。修正提案の確認をお願いします。");
         } catch (err: unknown) {
             setProposalActionError(getErrorMessage(err));
         } finally {
@@ -277,6 +342,7 @@ export function Today() {
 
             const result = await approveProposalsBatch(selectedProposalIds);
             await refreshLists();
+            reloadAssignments();
 
             if (result.failed_count > 0) {
                 const firstFailure = result.results.find((item) => !item.success);
@@ -312,6 +378,7 @@ export function Today() {
 
             const result = await rejectProposalsBatch(selectedProposalIds, reason.trim());
             await refreshLists();
+            reloadAssignments();
 
             if (result.failed_count > 0) {
                 const firstFailure = result.results.find((item) => !item.success);
@@ -360,6 +427,10 @@ export function Today() {
         } finally {
             setMarkAllNotificationsLoading(false);
         }
+    };
+
+    const handleOpenCommunicationHistory = () => {
+        navigate("/communications");
     };
 
     const selectedProposalIdSet = useMemo(
@@ -414,9 +485,19 @@ export function Today() {
                         })}
                     </p>
                 </div>
-                <button onClick={loadData} className={styles.refreshButton}>
-                    <RefreshCw size={18} />
-                </button>
+                <div className={styles.headerActions}>
+                    <button
+                        type="button"
+                        className={styles.historyButton}
+                        onClick={handleOpenCommunicationHistory}
+                    >
+                        <Mail size={16} />
+                        メール履歴
+                    </button>
+                    <button onClick={loadData} className={styles.refreshButton} type="button">
+                        <RefreshCw size={18} />
+                    </button>
+                </div>
             </motion.div>
 
             {/* Week Calendar */}
@@ -741,6 +822,7 @@ export function Today() {
                     onClose={() => setSelectedProposal(null)}
                     onApprove={handleApproveProposal}
                     onReject={handleRejectProposal}
+                    onInstruct={handleInstructProposal}
                     onExecute={handleExecuteProposal}
                     isActing={actingProposalId !== null || batchActionLoading}
                 />

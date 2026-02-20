@@ -283,3 +283,186 @@
     color: var(--md-sys-color-on-surface-variant);
     cursor: not-allowed;
 }
+
+/* Mode tabs */
+.modeTabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
+    background: var(--md-sys-color-surface-container-lowest);
+}
+
+.modeTab {
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background: var(--md-sys-color-surface-container);
+    color: var(--md-sys-color-on-surface-variant);
+    border-radius: var(--md-sys-shape-corner-full);
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+    font: var(--md-sys-typescale-label-medium);
+    transition: all var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.modeTab:hover {
+    border-color: var(--md-sys-color-primary);
+    color: var(--md-sys-color-primary);
+}
+
+.modeTabActive {
+    background: var(--md-sys-color-primary-container);
+    border-color: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary-container);
+}
+
+/* Proposal form */
+.proposalPane {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.formGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.formLabelRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.formLabel {
+    font: var(--md-sys-typescale-label-medium);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.formSelect,
+.formTextarea {
+    width: 100%;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-medium);
+    background: var(--md-sys-color-surface-container-lowest);
+    color: var(--md-sys-color-on-surface);
+    padding: 10px 12px;
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.formSelect:focus,
+.formTextarea:focus {
+    outline: none;
+    border-color: var(--md-sys-color-primary);
+    box-shadow: 0 0 0 1px var(--md-sys-color-primary);
+}
+
+.formTextarea {
+    resize: vertical;
+    min-height: 70px;
+}
+
+.payloadTextarea {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    min-height: 160px;
+}
+
+.templateButton {
+    border: none;
+    background: transparent;
+    color: var(--md-sys-color-primary);
+    font: var(--md-sys-typescale-label-small);
+    cursor: pointer;
+    padding: 0;
+}
+
+.templateButton:hover {
+    text-decoration: underline;
+}
+
+.submitToggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font: var(--md-sys-typescale-body-small);
+    color: var(--md-sys-color-on-surface);
+}
+
+.submitToggle input {
+    accent-color: var(--md-sys-color-primary);
+}
+
+.errorBanner,
+.successBanner {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    border-radius: var(--md-sys-shape-corner-medium);
+    padding: 10px 12px;
+    font: var(--md-sys-typescale-body-small);
+}
+
+.errorBanner {
+    background: rgba(179, 38, 30, 0.12);
+    color: var(--md-sys-color-error);
+}
+
+.successBanner {
+    background: rgba(14, 124, 62, 0.12);
+    color: var(--md-sys-color-success);
+}
+
+.resultMeta {
+    margin-top: 4px;
+    word-break: break-all;
+    opacity: 0.85;
+}
+
+.proposalActions {
+    margin-top: auto;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding-top: 6px;
+}
+
+.createButton,
+.openQueueButton {
+    width: 100%;
+    border: none;
+    border-radius: var(--md-sys-shape-corner-large);
+    font: var(--md-sys-typescale-label-large);
+    padding: 11px 14px;
+    cursor: pointer;
+    transition: transform var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.createButton {
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+}
+
+.createButton:disabled {
+    background: var(--md-sys-color-surface-container-high);
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: not-allowed;
+}
+
+.openQueueButton {
+    background: var(--md-sys-color-tertiary-container);
+    color: var(--md-sys-color-on-tertiary-container);
+}
+
+.createButton:hover:not(:disabled),
+.openQueueButton:hover {
+    transform: translateY(-1px);
+}

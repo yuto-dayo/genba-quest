@@ -16,7 +16,7 @@ router.get("/:userId", async (req: AuthenticatedRequest, res: Response) => {
         if (error) throw error;
         res.json(data);
     } catch (err: any) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -53,7 +53,7 @@ router.post("/update", async (req: AuthenticatedRequest, res: Response) => {
 
         res.json(data);
     } catch (err: any) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -96,7 +96,7 @@ router.post("/holidays/take", async (req: AuthenticatedRequest, res: Response) =
 
         res.json(data);
     } catch (err: any) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 

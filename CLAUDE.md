@@ -10,6 +10,15 @@
 2. **必要な部分だけ読む** - ファイル全体を読まず、offset/limitで該当セクションのみ
 3. **重複読み込み禁止** - 同一セッション内で同じドキュメントを2回読まない
 
+### Skill Listing Guardrail（必ず守る）
+
+スキル一覧の要求時は、次を厳守すること:
+
+1. `.claude/skills/*/SKILL.md`（または `.agent/skills/`, `.agents/skills/`）の YAML frontmatter から `name` と `description` だけを、`awk` / `grep` / `sed` の単一シェルコマンドで抽出する。
+2. `view_file` や `cat` などで `SKILL.md` を全件1つずつ読み込まない。
+3. フル本文を読むのは、選択された対象スキルの `SKILL.md` のみとする。
+4. `SKILL.md` 欠損がある場合は一覧結果で明示する。
+
 ### Context Map（タスク → 参照先）
 
 | タスク | 最初に読むスキル | 詳細が必要な場合のみ |
@@ -29,9 +38,25 @@
 | セッション引き継ぎ | `handing-off-session` | - |
 | 作業完了ごとの引き継ぎ更新 | `incremental-handoff` | `HANDOFF.md` |
 
+### HANDOFF.md の段階読み込み（必ず守る）
+
+ドメイン分割運用時（`handoff/server.md`, `handoff/frontend.md`）：
+
+1. **ルート`HANDOFF.md`を読む**（~15行） — ドメイン一覧と状態を確認
+2. **タスクに関連するドメインファイルのL0だけ読む**（`offset: 1, limit: 15`）
+3. **関係ないドメインファイルは読まない** — サーバー作業時にフロントのhandoffは不要
+4. **L1/L2は必要時のみ** — L3は原則読まない（コンパクション済み）
+
+単一HANDOFF.md運用時（`--domain`未指定のセッション）：
+
+1. **L0だけ読む**（~10行） — `## 0. Quick Resume (AI)` セクションのみ（`offset: 1, limit: 15`）
+2. **必要ならL1を読む**（~10行） — タスクの文脈が不明な場合のみ
+3. **L2以降は必要時のみ** — L3は原則読まない
+
 ### Do NOT Read（セッション開始時に読まないファイル）
 
 以下は必要になるまで読まない：
+- `HANDOFF.md` 全文 (最大270行) → L0（10行）で十分、必要時にL1/L2を追加
 - `design-system/UNIFIED_SEMI_DAO.md` (3,008行)
 - `design-system/SEMI_DAO_DESIGN.md` (1,270行)
 - `docs/DESIGN_PHILOSOPHY.md` 全文 (1,007行) → `genba-quest-dao-principles`で十分
@@ -113,6 +138,7 @@ When creating new skills in `.claude/skills/`:
 - **Claude Code**: `.claude/` (skills + settings)
 - **Codex**: `AGENTS.md` (project instructions)
 - **Cursor**: `.cursor/rules/`
-- **Gemini**: `.gemini/handoff/`
+- **Gemini CLI**: `GEMINI.md` + `.gemini/commands/`
+- **Antigravity (Gemini)**: `.agent/skills/` (symlink to `.claude/skills/`)
 
 変更時は他エージェントの設定ファイルとの整合性を意識する。

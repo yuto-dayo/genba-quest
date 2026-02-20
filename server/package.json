@@ -9,7 +9,11 @@
         "start": "node dist/index.js",
         "test": "jest",
         "test:watch": "jest --watch",
-        "test:integration": "RUN_DB_INTEGRATION_TESTS=1 jest --runInBand --testPathPatterns=src/__tests__/integration/"
+        "test:integration": "RUN_DB_INTEGRATION_TESTS=1 jest --runInBand --testPathPatterns=src/__tests__/integration/",
+        "gmail:refresh-token": "ts-node src/scripts/generate-gmail-refresh-token.ts",
+        "verify:a1-migration": "ts-node src/scripts/verify-a1-migration.ts",
+        "verify:a1-health": "ts-node src/scripts/verify-a1-health.ts",
+        "verify:gmail-manual-e2e": "ts-node src/scripts/verify-gmail-manual-e2e.ts"
     },
     "type": "commonjs",
     "dependencies": {

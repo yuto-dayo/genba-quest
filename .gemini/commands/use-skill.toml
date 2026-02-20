@@ -1,0 +1,17 @@
+description = "Apply a shared Codex/Claude skill to a concrete task"
+prompt = """
+Apply one shared skill from this repository.
+
+Input format:
+`<skill-name> :: <task>`
+
+User input:
+${ARGUMENTS}
+
+Execution rules:
+1. Parse the skill name and task from the input.
+2. Read ONLY the specific `.claude/skills/<skill-name>/SKILL.md` (fallback: `.agent/skills/<skill-name>/SKILL.md`) to save the context window.
+3. Execute the task by following that skill's workflow.
+4. If the skill is not found, list closest matches and stop.
+5. Report changed files and validation commands at the end.
+"""

@@ -44,7 +44,7 @@ async function main() {
     console.log('📝 次のステップ:');
     console.log('   1. 監視対象のGmailアドレスに注文書PDFを添付したメールを送信');
     console.log('   2. サーバーログで処理状況を確認');
-    console.log('   3. Supabaseの ai_proposals テーブルで提案を確認\n');
+    console.log('   3. Supabaseの proposals テーブルで integration:gmail 起点の提案を確認\n');
 
   } catch (error: any) {
     console.error('❌ 予期しないエラー:', error);

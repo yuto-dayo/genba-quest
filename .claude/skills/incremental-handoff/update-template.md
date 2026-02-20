@@ -2,6 +2,7 @@
 
 ## Entry Format
 
+- Entry-ID: `H{{SEQUENCE_4DIGIT}}`
 - Completed:
   - [x] {{WHAT_DONE}}（{{WHY_OR_SCOPE}}）
 - Remaining:
@@ -16,6 +17,14 @@
   - {{GOTCHA_OR_NONE}}
 - Note:
   - {{HANDOFF_NOTE}}
+
+## Layer Sync (Automatic)
+
+- L1: Session Summary (3-7 lines) is regenerated from latest entries with Entry-ID references.
+- L2: Decisions / Landmines / Open Threads are regenerated from context + landmine + remaining with Entry-ID references.
+- L3: When entry count exceeds threshold, older entries are compacted into `.session/handoff_archive/`.
+- `--context` 未指定時: `--done` から `Auto-captured decision` を生成。
+- `--landmine` 未指定時: validation を参照して Landmine を自動補完。
 
 ### Changed Files 記述ルール
 

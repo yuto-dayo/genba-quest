@@ -179,6 +179,36 @@ WHERE e.event_type = 'assignment.created';
 
 ---
 
+## Phase 2.5: Bayesian Design Principles（生きた設計文書）
+
+### 目的
+
+**設計原則を「確定事項」ではなく「検証可能な仮説」として扱う**
+
+Think Again（Adam Grant）× Thompson Sampling（ベイズ統計）のアプローチ。
+
+### 仕組み
+
+各設計原則に Beta分布パラメータ `(α, β)` を持たせる:
+- Proposalが正常に実行 → 関連原則の α += 1（成功観測）
+- 問題が発生 → 関連原則の β += 1（失敗観測）
+- 確信度 = α / (α + β)、不確実性 = αβ / ((α+β)²(α+β+1))
+
+### 実装状態
+
+- Phase 1（データ基盤）: `design_principles` + `principle_observations` テーブル、API、seed data ✅
+- Phase 2（自動観測）: ProposalService連携 → Phase A-1完了後
+- Phase 3（UI + Sherpa）: ダッシュボード可視化 → Phase B以降
+
+### DAO的意義
+
+- 確信度が数値化 → 透明性
+- 更新は自動のみ → 確認バイアス排除
+- 観測履歴がLedger的に追記 → 監査可能
+- 確信度低下で自動的に `under_review` → 自律的再考
+
+---
+
 ## Phase 3: Sandbox環境（ルールのA/Bテスト）
 
 ### 目的

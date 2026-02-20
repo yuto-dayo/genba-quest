@@ -205,7 +205,7 @@ router.get("/state/current-user", async (req: AuthenticatedRequest, res: Respons
             pending_animations: [],
         });
     } catch (err: any) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -226,7 +226,7 @@ router.get("/state/:userId", async (req: AuthenticatedRequest, res: Response) =>
             pending_animations: [],
         });
     } catch (err: any) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -304,7 +304,7 @@ router.post("/apply", async (req: AuthenticatedRequest, res: Response) => {
         if (error) throw error;
         res.status(201).json(data);
     } catch (err: any) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -330,7 +330,7 @@ router.get("/applications", async (_req: AuthenticatedRequest, res: Response) =>
 
         res.json(enriched);
     } catch (err: any) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -424,7 +424,7 @@ router.post("/vote", async (req: AuthenticatedRequest, res: Response) => {
             status: newStatus || "pending",
         });
     } catch (err: any) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -452,7 +452,7 @@ router.post("/clear-animation", async (req: AuthenticatedRequest, res: Response)
 
         res.json({ success: true });
     } catch (err: any) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 

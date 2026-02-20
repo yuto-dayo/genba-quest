@@ -44,6 +44,7 @@
 | Skill | Description |
 |-------|-------------|
 | `searching-skills-marketplace` | Claude Code スキルをマーケットプレイスから検索・インストール |
+| `directing-handoff-workstreams` | 分割された handoff を横断集計し、次に進めるべき stream を提案 |
 
 ---
 
@@ -139,4 +140,5 @@ Skills from: [levnikolaevich/claude-code-skills](https://github.com/levnikolaevi
 
 ## Also Installed In
 - **Project Local**: `.claude/skills/`
+- **Antigravity Project Local**: `.agent/skills/` (symlink → `.claude/skills/`)
 - **Antigravity Global**: `~/.gemini/antigravity/skills/`

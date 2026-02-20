@@ -38,7 +38,7 @@ router.get("/", async (req: AuthenticatedRequest, res: Response) => {
     res.json(data || []);
   } catch (err: any) {
     console.error("Get notifications error:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -76,7 +76,7 @@ router.post("/:id/read", async (req: AuthenticatedRequest, res: Response) => {
     res.json(data);
   } catch (err: any) {
     console.error("Mark notification read error:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -108,7 +108,7 @@ router.post("/read-all", async (req: AuthenticatedRequest, res: Response) => {
     });
   } catch (err: any) {
     console.error("Mark all notifications read error:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 

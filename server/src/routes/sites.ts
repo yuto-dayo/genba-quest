@@ -18,7 +18,7 @@ router.get("/", async (_req: AuthenticatedRequest, res: Response) => {
         if (error) throw error;
         res.json(data);
     } catch (err: any) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -37,7 +37,7 @@ router.get("/:id", async (req: AuthenticatedRequest, res: Response) => {
         if (error) throw error;
         res.json(data);
     } catch (err: any) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -64,7 +64,7 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
         if (error) throw error;
         res.status(201).json(data);
     } catch (err: any) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -92,7 +92,7 @@ router.put("/:id", async (req: AuthenticatedRequest, res: Response) => {
         if (error) throw error;
         res.json(data);
     } catch (err: any) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -112,7 +112,7 @@ router.post("/:id/complete", async (req: AuthenticatedRequest, res: Response) =>
         if (error) throw error;
         res.json(data);
     } catch (err: any) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 

@@ -24,6 +24,9 @@ scripts/session/install-git-hooks.sh
 scripts/session/session-start.sh --agent codex
 # または
 scripts/session/session-start.sh --agent claude
+# ページ/機能ごとに分割する場合
+scripts/session/session-start.sh --agent codex --domain frontend/today
+scripts/session/session-start.sh --agent claude --domain server/proposals
 # 既存 HANDOFF.md を保持したい場合のみ
 scripts/session/session-start.sh --agent codex --keep-handoff
 # active_session が残っている場合に強制再開したい時のみ
@@ -34,16 +37,18 @@ scripts/session/session-start.sh --agent codex --force-restart
 - `.session/active_session` が残っている場合は開始を拒否（重複ログ防止）
 - 必要時のみ `--force-restart` で stale として退避して再開
 - 既定で `HANDOFF.md` を再生成（旧版は `.session/handoff_archive/` に退避）
+- `HANDOFF.md` に L0/L1/L2/L3 メモリ構造を初期化
 - 退避ファイルは自動ローテーション（既定: 最大30件 / 14日より古いもの削除）
 - 必要に応じて環境変数で調整:
   - `HANDOFF_ARCHIVE_KEEP_COUNT`（保持件数）
   - `HANDOFF_ARCHIVE_KEEP_DAYS`（保持日数）
   - `HANDOFF_ARCHIVE_DIR`（退避先ディレクトリ）
 - `--keep-handoff` 指定時のみ既存 `HANDOFF.md` を維持
+- `--domain` 指定時は `handoff/<domain>.md` を対象にする（例: `frontend/today` -> `handoff/frontend/today.md`）
 - 作業前に `docs/DESIGN_PHILOSOPHY.md` を参照（`sed -n '1,120p' docs/DESIGN_PHILOSOPHY.md`）
-- `HANDOFF.md` に `## 0. Quick Resume (AI)` がある場合は `NEXT_CMD` を優先して表示
+- 対象 handoff に `## 0. Quick Resume (AI)` がある場合は `NEXT_CMD` を優先して表示
 - `.session/active_session` を生成
-- `HANDOFF.md` の Incremental Updates に開始ログを追記
+- 対象 handoff の Incremental Updates に開始ログを追記
 
 ### 2) 作業単位ごとの更新
 
@@ -54,6 +59,12 @@ scripts/session/session-update.sh \
   --validation "cd server && npx tsc --noEmit => PASS" \
   --file "server/src/services/ProposalService.ts - applyStateChange 実装"
 ```
+
+補足:
+- 追記時に `Entry-ID` が自動採番される
+- L1/L2 は L3 から自動再生成される
+- L3 が大きくなりすぎた場合は自動コンパクションされる（既定: 20件超）
+- compaction設定: `HANDOFF_COMPACTION_THRESHOLD`, `HANDOFF_COMPACTION_KEEP_RECENT`
 
 ### 3) 終了
 
@@ -84,7 +95,7 @@ scripts/session/verify-handoff-guard.sh
 ## pre-commit ガード
 
 非handoffファイルの変更をcommitする場合、以下を強制:
-- `HANDOFF.md` が staged されていること
+- handoff markdown（`HANDOFF.md` または `handoff/*.md`）が staged されていること
 - `.session/active_session` が存在すること
 
 一時的にバイパスする場合:

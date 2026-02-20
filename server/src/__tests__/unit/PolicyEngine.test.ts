@@ -181,7 +181,7 @@ describe('PolicyEngine', () => {
     });
 
     it('integration actor は常に承認不可', async () => {
-      const result = await engine.canApprove(proposals.proposed, actors.integration);
+      const result = await engine.canApprove(proposals.pending, actors.integration);
       expect(result.allowed).toBe(false);
       expect(result.reason).toBe('INTEGRATION_APPROVAL_PROHIBITED');
     });
@@ -196,7 +196,7 @@ describe('PolicyEngine', () => {
       const roleChain = createChain({ data: [{ id: actors.human.id, role: 'member' }], error: null });
       setupMockFromSequence(mockFrom, [policyChain, roleChain]);
 
-      const result = await engine.canApprove(proposals.proposed, actors.human);
+      const result = await engine.canApprove(proposals.pending, actors.human);
       expect(result.allowed).toBe(false);
       expect(result.reason).toBe('APPROVER_NOT_ALLOWED_BY_POLICY');
     });
@@ -210,7 +210,7 @@ describe('PolicyEngine', () => {
     });
 
     it('AI がポリシーで ai_can_approve=false の場合 → AI_APPROVAL_NOT_ALLOWED_BY_POLICY', async () => {
-      const humanProposal = proposals.proposed; // created_by: human
+      const humanProposal = proposals.pending; // created_by: human
       const chain = createChain({ data: [policies.requireOneApproval], error: null });
       mockFrom.mockReturnValue(chain);
 
@@ -220,7 +220,7 @@ describe('PolicyEngine', () => {
     });
 
     it('AI がポリシーで ai_can_approve=true の場合 → 許可', async () => {
-      const humanProposal = proposals.proposed;
+      const humanProposal = proposals.pending;
       const chain = createChain({ data: [policies.aiCanApprove], error: null });
       mockFrom.mockReturnValue(chain);
 
@@ -230,7 +230,7 @@ describe('PolicyEngine', () => {
 
     it('既に承認済みのアクターが再承認 → ALREADY_APPROVED_BY_THIS_ACTOR', async () => {
       const alreadyApproved = {
-        ...proposals.proposed,
+        ...proposals.pending,
         approvals: [{ actor: actors.human, decision: 'approve' as const, at: '2026-01-01T00:00:00Z' }],
       };
       const chain = createChain({ data: [policies.requireOneApproval], error: null });
@@ -243,7 +243,7 @@ describe('PolicyEngine', () => {
 
     it('必要承認数に達している場合 → APPROVAL_COUNT_ALREADY_MET', async () => {
       const fullyApproved = {
-        ...proposals.proposed,
+        ...proposals.pending,
         approvals: [{ actor: actors.human, decision: 'approve' as const, at: '2026-01-01T00:00:00Z' }],
       };
       const chain = createChain({ data: [policies.requireOneApproval], error: null });
@@ -272,8 +272,8 @@ describe('PolicyEngine', () => {
       expect(result.allowed).toBe(true);
     });
 
-    it('proposed 状態 → PROPOSAL_NOT_APPROVED', async () => {
-      const result = await engine.canExecute(proposals.proposed);
+    it('pending 状態 → PROPOSAL_NOT_APPROVED', async () => {
+      const result = await engine.canExecute(proposals.pending);
       expect(result.allowed).toBe(false);
       expect(result.reason).toBe('PROPOSAL_NOT_APPROVED');
     });

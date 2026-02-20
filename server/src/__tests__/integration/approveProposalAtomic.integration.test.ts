@@ -84,7 +84,7 @@ describeIntegration('approve_proposal_atomic integration', () => {
     expect(eventCount).toBe(1);
   });
 
-  it('keeps proposed state on partial approval, then executes on final approval', async () => {
+  it('keeps pending state on partial approval, then executes on final approval', async () => {
     const proposalId = await insertProposedProposal({
       orgId,
       amount: '18000.00',
@@ -103,7 +103,7 @@ describeIntegration('approve_proposal_atomic integration', () => {
     const firstResult = normalizeApproveRpcResult(first.data);
     expect(firstResult?.is_fully_approved).toBe(false);
     expect(firstResult?.auto_executed).toBe(false);
-    expect(firstResult?.proposal.status).toBe('proposed');
+    expect(firstResult?.proposal.status).toBe('pending');
 
     const eventCountAfterFirst = await countLedgerEvents(orgId, proposalId);
     expect(eventCountAfterFirst).toBe(0);
@@ -139,7 +139,7 @@ describeIntegration('approve_proposal_atomic integration', () => {
     expect(result.error?.message).toContain('AI_SELF_APPROVAL_PROHIBITED');
 
     const proposal = await fetchProposalState(proposalId);
-    expect(proposal.status).toBe('proposed');
+    expect(proposal.status).toBe('pending');
     expect((proposal.approvals ?? []).length).toBe(0);
   });
 
@@ -190,7 +190,7 @@ describeIntegration('approve_proposal_atomic integration', () => {
       id: proposalId,
       org_id: params.orgId,
       type: 'expense.create',
-      status: 'proposed',
+      status: 'pending',
       created_by: params.createdBy,
       payload: {
         amount: params.amount,

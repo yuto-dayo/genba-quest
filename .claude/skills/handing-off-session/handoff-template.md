@@ -20,6 +20,41 @@
 
 ---
 
+## L1. Session Summary (Compacted)
+
+<!-- HANDOFF_L1_START -->
+- [pending] No completed chunk recorded yet. Source: N/A
+- [pending] Use scripts/session/session-update.sh after each meaningful chunk. Source: N/A
+- [pending] NEXT_CMD in Quick Resume is the current executable action. Source: N/A
+<!-- HANDOFF_L1_END -->
+
+## L2. Project Continuity (Compacted)
+
+### Decisions
+<!-- HANDOFF_L2_DECISIONS_START -->
+- [pending] No decision context recorded yet. Source: N/A
+<!-- HANDOFF_L2_DECISIONS_END -->
+
+### Landmines
+<!-- HANDOFF_L2_LANDMINES_START -->
+- [none] No landmines recorded. Source: N/A
+<!-- HANDOFF_L2_LANDMINES_END -->
+
+### Open Threads
+<!-- HANDOFF_L2_THREADS_START -->
+- [pending] No unresolved thread recorded yet. Source: N/A
+<!-- HANDOFF_L2_THREADS_END -->
+
+### Compaction State
+<!-- HANDOFF_L2_STATE_START -->
+- threshold: `20`
+- keep_recent: `12`
+- last_compacted_at: `never`
+- archived_entries: `0`
+<!-- HANDOFF_L2_STATE_END -->
+
+---
+
 ## 1. Resume（次の1手）
 
 ```text

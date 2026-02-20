@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { X, CheckCircle, XCircle, Zap } from "lucide-react";
+import { X, CheckCircle, XCircle, Zap, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
 import type { ProposalRecord } from "../lib/api";
 import styles from "./ProposalDetailModal.module.css";
 
@@ -9,6 +9,7 @@ interface ProposalDetailModalProps {
     onClose: () => void;
     onApprove: (proposalId: string, reason?: string) => Promise<void>;
     onReject: (proposalId: string, reason: string) => Promise<void>;
+    onInstruct: (proposalId: string, instruction: string) => Promise<void>;
     onExecute: (proposalId: string) => Promise<void>;
     isActing: boolean;
 }
@@ -31,6 +32,9 @@ const PROPOSAL_TYPE_LABELS: Record<string, string> = {
     "assignment.create": "アサイン作成",
     "assignment.update": "アサイン更新",
     "assignment.cancel": "アサイン取消",
+    "communication.review": "メール要点確認",
+    "communication.task": "メール対応タスク",
+    "task.revision.request": "修正指示",
     "site.create": "現場作成",
     "site.complete": "現場完了",
     "policy.update": "ポリシー更新",
@@ -38,7 +42,7 @@ const PROPOSAL_TYPE_LABELS: Record<string, string> = {
 
 const STATUS_LABELS: Record<string, string> = {
     draft: "下書き",
-    proposed: "承認待ち",
+    pending: "承認待ち",
     approved: "承認済み",
     rejected: "却下",
     executed: "実行済み",
@@ -63,12 +67,42 @@ const PAYLOAD_LABELS: Record<string, string> = {
     currency: "通貨",
     worker_id: "作業者ID",
     assignee_id: "アサインID",
+    source_message_subject: "メール件名",
+    source_message_from: "送信者",
+    task_kind: "タスク種別",
+    priority: "優先度",
+    due_date: "期限",
+    target_proposal_id: "対象提案",
+    target_type: "対象タイプ",
 };
 
 const AMOUNT_KEYS = new Set([
     "amount", "amount_total", "total_amount", "total", "value",
     "amount_subtotal", "tax_amount",
 ]);
+
+const HIDDEN_PAYLOAD_KEYS = new Set([
+    "source_message_subject",
+    "source_message_from",
+    "source_message_body_preview",
+    "source_message_body_full",
+    "email_subject",
+    "email_from",
+    "email_body_preview",
+    "email_body_full",
+    "suggested_tasks",
+    "target_snapshot",
+]);
+
+function getPayloadText(payload: Record<string, unknown>, keys: string[]): string | null {
+    for (const key of keys) {
+        const value = payload[key];
+        if (typeof value === "string" && value.trim().length > 0) {
+            return value.trim();
+        }
+    }
+    return null;
+}
 
 function formatPayloadValue(key: string, value: unknown): string {
     if (value === null || value === undefined) return "-";
@@ -113,7 +147,7 @@ function formatShortDate(isoDate: string): string {
 
 const statusClass: Record<string, string> = {
     draft: styles.statusDraft,
-    proposed: styles.statusProposed,
+    pending: styles.statusPending,
     approved: styles.statusApproved,
     rejected: styles.statusRejected,
     executed: styles.statusExecuted,
@@ -131,10 +165,12 @@ export function ProposalDetailModal({
     onClose,
     onApprove,
     onReject,
+    onInstruct,
     onExecute,
     isActing,
 }: ProposalDetailModalProps) {
     const [reason, setReason] = useState("");
+    const [showFullBody, setShowFullBody] = useState(false);
 
     const approvedCount = proposal.approvals.filter(
         (a) => a.decision === "approve"
@@ -146,8 +182,18 @@ export function ProposalDetailModal({
     );
 
     const payloadEntries = Object.entries(proposal.payload).filter(
-        ([, v]) => v !== null && v !== undefined && v !== ""
+        ([key, v]) => !HIDDEN_PAYLOAD_KEYS.has(key) && v !== null && v !== undefined && v !== ""
     );
+
+    const emailSubject = getPayloadText(proposal.payload, ["source_message_subject", "email_subject"]);
+    const emailFrom = getPayloadText(proposal.payload, ["source_message_from", "email_from"]);
+    const emailBodyPreview = getPayloadText(proposal.payload, ["source_message_body_preview", "email_body_preview"]);
+    const emailBodyFull = getPayloadText(proposal.payload, ["source_message_body_full", "email_body_full"]);
+    const hasEmailContext = Boolean(emailSubject || emailFrom || emailBodyPreview || emailBodyFull);
+    const emailBody = showFullBody
+        ? (emailBodyFull || emailBodyPreview || "")
+        : (emailBodyPreview || emailBodyFull || "");
+    const canToggleBody = Boolean(emailBodyFull && emailBodyPreview && emailBodyFull !== emailBodyPreview);
 
     const handleApprove = async () => {
         await onApprove(proposal.id, reason.trim() || undefined);
@@ -156,6 +202,11 @@ export function ProposalDetailModal({
     const handleReject = async () => {
         if (!reason.trim()) return;
         await onReject(proposal.id, reason.trim());
+    };
+
+    const handleInstruct = async () => {
+        if (!reason.trim()) return;
+        await onInstruct(proposal.id, reason.trim());
     };
 
     const handleExecute = async () => {
@@ -206,6 +257,42 @@ export function ProposalDetailModal({
                 <span className={styles.date}>
                     {formatDate(proposal.created_at)}
                 </span>
+
+                {/* Email Context */}
+                {hasEmailContext && (
+                    <section className={styles.section}>
+                        <h3 className={styles.sectionTitle}>メール本文</h3>
+                        <div className={styles.emailContext}>
+                            {(emailSubject || emailFrom) && (
+                                <div className={styles.emailMeta}>
+                                    {emailSubject && (
+                                        <p>
+                                            <strong>件名:</strong> {emailSubject}
+                                        </p>
+                                    )}
+                                    {emailFrom && (
+                                        <p>
+                                            <strong>送信者:</strong> {emailFrom}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+                            {emailBody && (
+                                <pre className={styles.emailBody}>{emailBody}</pre>
+                            )}
+                            {canToggleBody && (
+                                <button
+                                    type="button"
+                                    className={styles.emailToggle}
+                                    onClick={() => setShowFullBody((prev) => !prev)}
+                                >
+                                    {showFullBody ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                    {showFullBody ? "要点表示に戻す" : "本文を全文表示"}
+                                </button>
+                            )}
+                        </div>
+                    </section>
+                )}
 
                 {/* Payload Details */}
                 {payloadEntries.length > 0 && (
@@ -328,18 +415,18 @@ export function ProposalDetailModal({
                     </section>
                 )}
 
-                {/* Actions for proposed */}
-                {proposal.status === "proposed" && (
+                {/* Actions for pending */}
+                {proposal.status === "pending" && (
                     <section className={styles.section}>
                         <div className={styles.reasonField}>
                             <label className={styles.reasonLabel}>
-                                コメント（却下時は必須）
+                                コメント（却下・指示時は必須）
                             </label>
                             <textarea
                                 className={styles.reasonTextarea}
                                 value={reason}
                                 onChange={(e) => setReason(e.target.value)}
-                                placeholder="承認・却下の理由..."
+                                placeholder="承認コメント / 却下理由 / AIへの指示..."
                                 rows={3}
                             />
                         </div>
@@ -352,6 +439,15 @@ export function ProposalDetailModal({
                             >
                                 <XCircle size={16} />
                                 却下
+                            </button>
+                            <button
+                                type="button"
+                                className={styles.instructButton}
+                                disabled={isActing || !reason.trim()}
+                                onClick={handleInstruct}
+                            >
+                                <MessageSquare size={16} />
+                                指示
                             </button>
                             <button
                                 type="button"

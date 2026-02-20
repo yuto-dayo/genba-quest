@@ -33,13 +33,17 @@ export type ProposalType =
   | 'assignment.create'
   | 'assignment.update'
   | 'assignment.cancel'
+  // コミュニケーション
+  | 'communication.review'
+  | 'communication.task'
+  | 'task.revision.request'
   // 現場
   | 'site.create'
   | 'site.complete'
   // ポリシー
   | 'policy.update';
 
-export type ProposalStatus = 'draft' | 'proposed' | 'approved' | 'rejected' | 'executed';
+export type ProposalStatus = 'draft' | 'pending' | 'approved' | 'rejected' | 'executed';
 
 export type ActorType = 'human' | 'ai' | 'system' | 'integration';
 

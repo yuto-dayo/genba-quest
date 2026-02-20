@@ -70,6 +70,7 @@ describe('ProposalService', () => {
   };
 
   beforeEach(() => {
+    delete process.env.PROPOSAL_RPC_FALLBACK_MODE;
     service = new ProposalService(TEST_ORG_ID);
     jest.clearAllMocks();
     mockRpc.mockImplementation(async (fn: string) => ({
@@ -122,18 +123,18 @@ describe('ProposalService', () => {
   // ============================================================
 
   describe('submit()', () => {
-    it('draft → proposed に遷移する', async () => {
-      const proposedResult = { ...proposals.proposed };
+    it('draft → pending に遷移する', async () => {
+      const proposedResult = { ...proposals.pending };
 
       // from('proposals').select().eq().single() → draft (getById)
       const getByIdChain = createChain({ data: proposals.draft, error: null });
-      // from('proposals').update().eq().select().single() → proposed
+      // from('proposals').update().eq().select().single() → pending
       const updateChain = createChain({ data: proposedResult, error: null });
 
       setupMockFromSequence(mockFrom, [getByIdChain, updateChain]);
 
       const result = await service.submit(TEST_PROPOSAL_ID, actors.human);
-      expect(result.proposal.status).toBe('proposed');
+      expect(result.proposal.status).toBe('pending');
       expect(result.autoApproved).toBe(false);
       expect(result.autoExecuted).toBe(false);
     });
@@ -148,7 +149,7 @@ describe('ProposalService', () => {
     });
 
     it('draft 以外の Proposal → PROPOSAL_ALREADY_SUBMITTED', async () => {
-      const chain = createChain({ data: proposals.proposed, error: null });
+      const chain = createChain({ data: proposals.pending, error: null });
       mockFrom.mockReturnValue(chain);
 
       await expect(
@@ -210,7 +211,7 @@ describe('ProposalService', () => {
 
   describe('approve() - atomic RPC', () => {
     it('RPC関数が利用可能な場合は原子実行結果を返す', async () => {
-      const getByIdChain = createChain({ data: proposals.proposed, error: null });
+      const getByIdChain = createChain({ data: proposals.pending, error: null });
       mockFrom.mockReturnValue(getByIdChain);
 
       const executedProposal = { ...proposals.executed };
@@ -236,11 +237,11 @@ describe('ProposalService', () => {
     });
 
     it('RPC部分承認結果を正しく返す', async () => {
-      const getByIdChain = createChain({ data: proposals.proposed, error: null });
+      const getByIdChain = createChain({ data: proposals.pending, error: null });
       mockFrom.mockReturnValue(getByIdChain);
 
       const partialProposal = {
-        ...proposals.proposed,
+        ...proposals.pending,
         approvals: [{ actor: actors.human, decision: 'approve', at: '2026-01-01T00:00:00Z' }],
       };
       mockRpc.mockResolvedValueOnce({
@@ -258,7 +259,7 @@ describe('ProposalService', () => {
     });
 
     it('RPC前にポリシー拒否を検知した場合は即時エラー', async () => {
-      const getByIdChain = createChain({ data: proposals.proposed, error: null });
+      const getByIdChain = createChain({ data: proposals.pending, error: null });
       mockFrom.mockReturnValue(getByIdChain);
       mockCanApprove.mockResolvedValueOnce({
         allowed: false,
@@ -273,7 +274,7 @@ describe('ProposalService', () => {
     });
 
     it('RPC関数がAI自己承認禁止エラーを返す', async () => {
-      const getByIdChain = createChain({ data: proposals.proposed, error: null });
+      const getByIdChain = createChain({ data: proposals.pending, error: null });
       mockFrom.mockReturnValue(getByIdChain);
 
       mockRpc.mockResolvedValueOnce({
@@ -286,6 +287,20 @@ describe('ProposalService', () => {
       ).rejects.toThrow('AI_SELF_APPROVAL_PROHIBITED');
     });
 
+    it('旧RPCエラー PROPOSAL_NOT_IN_PROPOSED_STATE を pending エラーとして扱う', async () => {
+      const getByIdChain = createChain({ data: proposals.pending, error: null });
+      mockFrom.mockReturnValue(getByIdChain);
+
+      mockRpc.mockResolvedValueOnce({
+        data: null,
+        error: { message: 'PROPOSAL_NOT_IN_PROPOSED_STATE' },
+      });
+
+      await expect(
+        service.approve(TEST_PROPOSAL_ID, actors.human)
+      ).rejects.toThrow('PROPOSAL_NOT_IN_PENDING_STATE');
+    });
+
     it('RPC関数が存在しない場合はfallbackへ', async () => {
       mockRpc.mockResolvedValueOnce({
         data: null,
@@ -294,13 +309,13 @@ describe('ProposalService', () => {
       mockCanApprove.mockResolvedValue({ allowed: true });
 
       const approvedResult = {
-        ...proposals.proposed,
+        ...proposals.pending,
         status: 'approved',
         approvals: [{ actor: actors.human, decision: 'approve', at: '2026-01-01T00:00:00Z' }],
       };
       const executedResult = { ...proposals.executed };
 
-      const getByIdChain = createChain({ data: proposals.proposed, error: null });
+      const getByIdChain = createChain({ data: proposals.pending, error: null });
       const updateChain = createChain({ data: approvedResult, error: null });
       const getByIdChain2 = createChain({ data: { ...approvedResult }, error: null });
       const eventSelectChain = createChain({ data: null, error: null });
@@ -328,6 +343,23 @@ describe('ProposalService', () => {
       expect(result.isFullyApproved).toBe(true);
       expect(result.autoExecuted).toBe(true);
     });
+
+    it('strict mode時にRPC関数が存在しない場合は ATOMIC_RPC_REQUIRED', async () => {
+      process.env.PROPOSAL_RPC_FALLBACK_MODE = 'disabled';
+      const strictService = new ProposalService(TEST_ORG_ID);
+
+      const getByIdChain = createChain({ data: proposals.pending, error: null });
+      mockFrom.mockReturnValue(getByIdChain);
+
+      mockRpc.mockResolvedValueOnce({
+        data: null,
+        error: { message: 'Could not find the function public.approve_proposal_atomic' },
+      });
+
+      await expect(
+        strictService.approve(TEST_PROPOSAL_ID, actors.human, 'テスト承認')
+      ).rejects.toThrow('ATOMIC_RPC_REQUIRED');
+    });
   });
 
   // ============================================================
@@ -347,14 +379,14 @@ describe('ProposalService', () => {
       mockCanApprove.mockResolvedValue({ allowed: true });
 
       const approvedResult = {
-        ...proposals.proposed,
+        ...proposals.pending,
         status: 'approved',
         approvals: [{ actor: actors.human, decision: 'approve', at: '2026-01-01T00:00:00Z' }],
       };
       const executedResult = { ...proposals.executed };
 
       // 1. getById (approve内)
-      const getByIdChain = createChain({ data: proposals.proposed, error: null });
+      const getByIdChain = createChain({ data: proposals.pending, error: null });
       // 2. update (approve内 → approved)
       const updateChain = createChain({ data: approvedResult, error: null });
       // 3. getById (execute内)
@@ -398,13 +430,13 @@ describe('ProposalService', () => {
       mockCanExecute.mockResolvedValueOnce({ allowed: false, reason: 'INSUFFICIENT_APPROVALS' });
 
       const approvedResult = {
-        ...proposals.proposed,
+        ...proposals.pending,
         status: 'approved',
         approvals: [{ actor: actors.human, decision: 'approve', at: '2026-01-01T00:00:00Z' }],
       };
 
       // 1. getById (approve内)
-      const getByIdChain = createChain({ data: proposals.proposed, error: null });
+      const getByIdChain = createChain({ data: proposals.pending, error: null });
       // 2. update → approved
       const updateChain = createChain({ data: approvedResult, error: null });
       // 3. getById (execute内)
@@ -422,7 +454,7 @@ describe('ProposalService', () => {
       mockCanApprove.mockResolvedValue({ allowed: true });
 
       const twoApprovalProposal = makeProposal({
-        status: 'proposed',
+        status: 'pending',
         required_approvals: 2,
         approvals: [],
       });
@@ -440,7 +472,7 @@ describe('ProposalService', () => {
       const result = await service.approve(TEST_PROPOSAL_ID, actors.human);
       expect(result.isFullyApproved).toBe(false);
       expect(result.autoExecuted).toBe(false);
-      expect(result.proposal.status).toBe('proposed');
+      expect(result.proposal.status).toBe('pending');
     });
 
     it('AI 自己承認禁止 → エラー', async () => {
@@ -457,13 +489,13 @@ describe('ProposalService', () => {
       ).rejects.toThrow('AI_SELF_APPROVAL_PROHIBITED');
     });
 
-    it('proposed 以外の状態 → PROPOSAL_NOT_IN_PROPOSED_STATE', async () => {
+    it('pending 以外の状態 → PROPOSAL_NOT_IN_PENDING_STATE', async () => {
       const chain = createChain({ data: proposals.draft, error: null });
       mockFrom.mockReturnValue(chain);
 
       await expect(
         service.approve(TEST_PROPOSAL_ID, actors.human)
-      ).rejects.toThrow('PROPOSAL_NOT_IN_PROPOSED_STATE');
+      ).rejects.toThrow('PROPOSAL_NOT_IN_PENDING_STATE');
     });
   });
 
@@ -473,7 +505,7 @@ describe('ProposalService', () => {
 
   describe('reject()', () => {
     it('RPC関数が利用可能な場合は原子実行結果を返す', async () => {
-      const getByIdChain = createChain({ data: proposals.proposed, error: null });
+      const getByIdChain = createChain({ data: proposals.pending, error: null });
       mockFrom.mockReturnValue(getByIdChain);
 
       const rejectedResult = { ...proposals.rejected, status: 'rejected' };
@@ -489,13 +521,13 @@ describe('ProposalService', () => {
       });
     });
 
-    it('proposed → rejected に遷移する', async () => {
+    it('pending → rejected に遷移する', async () => {
       const rejectedResult = {
         ...proposals.rejected,
         status: 'rejected',
       };
 
-      const getByIdChain = createChain({ data: proposals.proposed, error: null });
+      const getByIdChain = createChain({ data: proposals.pending, error: null });
       const updateChain = createChain({ data: rejectedResult, error: null });
 
       setupMockFromSequence(mockFrom, [getByIdChain, updateChain]);
@@ -504,13 +536,44 @@ describe('ProposalService', () => {
       expect(result.status).toBe('rejected');
     });
 
-    it('proposed 以外 → PROPOSAL_NOT_IN_PROPOSED_STATE', async () => {
+    it('reject RPCの旧エラー PROPOSAL_NOT_IN_PROPOSED_STATE を pending エラーとして扱う', async () => {
+      const getByIdChain = createChain({ data: proposals.pending, error: null });
+      mockFrom.mockReturnValue(getByIdChain);
+
+      mockRpc.mockResolvedValueOnce({
+        data: null,
+        error: { message: 'PROPOSAL_NOT_IN_PROPOSED_STATE' },
+      });
+
+      await expect(
+        service.reject(TEST_PROPOSAL_ID, actors.human, '理由')
+      ).rejects.toThrow('PROPOSAL_NOT_IN_PENDING_STATE');
+    });
+
+    it('pending 以外 → PROPOSAL_NOT_IN_PENDING_STATE', async () => {
       const chain = createChain({ data: proposals.approved, error: null });
       mockFrom.mockReturnValue(chain);
 
       await expect(
         service.reject(TEST_PROPOSAL_ID, actors.human, '理由')
-      ).rejects.toThrow('PROPOSAL_NOT_IN_PROPOSED_STATE');
+      ).rejects.toThrow('PROPOSAL_NOT_IN_PENDING_STATE');
+    });
+
+    it('strict mode時にreject RPC関数が存在しない場合は ATOMIC_RPC_REQUIRED', async () => {
+      process.env.PROPOSAL_RPC_FALLBACK_MODE = 'disabled';
+      const strictService = new ProposalService(TEST_ORG_ID);
+
+      const getByIdChain = createChain({ data: proposals.pending, error: null });
+      mockFrom.mockReturnValue(getByIdChain);
+
+      mockRpc.mockResolvedValueOnce({
+        data: null,
+        error: { message: 'Could not find the function public.reject_proposal_atomic' },
+      });
+
+      await expect(
+        strictService.reject(TEST_PROPOSAL_ID, actors.human, '理由')
+      ).rejects.toThrow('ATOMIC_RPC_REQUIRED');
     });
   });
 
@@ -563,7 +626,7 @@ describe('ProposalService', () => {
           if (proposalId === 'ok-2') {
             return { ...proposals.rejected, id: proposalId };
           }
-          throw new Error('PROPOSAL_NOT_IN_PROPOSED_STATE');
+          throw new Error('PROPOSAL_NOT_IN_PENDING_STATE');
         });
 
       const result = await service.rejectBatch(
@@ -583,7 +646,7 @@ describe('ProposalService', () => {
       expect(result.results[1]).toMatchObject({
         proposalId: 'ng-2',
         success: false,
-        error: 'PROPOSAL_NOT_IN_PROPOSED_STATE',
+        error: 'PROPOSAL_NOT_IN_PENDING_STATE',
       });
     });
   });
@@ -675,6 +738,23 @@ describe('ProposalService', () => {
       ).rejects.toThrow('INSUFFICIENT_APPROVALS');
       expect(mockFrom).toHaveBeenCalledTimes(1);
     });
+
+    it('strict mode時にexecute RPC関数が存在しない場合は ATOMIC_RPC_REQUIRED', async () => {
+      process.env.PROPOSAL_RPC_FALLBACK_MODE = 'disabled';
+      const strictService = new ProposalService(TEST_ORG_ID);
+
+      const chain = createChain({ data: proposals.approved, error: null });
+      mockFrom.mockReturnValue(chain);
+
+      mockRpc.mockResolvedValueOnce({
+        data: null,
+        error: { message: 'Could not find the function public.execute_proposal_atomic' },
+      });
+
+      await expect(
+        strictService.execute(TEST_PROPOSAL_ID, actors.system)
+      ).rejects.toThrow('ATOMIC_RPC_REQUIRED');
+    });
   });
 
   // ============================================================
@@ -692,8 +772,8 @@ describe('ProposalService', () => {
       expect(deleteChain.delete).toHaveBeenCalled();
     });
 
-    it('proposed 状態 → CAN_ONLY_DELETE_DRAFT_PROPOSALS', async () => {
-      const chain = createChain({ data: proposals.proposed, error: null });
+    it('pending 状態 → CAN_ONLY_DELETE_DRAFT_PROPOSALS', async () => {
+      const chain = createChain({ data: proposals.pending, error: null });
       mockFrom.mockReturnValue(chain);
 
       await expect(

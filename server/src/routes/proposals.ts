@@ -4,6 +4,7 @@
  * 参照: docs/PROPOSAL_SYSTEM.md
  */
 
+import { createHash } from "crypto";
 import { Router, Response } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import { ProposalService } from "../services/ProposalService";
@@ -12,17 +13,69 @@ import { ActorRef, ProposalType, ProposalStatus } from "../services/PolicyEngine
 const router = Router();
 const DEFAULT_ORG_ID = process.env.DEFAULT_ORG_ID || '00000000-0000-0000-0000-000000000001';
 
+const VALID_PROPOSAL_TYPES: ReadonlySet<string> = new Set<ProposalType>([
+  'expense.create', 'expense.update', 'expense.void',
+  'income.create', 'income.update',
+  'invoice.create', 'invoice.send', 'invoice.mark_paid',
+  'reward.calculate', 'reward.adjust',
+  'skill.achieve', 'skill.revoke',
+  'evaluation.submit', 'evaluation.finalize',
+  'assignment.create', 'assignment.update', 'assignment.cancel',
+  'communication.review', 'communication.task', 'task.revision.request',
+  'site.create', 'site.complete',
+  'policy.update',
+]);
+const DISALLOWED_INTEGRATION_TYPES: ReadonlySet<ProposalType> = new Set<ProposalType>([
+  'policy.update',
+  'task.revision.request',
+]);
+
 function getProposalService(req: AuthenticatedRequest): ProposalService {
   return new ProposalService(req.orgId || DEFAULT_ORG_ID);
+}
+
+function isValidProposalType(type: string): type is ProposalType {
+  return VALID_PROPOSAL_TYPES.has(type);
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function normalizeString(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function buildDeterministicUuid(seed: string): string {
+  const hash = createHash("sha256").update(seed).digest("hex").slice(0, 32).split("");
+  hash[12] = "4";
+  hash[16] = ((parseInt(hash[16]!, 16) & 0x3) | 0x8).toString(16);
+  return `${hash.slice(0, 8).join("")}-${hash.slice(8, 12).join("")}-${hash.slice(12, 16).join("")}-${hash.slice(16, 20).join("")}-${hash.slice(20, 32).join("")}`;
+}
+
+function isDuplicateKeyError(err: unknown): boolean {
+  if (!(err instanceof Error)) {
+    return false;
+  }
+  return err.message.includes("duplicate key value") || err.message.includes("23505");
 }
 
 // ============================================================
 // Helper: ActorRefを構築
 // ============================================================
 
-function buildActorRef(req: AuthenticatedRequest, overrideType?: 'ai' | 'system' | 'integration'): ActorRef {
+/**
+ * ActorRefを構築（常にhuman）
+ * セキュリティ: actor_typeはクライアント入力から受け取らない。
+ * AI/systemアクターは内部的に明示構築すること。
+ */
+function buildActorRef(req: AuthenticatedRequest): ActorRef {
   return {
-    type: overrideType || 'human',
+    type: 'human',
     id: req.userId!,
     name: req.userName || 'Unknown User',
   };
@@ -56,24 +109,162 @@ function respondMappedError(res: Response, err: unknown, errorMap: ProposalError
  */
 router.post("/", async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { type, payload, description, actor_type } = req.body;
+    const { type, payload, description } = req.body;
 
     if (!type || !payload || !description) {
       res.status(400).json({ error: "type, payload, description are required" });
       return;
     }
 
+    if (!isPlainObject(payload)) {
+      res.status(400).json({ error: "payload must be a JSON object" });
+      return;
+    }
+
+    if (!isValidProposalType(type)) {
+      res.status(400).json({ error: `Invalid proposal type: ${type}` });
+      return;
+    }
+
     const proposal = await getProposalService(req).create({
-      type: type as ProposalType,
+      type,
       payload,
       description,
-      created_by: buildActorRef(req, actor_type),
+      created_by: buildActorRef(req),
     });
 
     res.status(201).json(proposal);
   } catch (err: any) {
     console.error("Create proposal error:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * POST /api/v1/proposals/integration
+ * integration actor 用の Proposal作成（冪等化: source+external_id）
+ */
+router.post("/integration", async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { type, payload, description, source, external_id, integration_name, submit = true } = req.body as {
+      type?: string;
+      payload?: Record<string, unknown>;
+      description?: string;
+      source?: string;
+      external_id?: string;
+      integration_name?: string;
+      submit?: boolean;
+    };
+
+    if (!type || !payload || !description || !source || !external_id) {
+      res.status(400).json({
+        error: "type, payload, description, source, external_id are required",
+      });
+      return;
+    }
+
+    if (!isPlainObject(payload)) {
+      res.status(400).json({ error: "payload must be a JSON object" });
+      return;
+    }
+
+    if (!isValidProposalType(type)) {
+      res.status(400).json({ error: `Invalid proposal type: ${type}` });
+      return;
+    }
+
+    if (DISALLOWED_INTEGRATION_TYPES.has(type)) {
+      res.status(400).json({ error: `proposal type is not allowed for integration: ${type}` });
+      return;
+    }
+
+    const normalizedDescription = normalizeString(description);
+    const normalizedSource = normalizeString(source);
+    const normalizedExternalId = normalizeString(external_id);
+    const normalizedIntegrationName = normalizeString(integration_name);
+    if (!normalizedDescription || !normalizedSource || !normalizedExternalId) {
+      res.status(400).json({
+        error: "description, source, external_id must not be empty",
+      });
+      return;
+    }
+
+    const orgId = req.orgId || DEFAULT_ORG_ID;
+    const proposalId = buildDeterministicUuid(`${orgId}:${normalizedSource}:${normalizedExternalId}`);
+    const integrationActorId = `integration:${normalizedSource}`;
+    const integrationActorName = normalizedIntegrationName || `Integration(${normalizedSource})`;
+    const integrationActor: ActorRef = {
+      type: "integration",
+      id: integrationActorId,
+      name: integrationActorName,
+    };
+    const integrationMetadata = {
+      source: normalizedSource,
+      external_id: normalizedExternalId,
+    };
+
+    const service = getProposalService(req);
+    const input = {
+      id: proposalId,
+      type,
+      payload: {
+        ...payload,
+        _integration: integrationMetadata,
+      },
+      description: normalizedDescription,
+      created_by: integrationActor,
+      org_id: orgId,
+    };
+
+    if (submit) {
+      const result = await service.createAndSubmit(input);
+      res.status(201).json({
+        proposal: result.proposal,
+        auto_approved: result.autoApproved,
+        auto_executed: result.autoExecuted,
+        submitted: true,
+        deduplicated: false,
+      });
+      return;
+    }
+
+    const proposal = await service.create(input);
+    res.status(201).json({
+      proposal,
+      auto_approved: false,
+      auto_executed: false,
+      submitted: false,
+      deduplicated: false,
+    });
+  } catch (err: unknown) {
+    const { source, external_id } = req.body as {
+      source?: string;
+      external_id?: string;
+    };
+    const normalizedSource = normalizeString(source);
+    const normalizedExternalId = normalizeString(external_id);
+    const orgId = req.orgId || DEFAULT_ORG_ID;
+
+    if (normalizedSource && normalizedExternalId && isDuplicateKeyError(err)) {
+      const proposalId = buildDeterministicUuid(`${orgId}:${normalizedSource}:${normalizedExternalId}`);
+      const existing = await getProposalService(req).getById(proposalId);
+      if (existing) {
+        const submitted = existing.status !== "draft";
+        const autoExecuted = existing.status === "executed";
+        const autoApproved = existing.status === "approved" || autoExecuted;
+        res.status(200).json({
+          proposal: existing,
+          auto_approved: autoApproved,
+          auto_executed: autoExecuted,
+          submitted,
+          deduplicated: true,
+        });
+        return;
+      }
+    }
+
+    console.error("Create integration proposal error:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -95,7 +286,7 @@ router.get("/", async (req: AuthenticatedRequest, res: Response) => {
     res.json(proposals);
   } catch (err: any) {
     console.error("List proposals error:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -109,7 +300,7 @@ router.get("/pending", async (req: AuthenticatedRequest, res: Response) => {
     res.json(proposals);
   } catch (err: any) {
     console.error("Get pending proposals error:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -130,7 +321,7 @@ router.get("/:id", async (req: AuthenticatedRequest, res: Response) => {
     res.json(proposal);
   } catch (err: any) {
     console.error("Get proposal error:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -155,7 +346,7 @@ router.delete("/:id", async (req: AuthenticatedRequest, res: Response) => {
       return;
     }
 
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -165,7 +356,7 @@ router.delete("/:id", async (req: AuthenticatedRequest, res: Response) => {
 
 /**
  * POST /api/v1/proposals/:id/submit
- * Proposal提出（draft → proposed）
+ * Proposal提出（draft → pending）
  * 自動承認の場合は即時approved/executedに遷移
  */
 router.post("/:id/submit", async (req: AuthenticatedRequest, res: Response) => {
@@ -190,7 +381,7 @@ router.post("/:id/submit", async (req: AuthenticatedRequest, res: Response) => {
       return;
     }
 
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -200,10 +391,9 @@ router.post("/:id/submit", async (req: AuthenticatedRequest, res: Response) => {
  */
 router.post("/approve/batch", async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { proposal_ids, reason, actor_type } = req.body as {
+    const { proposal_ids, reason } = req.body as {
       proposal_ids?: string[];
       reason?: string;
-      actor_type?: 'ai' | 'system' | 'integration';
     };
 
     if (!Array.isArray(proposal_ids) || proposal_ids.length === 0) {
@@ -218,7 +408,7 @@ router.post("/approve/batch", async (req: AuthenticatedRequest, res: Response) =
 
     const result = await getProposalService(req).approveBatch(
       proposal_ids,
-      buildActorRef(req, actor_type),
+      buildActorRef(req),
       reason
     );
 
@@ -237,7 +427,7 @@ router.post("/approve/batch", async (req: AuthenticatedRequest, res: Response) =
     });
   } catch (err: any) {
     console.error("Batch approve proposals error:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -248,11 +438,11 @@ router.post("/approve/batch", async (req: AuthenticatedRequest, res: Response) =
 router.post("/:id/approve", async (req: AuthenticatedRequest, res: Response) => {
   try {
     const id = req.params.id as string;
-    const { reason, actor_type } = req.body;
+    const { reason } = req.body;
 
     const result = await getProposalService(req).approve(
       id,
-      buildActorRef(req, actor_type),
+      buildActorRef(req),
       reason
     );
 
@@ -266,7 +456,9 @@ router.post("/:id/approve", async (req: AuthenticatedRequest, res: Response) => 
 
     const errorMap: ProposalErrorMap = {
       'PROPOSAL_NOT_FOUND': { status: 404, message: "Proposal not found" },
-      'PROPOSAL_NOT_IN_PROPOSED_STATE': { status: 400, message: "Proposal is not in proposed state" },
+      'PROPOSAL_NOT_IN_PENDING_STATE': { status: 400, message: "Proposal is not in pending state" },
+      'PROPOSAL_NOT_IN_PROPOSED_STATE': { status: 400, message: "Proposal is not in pending state" },
+      'ATOMIC_RPC_REQUIRED': { status: 503, message: "Atomic proposal RPC is required but unavailable" },
       'AI_SELF_APPROVAL_PROHIBITED': { status: 403, message: "AI cannot approve AI-created proposals" },
       'AI_APPROVAL_NOT_ALLOWED_BY_POLICY': { status: 403, message: "AI approval not allowed by policy" },
       'INTEGRATION_APPROVAL_PROHIBITED': { status: 403, message: "Integration actor cannot approve proposals" },
@@ -279,7 +471,7 @@ router.post("/:id/approve", async (req: AuthenticatedRequest, res: Response) => 
       return;
     }
 
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -328,7 +520,7 @@ router.post("/reject/batch", async (req: AuthenticatedRequest, res: Response) =>
     });
   } catch (err: any) {
     console.error("Batch reject proposals error:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -353,14 +545,79 @@ router.post("/:id/reject", async (req: AuthenticatedRequest, res: Response) => {
 
     const errorMap: ProposalErrorMap = {
       'PROPOSAL_NOT_FOUND': { status: 404, message: "Proposal not found" },
-      'PROPOSAL_NOT_IN_PROPOSED_STATE': { status: 400, message: "Proposal is not in proposed state" },
+      'PROPOSAL_NOT_IN_PENDING_STATE': { status: 400, message: "Proposal is not in pending state" },
+      'PROPOSAL_NOT_IN_PROPOSED_STATE': { status: 400, message: "Proposal is not in pending state" },
+      'ATOMIC_RPC_REQUIRED': { status: 503, message: "Atomic proposal RPC is required but unavailable" },
     };
 
     if (respondMappedError(res, err, errorMap)) {
       return;
     }
 
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * POST /api/v1/proposals/:id/instruct
+ * 既存提案に対する指示（再提案リクエスト）を作成して提出
+ */
+router.post("/:id/instruct", async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const { instruction } = req.body as { instruction?: string };
+    const normalizedInstruction = normalizeString(instruction);
+
+    if (!normalizedInstruction) {
+      res.status(400).json({ error: "instruction is required" });
+      return;
+    }
+
+    const target = await getProposalService(req).getById(id);
+    if (!target) {
+      res.status(404).json({ error: "Proposal not found", code: "PROPOSAL_NOT_FOUND" });
+      return;
+    }
+
+    if (target.status !== "pending") {
+      res.status(400).json({
+        error: "Instruction can only be created for pending proposals",
+        code: "PROPOSAL_NOT_IN_PENDING_STATE",
+      });
+      return;
+    }
+
+    const payload = isPlainObject(target.payload) ? target.payload : {};
+    const sourceMessageId = normalizeString(payload.source_message_id);
+    const parentProposalId = normalizeString(payload.parent_proposal_id);
+
+    const result = await getProposalService(req).createAndSubmit({
+      type: "task.revision.request",
+      payload: {
+        target_proposal_id: target.id,
+        target_type: target.type,
+        target_status: target.status,
+        instruction: normalizedInstruction,
+        source_message_id: sourceMessageId,
+        parent_proposal_id: parentProposalId,
+        target_snapshot: {
+          description: target.description,
+          payload_preview: payload,
+        },
+      },
+      description: `提案への修正指示: ${normalizedInstruction}`,
+      created_by: buildActorRef(req),
+    });
+
+    res.status(201).json({
+      proposal: result.proposal,
+      auto_approved: result.autoApproved,
+      auto_executed: result.autoExecuted,
+      submitted: true,
+    });
+  } catch (err: any) {
+    console.error("Create instruction proposal error:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -381,13 +638,14 @@ router.post("/:id/execute", async (req: AuthenticatedRequest, res: Response) => 
       'PROPOSAL_NOT_APPROVED': { status: 400, message: "Proposal is not approved" },
       'INSUFFICIENT_APPROVALS': { status: 400, message: "Insufficient approvals for execution" },
       'POLICY_APPROVER_REQUIREMENTS_NOT_MET': { status: 400, message: "Policy approver requirements not met" },
+      'ATOMIC_RPC_REQUIRED': { status: 503, message: "Atomic proposal RPC is required but unavailable" },
     };
 
     if (respondMappedError(res, err, errorMap)) {
       return;
     }
 
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -401,18 +659,28 @@ router.post("/:id/execute", async (req: AuthenticatedRequest, res: Response) => 
  */
 router.post("/create-and-submit", async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { type, payload, description, actor_type } = req.body;
+    const { type, payload, description } = req.body;
 
     if (!type || !payload || !description) {
       res.status(400).json({ error: "type, payload, description are required" });
       return;
     }
 
+    if (!isPlainObject(payload)) {
+      res.status(400).json({ error: "payload must be a JSON object" });
+      return;
+    }
+
+    if (!isValidProposalType(type)) {
+      res.status(400).json({ error: `Invalid proposal type: ${type}` });
+      return;
+    }
+
     const result = await getProposalService(req).createAndSubmit({
-      type: type as ProposalType,
+      type,
       payload,
       description,
-      created_by: buildActorRef(req, actor_type),
+      created_by: buildActorRef(req),
     });
 
     res.status(201).json({
@@ -422,7 +690,7 @@ router.post("/create-and-submit", async (req: AuthenticatedRequest, res: Respons
     });
   } catch (err: any) {
     console.error("Create and submit proposal error:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 

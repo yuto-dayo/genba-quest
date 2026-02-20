@@ -34,6 +34,33 @@ export interface GmailAttachment {
   data?: string; // Base64エンコードされたデータ
 }
 
+type GmailApiErrorPayload = {
+  error?: {
+    errors?: Array<{ reason?: string }>;
+  };
+};
+
+function isHistoryNotFoundError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const candidate = error as {
+    status?: number;
+    code?: number;
+    response?: {
+      status?: number;
+      data?: GmailApiErrorPayload;
+    };
+    errors?: Array<{ reason?: string }>;
+  };
+
+  const status = candidate.status ?? candidate.code ?? candidate.response?.status;
+  const reason = candidate.errors?.[0]?.reason ?? candidate.response?.data?.error?.errors?.[0]?.reason;
+
+  return status === 404 && reason === 'notFound';
+}
+
 // ============================================================
 // Gmail Watcher Service
 // ============================================================
@@ -136,6 +163,13 @@ export class GmailWatcher {
       return messages;
 
     } catch (error: any) {
+      if (isHistoryNotFoundError(error)) {
+        console.warn(
+          `[GMAIL_WATCH] 履歴ID ${startHistoryId} が無効または期限切れです。差分取得をスキップし、次の通知で再同期します。`
+        );
+        return [];
+      }
+
       console.error('[GMAIL_WATCH] 履歴取得エラー:', error.message);
       throw error;
     }

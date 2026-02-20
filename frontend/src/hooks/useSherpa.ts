@@ -1,5 +1,4 @@
 import { useState, useCallback } from 'react';
-import { useLocation } from 'react-router-dom';
 import { chatWithSherpa, type ChatMessage } from '../lib/api';
 
 export interface Message {
@@ -10,7 +9,6 @@ export interface Message {
 }
 
 export const useSherpa = () => {
-    const location = useLocation();
     const [messages, setMessages] = useState<Message[]>([
         {
             id: "welcome",
@@ -69,7 +67,7 @@ export const useSherpa = () => {
         } finally {
             setLoading(false);
         }
-    }, [messages, loading, location]);
+    }, [messages, loading]);
 
     return {
         messages,

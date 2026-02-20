@@ -1,0 +1,10 @@
+description = "List shared project skills from .claude/skills"
+prompt = """
+List available shared skills in this repository.
+
+Steps:
+1. Use a single shell command (e.g., `awk` or `grep`) to extract ONLY the `name` and `description` from the YAML frontmatter of `.claude/skills/*/SKILL.md` (or `.agent/skills/`).
+2. DO NOT use `view_file` or similar tools on each skill file, as reading 30+ full files will unnecessarily bloat the context window.
+3. Return a concise table: `skill | when to use`.
+4. If a `SKILL.md` is missing, flag it clearly in the script output.
+"""

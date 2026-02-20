@@ -19,6 +19,7 @@ import {
 // ============================================================
 
 export interface CreateProposalInput {
+  id?: string;
   type: ProposalType;
   payload: Record<string, unknown>;
   description: string;
@@ -105,10 +106,20 @@ const ACCOUNT_CODES = {
 export class ProposalService {
   private engine: PolicyEngine;
   private orgId: string;
+  private disableRpcFallback: boolean;
 
   constructor(orgId: string = '00000000-0000-0000-0000-000000000001') {
     this.orgId = orgId;
     this.engine = new PolicyEngine(orgId);
+    const fallbackMode = (process.env.PROPOSAL_RPC_FALLBACK_MODE || 'allow').toLowerCase();
+    this.disableRpcFallback = ['disabled', 'deny', 'off'].includes(fallbackMode);
+  }
+
+  private fallbackToLegacyFlowOrThrow(): null {
+    if (this.disableRpcFallback) {
+      throw new Error('ATOMIC_RPC_REQUIRED');
+    }
+    return null;
   }
 
   /**
@@ -121,19 +132,24 @@ export class ProposalService {
       created_by: input.created_by,
     });
 
+    const insertPayload: Record<string, unknown> = {
+      org_id: input.org_id || this.orgId,
+      type: input.type,
+      status: 'draft',
+      created_by: input.created_by,
+      payload: input.payload,
+      description: input.description,
+      policy_ref: evaluation.policy.name,
+      required_approvals: evaluation.requiredApprovals,
+      approvals: [],
+    };
+    if (input.id) {
+      insertPayload.id = input.id;
+    }
+
     const { data, error } = await supabaseAdmin
       .from('proposals')
-      .insert({
-        org_id: input.org_id || this.orgId,
-        type: input.type,
-        status: 'draft',
-        created_by: input.created_by,
-        payload: input.payload,
-        description: input.description,
-        policy_ref: evaluation.policy.name,
-        required_approvals: evaluation.requiredApprovals,
-        approvals: [],
-      })
+      .insert(insertPayload)
       .select()
       .single();
 
@@ -145,7 +161,7 @@ export class ProposalService {
   }
 
   /**
-   * Proposal提出（draft → proposed）
+   * Proposal提出（draft → pending）
    * 自動承認の場合は即時 approved/executed に遷移
    */
   async submit(proposalId: string, submitter: ActorRef): Promise<SubmitResult> {
@@ -162,7 +178,7 @@ export class ProposalService {
     // ポリシー評価
     const evaluation = await this.engine.evaluateProposal(proposal);
 
-    let newStatus: ProposalStatus = 'proposed';
+    let newStatus: ProposalStatus = 'pending';
     let autoApproved = false;
     let autoExecuted = false;
 
@@ -247,8 +263,8 @@ export class ProposalService {
       throw new Error('PROPOSAL_NOT_FOUND');
     }
 
-    if (proposal.status !== 'proposed') {
-      throw new Error('PROPOSAL_NOT_IN_PROPOSED_STATE');
+    if (proposal.status !== 'pending') {
+      throw new Error('PROPOSAL_NOT_IN_PENDING_STATE');
     }
 
     return proposal;
@@ -274,7 +290,7 @@ export class ProposalService {
     };
 
     if (typeof rpcClient.rpc !== 'function') {
-      return null;
+      return this.fallbackToLegacyFlowOrThrow();
     }
 
     const { data, error } = await rpcClient.rpc('approve_proposal_atomic', {
@@ -292,7 +308,7 @@ export class ProposalService {
         message.includes('approve_proposal_atomic') &&
         (message.includes('does not exist') || message.includes('Could not find the function'));
       if (functionMissing) {
-        return null;
+        return this.fallbackToLegacyFlowOrThrow();
       }
 
       // approve RPC 内の auto-execute 失敗は fallback で承認継続可能
@@ -301,13 +317,19 @@ export class ProposalService {
         message.toLowerCase().includes('value overflows numeric') ||
         message.includes('JOURNAL_IMBALANCED');
       if (executeFailureInApproveRpc) {
-        return null;
+        return this.fallbackToLegacyFlowOrThrow();
+      }
+
+      if (
+        message.includes('PROPOSAL_NOT_IN_PENDING_STATE') ||
+        message.includes('PROPOSAL_NOT_IN_PROPOSED_STATE')
+      ) {
+        throw new Error('PROPOSAL_NOT_IN_PENDING_STATE');
       }
 
       // 既知のビジネスエラーはそのまま投げる
       const knownErrors = [
         'PROPOSAL_NOT_FOUND',
-        'PROPOSAL_NOT_IN_PROPOSED_STATE',
         'AI_SELF_APPROVAL_PROHIBITED',
         'AI_APPROVAL_NOT_ALLOWED_BY_POLICY',
         'INTEGRATION_APPROVAL_PROHIBITED',
@@ -375,8 +397,9 @@ export class ProposalService {
 
     // 必要承認数に達したかチェック
     const isFullyApproved = approvalCount >= proposal.required_approvals;
-    const newStatus: ProposalStatus = isFullyApproved ? 'approved' : 'proposed';
+    const newStatus: ProposalStatus = isFullyApproved ? 'approved' : 'pending';
 
+    // 楽観的ロック: 承認中にステータスが変わっていないことを確認
     const { data, error } = await supabaseAdmin
       .from('proposals')
       .update({
@@ -386,10 +409,15 @@ export class ProposalService {
       })
       .eq('id', proposal.id)
       .eq('org_id', this.orgId)
+      .eq('status', 'pending')
       .select()
       .single();
 
     if (error) {
+      // 楽観的ロック失敗: 別リクエストが先に承認/却下した可能性
+      if (error.code === 'PGRST116' || error.message?.includes('0 rows')) {
+        throw new Error('PROPOSAL_NOT_IN_PENDING_STATE');
+      }
       throw new Error(`Failed to approve proposal: ${error.message}`);
     }
 
@@ -463,8 +491,8 @@ export class ProposalService {
       throw new Error('PROPOSAL_NOT_FOUND');
     }
 
-    if (proposal.status !== 'proposed') {
-      throw new Error('PROPOSAL_NOT_IN_PROPOSED_STATE');
+    if (proposal.status !== 'pending') {
+      throw new Error('PROPOSAL_NOT_IN_PENDING_STATE');
     }
 
     const atomicResult = await this.tryRejectAtomicRpc(proposalId, rejector, reason);
@@ -496,7 +524,7 @@ export class ProposalService {
     };
 
     if (typeof rpcClient.rpc !== 'function') {
-      return null;
+      return this.fallbackToLegacyFlowOrThrow();
     }
 
     const { data, error } = await rpcClient.rpc('reject_proposal_atomic', {
@@ -512,13 +540,16 @@ export class ProposalService {
         message.includes('reject_proposal_atomic') &&
         (message.includes('does not exist') || message.includes('Could not find the function'));
       if (functionMissing) {
-        return null;
+        return this.fallbackToLegacyFlowOrThrow();
       }
       if (message.includes('PROPOSAL_NOT_FOUND')) {
         throw new Error('PROPOSAL_NOT_FOUND');
       }
-      if (message.includes('PROPOSAL_NOT_IN_PROPOSED_STATE')) {
-        throw new Error('PROPOSAL_NOT_IN_PROPOSED_STATE');
+      if (
+        message.includes('PROPOSAL_NOT_IN_PENDING_STATE') ||
+        message.includes('PROPOSAL_NOT_IN_PROPOSED_STATE')
+      ) {
+        throw new Error('PROPOSAL_NOT_IN_PENDING_STATE');
       }
 
       throw new Error(`Failed to reject proposal atomically: ${message}`);
@@ -544,6 +575,7 @@ export class ProposalService {
       at: new Date().toISOString(),
     };
 
+    // 楽観的ロック: 却下中にステータスが変わっていないことを確認
     const { data, error } = await supabaseAdmin
       .from('proposals')
       .update({
@@ -554,10 +586,14 @@ export class ProposalService {
       })
       .eq('id', proposal.id)
       .eq('org_id', this.orgId)
+      .eq('status', 'pending')
       .select()
       .single();
 
     if (error) {
+      if (error.code === 'PGRST116' || error.message?.includes('0 rows')) {
+        throw new Error('PROPOSAL_NOT_IN_PENDING_STATE');
+      }
       throw new Error(`Failed to reject proposal: ${error.message}`);
     }
 
@@ -741,7 +777,7 @@ export class ProposalService {
     };
 
     if (typeof rpcClient.rpc !== 'function') {
-      return null;
+      return this.fallbackToLegacyFlowOrThrow();
     }
 
     const { data, error } = await rpcClient.rpc('execute_proposal_atomic', {
@@ -756,7 +792,7 @@ export class ProposalService {
         message.includes('execute_proposal_atomic') &&
         (message.includes('does not exist') || message.includes('Could not find the function'));
       if (functionMissing) {
-        return null;
+        return this.fallbackToLegacyFlowOrThrow();
       }
       if (message.includes('PROPOSAL_NOT_FOUND')) {
         throw new Error('PROPOSAL_NOT_FOUND');
@@ -1341,7 +1377,7 @@ export class ProposalService {
    * 承認待ちProposalを取得
    */
   async getPendingApprovals(): Promise<Proposal[]> {
-    return this.list({ status: 'proposed' });
+    return this.list({ status: 'pending' });
   }
 
   /**

@@ -16,14 +16,14 @@ if [[ -z "$staged_files" ]]; then
 fi
 
 # handoff運用ファイル以外に差分があるか
-requires_handoff="$(printf '%s\n' "$staged_files" | rg -v '^(HANDOFF\.md$|\.githooks/|scripts/session/|\.session/)' || true)"
+requires_handoff="$(printf '%s\n' "$staged_files" | rg -v '^(HANDOFF\.md$|handoff/|\.githooks/|scripts/session/|\.session/)' || true)"
 
 if [[ -z "$requires_handoff" ]]; then
   exit 0
 fi
 
-if ! printf '%s\n' "$staged_files" | rg -q '^HANDOFF\.md$'; then
-  echo "Commit blocked: HANDOFF.md must be staged with non-handoff changes." >&2
+if ! printf '%s\n' "$staged_files" | rg -q '^(HANDOFF\.md|handoff/.+\.md)$'; then
+  echo "Commit blocked: handoff markdown (HANDOFF.md or handoff/*.md) must be staged with non-handoff changes." >&2
   echo "Run: scripts/session/session-update.sh --done \"...\" --next \"...\" --validation \"...\"" >&2
   exit 1
 fi

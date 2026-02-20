@@ -62,7 +62,7 @@ router.post("/documents", async (req: AuthenticatedRequest, res: Response) => {
         res.status(201).json(data);
     } catch (err: any) {
         console.error("Document upload error:", err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -125,7 +125,7 @@ router.post("/ocr/analyze", async (req: AuthenticatedRequest, res: Response) => 
         res.json(updated);
     } catch (err: any) {
         console.error("OCR analyze error:", err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -197,7 +197,7 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
         res.status(201).json(data);
     } catch (err: any) {
         console.error("Expense create error:", err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -273,7 +273,7 @@ router.post("/expenses/:id/review", async (req: AuthenticatedRequest, res: Respo
         res.json(data);
     } catch (err: any) {
         console.error("Expense review error:", err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -380,7 +380,7 @@ router.post("/expenses/batch-review", async (req: AuthenticatedRequest, res: Res
         res.json(results);
     } catch (err: any) {
         console.error("Batch review error:", err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -430,7 +430,7 @@ router.post("/sales", async (req: AuthenticatedRequest, res: Response) => {
         res.status(201).json(data);
     } catch (err: any) {
         console.error("Sale create error:", err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -475,7 +475,7 @@ router.post("/invoices", async (req: AuthenticatedRequest, res: Response) => {
         res.status(201).json(data);
     } catch (err: any) {
         console.error("Invoice create error:", err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -545,7 +545,7 @@ router.post("/void/:id", async (req: AuthenticatedRequest, res: Response) => {
         res.json({ original_voided: id, reversal_created: reversal.id });
     } catch (err: any) {
         console.error("Void error:", err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -608,7 +608,7 @@ router.get("/pl", async (req: AuthenticatedRequest, res: Response) => {
         });
     } catch (err: any) {
         console.error("PL error:", err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -674,7 +674,7 @@ router.get("/transactions/search", async (req: AuthenticatedRequest, res: Respon
         res.json(results);
     } catch (err: any) {
         console.error("Transaction search error:", err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -706,7 +706,7 @@ router.get("/transactions", async (req: AuthenticatedRequest, res: Response) => 
         res.json(data);
     } catch (err: any) {
         console.error("Transactions error:", err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -728,7 +728,7 @@ router.get("/pending-approvals", async (req: AuthenticatedRequest, res: Response
         res.json(data);
     } catch (err: any) {
         console.error("Pending approvals error:", err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 

@@ -51,9 +51,15 @@ ls server/sql/*.sql | tail -1        # 最新のSQL migration
 
 テンプレート `./handoff-template.md` を使い、プロジェクトルートに `HANDOFF.md` を作成。
 
-**AI向け Quick Resume + 13セクション構成（すべて必須）：**
+**AI向け Quick Resume + Layered Memory 構成（必須）：**
 
-0. **Quick Resume (AI)** - `NEXT_CMD` / `SUCCESS_CRITERIA` / `HOTSET` / `DO_NOT_READ` / `VERIFY_FIRST` / `STATE`
+L0. **Quick Resume (AI)** - 実行可能な `NEXT_CMD` と成功条件
+L1. **Session Summary (Compacted)** - 3-7行のセッション要約（`Entry-ID` 参照つき）
+L2. **Project Continuity (Compacted)** - Decisions / Landmines / Open Threads（`Entry-ID` 参照つき）
+L3. **Incremental Updates** - 生ログ（`Entry-ID` つき）。閾値超過時は自動コンパクション
+
+番号付きセクション（1-12）も維持:
+
 1. **Resume** - 次のエージェント名、ブランチ名、Phase、最初の1手
 2. **Goal** - チケットID・目的
 3. **Completed** - 完了タスク
@@ -66,7 +72,6 @@ ls server/sql/*.sql | tail -1        # 最新のSQL migration
 10. **Landmines / Gotchas** - 壊れて見えるが意図的、触ると壊れるもの
 11. **Risks / Blockers** - リスクやブロッカー
 12. **References** - 参照すべきファイル
-13. **Incremental Updates** - 作業中の追記ログ
 
 Quick Resume ルール:
 
@@ -74,6 +79,19 @@ Quick Resume ルール:
 - `STATE` は必ず記載（Branch / Uncommitted / DB migrations / Tests / Lint）
 - `HOTSET` は最大7ファイル
 - `VERIFY_FIRST` は 1-2 コマンドに絞る
+
+Progressive Loading ルール（コンテキスト節約）:
+
+- 次のエージェントは **L0（Quick Resume）だけを最初に読む**（`offset: 1, limit: 15`）
+- L1/L2 はタスクの文脈が不明な場合のみ追加で読む
+- L3（Incremental Updates）は原則読まない（L1/L2にコンパクション済み）
+- HANDOFF.md 全文を一括で読むのは**禁止**
+
+Layered Memory ルール:
+
+- `Incremental Updates` の各エントリに `Entry-ID` を必ず付与する
+- L1/L2 は `append-handoff-update.sh` が更新する（手動編集より自動更新を優先）
+- L3 は `HANDOFF_COMPACTION_THRESHOLD`（既定20）超で圧縮し、古いログを `.session/handoff_archive/` に退避
 
 ### Step 5: Changed Files のセマンティック記述ルール
 
@@ -84,7 +102,27 @@ Changed Files には以下のルールを適用する：
 - **新規作成は明記** — 例: `新規作成: approve+executeの原子実行SQL関数`
 - **削除は理由付き** — 例: `削除: 旧Dashboardコンポーネント（Todayページに統合）`
 
-### Step 6: ブランチ運用
+### Step 6: ドメイン別Handoff運用
+
+ドメイン別にhandoffを分割して運用できる：
+
+```bash
+# サーバー作業セッション
+scripts/session/session-start.sh --agent claude --domain server
+# → handoff/server.md が生成・更新される
+
+# フロント作業セッション
+scripts/session/session-start.sh --agent codex --domain frontend
+# → handoff/frontend.md が生成・更新される
+
+# フルスタック作業（従来通り）
+scripts/session/session-start.sh --agent claude
+# → HANDOFF.md が単体で使われる
+```
+
+`--domain` 指定時、ルート `HANDOFF.md` はドメイン一覧のindex（~15行）になる。
+
+### Step 7: ブランチ運用
 
 エージェント別ブランチを推奨：
 

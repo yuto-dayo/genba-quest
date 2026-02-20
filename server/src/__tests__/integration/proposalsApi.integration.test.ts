@@ -102,7 +102,7 @@ describe('proposals API integration', () => {
     });
     expect(mockApprove).toHaveBeenCalledWith(
       'p-1',
-      { type: 'ai', id: 'user-1', name: 'Route Integration User' },
+      { type: 'human', id: 'user-1', name: 'Route Integration User' },
       'looks good'
     );
     expect(mockProposalServiceCtor).toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111');
@@ -171,6 +171,27 @@ describe('proposals API integration', () => {
     });
   });
 
+  it('POST /:id/approve maps ATOMIC_RPC_REQUIRED to 503 with code', async () => {
+    mockApprove.mockRejectedValue(new Error('ATOMIC_RPC_REQUIRED'));
+
+    const req = {
+      params: { id: 'p-2' },
+      body: { reason: 'try approve' },
+      userId: 'user-1',
+      userName: 'Route Integration User',
+      orgId: '11111111-1111-4111-8111-111111111111',
+    } as any;
+    const res = createMockRes();
+
+    await approveHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(res.json).toHaveBeenCalledWith({
+      error: 'Atomic proposal RPC is required but unavailable',
+      code: 'ATOMIC_RPC_REQUIRED',
+    });
+  });
+
   it('POST /:id/reject validates reason before calling service', async () => {
     const req = {
       params: { id: 'p-3' },
@@ -209,8 +230,8 @@ describe('proposals API integration', () => {
     });
   });
 
-  it('POST /:id/reject maps PROPOSAL_NOT_IN_PROPOSED_STATE to 400 with code', async () => {
-    mockReject.mockRejectedValue(new Error('PROPOSAL_NOT_IN_PROPOSED_STATE'));
+  it('POST /:id/reject maps PROPOSAL_NOT_IN_PENDING_STATE to 400 with code', async () => {
+    mockReject.mockRejectedValue(new Error('PROPOSAL_NOT_IN_PENDING_STATE'));
 
     const req = {
       params: { id: 'p-3' },
@@ -225,8 +246,29 @@ describe('proposals API integration', () => {
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith({
-      error: 'Proposal is not in proposed state',
-      code: 'PROPOSAL_NOT_IN_PROPOSED_STATE',
+      error: 'Proposal is not in pending state',
+      code: 'PROPOSAL_NOT_IN_PENDING_STATE',
+    });
+  });
+
+  it('POST /:id/reject maps ATOMIC_RPC_REQUIRED to 503 with code', async () => {
+    mockReject.mockRejectedValue(new Error('ATOMIC_RPC_REQUIRED'));
+
+    const req = {
+      params: { id: 'p-3' },
+      body: { reason: 'reject reason' },
+      userId: 'user-1',
+      userName: 'Route Integration User',
+      orgId: '11111111-1111-4111-8111-111111111111',
+    } as any;
+    const res = createMockRes();
+
+    await rejectHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(res.json).toHaveBeenCalledWith({
+      error: 'Atomic proposal RPC is required but unavailable',
+      code: 'ATOMIC_RPC_REQUIRED',
     });
   });
 
@@ -294,6 +336,27 @@ describe('proposals API integration', () => {
     expect(res.json).toHaveBeenCalledWith({
       error: 'Proposal is not approved',
       code: 'PROPOSAL_NOT_APPROVED',
+    });
+  });
+
+  it('POST /:id/execute maps ATOMIC_RPC_REQUIRED error to 503 with code', async () => {
+    mockExecute.mockRejectedValue(new Error('ATOMIC_RPC_REQUIRED'));
+
+    const req = {
+      params: { id: 'p-7' },
+      body: {},
+      userId: 'user-1',
+      userName: 'Route Integration User',
+      orgId: '11111111-1111-4111-8111-111111111111',
+    } as any;
+    const res = createMockRes();
+
+    await executeHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(res.json).toHaveBeenCalledWith({
+      error: 'Atomic proposal RPC is required but unavailable',
+      code: 'ATOMIC_RPC_REQUIRED',
     });
   });
 

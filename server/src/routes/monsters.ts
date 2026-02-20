@@ -29,7 +29,7 @@ router.get("/archetypes", async (_req: AuthenticatedRequest, res: Response) => {
         res.json(archetypes);
     } catch (err: any) {
         console.error("Get archetypes error:", err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -144,7 +144,7 @@ router.post("/generate/:siteId", async (req: AuthenticatedRequest, res: Response
         });
     } catch (err: any) {
         console.error("Monster generation error:", err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -218,7 +218,7 @@ router.get("/battle/:siteId", async (req: AuthenticatedRequest, res: Response) =
         });
     } catch (err: any) {
         console.error("Get battle data error:", err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -291,7 +291,7 @@ router.get("/active", async (_req: AuthenticatedRequest, res: Response) => {
         res.json(monsters);
     } catch (err: any) {
         console.error("Get active monsters error:", err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -341,7 +341,7 @@ router.get("/defeated", async (_req: AuthenticatedRequest, res: Response) => {
         res.json(monsters);
     } catch (err: any) {
         console.error("Get defeated monsters error:", err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -433,7 +433,7 @@ router.post("/attack/:siteId", async (req: AuthenticatedRequest, res: Response) 
         });
     } catch (err: any) {
         console.error("Attack error:", err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -461,7 +461,7 @@ router.get("/battle-log/:siteId", async (req: AuthenticatedRequest, res: Respons
         res.json(logs || []);
     } catch (err: any) {
         console.error("Get battle log error:", err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -513,7 +513,7 @@ router.post("/strategy/:siteId", async (req: AuthenticatedRequest, res: Response
         });
     } catch (err: any) {
         console.error("Strategy error:", err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 

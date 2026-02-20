@@ -12,13 +12,21 @@ import monstersRouter from "./routes/monsters";
 import webhooksRouter from "./routes/webhooks";
 import proposalsRouter from "./routes/proposals";
 import notificationsRouter from "./routes/notifications";
+import principlesRouter from "./routes/principles";
+import communicationsRouter from "./routes/communications";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 4001;
+const proposalRpcFallbackMode = (process.env.PROPOSAL_RPC_FALLBACK_MODE || "allow").toLowerCase();
+const isAtomicStrictMode = ["disabled", "deny", "off"].includes(proposalRpcFallbackMode);
 
 // CORS設定
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(",").map(o => o.trim())
+    : ["http://localhost:5173"];
+
 app.use(cors({
-    origin: true,
+    origin: allowedOrigins,
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -34,7 +42,12 @@ app.use((req, _res, next) => {
 
 // ヘルスチェック（認証不要）
 app.get("/health", (_req, res) => {
-    res.json({ ok: true, app: "GENBA QUEST" });
+    res.json({
+        ok: true,
+        app: "GENBA QUEST",
+        proposal_rpc_fallback_mode: proposalRpcFallbackMode,
+        proposal_atomic_strict: isAtomicStrictMode,
+    });
 });
 
 // Webhooks（認証不要）
@@ -53,7 +66,12 @@ app.use("/api/v1/accounting", accountingRouter);
 app.use("/api/v1/monsters", monstersRouter);
 app.use("/api/v1/proposals", proposalsRouter);
 app.use("/api/v1/notifications", notificationsRouter);
+app.use("/api/v1/principles", principlesRouter);
+app.use("/api/v1/communications", communicationsRouter);
 
 app.listen(PORT, "0.0.0.0", () => {
     console.log(`🏗️ GENBA QUEST server listening on http://0.0.0.0:${PORT}`);
+    console.log(
+        `[PROPOSAL] RPC fallback mode=${proposalRpcFallbackMode} (strict=${isAtomicStrictMode ? "enabled" : "disabled"})`
+    );
 });

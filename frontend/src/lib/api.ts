@@ -57,11 +57,14 @@ export type ProposalType =
     | "assignment.create"
     | "assignment.update"
     | "assignment.cancel"
+    | "communication.review"
+    | "communication.task"
+    | "task.revision.request"
     | "site.create"
     | "site.complete"
     | "policy.update";
 
-export type ProposalStatus = "draft" | "proposed" | "approved" | "rejected" | "executed";
+export type ProposalStatus = "draft" | "pending" | "approved" | "rejected" | "executed";
 
 export type ProposalActorType = "human" | "ai" | "system" | "integration";
 
@@ -133,11 +136,33 @@ export interface ProposalBatchRejectResponse {
     results: ProposalBatchRejectItem[];
 }
 
+export interface ProposalInstructionResponse {
+    proposal: ProposalRecord;
+    auto_approved: boolean;
+    auto_executed: boolean;
+    submitted: boolean;
+}
+
 export const fetchPendingProposals = () =>
     api<ProposalRecord[]>("/api/v1/proposals/pending");
 
 export const fetchExecutableProposals = () =>
     api<ProposalRecord[]>("/api/v1/proposals?status=approved");
+
+export const fetchProposals = (params?: {
+    status?: ProposalStatus;
+    type?: ProposalType;
+    limit?: number;
+    offset?: number;
+}) => {
+    const searchParams = new URLSearchParams();
+    if (params?.status) searchParams.append("status", params.status);
+    if (params?.type) searchParams.append("type", params.type);
+    if (params?.limit !== undefined) searchParams.append("limit", String(params.limit));
+    if (params?.offset !== undefined) searchParams.append("offset", String(params.offset));
+    const query = searchParams.toString();
+    return api<ProposalRecord[]>(`/api/v1/proposals${query ? `?${query}` : ""}`);
+};
 
 export const approveProposal = (proposalId: string, reason?: string) =>
     api<ProposalApprovalResponse>(`/api/v1/proposals/${proposalId}/approve`, {
@@ -157,6 +182,12 @@ export const rejectProposal = (proposalId: string, reason: string) =>
         body: JSON.stringify({ reason }),
     });
 
+export const instructProposal = (proposalId: string, instruction: string) =>
+    api<ProposalInstructionResponse>(`/api/v1/proposals/${proposalId}/instruct`, {
+        method: "POST",
+        body: JSON.stringify({ instruction }),
+    });
+
 export const rejectProposalsBatch = (proposalIds: string[], reason: string) =>
     api<ProposalBatchRejectResponse>("/api/v1/proposals/reject/batch", {
         method: "POST",
@@ -167,6 +198,68 @@ export const executeProposal = (proposalId: string) =>
     api<ProposalRecord>(`/api/v1/proposals/${proposalId}/execute`, {
         method: "POST",
     });
+
+export interface CommunicationRecord {
+    review_proposal_id: string;
+    source_message_id: string;
+    source_message_subject: string;
+    source_message_from: string;
+    source_message_date: string | null;
+    source_message_body_preview: string;
+    source_message_body_full: string;
+    summary: string;
+    priority: string | null;
+    due_date: string | null;
+    review_status: ProposalStatus;
+    task_suggestion_count: number;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface CommunicationTaskRecord {
+    proposal_id: string;
+    type: "communication.task";
+    status: ProposalStatus;
+    title: string;
+    description: string;
+    priority: string | null;
+    due_date: string | null;
+    suggested_reply: string | null;
+    parent_proposal_id: string | null;
+    created_at: string;
+}
+
+export interface CommunicationRevisionRecord {
+    proposal_id: string;
+    type: "task.revision.request";
+    status: ProposalStatus;
+    instruction: string;
+    target_proposal_id: string | null;
+    parent_proposal_id: string | null;
+    created_at: string;
+}
+
+export interface CommunicationDetailRecord {
+    review: CommunicationRecord;
+    tasks: CommunicationTaskRecord[];
+    revisions: CommunicationRevisionRecord[];
+}
+
+export const fetchCommunications = (params?: {
+    limit?: number;
+    offset?: number;
+    status?: ProposalStatus;
+}) => {
+    const searchParams = new URLSearchParams();
+    if (params?.limit !== undefined) searchParams.append("limit", String(params.limit));
+    if (params?.offset !== undefined) searchParams.append("offset", String(params.offset));
+    if (params?.status) searchParams.append("status", params.status);
+    const query = searchParams.toString();
+    return api<CommunicationRecord[]>(`/api/v1/communications${query ? `?${query}` : ""}`);
+};
+
+export const fetchCommunicationDetail = (messageId: string) =>
+    api<CommunicationDetailRecord>(`/api/v1/communications/${encodeURIComponent(messageId)}`);
 
 export interface NotificationRecord {
     id: string;
@@ -212,6 +305,23 @@ export const chatWithSherpa = (message: string, context?: ChatMessage[]) =>
     api<{ reply: string }>("/api/v1/sherpa/chat", { method: "POST", body: JSON.stringify({ message, context }) });
 export const checkExpense = (description: string, amount: number, category: string) =>
     api<ExpenseCheck>("/api/v1/sherpa/expense-check", { method: "POST", body: JSON.stringify({ description, amount, category }) });
+export interface SherpaProposalCreateRequest {
+    type: ProposalType;
+    payload: Record<string, unknown>;
+    description: string;
+    submit?: boolean;
+}
+export interface SherpaProposalCreateResponse {
+    proposal: ProposalRecord;
+    auto_approved: boolean;
+    auto_executed: boolean;
+    submitted: boolean;
+}
+export const createProposalFromSherpa = (data: SherpaProposalCreateRequest) =>
+    api<SherpaProposalCreateResponse>("/api/v1/sherpa/proposals", {
+        method: "POST",
+        body: JSON.stringify(data),
+    });
 
 // 経理Sherpa
 export const accountingChatWithSherpa = (message: string, context?: ChatMessage[], provider?: string) =>
@@ -502,5 +612,3 @@ export interface PLReport {
     distributable: number;
     transaction_count: number;
 }
-
-
