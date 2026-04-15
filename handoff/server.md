@@ -1,8 +1,8 @@
-# Session Handoff - 2026-02-20
+# Session Handoff - 2026-04-14
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `P0: Manual E2E (Gmail webhook -> pending queue -> approve/reject) and capture evidence`
+- NEXT_CMD: `P1: ALLOWED_ORIGINS を本番/検証環境ドメインに明示設定して運用差分をなくす`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/server.md`
@@ -11,24 +11,37 @@
   - `docs/DESIGN_PHILOSOPHY.md` (full)
 - VERIFY_FIRST:
   - `sed -n '1,120p' docs/DESIGN_PHILOSOPHY.md`
+- STATE:
+  - Branch: `master`
+  - Uncommitted: `161 files`
+  - DB migrations: `latest local: 043_client_structured_profile_fields.sql`
+  - Tests: `not run yet`
+  - Lint: `not run yet`
 
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
+
+## Session Events (audit log)
+
+<!-- HANDOFF_SESSION_EVENTS_START -->
+- 2026-04-14 18:00:27 +0900 — started by codex
+- 2026-04-14 18:02:46 +0900 — ended by codex
+<!-- HANDOFF_SESSION_EVENTS_END -->
 
 ---
 
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `P0: Manual E2E (Gmail webhook -> pending queue -> approve/reject) and capture evidence`. Source: realtime
-- [H0001] Completed: Session started (antigravity) - handoff reviewed
-- [H0001] Remaining: P0: Manual E2E (Gmail webhook -> pending queue -> approve/reject) and capture evidence
+- [focus] NEXT_CMD: `P1: ALLOWED_ORIGINS を本番/検証環境ドメインに明示設定して運用差分をなくす`. Source: realtime
+- [H0001] Completed: CORS origin 判定を開発用 localhost/127.0.0.1 任意ポートに対応させ、5174 の preflight 失敗を解消
+- [H0001] Remaining: P1: ALLOWED_ORIGINS を本番/検証環境ドメインに明示設定して運用差分をなくす
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
-- [H0001] Auto-captured decision: Session started (antigravity) - handoff reviewed
+- [H0001] Auto-captured decision: CORS origin 判定を開発用 localhost/127.0.0.1 任意ポートに対応させ、5174 の preflight 失敗を解消
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
@@ -38,7 +51,7 @@
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
-- [H0001] P0: Manual E2E (Gmail webhook -> pending queue -> approve/reject) and capture evidence
+- [H0001] P1: ALLOWED_ORIGINS を本番/検証環境ドメインに明示設定して運用差分をなくす
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
@@ -60,6 +73,8 @@ Branch: master
 Phase: A-0/A-1
 ```
 
+> [carryover] Working tree was dirty at session start (161 files). Prior session may have unfinished work — verify NEXT_CMD before executing.
+
 1. `docs/DESIGN_PHILOSOPHY.md` の冒頭を確認
 2. このファイルを更新しながら実装を進める
 
@@ -74,29 +89,25 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
-- [x] Session started (antigravity) - handoff reviewed
-
+- [x] CORS origin 判定を開発用 localhost/127.0.0.1 任意ポートに対応させ、5174 の preflight 失敗を解消
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: P0: Manual E2E (Gmail webhook -> pending queue -> approve/reject) and capture evidence
-- [ ] **P1**: 次の優先タスクを記載
-
+- [ ] **P1**: ALLOWED_ORIGINS を本番/検証環境ドメインに明示設定して運用差分をなくす
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
-| `(none)` | - |
-
+| `server/.env.example` | ALLOWED_ORIGINS の使い方と開発時の自動許可を追記 |
+| `server/src/index.ts` | CORS の origin 判定を関数化し、開発時の localhost 任意ポートを許可 |
 ---
 
 ## 6. Locked Files（編集中 - 他エージェント触らない）
 
 > なし
-
 ---
 
 ## 7. Quality Gate
@@ -109,10 +120,10 @@ cd frontend && npx eslint src/
 
 | Check | Result | Notes |
 | ----- | ------ | ----- |
-| server typecheck | SKIP | not run yet |
-| frontend typecheck | SKIP | not run yet |
-| lint | SKIP | not run yet |
-| test | SKIP | optional |
+| server typecheck | PASS | run by session-end (2026-04-14 18:02) |
+| frontend typecheck | PASS | run by session-end (2026-04-14 18:02) |
+| lint | PASS | frontend eslint src/ at 2026-04-14 18:02 |
+| test | PASS | server npm test -- --runInBand at 2026-04-14 18:02 |
 
 ---
 
@@ -126,8 +137,7 @@ cd frontend && npx eslint src/
 
 ## 9. Risks / Blockers
 
-- `docs/DESIGN_PHILOSOPHY.md` 未参照で実装すると、Proposal中心設計から逸脱するリスクがある
-
+- 新規の blocker は未記録
 ---
 
 ## 10. References
@@ -139,21 +149,20 @@ cd frontend && npx eslint src/
 
 ## 11. Incremental Updates
 
-### 2026-02-20 19:54:21 +0900
+### 2026-04-14 18:01:49 +0900
 
 - Entry-ID: `H0001`
 - Completed:
-  - [x] Session started (antigravity) - handoff reviewed
+  - [x] CORS origin 判定を開発用 localhost/127.0.0.1 任意ポートに対応させ、5174 の preflight 失敗を解消
 - Remaining:
-  - [ ] P0: Manual E2E (Gmail webhook -> pending queue -> approve/reject) and capture evidence
+  - [ ] P1: ALLOWED_ORIGINS を本番/検証環境ドメインに明示設定して運用差分をなくす
 - Changed Files:
-  - `handoff/server.md` - session start review logged by antigravity
+  - `server/src/index.ts` - CORS の origin 判定を関数化し、開発時の localhost 任意ポートを許可
+  - `server/.env.example` - ALLOWED_ORIGINS の使い方と開発時の自動許可を追記
 - Working Context:
-  - Auto-captured decision: Session started (antigravity) - handoff reviewed
+  - Auto-captured decision: CORS origin 判定を開発用 localhost/127.0.0.1 任意ポートに対応させ、5174 の preflight 失敗を解消
 - Validation:
-  - `session-start: handoff/server.md review => PASS`
-  - `session-start: docs/DESIGN_PHILOSOPHY.md reference => PASS`
+  - `cd server && npx tsc --noEmit => PASS`
+  - `curl -i -X OPTIONS http://localhost:4001/api/v1/sites -H 'Origin: http://localhost:5174' -H 'Access-Control-Request-Method: GET' -H 'Access-Control-Request-Headers: authorization,content-type' => PASS (Access-Control-Allow-Origin: http://localhost:5174)`
 - Landmines:
   - No new landmines reported in this chunk.
-- Note:
-  - session-start handshake completed (next step + top risks確認)

@@ -10,7 +10,10 @@
         "test": "jest",
         "test:watch": "jest --watch",
         "test:integration": "RUN_DB_INTEGRATION_TESTS=1 jest --runInBand --testPathPatterns=src/__tests__/integration/",
+        "test:integration:proposal-core": "RUN_DB_INTEGRATION_TESTS=1 jest --runInBand --runTestsByPath src/__tests__/integration/executeProposalAtomic.integration.test.ts src/__tests__/integration/executeProposalAtomicAssignment.integration.test.ts src/__tests__/integration/executeProposalAtomicLeaveRequest.integration.test.ts src/__tests__/integration/webhookIntegrationProposalPath.integration.test.ts",
+        "cleanup:demo-data": "ts-node src/scripts/cleanup-demo-data.ts",
         "gmail:refresh-token": "ts-node src/scripts/generate-gmail-refresh-token.ts",
+        "drive:refresh-token": "ts-node src/scripts/generate-drive-refresh-token.ts",
         "verify:a1-migration": "ts-node src/scripts/verify-a1-migration.ts",
         "verify:a1-health": "ts-node src/scripts/verify-a1-health.ts",
         "verify:gmail-manual-e2e": "ts-node src/scripts/verify-gmail-manual-e2e.ts"
@@ -24,7 +27,8 @@
         "dotenv": "^17.2.3",
         "express": "^5.1.0",
         "googleapis": "^144.0.0",
-        "openai": "^6.17.0"
+        "openai": "^6.17.0",
+        "puppeteer": "^24.40.0"
     },
     "devDependencies": {
         "@types/cors": "^2.8.19",
