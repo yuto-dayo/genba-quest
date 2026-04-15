@@ -1,0 +1,382 @@
+/* ============================================================
+   LUQO Page — Material 3 Expressive (Mobile First)
+   ============================================================ */
+
+.container {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 20px 12px 104px;
+}
+
+/* タブナビゲーション */
+.tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
+    padding-bottom: 0;
+}
+
+.tab {
+    padding: 10px 16px;
+    border: none;
+    background: none;
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.tab:hover {
+    color: var(--md-sys-color-primary);
+}
+
+.tabActive {
+    color: var(--md-sys-color-primary);
+    border-bottom-color: var(--md-sys-color-primary);
+}
+
+/* ヒーローヘッダー */
+.hero {
+    padding: 20px;
+    border-radius: var(--md-sys-shape-corner-extra-large);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background:
+        radial-gradient(circle at 88% 0%, rgba(79, 70, 229, 0.22), transparent 46%),
+        radial-gradient(circle at 6% 100%, rgba(14, 165, 233, 0.14), transparent 52%),
+        var(--md-sys-color-surface-container-lowest);
+    box-shadow: var(--md-sys-elevation-level2);
+    margin-bottom: 18px;
+}
+
+.heroTitle {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--md-sys-color-on-surface);
+    margin: 0 0 4px;
+}
+
+.heroSubtitle {
+    font-size: 13px;
+    color: var(--md-sys-color-on-surface-variant);
+    margin: 0;
+}
+
+/* セクション */
+.section {
+    margin-bottom: 24px;
+}
+
+.sectionHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.sectionTitle {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--md-sys-color-on-surface);
+    margin: 0;
+}
+
+/* カード */
+.card {
+    background: var(--md-sys-color-surface-container-lowest);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-large);
+    padding: 16px;
+    margin-bottom: 8px;
+}
+
+/* カタロググリッド */
+.catalogGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 8px;
+}
+
+.catalogItem {
+    background: var(--md-sys-color-surface-container-lowest);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-medium);
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.catalogItemName {
+    font-size: 13px;
+    color: var(--md-sys-color-on-surface);
+    flex: 1;
+}
+
+.catalogItemMeta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 100px;
+}
+
+.badgeSpeed {
+    background: rgba(14, 165, 233, 0.15);
+    color: rgb(14, 100, 180);
+}
+
+.badgeTech {
+    background: rgba(79, 70, 229, 0.12);
+    color: rgb(79, 70, 229);
+}
+
+.points {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--md-sys-color-primary);
+    min-width: 32px;
+    text-align: right;
+}
+
+/* カテゴリヘッダー */
+.categoryHeader {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0 6px;
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
+    margin-bottom: 8px;
+}
+
+.categoryName {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--md-sys-color-on-surface);
+}
+
+.categoryTotal {
+    font-size: 12px;
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+/* ボタン */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border: none;
+    border-radius: var(--md-sys-shape-corner-full);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+
+.btn:hover {
+    opacity: 0.85;
+}
+
+.btnPrimary {
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+}
+
+.btnOutline {
+    background: transparent;
+    border: 1px solid var(--md-sys-color-outline);
+    color: var(--md-sys-color-on-surface);
+}
+
+/* フォーム */
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 20px;
+    background: var(--md-sys-color-surface-container-lowest);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-large);
+}
+
+.formRow {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.formField {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.formLabel {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--md-sys-color-on-surface-variant);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.formInput,
+.formSelect {
+    padding: 10px 12px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-medium);
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+.formInput:focus,
+.formSelect:focus {
+    border-color: var(--md-sys-color-primary);
+}
+
+.checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+/* スコアカード */
+.scoreGrid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+.scoreItem {
+    background: var(--md-sys-color-surface-container);
+    border-radius: var(--md-sys-shape-corner-medium);
+    padding: 14px;
+    text-align: center;
+}
+
+.scoreLabel {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--md-sys-color-on-surface-variant);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+}
+
+.scoreValue {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--md-sys-color-primary);
+}
+
+.scoreUnit {
+    font-size: 12px;
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+/* 報酬テーブル */
+.rewardTable {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.rewardTable th {
+    padding: 10px 12px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--md-sys-color-on-surface-variant);
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
+    white-space: nowrap;
+}
+
+.rewardTable td {
+    padding: 12px;
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
+    color: var(--md-sys-color-on-surface);
+}
+
+.rewardTable tr:last-child td {
+    border-bottom: none;
+}
+
+.amountCell {
+    font-weight: 700;
+    color: var(--md-sys-color-primary);
+    text-align: right;
+}
+
+/* ローディング・エラー */
+.loading {
+    text-align: center;
+    padding: 40px;
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 14px;
+}
+
+.error {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: var(--md-sys-shape-corner-medium);
+    padding: 12px 16px;
+    color: rgb(220, 38, 38);
+    font-size: 14px;
+}
+
+.success {
+    background: rgba(34, 197, 94, 0.1);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    border-radius: var(--md-sys-shape-corner-medium);
+    padding: 12px 16px;
+    color: rgb(22, 163, 74);
+    font-size: 14px;
+}
+
+/* モーダルオーバーレイ */
+.modalOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 16px;
+}
+
+.modal {
+    background: var(--md-sys-color-surface);
+    border-radius: var(--md-sys-shape-corner-extra-large);
+    padding: 24px;
+    width: 100%;
+    max-width: 560px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modalTitle {
+    font-size: 18px;
+    font-weight: 700;
+    margin: 0 0 20px;
+}
+
+.modalActions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 20px;
+}

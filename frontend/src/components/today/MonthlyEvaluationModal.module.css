@@ -1,0 +1,281 @@
+.overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 120;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(15, 23, 42, 0.42);
+    backdrop-filter: blur(8px);
+}
+
+.modal {
+    width: min(680px, 100%);
+    max-height: min(88vh, 920px);
+    overflow-y: auto;
+    border-radius: 28px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background:
+        radial-gradient(circle at top right, color-mix(in srgb, var(--md-sys-color-primary-container) 42%, transparent), transparent 42%),
+        var(--md-sys-color-surface-container-lowest);
+    box-shadow: var(--md-sys-elevation-level4);
+    padding: 24px;
+}
+
+.header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.eyebrow {
+    margin: 0 0 6px;
+    color: var(--md-sys-color-primary);
+    font: var(--md-sys-typescale-label-medium);
+}
+
+.title {
+    margin: 0;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-headline-small);
+}
+
+.subtitle {
+    margin: 10px 0 0;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-medium);
+    line-height: 1.6;
+}
+
+.closeButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 50%;
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: pointer;
+}
+
+.errorBanner {
+    margin-top: 18px;
+    padding: 12px 14px;
+    border-radius: 18px;
+    background: var(--md-sys-color-error-container);
+    color: var(--md-sys-color-on-error-container);
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.infoBanner {
+    margin-top: 18px;
+    padding: 12px 14px;
+    border-radius: 18px;
+    background: var(--md-sys-color-secondary-container);
+    color: var(--md-sys-color-on-secondary-container);
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.loadingState {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-height: 180px;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.spinner {
+    animation: monthly-evaluation-spin 0.8s linear infinite;
+}
+
+.summaryCard {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 18px;
+}
+
+.summaryItem {
+    padding: 14px 16px;
+    border-radius: 20px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background: var(--md-sys-color-surface);
+}
+
+.summaryLabel {
+    display: block;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+}
+
+.summaryItem strong {
+    display: block;
+    margin-top: 6px;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-title-medium);
+}
+
+.formSection {
+    margin-top: 18px;
+    padding: 18px;
+    border-radius: 24px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background: var(--md-sys-color-surface-container-low);
+}
+
+.sectionHeader {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-title-small);
+}
+
+.skillGrid,
+.inlineGrid {
+    display: grid;
+    gap: 12px;
+    margin-top: 14px;
+}
+
+.skillGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.inlineGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.field span {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-medium);
+}
+
+.input,
+.select,
+.textarea {
+    width: 100%;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 16px;
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
+    padding: 12px 14px;
+    font: var(--md-sys-typescale-body-medium);
+    outline: none;
+    transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.input:focus,
+.select:focus,
+.textarea:focus {
+    border-color: var(--md-sys-color-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--md-sys-color-primary) 18%, transparent);
+}
+
+.textarea {
+    min-height: 112px;
+    resize: vertical;
+}
+
+.toggleCard {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 48px;
+    padding: 0 14px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 16px;
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-body-medium);
+    cursor: pointer;
+}
+
+.actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.primaryButton,
+.secondaryButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 46px;
+    padding: 0 18px;
+    border-radius: 999px;
+    font: var(--md-sys-typescale-label-large);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.primaryButton {
+    border: none;
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+}
+
+.secondaryButton {
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+@keyframes monthly-evaluation-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (max-width: 720px) {
+    .overlay {
+        padding: 12px;
+    }
+
+    .modal {
+        padding: 20px;
+    }
+
+    .summaryCard,
+    .skillGrid,
+    .inlineGrid,
+    .actions {
+        grid-template-columns: 1fr;
+        flex-direction: column;
+    }
+
+    .actions {
+        display: flex;
+    }
+
+    .primaryButton,
+    .secondaryButton {
+        width: 100%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .spinner {
+        animation: none;
+    }
+}

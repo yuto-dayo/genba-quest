@@ -1,0 +1,1011 @@
+.container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.toolbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.toolbarActions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sectionTitle {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--md-sys-color-on-surface);
+}
+
+.sectionDescription {
+    margin: 6px 0 0;
+    font-size: 13px;
+    color: var(--md-sys-color-on-surface-variant);
+    max-width: 640px;
+}
+
+.monthInput,
+.input,
+.select,
+.textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-medium);
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.monthInput {
+    width: 152px;
+}
+
+.input:focus,
+.select:focus,
+.textarea:focus,
+.monthInput:focus {
+    border-color: var(--md-sys-color-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--md-sys-color-primary) 18%, transparent);
+}
+
+.textarea {
+    min-height: 96px;
+    resize: vertical;
+}
+
+.ghostButton,
+.primaryButton {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+    border-radius: 999px;
+    padding: 0 16px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.18s ease, opacity 0.18s ease, border-color 0.18s ease;
+}
+
+.ghostButton {
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background: var(--md-sys-color-surface-container-lowest);
+    color: var(--md-sys-color-on-surface);
+}
+
+.primaryButton {
+    border: none;
+    background: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%);
+    color: white;
+}
+
+.ghostButton:hover,
+.primaryButton:hover {
+    opacity: 0.92;
+    transform: translateY(-1px);
+}
+
+.ghostButton:disabled,
+.primaryButton:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.summaryGrid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.summaryCard {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    background:
+        radial-gradient(circle at top right, rgba(20, 184, 166, 0.12), transparent 42%),
+        var(--md-sys-color-surface-container-lowest);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 18px;
+    box-shadow: var(--md-sys-elevation-level1);
+}
+
+.summaryCard strong,
+.summaryCard span {
+    display: block;
+}
+
+.summaryCard strong {
+    font-size: 18px;
+    color: var(--md-sys-color-on-surface);
+}
+
+.summaryCard span {
+    font-size: 12px;
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.layout {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+}
+
+.memberRail,
+.card {
+    background: var(--md-sys-color-surface-container-lowest);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 22px;
+    box-shadow: var(--md-sys-elevation-level1);
+}
+
+.memberRail {
+    padding: 12px;
+    position: sticky;
+    top: 88px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.memberRailHeader {
+    padding: 6px 8px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--md-sys-color-on-surface-variant);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.memberButton {
+    text-align: left;
+    border: 1px solid transparent;
+    background: var(--md-sys-color-surface);
+    border-radius: 18px;
+    padding: 12px;
+    cursor: pointer;
+    transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+}
+
+.memberButton strong,
+.memberButton span {
+    display: block;
+}
+
+.memberButton strong {
+    font-size: 14px;
+    color: var(--md-sys-color-on-surface);
+}
+
+.memberButton span {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.memberButton:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--md-sys-color-primary) 28%, var(--md-sys-color-outline-variant));
+}
+
+.memberButtonActive {
+    background:
+        linear-gradient(135deg, rgba(13, 148, 136, 0.18), rgba(249, 115, 22, 0.12)),
+        var(--md-sys-color-surface);
+    border-color: color-mix(in srgb, var(--md-sys-color-primary) 44%, var(--md-sys-color-outline-variant));
+}
+
+.memberMeta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.metaBadge,
+.badge,
+.levelBadge,
+.statusBadge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.metaBadge {
+    background: rgba(20, 184, 166, 0.12);
+    color: #0f766e;
+}
+
+.statusNeutral {
+    background: rgba(15, 23, 42, 0.06);
+    color: #334155;
+}
+
+.statusInfo {
+    background: rgba(14, 165, 233, 0.12);
+    color: #0f5f8f;
+}
+
+.statusWarn {
+    background: rgba(249, 115, 22, 0.12);
+    color: #c2410c;
+}
+
+.statusGood {
+    background: rgba(22, 163, 74, 0.12);
+    color: #166534;
+}
+
+.memberActionHint {
+    margin: 8px 0 0;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.workspace {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.card {
+    padding: 18px;
+}
+
+.cardHeader {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.headerActionCluster {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.cardHeader h4,
+.cardTitle {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--md-sys-color-on-surface);
+}
+
+.comparisonMetaRow,
+.comparisonSummaryGrid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.comparisonMetaCard,
+.comparisonSummaryCard {
+    padding: 14px 16px;
+    border-radius: 18px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background: var(--md-sys-color-surface);
+}
+
+.comparisonMetaCard span,
+.comparisonSummaryCard span {
+    display: block;
+    font-size: 12px;
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.comparisonMetaCard strong,
+.comparisonSummaryCard strong {
+    display: block;
+    margin-top: 6px;
+    font-size: 16px;
+    color: var(--md-sys-color-on-surface);
+}
+
+.comparisonSummaryGrid {
+    margin-top: 14px;
+}
+
+.comparisonTableWrap {
+    margin-top: 14px;
+    overflow-x: auto;
+}
+
+.comparisonTable {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 420px;
+}
+
+.comparisonTable th,
+.comparisonTable td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
+    text-align: left;
+    font-size: 13px;
+}
+
+.comparisonTable th {
+    font-size: 12px;
+    color: var(--md-sys-color-on-surface-variant);
+    font-weight: 700;
+}
+
+.emptyCompareState {
+    margin-top: 14px;
+    padding: 14px 16px;
+    border-radius: 18px;
+    border: 1px dashed var(--md-sys-color-outline);
+    color: var(--md-sys-color-on-surface-variant);
+    background: var(--md-sys-color-surface);
+    font-size: 13px;
+}
+
+.positiveDelta {
+    color: #166534;
+}
+
+.negativeDelta {
+    color: #b42318;
+}
+
+.cardHeader p {
+    margin: 6px 0 0;
+    font-size: 12px;
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.cardTitle {
+    margin-bottom: 14px;
+}
+
+.levelBadge {
+    background: rgba(249, 115, 22, 0.14);
+    color: #c2410c;
+}
+
+.narrative {
+    margin: 0 0 12px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--md-sys-color-on-surface);
+}
+
+.workflowCallout {
+    display: grid;
+    grid-template-columns: 180px minmax(0, 1fr);
+    gap: 12px;
+    margin-bottom: 14px;
+    padding: 14px 16px;
+    border-radius: 18px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-primary) 20%, var(--md-sys-color-outline-variant));
+    background:
+        radial-gradient(circle at top right, rgba(20, 184, 166, 0.12), transparent 42%),
+        var(--md-sys-color-surface);
+}
+
+.workflowCallout strong {
+    display: block;
+    margin-top: 6px;
+    font-size: 18px;
+    color: var(--md-sys-color-on-surface);
+}
+
+.workflowCallout p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.profilePeek {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+    padding: 14px 16px;
+    border-radius: 18px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background: var(--md-sys-color-surface-container-low);
+}
+
+.profilePeekMeta {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.profilePeekMeta strong {
+    color: var(--md-sys-color-on-surface);
+    font-size: 15px;
+}
+
+.profilePeekMeta p {
+    margin: 0;
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 12px;
+    line-height: 1.4;
+    max-width: 560px;
+}
+
+.inlineLinkButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-primary);
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: transform 0.18s ease, border-color 0.18s ease, opacity 0.18s ease;
+}
+
+.inlineLinkButton:hover {
+    opacity: 0.92;
+    transform: translateY(-1px);
+    border-color: var(--md-sys-color-primary);
+}
+
+.workflowStepGrid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.workflowStepCard {
+    padding: 14px;
+    border-radius: 18px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background: var(--md-sys-color-surface);
+}
+
+.workflowStepState {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 0 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.workflowStepCard strong {
+    display: block;
+    margin-top: 10px;
+    font-size: 14px;
+    color: var(--md-sys-color-on-surface);
+}
+
+.workflowStepCard p {
+    margin: 8px 0 0;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.workflowStepTodo .workflowStepState {
+    background: rgba(15, 23, 42, 0.06);
+    color: #475569;
+}
+
+.workflowStepDoing {
+    border-color: color-mix(in srgb, var(--md-sys-color-primary) 28%, var(--md-sys-color-outline-variant));
+    background:
+        radial-gradient(circle at top right, rgba(20, 184, 166, 0.1), transparent 40%),
+        var(--md-sys-color-surface);
+}
+
+.workflowStepDoing .workflowStepState {
+    background: rgba(14, 165, 233, 0.12);
+    color: #0f5f8f;
+}
+
+.workflowStepDone {
+    border-color: rgba(22, 163, 74, 0.24);
+    background:
+        radial-gradient(circle at top right, rgba(22, 163, 74, 0.1), transparent 40%),
+        var(--md-sys-color-surface);
+}
+
+.workflowStepDone .workflowStepState {
+    background: rgba(22, 163, 74, 0.12);
+    color: #166534;
+}
+
+.badgeRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.badge {
+    background: rgba(13, 148, 136, 0.12);
+    color: #0f766e;
+}
+
+.badgeWarm {
+    background: rgba(249, 115, 22, 0.12);
+    color: #c2410c;
+}
+
+.badgeGood {
+    background: rgba(22, 163, 74, 0.12);
+    color: #166534;
+}
+
+.infoGrid,
+.inputGrid,
+.inputGridTwo,
+.doubleColumn,
+.selectGrid,
+.skillGrid,
+.profitGrid,
+.rewardMemberGrid,
+.rewardSummaryGrid {
+    display: grid;
+    gap: 12px;
+}
+
+.infoGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin-top: 14px;
+}
+
+.infoLabel {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--md-sys-color-on-surface-variant);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.doubleColumn {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.inputGridTwo {
+    grid-template-columns: 1.1fr 1fr;
+}
+
+.selectGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.skillGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.profitGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.rewardMemberGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.rewardSummaryGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.skillItem,
+.logItem {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: var(--md-sys-color-surface);
+    border: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.skillItem span,
+.logItem span,
+.logItem p,
+.mutedText,
+.emptyState {
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.skillItem span {
+    font-size: 13px;
+}
+
+.skillItem strong,
+.logItem strong {
+    font-size: 13px;
+    color: var(--md-sys-color-on-surface);
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.field span {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--md-sys-color-on-surface);
+    cursor: pointer;
+}
+
+.checkboxCard {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    padding: 0 14px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-medium);
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.actionRow {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 14px;
+}
+
+.actionRowCompact,
+.rewardActions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.rewardActions {
+    justify-content: space-between;
+    margin-top: 16px;
+}
+
+.logList {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.logItem {
+    align-items: flex-start;
+    flex-direction: column;
+}
+
+.logItem div {
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.logItem p {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.profileTransferGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 14px;
+}
+
+.profileTransferStat {
+    padding: 12px 14px;
+    border-radius: 16px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background: var(--md-sys-color-surface);
+}
+
+.profileTransferStat span {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--md-sys-color-on-surface-variant);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.profileTransferStat strong {
+    display: block;
+    margin-top: 6px;
+    font-size: 18px;
+    color: var(--md-sys-color-on-surface);
+}
+
+.profileTransferHint {
+    margin: 0;
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.bulletList {
+    margin: 0;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    color: var(--md-sys-color-on-surface);
+}
+
+.emptyState,
+.mutedText {
+    font-size: 13px;
+    margin: 0;
+}
+
+.error,
+.success {
+    padding: 12px 14px;
+    border-radius: 16px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.error {
+    background: rgba(220, 38, 38, 0.1);
+    color: #991b1b;
+    border: 1px solid rgba(220, 38, 38, 0.18);
+}
+
+.success {
+    background: rgba(22, 163, 74, 0.1);
+    color: #166534;
+    border: 1px solid rgba(22, 163, 74, 0.18);
+}
+
+.rewardHint {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(13, 148, 136, 0.08);
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.rewardMemberList {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.rewardMemberCard,
+.rewardPreview {
+    padding: 14px;
+    border-radius: 18px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background:
+        radial-gradient(circle at top right, rgba(20, 184, 166, 0.08), transparent 40%),
+        var(--md-sys-color-surface);
+}
+
+.rewardMemberHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.rewardMemberHeader strong {
+    font-size: 13px;
+    color: var(--md-sys-color-on-surface);
+}
+
+.inlineGhostButton {
+    min-height: 32px;
+    padding: 0 12px;
+    border-radius: 999px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.inlineGhostButton:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.rewardPreview {
+    margin-top: 18px;
+}
+
+.rewardSummaryCard {
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: var(--md-sys-color-surface-container-lowest);
+    border: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.rewardSummaryCard span {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--md-sys-color-on-surface-variant);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.rewardSummaryCard strong {
+    display: block;
+    margin-top: 6px;
+    font-size: 18px;
+    color: var(--md-sys-color-on-surface);
+}
+
+.rewardTableWrap {
+    margin-top: 16px;
+    overflow-x: auto;
+}
+
+.rewardTable {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 760px;
+}
+
+.rewardTable th,
+.rewardTable td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
+    text-align: left;
+    font-size: 13px;
+    color: var(--md-sys-color-on-surface);
+    white-space: nowrap;
+}
+
+.rewardTable th {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--md-sys-color-on-surface-variant);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.amountCell {
+    font-weight: 700;
+    color: #0f766e;
+}
+
+.advancedSection {
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 22px;
+    background: var(--md-sys-color-surface-container-lowest);
+    box-shadow: var(--md-sys-elevation-level1);
+    overflow: hidden;
+}
+
+.advancedSummary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 18px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.advancedSummary::-webkit-details-marker {
+    display: none;
+}
+
+.advancedSummaryCopy {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.advancedSummaryCopy strong {
+    font-size: 15px;
+    color: var(--md-sys-color-on-surface);
+}
+
+.advancedBody {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 0 16px 16px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ghostButton,
+    .primaryButton,
+    .memberButton {
+        transition: none;
+    }
+}
+
+@media (max-width: 960px) {
+    .summaryGrid,
+    .layout,
+    .doubleColumn,
+    .selectGrid,
+    .infoGrid,
+    .skillGrid,
+    .profitGrid,
+    .rewardMemberGrid,
+    .rewardSummaryGrid,
+    .workflowCallout,
+    .workflowStepGrid,
+    .profileTransferGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .memberRail {
+        position: static;
+    }
+}
+
+@media (max-width: 640px) {
+    .toolbar {
+        flex-direction: column;
+    }
+
+    .toolbarActions {
+        width: 100%;
+    }
+
+    .monthInput {
+        width: 100%;
+    }
+
+    .rewardActions,
+    .actionRowCompact,
+    .advancedSummary {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .profilePeek {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}

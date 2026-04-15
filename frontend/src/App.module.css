@@ -92,6 +92,28 @@
     gap: 4px;
 }
 
+.iconButton {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    color: var(--md-sys-color-on-surface-variant);
+    text-decoration: none;
+    transition: background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.iconButton:hover {
+    background: rgba(79, 70, 229, 0.08);
+    color: var(--md-sys-color-on-surface);
+}
+
+.iconButtonActive {
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
+}
+
 .bellButton {
     position: relative;
     background: transparent;
@@ -107,9 +129,24 @@
     transition: background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
 }
 
+.bellButtonPending {
+    background: color-mix(in srgb, var(--md-sys-color-tertiary-container) 82%, white);
+    color: var(--md-sys-color-tertiary);
+    box-shadow: var(--md-sys-elevation-level1);
+}
+
+.bellButtonDone {
+    color: var(--md-sys-color-on-surface-variant);
+}
+
 .bellButton:hover {
     background: rgba(79, 70, 229, 0.08);
     color: var(--md-sys-color-on-surface);
+}
+
+.bellIconPending {
+    transform-origin: top center;
+    animation: bell-swing 1.8s ease-in-out infinite;
 }
 
 .bellBadge {
@@ -128,6 +165,29 @@
     align-items: center;
     justify-content: center;
     line-height: 1;
+}
+
+@keyframes bell-swing {
+    0%,
+    100% {
+        transform: rotate(0deg);
+    }
+
+    15% {
+        transform: rotate(18deg);
+    }
+
+    35% {
+        transform: rotate(-14deg);
+    }
+
+    55% {
+        transform: rotate(10deg);
+    }
+
+    75% {
+        transform: rotate(-6deg);
+    }
 }
 
 /* ============================================================
@@ -229,4 +289,18 @@
 .placeholder p {
     font: var(--md-sys-typescale-body-large);
     color: var(--md-sys-color-on-surface-variant);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .navLink,
+    .iconButton,
+    .bellButton,
+    .mobileNavLink,
+    .menuButton {
+        transition: none;
+    }
+
+    .bellIconPending {
+        animation: none;
+    }
 }

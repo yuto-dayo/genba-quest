@@ -1,11 +1,11 @@
 /* ============================================================
-   Sherpa FAB — Material 3 Expressive
+   Shared FAB — fixed and draggable/stash variants
    ============================================================ */
 
 .fabContainer {
     position: fixed;
-    bottom: 24px;
     right: 24px;
+    bottom: max(24px, env(safe-area-inset-bottom, 24px));
     z-index: 800;
 }
 
@@ -17,7 +17,7 @@
     background: var(--md-sys-color-primary);
     color: var(--md-sys-color-on-primary);
     cursor: pointer;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     box-shadow: var(--md-sys-elevation-level3);
@@ -29,12 +29,10 @@
 
 .fab:hover {
     box-shadow: var(--md-sys-elevation-level4);
-    transform: scale(1.05);
 }
 
 .fab:active {
     border-radius: var(--md-sys-shape-corner-extra-large);
-    transform: scale(0.95);
 }
 
 .fab:disabled {
@@ -44,7 +42,132 @@
     cursor: not-allowed;
 }
 
-/* --- Expandable FAB menu --- */
+.mobileFabDock {
+    position: static;
+    inset: auto;
+    pointer-events: none;
+}
+
+.mobileFab {
+    position: fixed;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 56px;
+    width: 56px;
+    padding: 0;
+    border: none;
+    border-radius: var(--md-sys-shape-corner-large);
+    background:
+        linear-gradient(135deg, var(--md-sys-color-primary), var(--md-sys-color-secondary));
+    color: var(--md-sys-color-on-primary);
+    font: var(--md-sys-typescale-label-large);
+    box-shadow: var(--md-sys-elevation-level3);
+    cursor: pointer;
+    pointer-events: auto;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    transition:
+        left var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-standard),
+        top var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-standard),
+        width var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-standard),
+        min-width var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-standard),
+        padding var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-standard),
+        border-radius var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-standard),
+        box-shadow var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard),
+        transform var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-spring);
+}
+
+.mobileFabContent {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    white-space: nowrap;
+    width: 100%;
+    height: 100%;
+}
+
+.mobileFabIcon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    flex: 0 0 auto;
+}
+
+.mobileFab:active {
+    border-radius: var(--md-sys-shape-corner-extra-large);
+}
+
+.mobileFab[data-dragging="true"] {
+    transition: none;
+    box-shadow: var(--md-sys-elevation-level4);
+}
+
+.mobileFab[data-dock-side="left"] {
+    justify-content: flex-end;
+    padding-right: 14px;
+    border-radius: 18px 24px 24px 18px;
+}
+
+.mobileFab[data-dock-side="right"] {
+    justify-content: flex-start;
+    padding-left: 14px;
+    border-radius: 24px 18px 18px 24px;
+}
+
+.mobileFab[data-dock-side="left"] .mobileFabContent {
+    flex-direction: row-reverse;
+}
+
+.mobileFab[data-docked="true"][data-dock-side="left"] {
+    transform: translateX(-2px);
+}
+
+.mobileFab[data-docked="true"][data-dock-side="right"] {
+    transform: translateX(2px);
+}
+
+.mobileFab[data-stashed="true"] {
+    min-height: 64px;
+    padding: 0;
+    border-radius: 999px;
+    box-shadow:
+        0 10px 18px rgba(7, 18, 26, 0.2),
+        0 2px 6px rgba(7, 18, 26, 0.16);
+}
+
+.mobileFab[data-stashed="true"][data-dock-side="left"] {
+    padding: 0 2px 0 0;
+    border-radius: 999px;
+}
+
+.mobileFab[data-stashed="true"][data-dock-side="right"] {
+    padding: 0 0 0 2px;
+    border-radius: 999px;
+}
+
+.mobileFab[data-stashed="true"]:active {
+    border-radius: 999px;
+}
+
+.mobileFab[data-stashed="true"] .mobileFabContent {
+    gap: 0;
+    justify-content: flex-start;
+}
+
+.mobileFab[data-stashed="true"] .mobileFabIcon {
+    width: 20px;
+    height: 20px;
+}
+
+.mobileFab[data-open="true"] {
+    border-radius: var(--md-sys-shape-corner-extra-large);
+    box-shadow: var(--md-sys-elevation-level4);
+}
 
 .fabOverlay {
     position: fixed;
@@ -55,13 +178,12 @@
 
 .fabMenu {
     position: absolute;
-    bottom: 72px;
-    right: 0;
     display: flex;
     flex-direction: column;
     gap: 12px;
     align-items: flex-end;
     z-index: 801;
+    pointer-events: auto;
 }
 
 .fabMenuItem {
@@ -85,6 +207,10 @@
     box-shadow: var(--md-sys-elevation-level3);
 }
 
+.fabMenuItemLeft {
+    flex-direction: row-reverse;
+}
+
 .fabMenuLabel {
     order: 1;
 }
@@ -95,9 +221,17 @@
     align-items: center;
 }
 
+.fabMenuItemLeft .fabMenuLabel {
+    order: 2;
+}
+
+.fabMenuItemLeft .fabMenuIcon {
+    order: 1;
+}
+
 @media (max-width: 480px) {
     .fabContainer {
-        bottom: 16px;
         right: 16px;
+        bottom: max(16px, env(safe-area-inset-bottom, 16px));
     }
 }
