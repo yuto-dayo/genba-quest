@@ -1,17 +1,25 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Map, RefreshCw, Plus, Clock, Banknote, Ruler, CheckCircle2, AlertCircle } from "lucide-react";
-import { fetchSites, completeSite, type Site } from "../lib/api";
+import { Map, RefreshCw, Plus, Building2, AlertTriangle, AlertCircle, Users, Calendar } from "lucide-react";
+import { fetchSites, fetchSite, type Site } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
+import { formatSiteDateRange, formatSiteSchedulePattern } from "../lib/siteSchedule";
+import { FloatingActionButton } from "../components/FloatingActionButton";
+import { SiteDetailModal } from "../components/SiteDetailModal";
+import { SiteFormModal } from "../components/SiteFormModal";
+import { ClientSettingsModal } from "../components/ClientSettingsModal";
 import styles from "./Sites.module.css";
 
-type FilterStatus = "all" | "in_progress" | "completed";
+type FilterStatus = "active" | "completed";
 
 export function Sites() {
     const [sites, setSites] = useState<Site[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [filter, setFilter] = useState<FilterStatus>("all");
+    const [filter, setFilter] = useState<FilterStatus>("active");
+    const [selectedSite, setSelectedSite] = useState<Site | null>(null);
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [showClientModal, setShowClientModal] = useState(false);
 
     const loadData = async () => {
         try {
@@ -30,28 +38,44 @@ export function Sites() {
         loadData();
     }, []);
 
-    const handleComplete = async (siteId: string) => {
-        try {
-            await completeSite(siteId);
-            await loadData();
-        } catch (err: unknown) {
-            setError(getErrorMessage(err));
+    const handleSiteUpdated = () => {
+        setSelectedSite(null);
+        loadData();
+    };
+
+    const handleCreateSuccess = async (created?: Site) => {
+        setShowCreateModal(false);
+        await loadData();
+        if (created?.id) {
+            // Fetch full site with client relation for the detail modal
+            try {
+                const full = await fetchSite(created.id);
+                setSelectedSite(full);
+            } catch {
+                // If fetch fails, just show the list
+            }
         }
     };
 
+    const handleClientSaved = async () => {
+        setShowClientModal(false);
+    };
+
+    const openSiteCreate = () => {
+        setShowCreateModal(true);
+    };
+
+    const openClientCreate = () => {
+        setShowClientModal(true);
+    };
+
     const filteredSites = sites.filter((site) => {
-        if (filter === "all") return true;
-        if (filter === "in_progress") return site.status === "in_progress";
-        if (filter === "completed") return site.status === "completed";
-        return true;
+        if (filter === "active") return site.status === "active";
+        return site.status === "completed";
     });
 
-    const stats = {
-        total: sites.length,
-        inProgress: sites.filter((s) => s.status === "in_progress").length,
-        completed: sites.filter((s) => s.status === "completed").length,
-        totalRevenue: sites.reduce((sum, s) => sum + (s.revenue || 0), 0),
-    };
+    const activeCount = sites.filter((s) => s.status === "active").length;
+    const completedCount = sites.filter((s) => s.status === "completed").length;
 
     if (loading) {
         return (
@@ -90,57 +114,32 @@ export function Sites() {
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
             >
-                <div className={styles.titleRow}>
-                    <h1 className={styles.title}>
-                        <Map className={styles.titleIcon} />
-                        現場管理
-                    </h1>
-                    <button className={styles.addButton}>
-                        <Plus size={18} />
-                        新規現場
-                    </button>
-                </div>
-
-                {/* 統計 */}
-                <div className={styles.statsRow}>
-                    <div className={styles.stat}>
-                        <span className={styles.statValue}>{stats.total}</span>
-                        <span className={styles.statLabel}>総現場数</span>
-                    </div>
-                    <div className={styles.stat}>
-                        <span className={`${styles.statValue} ${styles.inProgress}`}>
-                            {stats.inProgress}
-                        </span>
-                        <span className={styles.statLabel}>進行中</span>
-                    </div>
-                    <div className={styles.stat}>
-                        <span className={`${styles.statValue} ${styles.completed}`}>
-                            {stats.completed}
-                        </span>
-                        <span className={styles.statLabel}>完了</span>
-                    </div>
-                    <div className={styles.stat}>
-                        <span className={`${styles.statValue} ${styles.revenue}`}>
-                            ¥{stats.totalRevenue.toLocaleString()}
-                        </span>
-                        <span className={styles.statLabel}>総売上</span>
-                    </div>
-                </div>
+                <h1 className={styles.title}>
+                    <Map className={styles.titleIcon} />
+                    現場管理
+                </h1>
             </motion.section>
 
             {/* フィルター */}
             <div className={styles.filters}>
-                {(["all", "in_progress", "completed"] as FilterStatus[]).map((status) => (
-                    <button
-                        key={status}
-                        className={`${styles.filterButton} ${filter === status ? styles.active : ""}`}
-                        onClick={() => setFilter(status)}
-                    >
-                        {status === "all" && "すべて"}
-                        {status === "in_progress" && "進行中"}
-                        {status === "completed" && "完了"}
-                    </button>
-                ))}
+                <button
+                    className={`${styles.filterButton} ${filter === "active" ? styles.active : ""}`}
+                    onClick={() => setFilter("active")}
+                >
+                    進行中
+                    {activeCount > 0 && (
+                        <span className={styles.filterCount}>{activeCount}</span>
+                    )}
+                </button>
+                <button
+                    className={`${styles.filterButton} ${filter === "completed" ? styles.active : ""}`}
+                    onClick={() => setFilter("completed")}
+                >
+                    完了
+                    {completedCount > 0 && (
+                        <span className={styles.filterCount}>{completedCount}</span>
+                    )}
+                </button>
             </div>
 
             {/* 現場リスト */}
@@ -153,35 +152,78 @@ export function Sites() {
                             animate={{ opacity: 1 }}
                         >
                             <Map size={48} />
-                            <h3>現場がありません</h3>
-                            <p>
-                                {filter === "all"
-                                    ? "新しい現場を追加して、プロジェクト管理を始めましょう"
-                                    : filter === "in_progress"
+                            <h3>
+                                {filter === "active"
                                     ? "進行中の現場はありません"
                                     : "完了した現場はありません"}
-                            </p>
-                            {filter === "all" && (
-                                <button className={styles.emptyAddButton}>
+                            </h3>
+                            {filter === "active" && (
+                                <button
+                                    className={styles.emptyAddButton}
+                                    onClick={() => setShowCreateModal(true)}
+                                >
                                     <Plus size={18} />
                                     最初の現場を追加
                                 </button>
                             )}
                         </motion.div>
                     ) : (
-                        <div className={styles.sitesGrid}>
+                        <div className={styles.sitesList}>
                             {filteredSites.map((site, index) => (
                                 <SiteCard
                                     key={site.id}
                                     site={site}
                                     index={index}
-                                    onComplete={handleComplete}
+                                    onTap={() => setSelectedSite(site)}
                                 />
                             ))}
                         </div>
                     )}
                 </AnimatePresence>
             </section>
+
+            <FloatingActionButton
+                behavior="draggable"
+                openLabel="現場登録メニューを開く"
+                closeLabel="現場登録メニューを閉じる"
+                items={[
+                    { id: "site", label: "新規現場", icon: <Map size={18} />, onClick: openSiteCreate },
+                    { id: "client", label: "取引先追加", icon: <Building2 size={18} />, onClick: openClientCreate },
+                ]}
+            />
+
+            {/* 詳細モーダル */}
+            <AnimatePresence>
+                {selectedSite && (
+                    <SiteDetailModal
+                        site={selectedSite}
+                        onClose={() => setSelectedSite(null)}
+                        onUpdated={handleSiteUpdated}
+                    />
+                )}
+            </AnimatePresence>
+
+            {/* 作成モーダル */}
+            <AnimatePresence>
+                {showCreateModal && (
+                    <SiteFormModal
+                        onClose={() => setShowCreateModal(false)}
+                        onSuccess={handleCreateSuccess}
+                    />
+                )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+                {showClientModal && (
+                    <ClientSettingsModal
+                        onClose={() => setShowClientModal(false)}
+                        onSaved={handleClientSaved}
+                        onDeleted={async () => {
+                            setShowClientModal(false);
+                        }}
+                    />
+                )}
+            </AnimatePresence>
         </div>
     );
 }
@@ -189,14 +231,16 @@ export function Sites() {
 interface SiteCardProps {
     site: Site;
     index: number;
-    onComplete: (id: string) => void;
+    onTap: () => void;
 }
 
-function SiteCard({ site, index, onComplete }: SiteCardProps) {
+function SiteCard({ site, index, onTap }: SiteCardProps) {
     const isCompleted = site.status === "completed";
-    const efficiency = site.estimated_hours && site.actual_hours
-        ? Math.round((site.estimated_hours / site.actual_hours) * 100)
-        : null;
+    const hasCautions = !!site.cautions;
+    const hasAssigned = site.assigned_users && site.assigned_users.length > 0;
+    const hasSchedule = site.started_at || site.expected_completion_at;
+    const schedulePattern = formatSiteSchedulePattern(site);
+    const hasScheduleMeta = hasSchedule || Boolean(schedulePattern);
 
     return (
         <motion.div
@@ -204,87 +248,62 @@ function SiteCard({ site, index, onComplete }: SiteCardProps) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ delay: index * 0.05 }}
+            transition={{ delay: index * 0.04 }}
             layout
+            onClick={onTap}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === "Enter") onTap(); }}
         >
-            {/* ステータスバッジ */}
-            <div className={`${styles.statusBadge} ${styles[site.status]}`}>
-                {site.status === "in_progress" ? "進行中" : "完了"}
-            </div>
-
-            {/* ヘッダー */}
-            <div className={styles.cardHeader}>
-                <h3 className={styles.siteName}>{site.name}</h3>
-                {site.client && (
-                    <span className={styles.clientName}>{site.client.name}</span>
-                )}
-            </div>
-
-            {/* 住所 */}
-            {site.address && (
-                <p className={styles.address}>{site.address}</p>
-            )}
-
-            {/* メトリクス */}
-            <div className={styles.metrics}>
-                {site.area_sqm && (
-                    <div className={styles.metric}>
-                        <Ruler size={14} />
-                        <span>{site.area_sqm.toLocaleString()}㎡</span>
-                    </div>
-                )}
-                {site.estimated_hours && (
-                    <div className={styles.metric}>
-                        <Clock size={14} />
-                        <span>
-                            {site.actual_hours || 0} / {site.estimated_hours}h
-                        </span>
-                    </div>
-                )}
-                {site.revenue && (
-                    <div className={styles.metric}>
-                        <Banknote size={14} />
-                        <span>¥{site.revenue.toLocaleString()}</span>
-                    </div>
-                )}
-            </div>
-
-            {/* 効率バー */}
-            {efficiency !== null && (
-                <div className={styles.efficiencySection}>
-                    <div className={styles.efficiencyHeader}>
-                        <span>作業効率</span>
-                        <span className={`${styles.efficiencyValue} ${efficiency >= 100 ? styles.good : styles.warning}`}>
-                            {efficiency}%
-                        </span>
-                    </div>
-                    <div className={styles.efficiencyBar}>
-                        <motion.div
-                            className={`${styles.efficiencyFill} ${efficiency >= 100 ? styles.good : styles.warning}`}
-                            initial={{ width: 0 }}
-                            animate={{ width: `${Math.min(efficiency, 150)}%` }}
-                            transition={{ duration: 0.5, delay: index * 0.05 + 0.2 }}
-                        />
-                    </div>
+            <div className={styles.cardContent}>
+                <div className={styles.cardHeader}>
+                    <h3 className={styles.siteName}>
+                        {hasCautions && (
+                            <AlertTriangle
+                                size={16}
+                                className={styles.cautionIcon}
+                            />
+                        )}
+                        {site.name}
+                    </h3>
+                    {site.client && (
+                        <span className={styles.clientName}>{site.client.name}</span>
+                    )}
                 </div>
-            )}
+                {site.description && (
+                    <p className={styles.descriptionSnippet}>
+                        {site.description}
+                    </p>
+                )}
+                {/* メタ情報行 */}
+                {(hasAssigned || hasScheduleMeta) && (
+                    <div className={styles.cardMeta}>
+                        {hasAssigned && (
+                            <span className={styles.metaItem}>
+                                <Users size={13} />
+                                {site.assigned_users!.length}人
+                            </span>
+                        )}
+                        {hasSchedule && (
+                            <span className={styles.metaItem}>
+                                <Calendar size={13} />
+                                {formatSiteDateRange(site.started_at, site.expected_completion_at)}
+                            </span>
+                        )}
+                        {schedulePattern && (
+                            <span className={styles.metaItem}>
+                                <Calendar size={13} />
+                                {schedulePattern}
+                            </span>
+                        )}
+                    </div>
+                )}
+            </div>
 
-            {/* アクション */}
-            {!isCompleted && (
-                <button
-                    className={styles.completeButton}
-                    onClick={() => onComplete(site.id)}
-                >
-                    <CheckCircle2 size={16} />
-                    完了にする
-                </button>
-            )}
-
-            {/* 完了日 */}
             {isCompleted && site.completed_at && (
-                <div className={styles.completedDate}>
-                    完了: {new Date(site.completed_at).toLocaleDateString("ja-JP")}
-                </div>
+                <span className={styles.completedDate}>
+                    {new Date(site.completed_at).toLocaleDateString("ja-JP")}
+                </span>
             )}
         </motion.div>
     );

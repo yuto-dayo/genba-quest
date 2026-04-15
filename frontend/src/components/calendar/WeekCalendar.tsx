@@ -1,4 +1,3 @@
-import React from 'react';
 import type { CalendarDay } from '../../types/calendar';
 import styles from './CalendarComponents.module.css';
 

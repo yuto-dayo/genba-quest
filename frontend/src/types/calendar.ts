@@ -13,10 +13,13 @@ export interface Assignment {
     user_id: string;
     site_id: string;
     site_name: string;
+    client_name?: string;
     date: string; // YYYY-MM-DD
     status: AssignmentStatus;
     start_time?: string;
     end_time?: string;
+    source?: "proposal" | "site";
+    worker_count?: number;
 }
 
 // UI用の日別データ

@@ -1,0 +1,617 @@
+/* ============================================================
+   SiteDetailModal Component — Material 3 Expressive
+   Bottom-sheet style detail view for mobile-first site management
+   ============================================================ */
+
+.overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--md-sys-color-scrim);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 1001;
+}
+
+.modal {
+    width: 100%;
+    max-width: 520px;
+    max-height: 92vh;
+    background: var(--md-sys-color-surface-container-lowest);
+    border-radius: var(--md-sys-shape-corner-extra-large) var(--md-sys-shape-corner-extra-large) 0 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--md-sys-elevation-level4);
+}
+
+/* ドラッグハンドル */
+.dragHandle {
+    display: flex;
+    justify-content: center;
+    padding: 12px 0 4px;
+}
+
+.dragBar {
+    width: 32px;
+    height: 4px;
+    background: var(--md-sys-color-outline-variant);
+    border-radius: 2px;
+}
+
+/* ヘッダー */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 8px 24px 16px;
+    gap: 12px;
+}
+
+.headerInfo {
+    flex: 1;
+    min-width: 0;
+}
+
+.siteName {
+    font: var(--md-sys-typescale-headline-small);
+    color: var(--md-sys-color-on-surface);
+    margin: 0;
+    word-break: break-word;
+}
+
+.statusBadge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 12px;
+    border-radius: var(--md-sys-shape-corner-full);
+    font: var(--md-sys-typescale-label-small);
+    font-weight: 600;
+    margin-top: 8px;
+}
+
+.statusBadge.active {
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
+}
+
+.statusBadge.completed {
+    background: var(--md-sys-color-success-container);
+    color: var(--md-sys-color-on-success-container);
+}
+
+.closeButton {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border: none;
+    border-radius: 50%;
+    background: var(--md-sys-color-surface-container);
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: pointer;
+    transition: all var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+}
+
+.closeButton:hover {
+    background: var(--md-sys-color-surface-container-high);
+    color: var(--md-sys-color-on-surface);
+}
+
+/* スクロールコンテンツ */
+.content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* 注意事項セクション — 最も目立つ */
+.cautionsSection {
+    padding: 16px;
+    background: var(--md-sys-color-warning-container);
+    border: 2px solid var(--md-sys-color-warning);
+    border-radius: var(--md-sys-shape-corner-medium);
+}
+
+.cautionsLabel {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font: var(--md-sys-typescale-label-large);
+    font-weight: 700;
+    color: var(--md-sys-color-on-warning-container);
+    margin-bottom: 8px;
+}
+
+.cautionsText {
+    font: var(--md-sys-typescale-body-large);
+    color: var(--md-sys-color-on-warning-container);
+    white-space: pre-wrap;
+    line-height: 1.6;
+}
+
+/* 作業内容セクション */
+.section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.sectionLabel {
+    font: var(--md-sys-typescale-label-medium);
+    color: var(--md-sys-color-on-surface-variant);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.sectionText {
+    font: var(--md-sys-typescale-body-large);
+    color: var(--md-sys-color-on-surface);
+    white-space: pre-wrap;
+    line-height: 1.6;
+}
+
+.emptyText {
+    font: var(--md-sys-typescale-body-medium);
+    color: var(--md-sys-color-on-surface-variant);
+    font-style: italic;
+}
+
+/* 工事項目テーブル */
+.lineItemsTable {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.lineItemRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    padding: 8px 12px;
+    background: var(--md-sys-color-surface-container-low);
+    border-radius: var(--md-sys-shape-corner-small);
+}
+
+.lineItemName {
+    font: var(--md-sys-typescale-body-medium);
+    color: var(--md-sys-color-on-surface);
+    flex: 1;
+    min-width: 0;
+}
+
+.lineItemDetail {
+    font: var(--md-sys-typescale-body-small);
+    color: var(--md-sys-color-on-surface-variant);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* 基本情報 */
+.infoSection {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    background: var(--md-sys-color-surface-container-low);
+    border-radius: var(--md-sys-shape-corner-medium);
+}
+
+.infoRow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.infoIcon {
+    color: var(--md-sys-color-on-surface-variant);
+    flex-shrink: 0;
+}
+
+.infoText {
+    font: var(--md-sys-typescale-body-medium);
+    color: var(--md-sys-color-on-surface);
+}
+
+/* 添付ファイルセクション */
+.attachmentsSection {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.attachmentsHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.thumbnailGrid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.thumbnail {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: var(--md-sys-shape-corner-small);
+    overflow: hidden;
+    cursor: pointer;
+    border: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.thumbnailImage {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.thumbnailFile {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    background: var(--md-sys-color-surface-container);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.thumbnailFileName {
+    font: var(--md-sys-typescale-label-small);
+    color: var(--md-sys-color-on-surface-variant);
+    text-align: center;
+    padding: 0 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+}
+
+.uploadButton {
+    aspect-ratio: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border: 2px dashed var(--md-sys-color-outline);
+    border-radius: var(--md-sys-shape-corner-small);
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: pointer;
+    transition: all var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+}
+
+.uploadButton:hover {
+    border-color: var(--md-sys-color-primary);
+    color: var(--md-sys-color-primary);
+    background: color-mix(in srgb, var(--md-sys-color-primary) 8%, transparent);
+}
+
+.uploadLabel {
+    font: var(--md-sys-typescale-label-small);
+}
+
+.fileInput {
+    display: none;
+}
+
+.emptyAttachments {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 24px;
+    color: var(--md-sys-color-on-surface-variant);
+    text-align: center;
+}
+
+.emptyAttachments p {
+    font: var(--md-sys-typescale-body-small);
+    margin: 0;
+}
+
+.uploadOnlyButton {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 12px;
+    min-height: 44px;
+    border: 2px dashed var(--md-sys-color-outline);
+    border-radius: var(--md-sys-shape-corner-medium);
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-large);
+    cursor: pointer;
+    transition: all var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+}
+
+.uploadOnlyButton:hover {
+    border-color: var(--md-sys-color-primary);
+    color: var(--md-sys-color-primary);
+}
+
+/* ボトムアクション */
+.bottomActions {
+    display: flex;
+    gap: 12px;
+    padding: 16px 24px;
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+    border-top: 1px solid var(--md-sys-color-outline-variant);
+    background: var(--md-sys-color-surface-container-lowest);
+}
+
+/* 削除ボタン（アイコンのみ、控えめ） */
+.deleteButton {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-full);
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: pointer;
+    transition: all var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+}
+
+.deleteButton:hover {
+    border-color: var(--md-sys-color-error);
+    color: var(--md-sys-color-error);
+    background: color-mix(in srgb, var(--md-sys-color-error) 8%, transparent);
+}
+
+.editButton,
+.completeButton {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--md-sys-spacing-sm);
+    height: 48px;
+    padding: 10px 16px;
+    border: none;
+    border-radius: var(--md-sys-shape-corner-full);
+    font: var(--md-sys-typescale-label-large);
+    cursor: pointer;
+    transition: all var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+}
+
+.editButton {
+    background: var(--md-sys-color-surface-container);
+    color: var(--md-sys-color-on-surface);
+    border: 1px solid var(--md-sys-color-outline);
+}
+
+.editButton:hover {
+    background: var(--md-sys-color-surface-container-high);
+}
+
+.completeButton {
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+}
+
+.completeButton:hover:not(:disabled) {
+    box-shadow: var(--md-sys-elevation-level2);
+}
+
+.completeButton:disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+}
+
+.completedDate {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font: var(--md-sys-typescale-label-medium);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+/* ローディング */
+.loadingDocs {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+/* 削除確認ダイアログ */
+.deleteDialog {
+    width: 100%;
+    max-width: 400px;
+    margin: auto;
+    padding: 24px;
+    background: var(--md-sys-color-surface-container-lowest);
+    border-radius: var(--md-sys-shape-corner-extra-large);
+    box-shadow: var(--md-sys-elevation-level4);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.deleteDialogTitle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font: var(--md-sys-typescale-title-large);
+    color: var(--md-sys-color-error);
+    margin: 0;
+}
+
+.deleteDialogDesc {
+    font: var(--md-sys-typescale-body-medium);
+    color: var(--md-sys-color-on-surface-variant);
+    line-height: 1.5;
+    margin: 0;
+}
+
+.deleteReasonInput {
+    padding: 12px 16px;
+    border: 2px solid var(--md-sys-color-error);
+    border-radius: var(--md-sys-shape-corner-small);
+    background: var(--md-sys-color-surface-container-lowest);
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-body-large);
+    font-family: inherit;
+    resize: vertical;
+    line-height: 1.5;
+}
+
+.deleteReasonInput:focus {
+    outline: none;
+    border-color: var(--md-sys-color-error);
+}
+
+.deleteDialogActions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.cancelDeleteButton,
+.confirmDeleteButton {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 24px;
+    min-height: 40px;
+    border: none;
+    border-radius: var(--md-sys-shape-corner-full);
+    font: var(--md-sys-typescale-label-large);
+    cursor: pointer;
+    transition: all var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+}
+
+.cancelDeleteButton {
+    background: var(--md-sys-color-surface-container);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.cancelDeleteButton:hover {
+    background: var(--md-sys-color-surface-container-high);
+}
+
+.confirmDeleteButton {
+    background: var(--md-sys-color-error);
+    color: var(--md-sys-color-on-error);
+}
+
+.confirmDeleteButton:hover:not(:disabled) {
+    box-shadow: var(--md-sys-elevation-level2);
+}
+
+.confirmDeleteButton:disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+}
+
+/* 完了選択ダイアログ */
+.completeDialog {
+    width: 100%;
+    max-width: 420px;
+    margin: auto;
+    padding: 24px;
+    background: var(--md-sys-color-surface-container-lowest);
+    border-radius: var(--md-sys-shape-corner-extra-large);
+    box-shadow: var(--md-sys-elevation-level4);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.completeDialogTitle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font: var(--md-sys-typescale-title-large);
+    color: var(--md-sys-color-primary);
+}
+
+.completeDialogDesc {
+    margin: 0;
+    font: var(--md-sys-typescale-body-medium);
+    color: var(--md-sys-color-on-surface-variant);
+    line-height: 1.5;
+}
+
+.completeChoiceButtons {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.completeWithSalesButton,
+.completeOnlyButton {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 48px;
+    padding: 12px 16px;
+    border-radius: var(--md-sys-shape-corner-full);
+    font: var(--md-sys-typescale-label-large);
+    cursor: pointer;
+    transition: all var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+}
+
+.completeWithSalesButton {
+    border: none;
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+}
+
+.completeWithSalesButton:hover {
+    box-shadow: var(--md-sys-elevation-level2);
+}
+
+.completeOnlyButton {
+    border: 1px solid var(--md-sys-color-outline);
+    background: var(--md-sys-color-surface-container);
+    color: var(--md-sys-color-on-surface);
+}
+
+.completeOnlyButton:hover {
+    background: var(--md-sys-color-surface-container-high);
+}
+
+/* デスクトップ調整 */
+@media (min-width: 641px) {
+    .overlay {
+        align-items: center;
+    }
+
+    .modal {
+        border-radius: var(--md-sys-shape-corner-extra-large);
+        max-height: 85vh;
+    }
+
+    .dragHandle {
+        display: none;
+    }
+}
+
+@media (max-width: 640px) {
+    .thumbnailGrid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}

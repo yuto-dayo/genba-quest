@@ -1,448 +1,356 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import {
-    RefreshCw,
     AlertCircle,
-    CheckCircle,
-    XCircle,
-    Zap,
-    Clock,
-    Bell,
-    Mail,
+    Building2,
+    Check,
+    CheckCircle2,
+    RefreshCw,
+    X,
 } from "lucide-react";
-import { ProposalDetailModal } from "../components/ProposalDetailModal";
 import {
-    fetchPendingProposals,
-    fetchExecutableProposals,
     approveProposal,
-    rejectProposal,
-    instructProposal,
+    completeFocusItem,
+    createFocusItem,
     executeProposal,
-    approveProposalsBatch,
-    rejectProposalsBatch,
-    fetchNotifications,
-    markNotificationRead,
-    markAllNotificationsRead,
-    type NotificationRecord,
+    fetchFocusItems,
+    fetchPendingProposals,
+    fetchSites,
+    instructProposal,
+    rejectProposal,
+    type FocusItemHorizon,
+    type FocusItemRecord,
+    type FocusItemScope,
     type ProposalRecord,
+    type Site,
+    updateFocusItem,
 } from "../lib/api";
 import { useCalendar } from "../hooks/useCalendar";
 import { WeekCalendar } from "../components/calendar/WeekCalendar";
+import { ProposalDetailModal } from "../components/ProposalDetailModal";
+import { SiteDetailModal } from "../components/SiteDetailModal";
 import { TodayAssignments } from "../components/today/TodayAssignments";
 import { MonthlySummary } from "../components/today/MonthlySummary";
+import { PendingBadge } from "../components/today/PendingBadge";
 import { getErrorMessage } from "../lib/error";
 import styles from "./Today.module.css";
 
-const PROPOSAL_TYPE_LABELS: Record<string, string> = {
+const TODAY_FOCUS_EVENT = "today:open-focus-item-composer";
+
+const HORIZON_LABELS: Record<FocusItemHorizon, string> = {
+    today: "今日",
+    week: "今週",
+    later: "あとで",
+};
+
+const SCOPE_LABELS: Record<FocusItemScope, string> = {
+    personal: "自分",
+    org: "組織",
+};
+
+const QUICK_RECORD_PRESETS = [
+    "安全確認",
+    "資材確認",
+    "進捗共有",
+    "引き継ぎ整理",
+    "写真整理",
+    "追加作業",
+] as const;
+
+const EMPTY_FORM = {
+    title: "",
+    note: "",
+    scope: "personal" as FocusItemScope,
+    horizon: "today" as FocusItemHorizon,
+    site_id: "",
+};
+
+const PENDING_PROPOSAL_LABELS: Record<string, string> = {
     "expense.create": "経費登録",
     "expense.update": "経費更新",
-    "expense.void": "経費取消",
     "income.create": "売上登録",
-    "income.update": "売上更新",
     "invoice.create": "請求作成",
-    "invoice.send": "請求送信",
-    "invoice.mark_paid": "入金記録",
-    "reward.calculate": "報酬計算",
-    "reward.adjust": "報酬調整",
-    "skill.achieve": "スキル達成",
-    "skill.revoke": "スキル取消",
-    "evaluation.submit": "評価提出",
-    "evaluation.finalize": "評価確定",
-    "assignment.create": "アサイン作成",
-    "assignment.update": "アサイン更新",
-    "assignment.cancel": "アサイン取消",
     "communication.review": "メール要点確認",
     "communication.task": "メール対応タスク",
-    "task.revision.request": "修正指示",
-    "site.create": "現場作成",
-    "site.complete": "現場完了",
-    "policy.update": "ポリシー更新",
 };
 
-const sortByCreatedAtDesc = (a: ProposalRecord, b: ProposalRecord) =>
-    b.created_at.localeCompare(a.created_at);
-
-const toAmountNumber = (value: unknown): number | null => {
-    if (typeof value === "number") {
-        return Number.isFinite(value) ? value : null;
-    }
-
-    if (typeof value === "string") {
-        const normalized = value.replace(/[,\s¥￥]/g, "");
-        if (!normalized) return null;
-        const parsed = Number(normalized);
-        return Number.isFinite(parsed) ? parsed : null;
-    }
-
-    return null;
-};
-
-const extractProposalAmount = (payload: Record<string, unknown>): number | null => {
-    const directKeys = ["amount", "amount_total", "total_amount", "total", "value"];
-    for (const key of directKeys) {
-        const amount = toAmountNumber(payload[key]);
-        if (amount !== null && amount !== 0) {
-            return Math.abs(amount);
-        }
-    }
-
-    const subtotal = toAmountNumber(payload.amount_subtotal);
-    const taxAmount = toAmountNumber(payload.tax_amount);
-    if (subtotal !== null || taxAmount !== null) {
-        return Math.abs((subtotal || 0) + (taxAmount || 0));
-    }
-
-    return null;
-};
-
-const formatProposalDate = (isoDate: string): string => {
-    const date = new Date(isoDate);
-    if (Number.isNaN(date.getTime())) {
-        return isoDate;
-    }
-
-    return date.toLocaleString("ja-JP", {
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-    });
-};
-
-const formatNotificationDate = (isoDate: string): string => {
-    const date = new Date(isoDate);
-    if (Number.isNaN(date.getTime())) {
-        return isoDate;
-    }
-
-    return date.toLocaleString("ja-JP", {
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-    });
-};
+function buildFormFromItem(item: FocusItemRecord) {
+    return {
+        title: item.title,
+        note: item.note || "",
+        scope: item.scope,
+        horizon: item.horizon,
+        site_id: item.site_id || "",
+    };
+}
 
 export function Today() {
-    const location = useLocation();
     const navigate = useNavigate();
+    const [focusItems, setFocusItems] = useState<FocusItemRecord[]>([]);
+    const [sites, setSites] = useState<Site[]>([]);
+    const [pendingCount, setPendingCount] = useState(0);
     const [pendingProposals, setPendingProposals] = useState<ProposalRecord[]>([]);
-    const [readyToExecuteProposals, setReadyToExecuteProposals] = useState<ProposalRecord[]>([]);
-    const [selectedProposalIds, setSelectedProposalIds] = useState<string[]>([]);
-    const [proposalActionError, setProposalActionError] = useState<string | null>(null);
-    const [proposalActionNotice, setProposalActionNotice] = useState<string | null>(null);
-    const [actingProposalId, setActingProposalId] = useState<string | null>(null);
-    const [batchActionLoading, setBatchActionLoading] = useState(false);
-
-    const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
-    const [notificationsLoading, setNotificationsLoading] = useState(false);
-    const [notificationsError, setNotificationsError] = useState<string | null>(null);
-    const [notificationActionId, setNotificationActionId] = useState<string | null>(null);
-
-    const [markAllNotificationsLoading, setMarkAllNotificationsLoading] = useState(false);
-
-    const { calendarDays, selectDate, selectedDate, reloadAssignments } = useCalendar();
-    const todayAssignments = useMemo(() => {
-        return calendarDays.find(d => d.isToday)?.assignments || [];
-    }, [calendarDays]);
-
+    const [pendingSheetOpen, setPendingSheetOpen] = useState(false);
     const [selectedProposal, setSelectedProposal] = useState<ProposalRecord | null>(null);
-    const [focusProposalId, setFocusProposalId] = useState<string | null>(null);
+    const [proposalActing, setProposalActing] = useState(false);
+    const [activeHorizon, setActiveHorizon] = useState<FocusItemHorizon>("today");
+    const [composerOpen, setComposerOpen] = useState(false);
+    const [composerMode, setComposerMode] = useState<"general" | "siteQuick">("general");
+    const [composerPreset, setComposerPreset] = useState<string | null>(null);
+    const [composerSubmitting, setComposerSubmitting] = useState(false);
+    const [editingFocusItem, setEditingFocusItem] = useState<FocusItemRecord | null>(null);
+    const [composerForm, setComposerForm] = useState(EMPTY_FORM);
+    const [selectedSite, setSelectedSite] = useState<Site | null>(null);
+    const [actionNotice, setActionNotice] = useState<string | null>(null);
+    const [actionError, setActionError] = useState<string | null>(null);
+    const [completingId, setCompletingId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        const searchParams = new URLSearchParams(location.search);
-        setFocusProposalId(searchParams.get("proposal"));
-    }, [location.search]);
+    const { calendarDays, selectDate, selectedDate } = useCalendar();
+    const todayAssignments = useMemo(
+        () => calendarDays.find((day) => day.isToday)?.assignments || [],
+        [calendarDays]
+    );
+    const selectedComposerSite = useMemo(
+        () => sites.find((site) => site.id === composerForm.site_id) || null,
+        [composerForm.site_id, sites]
+    );
 
-    const loadProposalQueue = useCallback(async () => {
-        try {
-            const [pending, executable] = await Promise.all([
-                fetchPendingProposals(),
-                fetchExecutableProposals(),
-            ]);
-            const sortedPending = [...pending].sort(sortByCreatedAtDesc);
-            setPendingProposals(sortedPending);
-            setReadyToExecuteProposals([...executable].sort(sortByCreatedAtDesc));
-            setSelectedProposalIds((current) => {
-                const pendingIdSet = new Set(sortedPending.map((proposal) => proposal.id));
-                return current.filter((proposalId) => pendingIdSet.has(proposalId));
-            });
-            setProposalActionError(null);
-        } catch (err: unknown) {
-            console.error("Failed to load proposal queue:", err);
-            setPendingProposals([]);
-            setReadyToExecuteProposals([]);
-            setSelectedProposalIds([]);
-            setProposalActionError("承認待ちの取得に失敗しました");
+    const syncPendingProposals = useCallback(async (keepProposalId?: string | null) => {
+        const nextPendingProposals = await fetchPendingProposals().catch(() => []);
+        setPendingProposals(nextPendingProposals);
+        setPendingCount(nextPendingProposals.length);
+
+        if (keepProposalId) {
+            setSelectedProposal(
+                nextPendingProposals.find((proposal) => proposal.id === keepProposalId) || null
+            );
+        }
+
+        if (nextPendingProposals.length === 0) {
+            setPendingSheetOpen(false);
         }
     }, []);
-
-    const loadNotifications = useCallback(async () => {
-        setNotificationsLoading(true);
-        try {
-            const data = await fetchNotifications({ limit: 20 });
-            setNotifications(data);
-            setNotificationsError(null);
-        } catch (err: unknown) {
-            console.error("Failed to load notifications:", err);
-            setNotifications([]);
-            setNotificationsError("通知の取得に失敗しました");
-        } finally {
-            setNotificationsLoading(false);
-        }
-    }, []);
-
-    const refreshLists = useCallback(async () => {
-        await Promise.all([loadProposalQueue(), loadNotifications()]);
-    }, [loadNotifications, loadProposalQueue]);
 
     const loadData = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
-            await refreshLists();
+            const [focusItemsData, sitesData, pendingProposalsData] = await Promise.all([
+                fetchFocusItems({ status: "open" }),
+                fetchSites(),
+                fetchPendingProposals().catch(() => []),
+            ]);
+            setFocusItems(focusItemsData);
+            setSites(sitesData);
+            setPendingProposals(pendingProposalsData);
+            setPendingCount(pendingProposalsData.length);
         } catch (err: unknown) {
             setError(getErrorMessage(err));
         } finally {
             setLoading(false);
         }
-    }, [refreshLists]);
+    }, []);
 
     useEffect(() => {
-        loadData();
+        void loadData();
     }, [loadData]);
 
     useEffect(() => {
-        if (!focusProposalId) return;
+        const handleOpenComposer = () => {
+            setComposerMode("general");
+            setComposerPreset(null);
+            setEditingFocusItem(null);
+            setComposerForm((current) => ({
+                ...EMPTY_FORM,
+                scope: current.scope,
+                horizon: activeHorizon,
+            }));
+            setActionError(null);
+            setComposerOpen(true);
+        };
 
-        const targetProposal =
-            pendingProposals.find((proposal) => proposal.id === focusProposalId) ||
-            readyToExecuteProposals.find((proposal) => proposal.id === focusProposalId);
+        window.addEventListener(TODAY_FOCUS_EVENT, handleOpenComposer);
+        return () => window.removeEventListener(TODAY_FOCUS_EVENT, handleOpenComposer);
+    }, [activeHorizon]);
 
-        if (!targetProposal) return;
-
-        setSelectedProposal(targetProposal);
-        setProposalActionNotice("Sherpa提案を開きました。内容を確認して承認または却下してください。");
-        setFocusProposalId(null);
-
-        const nextSearchParams = new URLSearchParams(location.search);
-        nextSearchParams.delete("proposal");
-        const nextSearch = nextSearchParams.toString();
-        navigate(
-            {
-                pathname: location.pathname,
-                search: nextSearch ? `?${nextSearch}` : "",
-            },
-            { replace: true }
-        );
-    }, [
-        focusProposalId,
-        pendingProposals,
-        readyToExecuteProposals,
-        location.pathname,
-        location.search,
-        navigate,
-    ]);
-
-    const handleApproveProposal = async (proposalId: string, reason?: string) => {
-        try {
-            setActingProposalId(proposalId);
-            setProposalActionError(null);
-            setProposalActionNotice(null);
-            await approveProposal(proposalId, reason);
-            await refreshLists();
-            reloadAssignments();
-        } catch (err: unknown) {
-            setProposalActionError(getErrorMessage(err));
-        } finally {
-            setActingProposalId(null);
-        }
+    const openComposerForEdit = (item: FocusItemRecord) => {
+        setComposerMode("general");
+        setComposerPreset(null);
+        setEditingFocusItem(item);
+        setComposerForm(buildFormFromItem(item));
+        setActionError(null);
+        setComposerOpen(true);
     };
 
-    const handleRejectProposal = async (proposalId: string, reason?: string) => {
-        const finalReason = reason ?? window.prompt("却下理由を入力してください");
-        if (finalReason === null) return;
-        if (!finalReason.trim()) {
-            setProposalActionError("却下理由は必須です");
-            return;
-        }
-
-        try {
-            setActingProposalId(proposalId);
-            setProposalActionError(null);
-            setProposalActionNotice(null);
-            await rejectProposal(proposalId, finalReason.trim());
-            await refreshLists();
-            reloadAssignments();
-        } catch (err: unknown) {
-            setProposalActionError(getErrorMessage(err));
-        } finally {
-            setActingProposalId(null);
-        }
-    };
-
-    const handleExecuteProposal = async (proposalId: string) => {
-        try {
-            setActingProposalId(proposalId);
-            setProposalActionError(null);
-            setProposalActionNotice(null);
-            await executeProposal(proposalId);
-            await refreshLists();
-            reloadAssignments();
-        } catch (err: unknown) {
-            setProposalActionError(getErrorMessage(err));
-        } finally {
-            setActingProposalId(null);
-        }
-    };
-
-    const handleInstructProposal = async (proposalId: string, instruction: string) => {
-        try {
-            setActingProposalId(proposalId);
-            setProposalActionError(null);
-            setProposalActionNotice(null);
-            await instructProposal(proposalId, instruction);
-            await refreshLists();
-            reloadAssignments();
-            setProposalActionNotice("指示を作成しました。修正提案の確認をお願いします。");
-        } catch (err: unknown) {
-            setProposalActionError(getErrorMessage(err));
-        } finally {
-            setActingProposalId(null);
-        }
-    };
-
-    const handleToggleProposalSelection = (proposalId: string) => {
-        setSelectedProposalIds((current) => {
-            if (current.includes(proposalId)) {
-                return current.filter((id) => id !== proposalId);
-            }
-            return [...current, proposalId];
+    const openQuickRecordComposer = (site: Site) => {
+        setComposerMode("siteQuick");
+        setComposerPreset(null);
+        setEditingFocusItem(null);
+        setComposerForm({
+            ...EMPTY_FORM,
+            title: "",
+            note: "",
+            scope: "org",
+            horizon: "today",
+            site_id: site.id,
         });
+        setActionError(null);
+        setComposerOpen(true);
     };
 
-    const handleToggleSelectAll = () => {
-        if (selectedProposalIds.length === pendingProposals.length) {
-            setSelectedProposalIds([]);
-            return;
-        }
-        setSelectedProposalIds(pendingProposals.map((proposal) => proposal.id));
+    const closeComposer = () => {
+        setComposerOpen(false);
+        setComposerMode("general");
+        setComposerPreset(null);
+        setEditingFocusItem(null);
+        setComposerForm(EMPTY_FORM);
     };
 
-    const handleBatchApprove = async () => {
-        if (selectedProposalIds.length === 0) return;
+    const horizonCounts = useMemo(() => {
+        return focusItems.reduce<Record<FocusItemHorizon, number>>(
+            (acc, item) => {
+                acc[item.horizon] += 1;
+                return acc;
+            },
+            { today: 0, week: 0, later: 0 }
+        );
+    }, [focusItems]);
 
-        try {
-            setBatchActionLoading(true);
-            setProposalActionError(null);
-            setProposalActionNotice(null);
-
-            const result = await approveProposalsBatch(selectedProposalIds);
-            await refreshLists();
-            reloadAssignments();
-
-            if (result.failed_count > 0) {
-                const firstFailure = result.results.find((item) => !item.success);
-                setProposalActionError(
-                    `一括承認: ${result.success_count}件成功 / ${result.failed_count}件失敗${firstFailure?.error ? `（${firstFailure.error}）` : ""
-                    }`
-                );
-                return;
-            }
-
-            setProposalActionNotice(`一括承認が完了しました（${result.success_count}件）`);
-        } catch (err: unknown) {
-            setProposalActionError(getErrorMessage(err));
-        } finally {
-            setBatchActionLoading(false);
-        }
-    };
-
-    const handleBatchReject = async () => {
-        if (selectedProposalIds.length === 0) return;
-
-        const reason = window.prompt("一括却下理由を入力してください");
-        if (reason === null) return;
-        if (!reason.trim()) {
-            setProposalActionError("一括却下の理由は必須です");
-            return;
-        }
-
-        try {
-            setBatchActionLoading(true);
-            setProposalActionError(null);
-            setProposalActionNotice(null);
-
-            const result = await rejectProposalsBatch(selectedProposalIds, reason.trim());
-            await refreshLists();
-            reloadAssignments();
-
-            if (result.failed_count > 0) {
-                const firstFailure = result.results.find((item) => !item.success);
-                setProposalActionError(
-                    `一括却下: ${result.success_count}件成功 / ${result.failed_count}件失敗${firstFailure?.error ? `（${firstFailure.error}）` : ""
-                    }`
-                );
-                return;
-            }
-
-            setProposalActionNotice(`一括却下が完了しました（${result.success_count}件）`);
-        } catch (err: unknown) {
-            setProposalActionError(getErrorMessage(err));
-        } finally {
-            setBatchActionLoading(false);
-        }
-    };
-
-    const handleMarkNotificationRead = async (notificationId: string) => {
-        try {
-            setNotificationActionId(notificationId);
-            setNotificationsError(null);
-
-            const updated = await markNotificationRead(notificationId);
-            setNotifications((current) =>
-                current.map((item) => (item.id === notificationId ? updated : item))
-            );
-        } catch (err: unknown) {
-            setNotificationsError(getErrorMessage(err));
-        } finally {
-            setNotificationActionId(null);
-        }
-    };
-
-    const handleMarkAllNotificationsRead = async () => {
-        try {
-            setMarkAllNotificationsLoading(true);
-            setNotificationsError(null);
-
-            await markAllNotificationsRead();
-            setNotifications((current) =>
-                current.map((item) => (item.read ? item : { ...item, read: true }))
-            );
-        } catch (err: unknown) {
-            setNotificationsError(getErrorMessage(err));
-        } finally {
-            setMarkAllNotificationsLoading(false);
-        }
-    };
-
-    const handleOpenCommunicationHistory = () => {
-        navigate("/communications");
-    };
-
-    const selectedProposalIdSet = useMemo(
-        () => new Set(selectedProposalIds),
-        [selectedProposalIds]
+    const activeHorizonItems = useMemo(
+        () => focusItems.filter((item) => item.horizon === activeHorizon),
+        [focusItems, activeHorizon]
     );
+
+    const todayDateLabel = new Date().toLocaleDateString("ja-JP", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        weekday: "long",
+    });
+    const communicationPendingCount = useMemo(
+        () => pendingProposals.filter((proposal) => proposal.type.startsWith("communication.")).length,
+        [pendingProposals]
+    );
+
+    const openPendingSheet = () => {
+        if (pendingCount === 0) {
+            return;
+        }
+        setPendingSheetOpen(true);
+    };
+
+    const closePendingSheet = () => {
+        setPendingSheetOpen(false);
+        setSelectedProposal(null);
+    };
+
+    const applyComposerPreset = (preset: string) => {
+        setComposerPreset(preset);
+        setComposerForm((current) => ({
+            ...current,
+            title: current.title.trim().length === 0 || composerPreset === current.title ? preset : current.title,
+        }));
+    };
+
+    const handleCompleteFocusItem = async (item: FocusItemRecord) => {
+        try {
+            setCompletingId(item.id);
+            setActionError(null);
+            await completeFocusItem(item.id);
+            setFocusItems((current) => current.filter((focusItem) => focusItem.id !== item.id));
+            setActionNotice(`「${item.title}」を完了にしました`);
+        } catch (err: unknown) {
+            setActionError(getErrorMessage(err));
+        } finally {
+            setCompletingId(null);
+        }
+    };
+
+    const handleSubmitComposer = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+
+        if (!composerForm.title.trim()) {
+            setActionError("内容は必須です");
+            return;
+        }
+
+        try {
+            setComposerSubmitting(true);
+            setActionError(null);
+            setActionNotice(null);
+
+            const payload = {
+                title: composerForm.title.trim(),
+                note: composerForm.note.trim() || undefined,
+                scope: composerForm.scope,
+                horizon: composerForm.horizon,
+                site_id: composerForm.site_id || undefined,
+            };
+
+            const saved = editingFocusItem
+                ? await updateFocusItem(editingFocusItem.id, {
+                      ...payload,
+                      status: editingFocusItem.status,
+                  })
+                : await createFocusItem(payload);
+
+            setFocusItems((current) => {
+                const next = current.filter((item) => item.id !== saved.id);
+                return [saved, ...next].sort((a, b) => b.created_at.localeCompare(a.created_at));
+            });
+
+            setActionNotice(
+                editingFocusItem
+                    ? `「${saved.title}」を更新しました`
+                    : `「${saved.title}」を追加しました`
+            );
+            closeComposer();
+        } catch (err: unknown) {
+            setActionError(getErrorMessage(err));
+        } finally {
+            setComposerSubmitting(false);
+        }
+    };
+
+    const handleProposalMutation = async (
+        proposalId: string,
+        action: "approve" | "reject" | "instruct" | "execute",
+        payload?: string
+    ) => {
+        try {
+            setProposalActing(true);
+            setActionError(null);
+
+            if (action === "approve") {
+                await approveProposal(proposalId, payload);
+                setActionNotice("承認待ち Proposal を承認しました");
+            } else if (action === "reject") {
+                await rejectProposal(proposalId, payload || "");
+                setActionNotice("承認待ち Proposal を却下しました");
+            } else if (action === "instruct") {
+                await instructProposal(proposalId, payload || "");
+                setActionNotice("修正指示を送りました");
+            } else {
+                await executeProposal(proposalId);
+                setActionNotice("Proposal を実行しました");
+            }
+
+            await syncPendingProposals(proposalId);
+        } catch (err: unknown) {
+            setActionError(getErrorMessage(err));
+        } finally {
+            setProposalActing(false);
+        }
+    };
 
     if (loading) {
         return (
             <div className={styles.loading}>
                 <div className={styles.spinner} />
-                <p>データを読み込み中...</p>
+                <p>読み込み中...</p>
             </div>
         );
     }
@@ -453,7 +361,7 @@ export function Today() {
                 <AlertCircle size={48} />
                 <h3>読み込みに失敗しました</h3>
                 <p>ネットワーク接続を確認してください</p>
-                <button onClick={loadData} className={styles.retryButton}>
+                <button onClick={() => void loadData()} className={styles.retryButton}>
                     <RefreshCw size={16} />
                     再試行
                 </button>
@@ -461,370 +369,488 @@ export function Today() {
         );
     }
 
-    const totalPending = pendingProposals.length + readyToExecuteProposals.length;
-    const allPendingSelected =
-        pendingProposals.length > 0 && selectedProposalIds.length === pendingProposals.length;
-    const unreadNotificationCount = notifications.filter((notification) => !notification.read).length;
-
     return (
         <div className={styles.container}>
-            {/* Header */}
-            <motion.div
-                className={styles.header}
-                initial={{ opacity: 0, y: -10 }}
+            <motion.header
+                className={styles.hero}
+                initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2 }}
             >
                 <div>
-                    <h1 className={styles.pageTitle}>今日</h1>
-                    <p className={styles.pageSubtitle}>
-                        {new Date().toLocaleDateString("ja-JP", {
-                            year: "numeric",
-                            month: "long",
-                            day: "numeric",
-                            weekday: "long",
-                        })}
-                    </p>
+                    <h1 className={styles.dateTitle}>{todayDateLabel}</h1>
                 </div>
-                <div className={styles.headerActions}>
+                <div className={styles.heroActions}>
+                    <PendingBadge count={pendingCount} onClick={openPendingSheet} />
                     <button
                         type="button"
-                        className={styles.historyButton}
-                        onClick={handleOpenCommunicationHistory}
+                        className={styles.refreshButton}
+                        onClick={() => void loadData()}
+                        aria-label="最新状態に更新"
                     >
-                        <Mail size={16} />
-                        メール履歴
-                    </button>
-                    <button onClick={loadData} className={styles.refreshButton} type="button">
-                        <RefreshCw size={18} />
+                        <RefreshCw size={16} />
                     </button>
                 </div>
-            </motion.div>
+            </motion.header>
 
-            {/* Week Calendar */}
+            {actionError && (
+                <div className={styles.errorBanner}>
+                    <AlertCircle size={14} />
+                    {actionError}
+                </div>
+            )}
+
+            {actionNotice && (
+                <div className={styles.noticeBanner}>
+                    <CheckCircle2 size={14} />
+                    {actionNotice}
+                </div>
+            )}
+
             <motion.section
                 className={styles.section}
-                initial={{ opacity: 0, y: 10 }}
+                initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
+                transition={{ delay: 0.04 }}
             >
-                <WeekCalendar
-                    days={calendarDays}
-                    onSelectDate={selectDate}
-                    selectedDate={selectedDate}
+                <TodayAssignments
+                    assignments={todayAssignments}
+                    sites={sites}
+                    focusItems={focusItems}
+                    completingId={completingId}
+                    onCompleteFocusItem={(item) => void handleCompleteFocusItem(item)}
+                    onOpenSite={setSelectedSite}
+                    onOpenQuickRecord={openQuickRecordComposer}
                 />
             </motion.section>
 
-            {/* Today's Focus */}
-            <motion.div
-                className={styles.focusGrid}
-                initial={{ opacity: 0, y: 10 }}
+            <motion.section
+                className={styles.section}
+                initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
+                transition={{ delay: 0.08 }}
             >
-                <div>
-                    <TodayAssignments assignments={todayAssignments} />
-                </div>
-                <div>
-                    <MonthlySummary />
-                    <div className={`${styles.summaryCard} ${totalPending > 0 ? styles.summaryCardAlert : ""}`} style={{ marginTop: '12px' }}>
-                        <Clock size={20} />
-                        <div className={styles.summaryInfo}>
-                            <span className={styles.summaryValue}>{totalPending}</span>
-                            <span className={styles.summaryLabel}>承認待ち</span>
-                        </div>
+                <div className={styles.sectionHeader}>
+                    <h2 className={styles.sectionTitle}>解決すること</h2>
+                    <div className={styles.horizonTabs} role="tablist" aria-label="期間">
+                        {(["today", "week", "later"] as FocusItemHorizon[]).map((horizon) => (
+                            <button
+                                key={horizon}
+                                type="button"
+                                className={`${styles.horizonTab} ${activeHorizon === horizon ? styles.horizonTabActive : ""}`}
+                                onClick={() => setActiveHorizon(horizon)}
+                                aria-pressed={activeHorizon === horizon}
+                            >
+                                {HORIZON_LABELS[horizon]}
+                                {horizonCounts[horizon] > 0 && (
+                                    <span className={styles.horizonCount}>
+                                        {horizonCounts[horizon]}
+                                    </span>
+                                )}
+                            </button>
+                        ))}
                     </div>
-                </div>
-            </motion.div>
-
-            {/* Notifications */}
-            <section className={styles.section}>
-                <div className={styles.sectionHeaderRow}>
-                    <h2 className={styles.sectionTitle}>
-                        <Bell size={18} />
-                        通知
-                        {unreadNotificationCount > 0 && (
-                            <span className={styles.countBadge}>{unreadNotificationCount}</span>
-                        )}
-                    </h2>
-                    <button
-                        type="button"
-                        className={styles.inlineActionButton}
-                        disabled={unreadNotificationCount === 0 || markAllNotificationsLoading}
-                        onClick={handleMarkAllNotificationsRead}
-                    >
-                        全て既読
-                    </button>
                 </div>
 
-                {notificationsError && (
-                    <div className={styles.errorBanner}>
-                        <AlertCircle size={14} />
-                        {notificationsError}
-                    </div>
-                )}
-
-                {notificationsLoading ? (
-                    <div className={styles.notificationState}>通知を読み込み中...</div>
-                ) : notifications.length === 0 ? (
-                    <div className={styles.notificationState}>通知はありません</div>
-                ) : (
-                    <div className={styles.notificationList}>
-                        {notifications.map((notification) => {
-                            const isActionLoading = notificationActionId === notification.id;
-
-                            return (
-                                <article
-                                    key={notification.id}
-                                    className={`${styles.notificationCard} ${!notification.read ? styles.notificationCardUnread : ""
-                                        }`}
-                                >
-                                    <div className={styles.notificationHeader}>
-                                        <span className={styles.notificationTitle}>
-                                            {notification.title || "通知"}
-                                        </span>
-                                        {!notification.read && <span className={styles.unreadDot} />}
-                                    </div>
-                                    <p className={styles.notificationMessage}>{notification.message}</p>
-                                    <div className={styles.notificationFooter}>
-                                        <span className={styles.notificationDate}>
-                                            {formatNotificationDate(notification.created_at)}
-                                        </span>
-                                        {!notification.read && (
-                                            <button
-                                                type="button"
-                                                className={styles.inlineActionButton}
-                                                disabled={isActionLoading}
-                                                onClick={() => handleMarkNotificationRead(notification.id)}
-                                            >
-                                                既読にする
-                                            </button>
-                                        )}
-                                    </div>
-                                </article>
-                            );
-                        })}
-                    </div>
-                )}
-            </section>
-
-            {/* Proposals */}
-            <section className={styles.section}>
-                <h2 className={styles.sectionTitle}>
-                    <AlertCircle size={18} />
-                    承認待ち
-                    {totalPending > 0 && (
-                        <span className={styles.countBadge}>{totalPending}</span>
-                    )}
-                </h2>
-
-                {proposalActionError && (
-                    <div className={styles.errorBanner}>
-                        <AlertCircle size={14} />
-                        {proposalActionError}
-                    </div>
-                )}
-
-                {proposalActionNotice && (
-                    <div className={styles.noticeBanner}>
-                        <CheckCircle size={14} />
-                        {proposalActionNotice}
-                    </div>
-                )}
-
-                {pendingProposals.length > 0 && (
-                    <div className={styles.batchBar}>
-                        <div className={styles.batchSummary}>
-                            <button
-                                type="button"
-                                className={styles.batchToggleButton}
-                                disabled={batchActionLoading}
-                                onClick={handleToggleSelectAll}
-                            >
-                                {allPendingSelected ? "全選択解除" : "全選択"}
-                            </button>
-                            <span className={styles.batchCount}>{selectedProposalIds.length}件選択中</span>
-                        </div>
-                        <div className={styles.batchActions}>
-                            <button
-                                type="button"
-                                className={`${styles.batchActionButton} ${styles.batchRejectButton}`}
-                                disabled={selectedProposalIds.length === 0 || batchActionLoading}
-                                onClick={handleBatchReject}
-                            >
-                                一括却下
-                            </button>
-                            <button
-                                type="button"
-                                className={`${styles.batchActionButton} ${styles.batchApproveButton}`}
-                                disabled={selectedProposalIds.length === 0 || batchActionLoading}
-                                onClick={handleBatchApprove}
-                            >
-                                一括承認
-                            </button>
-                        </div>
-                    </div>
-                )}
-
-                {totalPending === 0 ? (
+                {activeHorizonItems.length === 0 ? (
                     <div className={styles.emptyState}>
-                        <CheckCircle size={40} />
-                        <p>承認待ちはありません</p>
-                        <span>提案が提出されるとここに表示されます</span>
+                        <p>{HORIZON_LABELS[activeHorizon]}の解決事項はありません</p>
+                        <span>右下の + から追加できます</span>
                     </div>
                 ) : (
-                    <div className={styles.proposalGrid}>
-                        {pendingProposals.map((proposal) => {
-                            const approvedCount = proposal.approvals.filter(
-                                (a) => a.decision === "approve"
-                            ).length;
-                            const requiredApprovals = Math.max(proposal.required_approvals, 1);
-                            const amount = extractProposalAmount(proposal.payload);
-                            const isActing = actingProposalId === proposal.id;
-                            const isSelected = selectedProposalIdSet.has(proposal.id);
-
-                            return (
-                                <motion.article
-                                    key={proposal.id}
-                                    className={`${styles.proposalCard} ${isSelected ? styles.proposalCardSelected : ""}`}
-                                    initial={{ opacity: 0, y: 8 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    onClick={() => setSelectedProposal(proposal)}
-                                    style={{ cursor: "pointer" }}
+                    <div className={styles.focusList}>
+                        {activeHorizonItems.map((item) => (
+                            <article key={item.id} className={styles.focusItem}>
+                                <button
+                                    type="button"
+                                    className={styles.completeCircle}
+                                    disabled={completingId === item.id}
+                                    onClick={() => void handleCompleteFocusItem(item)}
+                                    aria-label="完了にする"
                                 >
-                                    <div className={styles.proposalHeader}>
-                                        <span className={styles.proposalType}>
-                                            {PROPOSAL_TYPE_LABELS[proposal.type] || proposal.type}
+                                    {completingId === item.id ? (
+                                        <div className={styles.miniSpinner} />
+                                    ) : (
+                                        <Check size={14} className={styles.checkIcon} />
+                                    )}
+                                </button>
+                                <div
+                                    className={styles.focusContent}
+                                    onClick={() => openComposerForEdit(item)}
+                                >
+                                    <div className={styles.focusTitleRow}>
+                                        <span className={styles.focusTitle}>{item.title}</span>
+                                        <span
+                                            className={`${styles.scopeTag} ${item.scope === "org" ? styles.scopeTagOrg : ""}`}
+                                        >
+                                            {SCOPE_LABELS[item.scope]}
                                         </span>
-                                        <div className={styles.proposalHeaderActions}>
-                                            <label
-                                                className={styles.selectControl}
-                                                onClick={(e) => e.stopPropagation()}
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isSelected}
-                                                    disabled={batchActionLoading || isActing}
-                                                    onChange={() => handleToggleProposalSelection(proposal.id)}
-                                                />
-                                                選択
-                                            </label>
-                                            <span className={styles.actorBadge}>
-                                                {proposal.created_by.type.toUpperCase()}
+                                    </div>
+                                    {item.note && (
+                                        <p className={styles.focusNote}>{item.note}</p>
+                                    )}
+                                    {item.site_name_snapshot && (
+                                        <div className={styles.focusMeta}>
+                                            <span className={styles.metaItem}>
+                                                <Building2 size={12} />
+                                                {item.site_name_snapshot}
                                             </span>
                                         </div>
-                                    </div>
-
-                                    <p className={styles.proposalDescription}>
-                                        {proposal.description}
-                                    </p>
-
-                                    <div className={styles.proposalMeta}>
-                                        {amount !== null && (
-                                            <span className={styles.proposalAmount}>
-                                                ¥{amount.toLocaleString()}
-                                            </span>
-                                        )}
-                                        <span>承認 {approvedCount}/{requiredApprovals}</span>
-                                        <span>{formatProposalDate(proposal.created_at)}</span>
-                                    </div>
-
-                                    <div className={styles.proposalActions}>
-                                        <button
-                                            type="button"
-                                            className={`${styles.actionButton} ${styles.rejectButton}`}
-                                            disabled={isActing || batchActionLoading}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleRejectProposal(proposal.id);
-                                            }}
-                                        >
-                                            <XCircle size={16} />
-                                            却下
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className={`${styles.actionButton} ${styles.approveButton}`}
-                                            disabled={isActing || batchActionLoading}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleApproveProposal(proposal.id);
-                                            }}
-                                        >
-                                            <CheckCircle size={16} />
-                                            承認
-                                        </button>
-                                    </div>
-                                </motion.article>
-                            );
-                        })}
-
-                        {readyToExecuteProposals.map((proposal) => {
-                            const amount = extractProposalAmount(proposal.payload);
-                            const isActing = actingProposalId === proposal.id;
-
-                            return (
-                                <motion.article
-                                    key={proposal.id}
-                                    className={`${styles.proposalCard} ${styles.executeCard}`}
-                                    initial={{ opacity: 0, y: 8 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    onClick={() => setSelectedProposal(proposal)}
-                                    style={{ cursor: "pointer" }}
-                                >
-                                    <div className={styles.proposalHeader}>
-                                        <span className={styles.proposalType}>
-                                            {PROPOSAL_TYPE_LABELS[proposal.type] || proposal.type}
-                                        </span>
-                                        <span className={`${styles.actorBadge} ${styles.readyBadge}`}>
-                                            READY
-                                        </span>
-                                    </div>
-
-                                    <p className={styles.proposalDescription}>
-                                        {proposal.description}
-                                    </p>
-
-                                    <div className={styles.proposalMeta}>
-                                        {amount !== null && (
-                                            <span className={styles.proposalAmount}>
-                                                ¥{amount.toLocaleString()}
-                                            </span>
-                                        )}
-                                        <span>承認済み・実行待ち</span>
-                                        <span>{formatProposalDate(proposal.updated_at)}</span>
-                                    </div>
-
-                                    <div className={styles.proposalActions}>
-                                        <button
-                                            type="button"
-                                            className={`${styles.actionButton} ${styles.executeButton}`}
-                                            disabled={isActing || batchActionLoading}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleExecuteProposal(proposal.id);
-                                            }}
-                                        >
-                                            <Zap size={16} />
-                                            実行
-                                        </button>
-                                    </div>
-                                </motion.article>
-                            );
-                        })}
+                                    )}
+                                </div>
+                            </article>
+                        ))}
                     </div>
                 )}
-            </section>
+            </motion.section>
 
-            {/* Detail Modal */}
+            <motion.section
+                className={styles.section}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.12 }}
+            >
+                <div className={styles.sectionHeader}>
+                    <h2 className={styles.sectionTitle}>今週の見通し</h2>
+                </div>
+                <div className={styles.calendarShell}>
+                    <WeekCalendar
+                        days={calendarDays}
+                        onSelectDate={selectDate}
+                        selectedDate={selectedDate}
+                    />
+                </div>
+            </motion.section>
+
+            <motion.section
+                className={styles.section}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.16 }}
+            >
+                <div className={styles.sectionHeader}>
+                    <h2 className={styles.sectionTitle}>今月の数字</h2>
+                </div>
+                <MonthlySummary />
+            </motion.section>
+
+            {pendingSheetOpen && (
+                <div className={styles.sheetOverlay} onClick={closePendingSheet}>
+                    <motion.div
+                        className={styles.pendingSheet}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 20 }}
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className={styles.sheetHeader}>
+                            <div className={styles.sheetHeading}>
+                                <h3 className={styles.sheetTitle}>承認待ち Proposal</h3>
+                                <p className={styles.sheetDescription}>
+                                    Today からそのまま詳細を開いて、承認・却下・修正指示まで進められます。
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                className={styles.closeButton}
+                                onClick={closePendingSheet}
+                                aria-label="閉じる"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {pendingProposals.length === 0 ? (
+                            <div className={styles.pendingEmptyState}>
+                                <p>承認待ちはありません</p>
+                                <span>新しい Proposal が来たらここに並びます</span>
+                            </div>
+                        ) : (
+                            <div className={styles.pendingList}>
+                                {pendingProposals.map((proposal) => {
+                                    const amount = proposal.payload.amount;
+                                    const amountLabel =
+                                        typeof amount === "number"
+                                            ? `¥${amount.toLocaleString()}`
+                                            : typeof amount === "string" && amount.trim()
+                                              ? amount
+                                              : null;
+
+                                    return (
+                                        <article key={proposal.id} className={styles.pendingCard}>
+                                            <button
+                                                type="button"
+                                                className={styles.pendingCardBody}
+                                                onClick={() => setSelectedProposal(proposal)}
+                                            >
+                                                <div className={styles.pendingCardTop}>
+                                                    <span className={styles.pendingTypeBadge}>
+                                                        {PENDING_PROPOSAL_LABELS[proposal.type] || proposal.type}
+                                                    </span>
+                                                    {amountLabel && (
+                                                        <span className={styles.pendingAmount}>{amountLabel}</span>
+                                                    )}
+                                                </div>
+                                                <strong className={styles.pendingTitle}>{proposal.description}</strong>
+                                                <p className={styles.pendingMeta}>
+                                                    {proposal.created_by.name} ・{" "}
+                                                    {new Date(proposal.created_at).toLocaleString("ja-JP", {
+                                                        month: "2-digit",
+                                                        day: "2-digit",
+                                                        hour: "2-digit",
+                                                        minute: "2-digit",
+                                                    })}
+                                                </p>
+                                            </button>
+
+                                            {proposal.type.startsWith("communication.") && (
+                                                <div className={styles.pendingCardActions}>
+                                                    <button
+                                                        type="button"
+                                                        className={styles.pendingJumpButton}
+                                                        onClick={() => navigate("/communications")}
+                                                    >
+                                                        Communications で開く
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </article>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {communicationPendingCount > 0 && (
+                            <div className={styles.pendingFootnote}>
+                                連絡系 Proposal は Communications に移動すると会話ログもまとめて確認できます。
+                            </div>
+                        )}
+                    </motion.div>
+                </div>
+            )}
+
+            {composerOpen && (
+                <div className={styles.sheetOverlay} onClick={closeComposer}>
+                    <motion.div
+                        className={styles.sheet}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 20 }}
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className={styles.sheetHeader}>
+                            <div className={styles.sheetHeading}>
+                                <h3 className={styles.sheetTitle}>
+                                    {editingFocusItem
+                                        ? "解決事項を編集"
+                                        : composerMode === "siteQuick"
+                                          ? "現場クイック記録"
+                                          : "解決事項を追加"}
+                                </h3>
+                                <p className={styles.sheetDescription}>
+                                    {composerMode === "siteQuick"
+                                        ? "今日やることをタップ中心で追加します。必要なら補足だけ一言入れてください。"
+                                        : "今日・今週・あとで解決したいことを記録します。"}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                className={styles.closeButton}
+                                onClick={closeComposer}
+                                aria-label="閉じる"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <form className={styles.sheetForm} onSubmit={handleSubmitComposer}>
+                            {composerMode === "siteQuick" && selectedComposerSite && (
+                                <>
+                                    <div className={styles.sheetSiteCard}>
+                                        <span className={styles.sheetSiteEyebrow}>対象の現場</span>
+                                        <strong>{selectedComposerSite.name}</strong>
+                                        {selectedComposerSite.address && (
+                                            <span>{selectedComposerSite.address}</span>
+                                        )}
+                                    </div>
+
+                                    <div className={styles.segmentGroup}>
+                                        <span className={styles.fieldCaption}>クイック候補</span>
+                                        <div className={styles.quickPresetGrid}>
+                                            {QUICK_RECORD_PRESETS.map((preset) => (
+                                                <button
+                                                    key={preset}
+                                                    type="button"
+                                                    className={`${styles.quickPresetButton} ${
+                                                        composerPreset === preset ? styles.quickPresetButtonActive : ""
+                                                    }`}
+                                                    onClick={() => applyComposerPreset(preset)}
+                                                >
+                                                    {preset}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+
+                            <label className={styles.fieldLabel}>
+                                {composerMode === "siteQuick" ? "今日やること" : "内容"}
+                                <input
+                                    className={styles.textInput}
+                                    value={composerForm.title}
+                                    onChange={(event) =>
+                                        setComposerForm((current) => ({
+                                            ...current,
+                                            title: event.target.value,
+                                        }))
+                                    }
+                                    placeholder={
+                                        composerMode === "siteQuick"
+                                            ? "例: 安全ブリーフィングを11時までに実施する"
+                                            : "例: A現場の段取りを再確認する"
+                                    }
+                                    maxLength={120}
+                                    autoFocus
+                                />
+                            </label>
+
+                            <label className={styles.fieldLabel}>
+                                {composerMode === "siteQuick" ? "補足メモ" : "補足"}
+                                <textarea
+                                    className={styles.textArea}
+                                    value={composerForm.note}
+                                    onChange={(event) =>
+                                        setComposerForm((current) => ({
+                                            ...current,
+                                            note: event.target.value,
+                                        }))
+                                    }
+                                    placeholder={
+                                        composerMode === "siteQuick"
+                                            ? "引き継ぎや気をつけたいことがあれば一言"
+                                            : "背景や気になっていることをメモできます"
+                                    }
+                                    rows={3}
+                                />
+                            </label>
+
+                            <div className={styles.segmentGroup}>
+                                <span className={styles.fieldCaption}>範囲</span>
+                                <div
+                                    className={`${styles.segmentButtons} ${styles.segmentButtonsTwo}`}
+                                >
+                                    {(["personal", "org"] as FocusItemScope[]).map((scope) => (
+                                        <button
+                                            key={scope}
+                                            type="button"
+                                            className={`${styles.segmentButton} ${
+                                                composerForm.scope === scope
+                                                    ? styles.segmentButtonActive
+                                                    : ""
+                                            }`}
+                                            onClick={() =>
+                                                setComposerForm((current) => ({
+                                                    ...current,
+                                                    scope,
+                                                }))
+                                            }
+                                        >
+                                            {SCOPE_LABELS[scope]}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className={styles.segmentGroup}>
+                                <span className={styles.fieldCaption}>期間</span>
+                                <div className={styles.segmentButtons}>
+                                    {(["today", "week", "later"] as FocusItemHorizon[]).map(
+                                        (horizon) => (
+                                            <button
+                                                key={horizon}
+                                                type="button"
+                                                className={`${styles.segmentButton} ${
+                                                    composerForm.horizon === horizon
+                                                        ? styles.segmentButtonActive
+                                                        : ""
+                                                }`}
+                                                onClick={() =>
+                                                    setComposerForm((current) => ({
+                                                        ...current,
+                                                        horizon,
+                                                    }))
+                                                }
+                                            >
+                                                {HORIZON_LABELS[horizon]}
+                                            </button>
+                                        )
+                                    )}
+                                </div>
+                            </div>
+
+                            <label className={styles.fieldLabel}>
+                                関連する現場
+                                <select
+                                    className={styles.selectInput}
+                                    value={composerForm.site_id}
+                                    onChange={(event) =>
+                                        setComposerForm((current) => ({
+                                            ...current,
+                                            site_id: event.target.value,
+                                        }))
+                                    }
+                                >
+                                    <option value="">未指定</option>
+                                    {sites.map((site) => (
+                                        <option key={site.id} value={site.id}>
+                                            {site.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+
+                            <div className={styles.sheetActions}>
+                                <button
+                                    type="button"
+                                    className={styles.secondaryButton}
+                                    onClick={closeComposer}
+                                >
+                                    キャンセル
+                                </button>
+                                <button
+                                    type="submit"
+                                    className={styles.primaryButton}
+                                    disabled={composerSubmitting}
+                                >
+                                    {editingFocusItem ? "更新" : composerMode === "siteQuick" ? "記録を追加" : "追加"}
+                                </button>
+                            </div>
+                        </form>
+                    </motion.div>
+                </div>
+            )}
+
+            {selectedSite && (
+                <SiteDetailModal
+                    site={selectedSite}
+                    onClose={() => setSelectedSite(null)}
+                    onUpdated={() => {
+                        setSelectedSite(null);
+                        void loadData();
+                    }}
+                />
+            )}
+
             {selectedProposal && (
                 <ProposalDetailModal
                     proposal={selectedProposal}
                     onClose={() => setSelectedProposal(null)}
-                    onApprove={handleApproveProposal}
-                    onReject={handleRejectProposal}
-                    onInstruct={handleInstructProposal}
-                    onExecute={handleExecuteProposal}
-                    isActing={actingProposalId !== null || batchActionLoading}
+                    onApprove={(proposalId, reason) => handleProposalMutation(proposalId, "approve", reason)}
+                    onReject={(proposalId, reason) => handleProposalMutation(proposalId, "reject", reason)}
+                    onInstruct={(proposalId, instruction) => handleProposalMutation(proposalId, "instruct", instruction)}
+                    onExecute={(proposalId) => handleProposalMutation(proposalId, "execute")}
+                    isActing={proposalActing}
                 />
             )}
         </div>

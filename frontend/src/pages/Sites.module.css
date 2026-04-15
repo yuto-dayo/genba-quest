@@ -1,11 +1,13 @@
 /* ============================================================
-   Sites Page — Material 3 Expressive
+   Sites Page — Material 3 Expressive (Simplified)
+   Mobile-first single-column list
    ============================================================ */
 
 .container {
     min-height: 100vh;
     padding: var(--md-sys-spacing-lg);
-    max-width: 1200px;
+    padding-bottom: 100px;
+    max-width: 640px;
     margin: 0 auto;
 }
 
@@ -19,10 +21,6 @@
     gap: var(--md-sys-spacing-md);
     color: var(--md-sys-color-on-surface-variant);
     text-align: center;
-}
-
-.error {
-    color: var(--md-sys-color-on-surface-variant);
 }
 
 .error svg {
@@ -45,7 +43,6 @@
 .retryButton {
     padding: 10px 24px;
     min-height: 44px;
-    height: 40px;
     border: none;
     border-radius: var(--md-sys-shape-corner-full);
     background: var(--md-sys-color-primary);
@@ -53,22 +50,10 @@
     font: var(--md-sys-typescale-label-large);
     cursor: pointer;
     transition: all var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
-    position: relative;
-    overflow: hidden;
 }
 
-.retryButton::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background: currentColor;
-    opacity: 0;
-    transition: opacity var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
-}
-
-.retryButton:hover::after {
-    opacity: 0.08;
+.retryButton:hover {
+    box-shadow: var(--md-sys-elevation-level2);
 }
 
 .retryButton:active {
@@ -77,14 +62,7 @@
 
 /* ヘッダー */
 .header {
-    margin-bottom: var(--md-sys-spacing-lg);
-}
-
-.titleRow {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
+    margin-bottom: var(--md-sys-spacing-md);
 }
 
 .title {
@@ -99,77 +77,6 @@
     color: var(--md-sys-color-primary);
 }
 
-.addButton {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--md-sys-spacing-sm);
-    padding: 10px 24px;
-    min-height: 44px;
-    height: 40px;
-    border: none;
-    border-radius: var(--md-sys-shape-corner-full);
-    background: var(--md-sys-color-primary);
-    color: var(--md-sys-color-on-primary);
-    font: var(--md-sys-typescale-label-large);
-    cursor: pointer;
-    transition: all var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
-    position: relative;
-    overflow: hidden;
-}
-
-.addButton::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background: currentColor;
-    opacity: 0;
-    transition: opacity var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
-}
-
-.addButton:hover::after {
-    opacity: 0.08;
-}
-
-.addButton:active {
-    transform: scale(0.97);
-}
-
-/* 統計 */
-.statsRow {
-    display: flex;
-    gap: var(--md-sys-spacing-lg);
-    flex-wrap: wrap;
-}
-
-.stat {
-    display: flex;
-    flex-direction: column;
-    gap: var(--md-sys-spacing-xs);
-}
-
-.statValue {
-    font: var(--md-sys-typescale-headline-small);
-    color: var(--md-sys-color-on-surface);
-}
-
-.statValue.inProgress {
-    color: var(--md-sys-color-primary);
-}
-
-.statValue.completed {
-    color: var(--md-sys-color-success);
-}
-
-.statValue.revenue {
-    color: var(--md-sys-color-warning);
-}
-
-.statLabel {
-    font: var(--md-sys-typescale-label-small);
-    color: var(--md-sys-color-on-surface-variant);
-}
-
 /* フィルター */
 .filters {
     display: flex;
@@ -178,6 +85,9 @@
 }
 
 .filterButton {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     padding: 10px 20px;
     min-height: 40px;
     border: 1px solid var(--md-sys-color-outline);
@@ -200,15 +110,27 @@
     color: var(--md-sys-color-on-primary);
 }
 
+.filterCount {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 10px;
+    font: var(--md-sys-typescale-label-small);
+    background: color-mix(in srgb, currentColor 16%, transparent);
+}
+
 /* 現場セクション */
 .sitesSection {
     margin-top: var(--md-sys-spacing-md);
 }
 
-.sitesGrid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: var(--md-sys-spacing-md);
+.sitesList {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
 }
 
 .empty {
@@ -228,13 +150,6 @@
     margin-top: var(--md-sys-spacing-sm);
 }
 
-.empty p {
-    font: var(--md-sys-typescale-body-medium);
-    color: var(--md-sys-color-on-surface-variant);
-    max-width: 300px;
-    line-height: 1.5;
-}
-
 .emptyAddButton {
     display: inline-flex;
     align-items: center;
@@ -248,82 +163,65 @@
     font: var(--md-sys-typescale-label-large);
     cursor: pointer;
     transition: all var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
-    position: relative;
-    overflow: hidden;
 }
 
-.emptyAddButton::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background: currentColor;
-    opacity: 0;
-    transition: opacity var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
-}
-
-.emptyAddButton:hover::after {
-    opacity: 0.08;
+.emptyAddButton:hover {
+    box-shadow: var(--md-sys-elevation-level2);
 }
 
 .emptyAddButton:active {
     transform: scale(0.97);
 }
 
-/* カード */
+/* カード — シンプル化 */
 .card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
     background: var(--md-sys-color-surface-container-lowest);
     border: 1px solid var(--md-sys-color-outline-variant);
     border-radius: var(--md-sys-shape-corner-medium);
-    padding: 20px;
-    position: relative;
-    box-shadow: var(--md-sys-elevation-level1);
-    transition: box-shadow var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+    padding: 16px 20px;
+    cursor: pointer;
+    transition: all var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+    -webkit-tap-highlight-color: transparent;
 }
 
 .card:hover {
-    box-shadow: var(--md-sys-elevation-level2);
+    background: var(--md-sys-color-surface-container-low);
+    border-color: var(--md-sys-color-outline);
+}
+
+.card:active {
+    transform: scale(0.98);
 }
 
 .cardCompleted {
-    opacity: 0.85;
+    opacity: 0.7;
 }
 
-.cardCompleted:hover {
-    box-shadow: var(--md-sys-elevation-level2);
+.cardContent {
+    flex: 1;
+    min-width: 0;
 }
 
-/* ステータスバッジ */
-.statusBadge {
-    position: absolute;
-    top: 12px;
-    right: 12px;
-    padding: 4px 12px;
-    border-radius: var(--md-sys-shape-corner-full);
-    font: var(--md-sys-typescale-label-small);
-    font-weight: 600;
-}
-
-.statusBadge.in_progress {
-    background: var(--md-sys-color-primary-container);
-    color: var(--md-sys-color-on-primary-container);
-}
-
-.statusBadge.completed {
-    background: var(--md-sys-color-success-container);
-    color: var(--md-sys-color-on-success-container);
-}
-
-/* カードヘッダー */
 .cardHeader {
-    margin-bottom: var(--md-sys-spacing-sm);
-    padding-right: 60px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
 }
 
 .siteName {
     font: var(--md-sys-typescale-title-medium);
     color: var(--md-sys-color-on-surface);
-    margin-bottom: var(--md-sys-spacing-xs);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.cautionIcon {
+    color: var(--md-sys-color-warning);
+    flex-shrink: 0;
 }
 
 .clientName {
@@ -331,132 +229,42 @@
     color: var(--md-sys-color-on-surface-variant);
 }
 
-.address {
+.descriptionSnippet {
     font: var(--md-sys-typescale-body-small);
     color: var(--md-sys-color-on-surface-variant);
-    margin-bottom: var(--md-sys-spacing-md);
-}
-
-/* メトリクス */
-.metrics {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--md-sys-spacing-md);
-    margin-bottom: var(--md-sys-spacing-md);
-}
-
-.metric {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font: var(--md-sys-typescale-body-small);
-    color: var(--md-sys-color-on-surface-variant);
-}
-
-.metric svg {
-    color: var(--md-sys-color-outline);
-}
-
-/* 効率セクション */
-.efficiencySection {
-    margin-bottom: var(--md-sys-spacing-md);
-}
-
-.efficiencyHeader {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: var(--md-sys-spacing-sm);
-    font: var(--md-sys-typescale-label-small);
-    color: var(--md-sys-color-on-surface-variant);
-}
-
-.efficiencyValue {
-    font-weight: 600;
-}
-
-.efficiencyValue.good {
-    color: var(--md-sys-color-success);
-}
-
-.efficiencyValue.warning {
-    color: var(--md-sys-color-warning);
-}
-
-.efficiencyBar {
-    height: 6px;
-    background: var(--md-sys-color-surface-container-high);
-    border-radius: var(--md-sys-shape-corner-full);
+    margin-top: 4px;
     overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.efficiencyFill {
-    height: 100%;
-    border-radius: var(--md-sys-shape-corner-full);
-}
-
-.efficiencyFill.good {
-    background: var(--md-sys-color-success);
-}
-
-.efficiencyFill.warning {
-    background: var(--md-sys-color-warning);
-}
-
-/* 完了ボタン */
-.completeButton {
+/* カードメタ情報 */
+.cardMeta {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: var(--md-sys-spacing-sm);
-    width: 100%;
-    padding: 10px;
-    min-height: 40px;
-    border: 1px solid var(--md-sys-color-outline);
-    border-radius: var(--md-sys-shape-corner-full);
-    background: transparent;
-    color: var(--md-sys-color-primary);
-    font: var(--md-sys-typescale-label-large);
-    cursor: pointer;
-    transition: all var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+    gap: 12px;
+    margin-top: 6px;
 }
 
-.completeButton:hover {
-    background: var(--md-sys-color-primary-container);
-    border-color: var(--md-sys-color-primary);
-    color: var(--md-sys-color-on-primary-container);
-}
-
-/* 完了日 */
-.completedDate {
-    text-align: center;
+.metaItem {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     font: var(--md-sys-typescale-label-small);
     color: var(--md-sys-color-on-surface-variant);
-    padding-top: var(--md-sys-spacing-sm);
+}
+
+.completedDate {
+    font: var(--md-sys-typescale-label-small);
+    color: var(--md-sys-color-on-surface-variant);
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 /* レスポンシブ */
 @media (max-width: 768px) {
     .container {
         padding: var(--md-sys-spacing-md);
-    }
-
-    .titleRow {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: var(--md-sys-spacing-md);
-    }
-
-    .statsRow {
-        gap: var(--md-sys-spacing-md);
-    }
-
-    .stat {
-        flex: 1;
-        min-width: 80px;
-    }
-
-    .sitesGrid {
-        grid-template-columns: 1fr;
+        padding-bottom: 100px;
     }
 }

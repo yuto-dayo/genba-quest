@@ -1,5 +1,27 @@
 /* Calendar Components Styles */
 
+/* Week header */
+.weekHeader {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    margin-bottom: 8px;
+    text-align: center;
+}
+
+.weekHeaderLabel {
+    font: var(--md-sys-typescale-label-medium);
+    color: var(--md-sys-color-on-surface-variant);
+    padding: 6px 0;
+}
+
+.weekHeaderLabel[data-weekday="sat"] {
+    color: var(--md-sys-color-primary);
+}
+
+.weekHeaderLabel[data-weekday="sun"] {
+    color: var(--md-sys-color-error);
+}
+
 /* MonthCalendar */
 .monthGrid {
     display: grid;
@@ -12,69 +34,166 @@
 }
 
 .dayCell {
+    /* button reset */
+    appearance: none;
+    border: none;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+
     background: var(--md-sys-color-surface-container-lowest);
-    padding: 8px 4px;
-    min-height: 80px;
+    padding: 6px 6px 4px;
+    min-height: 72px;
     display: flex;
     flex-direction: column;
-    align-items: center;
+    gap: 2px;
     cursor: pointer;
-    transition: background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
     position: relative;
+    transition: background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        transform var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
 }
 
 .dayCell:hover {
     background: var(--md-sys-color-surface-container-high);
 }
 
+.dayCell:active {
+    transform: scale(0.97);
+}
+
+.dayCell:focus-visible {
+    outline: 2px solid var(--md-sys-color-primary);
+    outline-offset: -2px;
+}
+
+/* Status background colors (color-blind safe: color + icon in cell when pending) */
+.status_free {
+    background: var(--md-sys-color-surface-container-lowest);
+}
+
+.status_busy {
+    background: color-mix(in srgb, var(--md-sys-color-primary-container) 55%, var(--md-sys-color-surface-container-lowest));
+}
+
+.status_attention {
+    background: color-mix(in srgb, var(--md-sys-color-error-container) 55%, var(--md-sys-color-surface-container-lowest));
+}
+
+.status_holiday {
+    background: repeating-linear-gradient(
+        135deg,
+        var(--md-sys-color-surface-container-low),
+        var(--md-sys-color-surface-container-low) 6px,
+        var(--md-sys-color-surface-container) 6px,
+        var(--md-sys-color-surface-container) 12px
+    );
+    color: var(--md-sys-color-on-surface-variant);
+}
+
 .dayCell.selected {
-    background: var(--md-sys-color-secondary-container);
-    color: var(--md-sys-color-on-secondary-container);
+    outline: 2px solid var(--md-sys-color-primary);
+    outline-offset: -2px;
+    background: color-mix(in srgb, var(--md-sys-color-secondary-container) 70%, var(--md-sys-color-surface-container-lowest));
 }
 
 .dayCell.today {
-    background: var(--md-sys-color-primary-container);
-    color: var(--md-sys-color-on-primary-container);
+    box-shadow: inset 0 0 0 2px var(--md-sys-color-primary);
+}
+
+.dayCell.today .dayNumber {
+    color: var(--md-sys-color-primary);
+    font-weight: 700;
 }
 
 .dayCell.otherMonth {
     background: var(--md-sys-color-surface-container-low);
     color: var(--md-sys-color-on-surface-variant);
-    opacity: 0.6;
+    opacity: 0.55;
+}
+
+.dayCellTop {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+    min-height: 18px;
 }
 
 .dayNumber {
-    font: var(--md-sys-typescale-body-small);
+    font: var(--md-sys-typescale-body-medium);
     font-weight: 600;
-    margin-bottom: 4px;
+    line-height: 1;
 }
 
-.indicators {
-    display: flex;
-    gap: 2px;
-    flex-wrap: wrap;
+.dayWarn {
+    display: inline-flex;
+    align-items: center;
     justify-content: center;
+    color: var(--md-sys-color-error);
 }
 
-.dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
+.dayCellBody {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
 }
 
-.dot.assignment {
-    background: var(--md-sys-color-primary);
+.dayCellSite {
+    font: var(--md-sys-typescale-label-small);
+    font-weight: 600;
+    color: var(--md-sys-color-on-surface);
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
 }
 
-.dot.shift {
-    background: var(--md-sys-color-tertiary);
+.dayCellOverflow {
+    font: var(--md-sys-typescale-label-small);
+    font-weight: 700;
+    color: var(--md-sys-color-primary);
+    line-height: 1;
 }
 
-.dot.holiday {
-    background: var(--md-sys-color-error);
+.dayCellHolidayLabel {
+    font: var(--md-sys-typescale-label-small);
+    color: var(--md-sys-color-on-surface-variant);
+    opacity: 0.8;
 }
 
-/* WeekCalendar */
+/* Mobile: denser cells but still ≥48px tap target */
+@media (max-width: 480px) {
+    .dayCell {
+        min-height: 64px;
+        padding: 5px 4px 3px;
+    }
+
+    .dayNumber {
+        font: var(--md-sys-typescale-label-large);
+        font-weight: 600;
+    }
+
+    .dayCellSite {
+        font-size: 10.5px;
+    }
+
+    .dayCellOverflow {
+        font-size: 10.5px;
+    }
+}
+
+/* Small phones: keep minimum tap size */
+@media (max-width: 360px) {
+    .dayCell {
+        min-height: 56px;
+    }
+}
+
+/* WeekCalendar (unchanged visual, kept for compat) */
 .weekGrid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
@@ -91,6 +210,7 @@
     background: var(--md-sys-color-surface-container);
     cursor: pointer;
     transition: all var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+    min-height: 56px;
 }
 
 .weekDay:hover {
@@ -134,6 +254,22 @@
     color: var(--md-sys-color-on-surface);
 }
 
+.detailHolidayTag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--md-sys-color-error);
+    font: var(--md-sys-typescale-label-medium);
+    font-weight: 500;
+}
+
+.detailEmpty {
+    color: var(--md-sys-color-on-surface-variant);
+    text-align: center;
+    padding: 20px;
+    font: var(--md-sys-typescale-body-medium);
+}
+
 .assignmentList {
     display: flex;
     flex-direction: column;
@@ -145,36 +281,63 @@
     align-items: center;
     gap: 12px;
     padding: 12px;
+    min-height: 56px;
     background: var(--md-sys-color-surface-container-lowest);
     border: 1px solid var(--md-sys-color-outline-variant);
     border-radius: var(--md-sys-shape-corner-small);
 }
 
 .timeSlot {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     font: var(--md-sys-typescale-label-medium);
     color: var(--md-sys-color-primary);
-    min-width: 48px;
+    min-width: 68px;
 }
 
 .siteInfo {
     flex: 1;
+    min-width: 0;
 }
 
 .siteName {
     font: var(--md-sys-typescale-body-medium);
     font-weight: 600;
     color: var(--md-sys-color-on-surface);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.clientRow {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 2px;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-small);
 }
 
 .statusBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     font: var(--md-sys-typescale-label-small);
-    padding: 2px 8px;
+    font-weight: 600;
+    padding: 4px 10px;
     border-radius: var(--md-sys-shape-corner-full);
+    white-space: nowrap;
 }
 
 .statusBadge.pending {
-    background: var(--md-sys-color-warning-container);
-    color: var(--md-sys-color-on-warning-container);
+    background: var(--md-sys-color-error-container);
+    color: var(--md-sys-color-on-error-container);
+}
+
+.statusBadge.confirmed {
+    background: var(--md-sys-color-secondary-container);
+    color: var(--md-sys-color-on-secondary-container);
 }
 
 .statusBadge.scheduled {

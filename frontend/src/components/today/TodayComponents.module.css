@@ -17,6 +17,15 @@
     color: var(--md-sys-color-on-surface);
 }
 
+.assignmentsCount {
+    margin-left: auto;
+    padding: 4px 10px;
+    border-radius: var(--md-sys-shape-corner-full);
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
+    font: var(--md-sys-typescale-label-small);
+}
+
 .emptyAssignments {
     display: flex;
     flex-direction: column;
@@ -28,12 +37,11 @@
 
 .assignmentCard {
     display: flex;
-    align-items: center;
     gap: 12px;
-    padding: 12px;
+    padding: 14px;
     background: var(--md-sys-color-surface-container-lowest);
     border: 1px solid var(--md-sys-color-outline-variant);
-    border-radius: var(--md-sys-shape-corner-small);
+    border-radius: var(--md-sys-shape-corner-medium);
     margin-bottom: 8px;
     transition: all var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
 }
@@ -43,16 +51,261 @@
     transform: translateY(-1px);
 }
 
-.timeSlot {
-    font: var(--md-sys-typescale-label-large);
-    color: var(--md-sys-color-primary);
-    min-width: 50px;
+.assignmentMain {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.assignmentTopRow {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.assignmentHeading {
+    display: grid;
+    gap: 4px;
 }
 
 .siteName {
-    flex: 1;
     font: var(--md-sys-typescale-body-large);
-    font-weight: 500;
+    font-weight: 700;
+    color: var(--md-sys-color-on-surface);
+}
+
+.clientName {
+    font: var(--md-sys-typescale-label-small);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.assignmentStatus {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 10px;
+    border-radius: var(--md-sys-shape-corner-full);
+    font: var(--md-sys-typescale-label-small);
+    white-space: nowrap;
+}
+
+.assignmentStatusPending {
+    background: var(--md-sys-color-error-container);
+    color: var(--md-sys-color-on-error-container);
+}
+
+.assignmentStatusConfirmed {
+    background: var(--md-sys-color-secondary-container);
+    color: var(--md-sys-color-on-secondary-container);
+}
+
+.assignmentStatusScheduled {
+    background: var(--md-sys-color-success-container);
+    color: var(--md-sys-color-on-success-container);
+}
+
+.assignmentStatusCompleted {
+    background: var(--md-sys-color-tertiary-container);
+    color: var(--md-sys-color-on-tertiary-container);
+}
+
+.assignmentMetaRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.assignmentMeta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: var(--md-sys-shape-corner-full);
+    background: var(--md-sys-color-surface-container);
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-small);
+}
+
+.assignmentAddress {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+}
+
+.assignmentInsight {
+    display: inline-flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    font: var(--md-sys-typescale-body-small);
+    line-height: 1.45;
+}
+
+.assignmentInsightCaution {
+    background: color-mix(in srgb, var(--md-sys-color-error-container) 70%, white);
+    color: var(--md-sys-color-on-error-container);
+}
+
+.assignmentInsightNote {
+    background: var(--md-sys-color-surface-container);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.assignmentActions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.assignmentActionButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background: var(--md-sys-color-surface-container-lowest);
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-medium);
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.assignmentActionButton:hover:not(:disabled) {
+    background: var(--md-sys-color-surface-container);
+    border-color: var(--md-sys-color-outline);
+}
+
+.assignmentActionButton:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.assignmentActionPrimary {
+    background: var(--md-sys-color-primary);
+    border-color: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+}
+
+.assignmentActionPrimary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--md-sys-color-primary) 90%, black);
+    border-color: color-mix(in srgb, var(--md-sys-color-primary) 90%, black);
+}
+
+.siteTaskSection {
+    display: grid;
+    gap: 8px;
+    padding-top: 2px;
+}
+
+.siteTaskHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font: var(--md-sys-typescale-label-large);
+    color: var(--md-sys-color-on-surface);
+}
+
+.siteTaskCount {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-small);
+}
+
+.siteTaskItem {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 16px;
+    background: var(--md-sys-color-surface-container-lowest);
+    color: var(--md-sys-color-on-surface);
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+
+.siteTaskItem:hover:not(:disabled) {
+    background: var(--md-sys-color-surface-container-low);
+    border-color: var(--md-sys-color-primary);
+    transform: translateY(-1px);
+}
+
+.siteTaskItem:disabled {
+    cursor: progress;
+}
+
+.siteTaskCheck {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    border: 1.5px solid var(--md-sys-color-outline);
+    color: var(--md-sys-color-primary);
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+.siteTaskSpinner {
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--md-sys-color-surface-container-high);
+    border-top-color: var(--md-sys-color-primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.siteTaskBody {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+
+.siteTaskTitle {
+    font: var(--md-sys-typescale-body-medium);
+    color: var(--md-sys-color-on-surface);
+}
+
+.siteTaskNote {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+    line-height: 1.4;
+}
+
+.siteTaskEmpty {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    border: 1px dashed var(--md-sys-color-outline);
+    border-radius: 16px;
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-large);
+    cursor: pointer;
+}
+
+.siteTaskEmpty:hover {
+    background: var(--md-sys-color-surface-container);
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* MonthlySummary */
@@ -91,6 +344,18 @@
 }
 
 /* PendingBadge */
+.badgeButton {
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+}
+
+.badgeButton:focus-visible .badgeContainer,
+.badgeButton:hover .badgeContainer {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--md-sys-color-error) 28%, transparent);
+}
+
 .badgeContainer {
     display: inline-flex;
     align-items: center;
@@ -101,4 +366,9 @@
     color: var(--md-sys-color-on-error-container);
     font: var(--md-sys-typescale-label-medium);
     font-weight: 500;
+    transition: box-shadow 0.15s, transform 0.15s;
+}
+
+.badgeButton:hover .badgeContainer {
+    transform: translateY(-1px);
 }
