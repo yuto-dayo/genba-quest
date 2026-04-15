@@ -1,0 +1,25 @@
+{
+  "name": "@genba-quest/ai-memory",
+  "version": "0.0.1",
+  "private": true,
+  "description": "AI-first memory protocol: append-only event log + on-demand query intents for coding agents. See ../../MEMORY_PROTOCOL.md.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "ai-memory": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "resume": "ts-node src/cli.ts resume",
+    "test": "node --require ts-node/register --test src/resume.test.ts src/validate.test.ts"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.0"
+  }
+}

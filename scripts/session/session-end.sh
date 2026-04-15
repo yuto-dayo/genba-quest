@@ -136,37 +136,58 @@ fi
 run_check() {
   local label="$1"
   local cmd="$2"
-  if bash -lc "$cmd" >/tmp/genba_session_check.log 2>&1; then
-    echo "${label}: PASS"
+  local log_file="/tmp/genba_session_check_$$.log"
+  if bash -lc "$cmd" >"$log_file" 2>&1; then
+    echo "PASS"
   else
-    echo "${label}: FAIL"
+    echo "FAIL"
   fi
+  rm -f "$log_file"
 }
 
-validation_lines=()
-validation_lines+=("$(run_check 'server typecheck' 'cd server && npx tsc --noEmit')")
-validation_lines+=("$(run_check 'frontend typecheck' 'cd frontend && npx tsc --noEmit')")
-validation_lines+=("$(run_check 'frontend lint' 'cd frontend && npx eslint src/')")
-validation_lines+=("tests: SKIP (test suite not standardized)")
+has_server_test_script() {
+  rg -q '"test"[[:space:]]*:' server/package.json 2>/dev/null
+}
+
+# Run quality gates and capture key=result for the Quality Gate table.
+declare -a quality_gate_args=()
+declare -a display_lines=()
+
+server_tc="$(run_check 'server typecheck' 'cd server && npx tsc --noEmit')"
+quality_gate_args+=(--quality-gate "server typecheck=${server_tc}|run by session-end ($(date '+%Y-%m-%d %H:%M'))")
+display_lines+=("server typecheck: ${server_tc}")
+
+frontend_tc="$(run_check 'frontend typecheck' 'cd frontend && npx tsc --noEmit')"
+quality_gate_args+=(--quality-gate "frontend typecheck=${frontend_tc}|run by session-end ($(date '+%Y-%m-%d %H:%M'))")
+display_lines+=("frontend typecheck: ${frontend_tc}")
+
+lint_result="$(run_check 'frontend lint' 'cd frontend && npx eslint src/')"
+quality_gate_args+=(--quality-gate "lint=${lint_result}|frontend eslint src/ at $(date '+%Y-%m-%d %H:%M')")
+display_lines+=("lint: ${lint_result}")
+
+if [[ "${SESSION_END_SKIP_TESTS:-0}" == "1" ]]; then
+  quality_gate_args+=(--quality-gate "test=SKIP|skipped via SESSION_END_SKIP_TESTS")
+  display_lines+=("test: SKIP (SESSION_END_SKIP_TESTS)")
+elif has_server_test_script; then
+  test_result="$(run_check 'server test' 'cd server && CI=1 npm test -- --runInBand')"
+  quality_gate_args+=(--quality-gate "test=${test_result}|server npm test -- --runInBand at $(date '+%Y-%m-%d %H:%M')")
+  display_lines+=("test: ${test_result}")
+else
+  quality_gate_args+=(--quality-gate "test=SKIP|no server test script configured")
+  display_lines+=("test: SKIP (no server test script)")
+fi
 
 if [[ ! -x "$append_script" ]]; then
   echo "Incremental handoff script not executable: $append_script" >&2
   exit 1
 fi
 
-cmd_args=(
-  --handoff "$handoff_file"
-  --done "Session ended (${agent}) - quality gate recorded"
-  --next "$next_step"
-  --file "${handoff_file} - session-end quality gate result recorded by ${agent}"
-  --note "session-end handshake completed"
-)
-
-for line in "${validation_lines[@]}"; do
-  cmd_args+=(--validation "$line")
-done
-
-"$append_script" "${cmd_args[@]}"
+# Record session end as an audit-log event (NOT a fake Completed work entry).
+# Quality gate results go to the Quality Gate table via --quality-gate, not L1/L2/L3.
+"$append_script" \
+  --handoff "$handoff_file" \
+  --session-event "ended by ${agent}" \
+  "${quality_gate_args[@]}"
 
 mkdir -p .session
 archive_path=".session/last_session_$(date '+%Y%m%d_%H%M%S').log"
@@ -212,5 +233,5 @@ if [[ -n "$session_domain" ]]; then
 fi
 
 echo "=== Session End (${agent}) ==="
-printf '%s\n' "${validation_lines[@]}" | sed 's/^/  - /'
+printf '%s\n' "${display_lines[@]}" | sed 's/^/  - /'
 echo "Archived session marker: ${archive_path}"

@@ -4,3 +4,7 @@
 node_modules/
 dist/
 .session/
+tmp/
+.ai-memory/
+.claude/worktrees/
+tools/ai-memory/.ai-memory/

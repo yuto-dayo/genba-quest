@@ -120,14 +120,15 @@ if (proposal.created_by.type === 'ai' && approver.type === 'ai') {
 
 Canonical protocol: `docs/AGENT_OPS.md`
 
-- Use the common workflow from `docs/AGENT_OPS.md` for both Codex and Claude.
+- Use the common workflow from `docs/AGENT_OPS.md` for Codex / Claude / Gemini.
 - Before implementation, always reference `docs/DESIGN_PHILOSOPHY.md` (at minimum `sed -n '1,120p' docs/DESIGN_PHILOSOPHY.md`).
 - Session end must always update `HANDOFF.md` automatically.
 - Keep using:
-  - `scripts/session/session-start.sh --agent codex|claude`
+  - `scripts/session/session-start.sh --agent codex|claude|gemini [--baseline]`
   - `scripts/session/session-update.sh --done ... --next ... --validation ...`
   - `scripts/session/session-end.sh`
 - Keep pre-commit guard enabled (`.githooks/pre-commit`).
+- **v2: session-start/end は `## Session Events (audit log)` にのみ書き込む**。Completed や L1/L2/L3 を偽の "Session started" エントリで汚さない。Quality Gate 結果は `--quality-gate "key=result|notes"` で表に流し込む。
 
 ## Coding Conventions
 

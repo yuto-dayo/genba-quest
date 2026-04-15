@@ -6,15 +6,27 @@ usage() {
 Usage:
   append-handoff-update.sh [options]
 
-Options:
+Work-entry options (default mode — appends an Incremental Update entry):
   --handoff <path>       HANDOFF file path (default: HANDOFF.md)
   --done <text>          Completed work summary (semantic)
   --next <text>          Next priority action
   --note <text>          Handoff note
   --validation <text>    Validation result line (repeatable)
   --file <text>          Changed file line (repeatable, "path - semantic description")
+  --locked-file <text>   Locked file line (repeatable, "path - reason")
   --context <text>       Working context / pattern (repeatable)
   --landmine <text>      Landmine / gotcha (repeatable)
+  --from-git-status      Auto-collect modified+untracked files from git status
+                         and append them to --file lines
+  --quality-gate <k=r|n> Update Quality Gate table row "k" to result "r" with
+                         optional notes "n" (repeatable). Works in both modes.
+
+Session-event mode (records to audit log only — no Completed/L1/L2/L3 churn):
+  --session-event <label>
+                         Append a timestamped event line to the
+                         "## Session Events (audit log)" block. Skips all
+                         work-entry processing. --quality-gate is still honored
+                         so session-end can record gate results.
   -h, --help             Show this help
 
 Compaction env vars:
@@ -22,6 +34,7 @@ Compaction env vars:
   HANDOFF_COMPACTION_KEEP_RECENT Entries to keep in HANDOFF after compaction (default: 12)
 
 Examples:
+  # Record real work
   append-handoff-update.sh \
     --done "approve()にatomic RPC優先パスを追加" \
     --next "P0: SQL関数をSupabaseにデプロイ" \
@@ -29,6 +42,14 @@ Examples:
     --file "server/src/services/ProposalService.ts - approve()にatomic RPC優先パスを追加" \
     --context "RPC-first+fallbackパターン: DB関数があれば原子実行、なければ従来パス" \
     --landmine "013_execute_proposal_atomic.sql は未デプロイ。コード上はfallbackで動作中"
+
+  # Record session event without polluting work log
+  append-handoff-update.sh --session-event "claude started session"
+
+  # Record quality gate results to the table
+  append-handoff-update.sh --session-event "claude ended session" \
+    --quality-gate "server typecheck=PASS|0 errors" \
+    --quality-gate "frontend typecheck=FAIL|3 errors in Today.tsx"
 USAGE
 }
 
@@ -36,14 +57,18 @@ handoff_file="HANDOFF.md"
 done_text="作業ステップ完了"
 next_text="次のP0を実行"
 note_text=""
+session_event_label=""
+collect_git_status=0
 
 compaction_threshold="${HANDOFF_COMPACTION_THRESHOLD:-20}"
 compaction_keep_recent="${HANDOFF_COMPACTION_KEEP_RECENT:-12}"
 
 declare -a validation_lines=()
 declare -a file_lines=()
+declare -a locked_file_lines=()
 declare -a context_lines=()
 declare -a landmine_lines=()
+declare -a quality_gate_lines=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -71,12 +96,28 @@ while [[ $# -gt 0 ]]; do
       file_lines+=("${2:-}")
       shift 2
       ;;
+    --locked-file)
+      locked_file_lines+=("${2:-}")
+      shift 2
+      ;;
     --context)
       context_lines+=("${2:-}")
       shift 2
       ;;
     --landmine)
       landmine_lines+=("${2:-}")
+      shift 2
+      ;;
+    --session-event)
+      session_event_label="${2:-}"
+      shift 2
+      ;;
+    --from-git-status)
+      collect_git_status=1
+      shift
+      ;;
+    --quality-gate)
+      quality_gate_lines+=("${2:-}")
       shift 2
       ;;
     -h|--help)
@@ -123,21 +164,276 @@ L2_THREADS_START='<!-- HANDOFF_L2_THREADS_START -->'
 L2_THREADS_END='<!-- HANDOFF_L2_THREADS_END -->'
 L2_STATE_START='<!-- HANDOFF_L2_STATE_START -->'
 L2_STATE_END='<!-- HANDOFF_L2_STATE_END -->'
+SESSION_EVENTS_START='<!-- HANDOFF_SESSION_EVENTS_START -->'
+SESSION_EVENTS_END='<!-- HANDOFF_SESSION_EVENTS_END -->'
+SESSION_EVENTS_PLACEHOLDER='- (no events recorded yet)'
+SESSION_EVENTS_KEEP_RECENT="${HANDOFF_SESSION_EVENTS_KEEP_RECENT:-30}"
 
-sync_handoff_summary() {
+# --------------------------------------------------------------------
+# Per-file advisory lock (mkdir-based, portable).
+# Prevents concurrent invocations on the same handoff file from corrupting
+# L1/L2/L3 marker blocks or interleaving Incremental Update entries.
+# Different handoff files (handoff/server.md vs handoff/frontend.md) get
+# independent locks, so cross-domain parallel work still runs in parallel.
+#
+# Tunables:
+#   HANDOFF_LOCK_TIMEOUT         seconds to wait before giving up (default 30)
+#   HANDOFF_LOCK_STALE_SECONDS   seconds after which a held lock is considered
+#                                orphaned from a crashed run (default 120)
+# --------------------------------------------------------------------
+HANDOFF_LOCK_DIR=""
+
+acquire_handoff_lock() {
   local file="$1"
-  local done="$2"
-  local next="$3"
+  local lock_dir="${file}.lock.d"
+  local owner_file="${lock_dir}/owner"
+  local max_wait="${HANDOFF_LOCK_TIMEOUT:-30}"
+  local stale_after="${HANDOFF_LOCK_STALE_SECONDS:-120}"
+  local waited=0
+
+  while true; do
+    if mkdir "$lock_dir" 2>/dev/null; then
+      printf '%s %s %s\n' "$$" "$(date '+%s')" "${USER:-unknown}@${HOSTNAME:-unknown}" > "$owner_file" 2>/dev/null || true
+      HANDOFF_LOCK_DIR="$lock_dir"
+      trap 'release_handoff_lock' EXIT INT TERM
+      return 0
+    fi
+
+    # Lock held — check whether it's stale (a crashed prior run)
+    if [[ -f "$owner_file" ]]; then
+      local lock_ts now_ts age
+      lock_ts="$(awk 'NR==1 {print $2}' "$owner_file" 2>/dev/null || echo 0)"
+      now_ts="$(date '+%s')"
+      age=$((now_ts - lock_ts))
+      if (( age > stale_after )); then
+        echo "WARN: breaking stale handoff lock at ${lock_dir} (age ${age}s > ${stale_after}s)" >&2
+        rm -rf "$lock_dir"
+        continue
+      fi
+    fi
+
+    if (( waited >= max_wait )); then
+      echo "ERROR: could not acquire lock on ${file} within ${max_wait}s" >&2
+      echo "  Another agent is updating this handoff. Lock dir: ${lock_dir}" >&2
+      if [[ -f "$owner_file" ]]; then
+        echo "  Lock owner: $(cat "$owner_file" 2>/dev/null)" >&2
+      fi
+      echo "  If you are sure no process is running, remove the lock dir manually." >&2
+      exit 2
+    fi
+
+    sleep 1
+    waited=$((waited + 1))
+  done
+}
+
+release_handoff_lock() {
+  if [[ -n "${HANDOFF_LOCK_DIR:-}" ]] && [[ -d "$HANDOFF_LOCK_DIR" ]]; then
+    rm -rf "$HANDOFF_LOCK_DIR"
+    HANDOFF_LOCK_DIR=""
+  fi
+}
+
+ensure_session_events_section() {
+  local file="$1"
+  if rg -q --fixed-strings "$SESSION_EVENTS_START" "$file"; then
+    return 0
+  fi
+
   local tmp
   tmp="$(mktemp)"
 
-  awk -v done_text="$done" -v next_text="$next" '
+  awk \
+    -v start="$SESSION_EVENTS_START" \
+    -v end="$SESSION_EVENTS_END" \
+    -v placeholder="$SESSION_EVENTS_PLACEHOLDER" '
+    BEGIN { inserted = 0 }
+    {
+      print
+      if (!inserted && /<!-- L0_END:/) {
+        print ""
+        print "## Session Events (audit log)"
+        print ""
+        print start
+        print placeholder
+        print end
+        inserted = 1
+      }
+    }
+    END {
+      if (!inserted) {
+        print ""
+        print "## Session Events (audit log)"
+        print ""
+        print start
+        print placeholder
+        print end
+      }
+    }
+  ' "$file" > "$tmp"
+
+  mv "$tmp" "$file"
+}
+
+append_session_event() {
+  local file="$1"
+  local label="$2"
+  local timestamp
+  timestamp="$(date '+%Y-%m-%d %H:%M:%S %z')"
+  local new_line="- ${timestamp} — ${label}"
+
+  ensure_session_events_section "$file"
+
+  local tmp
+  tmp="$(mktemp)"
+
+  awk \
+    -v start="$SESSION_EVENTS_START" \
+    -v end="$SESSION_EVENTS_END" \
+    -v placeholder="$SESSION_EVENTS_PLACEHOLDER" \
+    -v new_line="$new_line" \
+    -v keep_recent="$SESSION_EVENTS_KEEP_RECENT" '
+    BEGIN { in_block = 0; appended = 0 }
+    {
+      if ($0 == start) {
+        print
+        in_block = 1
+        next
+      }
+      if (in_block && $0 == end) {
+        # Drop placeholder if present (will be the only buffered line in that case)
+        kept_count = 0
+        for (i = 1; i <= buf_count; i++) {
+          if (buf[i] == placeholder) continue
+          kept[++kept_count] = buf[i]
+        }
+        # Append the new event
+        kept[++kept_count] = new_line
+
+        # Trim to keep_recent (drop oldest)
+        start_idx = 1
+        if (keep_recent > 0 && kept_count > keep_recent) {
+          start_idx = kept_count - keep_recent + 1
+        }
+        for (i = start_idx; i <= kept_count; i++) {
+          print kept[i]
+        }
+        print
+        in_block = 0
+        appended = 1
+        buf_count = 0
+        next
+      }
+      if (in_block) {
+        buf[++buf_count] = $0
+        next
+      }
+      print
+    }
+  ' "$file" > "$tmp"
+
+  mv "$tmp" "$file"
+}
+
+# Returns lines like: "path - [from git status: M]" or "path - [from git status: ??]"
+collect_git_status_lines() {
+  git status --porcelain 2>/dev/null | while IFS= read -r raw; do
+    [[ -z "$raw" ]] && continue
+    local code="${raw:0:2}"
+    local rest="${raw:3}"
+    # Handle renames "R  old -> new" by keeping the new path
+    if [[ "$rest" == *" -> "* ]]; then
+      rest="${rest##* -> }"
+    fi
+    [[ -z "$rest" ]] && continue
+    # Trim surrounding quotes that git adds for paths with spaces
+    rest="${rest%\"}"
+    rest="${rest#\"}"
+    local trimmed_code="${code// /}"
+    [[ -z "$trimmed_code" ]] && trimmed_code="?"
+    printf '%s - [from git status: %s]\n' "$rest" "$trimmed_code"
+  done
+}
+
+update_quality_gate_row() {
+  local file="$1"
+  local key="$2"
+  local result="$3"
+  local notes="$4"
+
+  if [[ -z "$notes" ]]; then
+    notes="updated $(date '+%Y-%m-%d %H:%M')"
+  fi
+
+  local tmp
+  tmp="$(mktemp)"
+
+  awk \
+    -v key="$key" \
+    -v result="$result" \
+    -v notes="$notes" '
+    BEGIN { in_qg = 0; updated = 0 }
+    {
+      if ($0 ~ /^## 7\. Quality Gate/) {
+        in_qg = 1
+        print
+        next
+      }
+      if (in_qg && $0 ~ /^## [0-9]+\./) {
+        in_qg = 0
+      }
+      if (in_qg && $0 ~ /^\| / && $0 !~ /^\| Check / && $0 !~ /^\| -/) {
+        n = split($0, cols, "|")
+        if (n >= 4) {
+          name = cols[2]
+          gsub(/^[[:space:]]+|[[:space:]]+$/, "", name)
+          if (name == key) {
+            printf "| %s | %s | %s |\n", key, result, notes
+            updated = 1
+            next
+          }
+        }
+      }
+      print
+    }
+    END {
+      if (!updated) {
+        # Caller should have ensured the row existed; emit nothing extra here.
+      }
+    }
+  ' "$file" > "$tmp"
+
+  mv "$tmp" "$file"
+}
+
+apply_quality_gate_updates() {
+  local file="$1"
+  local entry
+  for entry in "${quality_gate_lines[@]}"; do
+    local key="${entry%%=*}"
+    local rest="${entry#*=}"
+    local result="${rest%%|*}"
+    local notes=""
+    if [[ "$rest" == *"|"* ]]; then
+      notes="${rest#*|}"
+    fi
+    if [[ -z "$key" || -z "$result" ]]; then
+      echo "WARN: --quality-gate expects 'key=result|notes' (got: ${entry})" >&2
+      continue
+    fi
+    update_quality_gate_row "$file" "$key" "$result" "$notes"
+  done
+}
+
+sync_handoff_summary() {
+  local file="$1"
+  local next="$2"
+  local tmp
+  tmp="$(mktemp)"
+
+  awk -v next_text="$next" '
     BEGIN {
       in_quick = 0
-      in_completed = 0
-      in_remaining = 0
-      completed_written = 0
-      p0_written = 0
     }
     {
       if ($0 ~ /^## 0\. Quick Resume \(AI\)/) {
@@ -146,32 +442,8 @@ sync_handoff_summary() {
         in_quick = 0
       }
 
-      if ($0 ~ /^## 3\. Completed/) {
-        in_completed = 1
-        completed_written = 0
-      } else if ($0 ~ /^## / && in_completed) {
-        in_completed = 0
-      }
-
-      if ($0 ~ /^## 4\. Remaining/) {
-        in_remaining = 1
-        p0_written = 0
-      } else if ($0 ~ /^## / && in_remaining) {
-        in_remaining = 0
-      }
-
       if (in_quick && $0 ~ /^- NEXT_CMD:/) {
         print "- NEXT_CMD: `" next_text "`"
-        next
-      }
-      if (in_completed && $0 ~ /^- \[ \] まだ未着手$/ && completed_written == 0) {
-        print "- [x] " done_text
-        completed_written = 1
-        next
-      }
-      if (in_remaining && $0 ~ /^- \[ \] \*\*P0\*\*:/ && p0_written == 0) {
-        print "- [ ] **P0**: " next_text
-        p0_written = 1
         next
       }
 
@@ -488,12 +760,16 @@ build_memory_facts() {
 
   : > "${output_dir}/completed.tsv"
   : > "${output_dir}/remaining.tsv"
+  : > "${output_dir}/files.tsv"
+  : > "${output_dir}/locked.tsv"
   : > "${output_dir}/context.tsv"
   : > "${output_dir}/landmine.tsv"
 
   awk \
     -v completed_file="${output_dir}/completed.tsv" \
     -v remaining_file="${output_dir}/remaining.tsv" \
+    -v files_file="${output_dir}/files.tsv" \
+    -v locked_file="${output_dir}/locked.tsv" \
     -v context_file="${output_dir}/context.tsv" \
     -v landmine_file="${output_dir}/landmine.tsv" '
     BEGIN {
@@ -533,6 +809,10 @@ build_memory_facts() {
         section = "completed"
       } else if ($0 == "- Remaining:") {
         section = "remaining"
+      } else if ($0 == "- Changed Files:") {
+        section = "files"
+      } else if ($0 == "- Locked Files:") {
+        section = "locked"
       } else if ($0 == "- Working Context:") {
         section = "context"
       } else if ($0 == "- Landmines:") {
@@ -552,6 +832,10 @@ build_memory_facts() {
       } else if (section == "remaining") {
         sub(/^\[[xX ]\][[:space:]]*/, "", text)
         printf "%s\t%s\n", entry_id, text >> remaining_file
+      } else if (section == "files") {
+        printf "%s\t%s\n", entry_id, text >> files_file
+      } else if (section == "locked") {
+        printf "%s\t%s\n", entry_id, text >> locked_file
       } else if (section == "context") {
         printf "%s\t%s\n", entry_id, text >> context_file
       } else if (section == "landmine") {
@@ -632,6 +916,223 @@ build_latest_unique_lines() {
   ' "$input_file" > "$out_file"
 }
 
+build_completed_section_lines() {
+  local input_file="$1"
+  local out_file="$2"
+
+  awk -F '\t' '
+    {
+      if ($2 == "") next
+      ordered[++n] = $2
+    }
+    END {
+      printed = 0
+      for (i = n; i >= 1 && printed < 10; i--) {
+        if (emitted[ordered[i]]) continue
+        emitted[ordered[i]] = 1
+        print "- [x] " ordered[i]
+        printed++
+      }
+      if (printed == 0) {
+        print "- [ ] まだ未着手"
+      }
+    }
+  ' "$input_file" > "$out_file"
+}
+
+build_remaining_section_lines() {
+  local input_file="$1"
+  local out_file="$2"
+
+  awk -F '\t' '
+    function render_remaining(text, default_priority, trimmed, priority) {
+      trimmed = text
+      priority = default_priority
+      if (trimmed ~ /^\*\*P[0-9]+\*\*:[[:space:]]*/) {
+        priority = trimmed
+        sub(/^\*\*/, "", priority)
+        sub(/\*\*:.*/, "", priority)
+        sub(/^\*\*P[0-9]+\*\*:[[:space:]]*/, "", trimmed)
+      } else if (trimmed ~ /^P[0-9]+:[[:space:]]*/) {
+        priority = trimmed
+        sub(/:.*/, "", priority)
+        sub(/^P[0-9]+:[[:space:]]*/, "", trimmed)
+      }
+      return "- [ ] **" priority "**: " trimmed
+    }
+    {
+      if ($2 == "") next
+      ordered[++n] = $2
+    }
+    END {
+      printed = 0
+      for (i = n; i >= 1 && printed < 5; i--) {
+        if (emitted[ordered[i]]) continue
+        emitted[ordered[i]] = 1
+        default_priority = (printed == 0 ? "P0" : "P1")
+        print render_remaining(ordered[i], default_priority)
+        printed++
+      }
+      if (printed == 0) {
+        print "- [ ] **P0**: 次の優先タスクを記載"
+      }
+    }
+  ' "$input_file" > "$out_file"
+}
+
+build_changed_files_section_lines() {
+  local input_file="$1"
+  local out_file="$2"
+
+  awk -F '\t' '
+    function render_row(text, idx, file_path, file_desc) {
+      if (text == "No file list provided (use --file \"path - semantic description\")") {
+        return "| `(not recorded)` | " text " |"
+      }
+      if (text == "No file changes detected") {
+        return "| `(none)` | No file changes detected |"
+      }
+      idx = index(text, " - ")
+      if (idx > 0) {
+        file_path = substr(text, 1, idx - 1)
+        file_desc = substr(text, idx + 3)
+      } else {
+        file_path = text
+        file_desc = "[semantic description required]"
+      }
+      if (file_path !~ /^`/) {
+        file_path = "`" file_path "`"
+      }
+      return "| " file_path " | " file_desc " |"
+    }
+    BEGIN {
+      print "| File | What Changed |"
+      print "| ---- | ------------ |"
+    }
+    {
+      if ($2 == "") next
+      ordered[++n] = $2
+    }
+    END {
+      printed = 0
+      for (i = n; i >= 1 && printed < 20; i--) {
+        if (emitted[ordered[i]]) continue
+        emitted[ordered[i]] = 1
+        print render_row(ordered[i])
+        printed++
+      }
+      if (printed == 0) {
+        print "| `(none)` | - |"
+      }
+    }
+  ' "$input_file" > "$out_file"
+}
+
+build_locked_files_section_lines() {
+  local input_file="$1"
+  local out_file="$2"
+
+  awk -F '\t' '
+    function render_line(text, idx, file_path, reason) {
+      idx = index(text, " - ")
+      if (idx > 0) {
+        file_path = substr(text, 1, idx - 1)
+        reason = substr(text, idx + 3)
+      } else {
+        file_path = text
+        reason = "[lock reason required]"
+      }
+      if (file_path !~ /^`/) {
+        file_path = "`" file_path "`"
+      }
+      return "- " file_path " - " reason
+    }
+    {
+      if ($2 == "") next
+      ordered[++n] = $2
+    }
+    END {
+      printed = 0
+      for (i = n; i >= 1 && printed < 10; i--) {
+        if (emitted[ordered[i]]) continue
+        emitted[ordered[i]] = 1
+        print render_line(ordered[i])
+        printed++
+      }
+      if (printed == 0) {
+        print "> なし"
+      }
+    }
+  ' "$input_file" > "$out_file"
+}
+
+build_risk_section_lines() {
+  local input_file="$1"
+  local out_file="$2"
+
+  awk -F '\t' '
+    {
+      if ($2 == "") next
+      if ($2 == "No new landmines reported in this chunk.") next
+      ordered[++n] = $2
+    }
+    END {
+      printed = 0
+      for (i = n; i >= 1 && printed < 5; i--) {
+        if (emitted[ordered[i]]) continue
+        emitted[ordered[i]] = 1
+        print "- " ordered[i]
+        printed++
+      }
+      if (printed == 0) {
+        print "- 新規の blocker は未記録"
+      }
+    }
+  ' "$input_file" > "$out_file"
+}
+
+replace_section_body() {
+  local file="$1"
+  local start_regex="$2"
+  local replacement_file="$3"
+  local tmp
+  tmp="$(mktemp)"
+
+  awk -v start_regex="$start_regex" -v replacement_file="$replacement_file" '
+    BEGIN {
+      replaced = 0
+      in_section = 0
+      while ((getline line < replacement_file) > 0) {
+        replacement[++n] = line
+      }
+      close(replacement_file)
+    }
+    {
+      if (!in_section && $0 ~ start_regex) {
+        print
+        print ""
+        for (i = 1; i <= n; i++) {
+          print replacement[i]
+        }
+        in_section = 1
+        replaced = 1
+        next
+      }
+      if (in_section && ($0 ~ /^---$/ || $0 ~ /^## /)) {
+        print
+        in_section = 0
+        next
+      }
+      if (in_section) {
+        next
+      }
+      print
+    }
+  ' "$file" > "$tmp"
+
+  mv "$tmp" "$file"
+}
+
 sync_memory_layers() {
   local file="$1"
   local threshold="$2"
@@ -650,17 +1151,32 @@ sync_memory_layers() {
   local l2_landmines_tmp
   local l2_threads_tmp
   local l2_state_tmp
+  local completed_section_tmp
+  local remaining_section_tmp
+  local changed_files_section_tmp
+  local locked_files_section_tmp
+  local risks_section_tmp
 
   l1_tmp="$(mktemp)"
   l2_decisions_tmp="$(mktemp)"
   l2_landmines_tmp="$(mktemp)"
   l2_threads_tmp="$(mktemp)"
   l2_state_tmp="$(mktemp)"
+  completed_section_tmp="$(mktemp)"
+  remaining_section_tmp="$(mktemp)"
+  changed_files_section_tmp="$(mktemp)"
+  locked_files_section_tmp="$(mktemp)"
+  risks_section_tmp="$(mktemp)"
 
   build_l1_lines "$facts_dir" "$next_cmd" "$l1_tmp"
   build_latest_unique_lines "${facts_dir}/context.tsv" "- [pending] No decision context recorded yet. Source: N/A" "$l2_decisions_tmp"
   build_latest_unique_lines "${facts_dir}/landmine.tsv" "- [none] No landmines recorded. Source: N/A" "$l2_landmines_tmp"
   build_latest_unique_lines "${facts_dir}/remaining.tsv" "- [pending] No unresolved thread recorded yet. Source: N/A" "$l2_threads_tmp"
+  build_completed_section_lines "${facts_dir}/completed.tsv" "$completed_section_tmp"
+  build_remaining_section_lines "${facts_dir}/remaining.tsv" "$remaining_section_tmp"
+  build_changed_files_section_lines "${facts_dir}/files.tsv" "$changed_files_section_tmp"
+  build_locked_files_section_lines "${facts_dir}/locked.tsv" "$locked_files_section_tmp"
+  build_risk_section_lines "${facts_dir}/landmine.tsv" "$risks_section_tmp"
 
   local existing_archived
   existing_archived="$(extract_state_archived_entries "$file" || true)"
@@ -695,21 +1211,50 @@ sync_memory_layers() {
   replace_marker_block "$file" "$L2_LANDMINES_START" "$L2_LANDMINES_END" "$l2_landmines_tmp"
   replace_marker_block "$file" "$L2_THREADS_START" "$L2_THREADS_END" "$l2_threads_tmp"
   replace_marker_block "$file" "$L2_STATE_START" "$L2_STATE_END" "$l2_state_tmp"
+  replace_section_body "$file" "^## 3\\. Completed$" "$completed_section_tmp"
+  replace_section_body "$file" "^## 4\\. Remaining" "$remaining_section_tmp"
+  replace_section_body "$file" "^## 5\\. Changed Files$" "$changed_files_section_tmp"
+  replace_section_body "$file" "^## 6\\. Locked Files" "$locked_files_section_tmp"
+  replace_section_body "$file" "^## 9\\. Risks / Blockers$" "$risks_section_tmp"
 
   rm -f "$l1_tmp" "$l2_decisions_tmp" "$l2_landmines_tmp" "$l2_threads_tmp" "$l2_state_tmp"
+  rm -f "$completed_section_tmp" "$remaining_section_tmp" "$changed_files_section_tmp" "$locked_files_section_tmp" "$risks_section_tmp"
   rm -rf "$facts_dir"
 }
 
+# --------------------------------------------------------------------
+# Acquire exclusive lock on the target handoff file before any writes.
+# Skipped if HANDOFF_LOCK_DISABLE=1 is set (escape hatch for debugging).
+# --------------------------------------------------------------------
+if [[ "${HANDOFF_LOCK_DISABLE:-0}" != "1" ]]; then
+  acquire_handoff_lock "$handoff_file"
+fi
+
+# --------------------------------------------------------------------
+# Session-event mode: skip work-entry processing entirely.
+# This is what session-start.sh / session-end.sh use to record start/end
+# timestamps WITHOUT polluting Completed / L1 / L2 / L3 with fake "work".
+# --------------------------------------------------------------------
+if [[ -n "$session_event_label" ]]; then
+  append_session_event "$handoff_file" "$session_event_label"
+  if [[ ${#quality_gate_lines[@]} -gt 0 ]]; then
+    apply_quality_gate_updates "$handoff_file"
+  fi
+  echo "Recorded session event to ${handoff_file}: ${session_event_label}"
+  exit 0
+fi
+
 ensure_incremental_section "$handoff_file"
 ensure_memory_sections "$handoff_file" "$compaction_threshold" "$compaction_keep_recent"
-sync_handoff_summary "$handoff_file" "$done_text" "$next_text"
+ensure_session_events_section "$handoff_file"
 
-# Auto-collect is opt-in to avoid noisy, unrelated file lists in dirty worktrees.
-if [[ ${#file_lines[@]} -eq 0 && "${APPEND_HANDOFF_AUTO_FILES:-0}" == "1" ]]; then
-  while IFS= read -r file; do
-    [[ -z "$file" ]] && continue
-    file_lines+=("$file - [semantic description required]")
-  done < <(git diff --name-only 2>/dev/null || true)
+# Auto-collect modified+untracked files from git status when requested.
+# Backwards-compatible env var APPEND_HANDOFF_AUTO_FILES=1 still works.
+if [[ "$collect_git_status" -eq 1 || "${APPEND_HANDOFF_AUTO_FILES:-0}" == "1" ]]; then
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    file_lines+=("$line")
+  done < <(collect_git_status_lines)
 fi
 
 if [[ ${#file_lines[@]} -eq 0 ]]; then
@@ -740,6 +1285,31 @@ for raw in "${file_lines[@]}"; do
 done
 
 file_lines=("${normalized_file_lines[@]}")
+
+# Normalize locked file lines: ensure backtick wrapping
+declare -a normalized_locked_lines=()
+for raw in "${locked_file_lines[@]-}"; do
+  [[ -z "$raw" ]] && continue
+  if [[ "$raw" == *" - "* ]]; then
+    file_path="${raw%% - *}"
+    file_desc="${raw#* - }"
+  else
+    file_path="$raw"
+    file_desc="[lock reason required]"
+  fi
+
+  if [[ "$file_path" == \`*\` ]]; then
+    normalized_locked_lines+=("${file_path} - ${file_desc}")
+  else
+    normalized_locked_lines+=("\`${file_path}\` - ${file_desc}")
+  fi
+done
+
+if [[ ${#normalized_locked_lines[@]} -eq 0 ]]; then
+  locked_file_lines=()
+else
+  locked_file_lines=("${normalized_locked_lines[@]}")
+fi
 
 if [[ ${#validation_lines[@]} -eq 0 ]]; then
   validation_lines+=("Not executed in this step => SKIP")
@@ -788,6 +1358,13 @@ timestamp="$(date '+%Y-%m-%d %H:%M:%S %z')"
     echo "  - ${line}"
   done
 
+  if [[ ${#locked_file_lines[@]} -gt 0 ]]; then
+    echo "- Locked Files:"
+    for line in "${locked_file_lines[@]}"; do
+      echo "  - ${line}"
+    done
+  fi
+
   # Working Context (optional)
   if [[ ${#context_lines[@]} -gt 0 ]]; then
     echo "- Working Context:"
@@ -831,7 +1408,12 @@ if [[ "$compaction_result" == "0||" ]]; then
   compacted_at=""
 fi
 
+sync_handoff_summary "$handoff_file" "$next_text"
 sync_memory_layers "$handoff_file" "$compaction_threshold" "$compaction_keep_recent" "$next_text" "$archived_now" "$compacted_at"
+
+if [[ ${#quality_gate_lines[@]} -gt 0 ]]; then
+  apply_quality_gate_updates "$handoff_file"
+fi
 
 if (( archived_now > 0 )); then
   echo "Appended incremental handoff entry to ${handoff_file} (entry=${entry_id}, compacted=${archived_now}, archive=${archive_path})"

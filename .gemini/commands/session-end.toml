@@ -1,0 +1,19 @@
+description = "End the current Gemini handoff session (v2)"
+prompt = """
+End the active GENBA QUEST handoff session as the Gemini agent.
+
+Steps:
+1. Verify the handoff file is complete:
+   - `## 0. Quick Resume (AI)` `NEXT_CMD` is the **next real action**, not `session-start.sh`.
+   - `## 3. Completed` does not still say "まだ未着手".
+   - No `[semantic description required]` placeholders remain.
+2. Run: `scripts/session/session-end.sh ${ARGUMENTS}`
+   - The script runs `server tsc`, `frontend tsc`, `frontend eslint`, captures PASS/FAIL, and writes them to the Quality Gate table via `--quality-gate`.
+   - It records a single "ended by gemini" line in `## Session Events (audit log)`.
+3. If the handoff is intentionally incomplete, use `scripts/session/session-end.sh --allow-incomplete-handoff`.
+4. After the script succeeds, do NOT make further commits in this session — the active session marker is archived.
+
+Invariants:
+- session-end is recorded as an **audit event only**. It MUST NOT add a fake Completed entry or pollute L1/L2/L3.
+- Quality Gate results live in the Quality Gate table, not in Incremental Updates.
+"""

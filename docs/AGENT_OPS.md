@@ -1,7 +1,7 @@
-# Agent Ops Protocol (Claude / Codex Common)
+# Agent Ops Protocol (Claude / Codex / Gemini Common)
 
-このドキュメントは、Claude Code と Codex の**共通セッション運用**の唯一の正本です。
-`AGENTS.md` / `CLAUDE.md` には要約のみを置き、詳細は本書に集約します。
+このドキュメントは、Claude Code / Codex / Gemini の**共通セッション運用**の唯一の正本です。
+`AGENTS.md` / `CLAUDE.md` / `GEMINI.md` には要約のみを置き、詳細は本書に集約します。
 
 ## 1. Purpose
 
@@ -16,6 +16,7 @@
 2. Session start (mandatory):
    - Codex: `scripts/session/session-start.sh --agent codex`
    - Claude: `scripts/session/session-start.sh --agent claude`
+   - Gemini: `scripts/session/session-start.sh --agent gemini`
    - Domain split (recommended for parallel work): `scripts/session/session-start.sh --agent codex --domain frontend/today`
    - Feature split (recommended for backend): `scripts/session/session-start.sh --agent claude --domain server/proposals`
    - `--domain` 指定時は `handoff/<domain>.md` を対象にする（例: `frontend/today` -> `handoff/frontend/today.md`）
@@ -25,6 +26,9 @@
    - 退避ファイルは自動ローテーション（既定: 最大30件 / 14日より古いもの削除）
    - しきい値は環境変数で変更可: `HANDOFF_ARCHIVE_KEEP_COUNT`, `HANDOFF_ARCHIVE_KEEP_DAYS`
    - 既存 `HANDOFF.md` を保持したい場合のみ: `--keep-handoff`
+   - **v2: session-start は監査イベント (`Session Events (audit log)`) のみを記録し、Completed/L1/L2/L3 を汚さない**
+   - **v2: working tree が dirty な場合、`Changed Files` に dirty 行が injection され、Resume セクションに `> [carryover]` 警告が追加される**
+   - オプションで `--baseline` を付けると `server` / `frontend` の typecheck をセッション開始時に実行し、結果を `Quality Gate` テーブルに記録（遅いが正確なベースライン）
 3. Design reference before implementation (mandatory):
    - `sed -n '1,120p' docs/DESIGN_PHILOSOPHY.md`
 4. During work (per completed chunk):
@@ -34,17 +38,19 @@
    - `scripts/session/session-end.sh`
    - `HANDOFF.md` が未完成（例: `NEXT_CMD` が `session-start.sh` のまま、`[semantic description required]` 残存）の場合は終了を拒否
    - 例外時のみ `scripts/session/session-end.sh --allow-incomplete-handoff`
+   - **v2: session-end も監査イベントのみを記録**。Quality Gate 結果は `--quality-gate "key=result|notes"` でテーブル行を更新する（fake な Completed エントリを書かない）
 
 Guardrail:
 
 - `.githooks/pre-commit` blocks commit when non-handoff files are staged but:
   - handoff markdown (`HANDOFF.md` or `handoff/*.md`) is not staged, or
   - `.session/active_session` is missing.
-- `append-handoff-update.sh` の自動ファイル収集はデフォルト無効（必要時のみ `APPEND_HANDOFF_AUTO_FILES=1` を明示）
+- `append-handoff-update.sh` の自動ファイル収集はデフォルト無効（必要時のみ `--from-git-status` フラグまたは後方互換の `APPEND_HANDOFF_AUTO_FILES=1` を明示）
 - `append-handoff-update.sh` は `--context/--landmine` 未指定時でも L2欠落を防ぐために自動補完する
 - L3圧縮の既定値:
   - `HANDOFF_COMPACTION_THRESHOLD=20`
   - `HANDOFF_COMPACTION_KEEP_RECENT=12`
+- Session Events 監査ログの保持件数: `HANDOFF_SESSION_EVENTS_KEEP_RECENT=30`（既定）
 
 ## 3. AI-Optimized Handoff (Low-Context Resume)
 
@@ -120,6 +126,22 @@ cd frontend && npx eslint src/
 ```
 
 必要に応じて `cd server && npm test` を追加し、PASS/FAIL を明記します。
+
+## 5.1 v2 Handoff Update Modes
+
+`append-handoff-update.sh` には2つのモードがある。**事務的イベントとリアル作業を分離**する目的。
+
+| Mode | 用途 | 影響範囲 |
+| ---- | ---- | -------- |
+| **work-entry mode** (default) | 実作業の完了を記録 | L1/L2/L3 + Completed/Remaining/Quality Gate を更新 |
+| **session-event mode** (`--session-event "<label>"`) | start/end など監査イベント | `## Session Events (audit log)` のみ。L1/L2/L3 は無傷 |
+
+ルール:
+
+- `--session-event` は `session-start.sh` / `session-end.sh` が内部で呼ぶ。**手動で `--done "Session started ..."` のような偽の完了エントリを書かないこと。**
+- 実作業の完了は `session-update.sh` (= `--done` work-entry mode) で記録する。
+- Quality Gate の結果は `--quality-gate "key=result|notes"` で対応行を更新する（複数指定可）。両モードで使える。
+- `--from-git-status` は `git status --porcelain` から変更ファイルを自動収集して `--file` に追加する（明示的な `--file "path - 何をなぜ"` が望ましいが、補助として有用）。
 
 ## 6. Update Policy
 

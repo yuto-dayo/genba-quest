@@ -1,0 +1,31 @@
+description = "Record a completed work chunk in the handoff (v2 work-entry mode)"
+prompt = """
+Record a completed work chunk to the active handoff file.
+
+Input format (use `::` as the separator so the natural-language fields can contain commas):
+`<done> :: <next> :: <validation> :: <file>`
+
+User input:
+${ARGUMENTS}
+
+Steps:
+1. Parse the four fields. If `<file>` is omitted, you may pass `--from-git-status` to auto-collect from `git status --porcelain`.
+2. Run:
+   ```bash
+   scripts/session/session-update.sh \
+     --done "<done>" \
+     --next "<next>" \
+     --validation "<validation>" \
+     --file "<file>"
+   ```
+3. If validation was a typecheck/lint/test, also pass the result to the Quality Gate table:
+   ```bash
+   .claude/skills/incremental-handoff/scripts/append-handoff-update.sh \
+     --quality-gate "server typecheck=PASS|run after <done>"
+   ```
+
+Invariants:
+- This is **work-entry mode** — it updates Completed / L1 / L2 / L3. Use it for real work only.
+- Never use this to record session start/end events. Those go through `session-start.sh` / `session-end.sh` (which use `--session-event` audit-log mode internally).
+- `<done>` and `<file>` should describe **what** and **why**, not just "modified" / "updated".
+"""

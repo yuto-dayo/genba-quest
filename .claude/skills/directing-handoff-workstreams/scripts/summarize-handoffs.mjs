@@ -8,12 +8,113 @@ const PLACEHOLDER_PATTERNS = [
   'Remaining を確認して次アクションを決定',
 ];
 
+const MEANINGFUL_RISK_EXCLUDE = ['docs/DESIGN_PHILOSOPHY.md'];
+
+const BLOCK_KEYWORDS = [
+  'block',
+  'blocked',
+  'fail',
+  'error',
+  'enotfound',
+  '未実施',
+  '必要',
+  '要対応',
+  '未デプロイ',
+  'リスク',
+];
+
+const DESTRUCTIVE_KEYWORDS = [
+  'rm ',
+  'reset --hard',
+  'checkout --',
+  'drop table',
+  'truncate',
+  'delete from',
+  '本番削除',
+  '破壊',
+  'wipe',
+  'force-push',
+];
+
+const WRITE_KEYWORDS = [
+  'migration',
+  'deploy',
+  'apply',
+  'implement',
+  'edit',
+  'refactor',
+  'update',
+  'create',
+  'fix',
+  '追加',
+  '変更',
+  '修正',
+  '適用',
+  '実装',
+  '作成',
+];
+
+const READ_ONLY_KEYWORDS = [
+  'investigate',
+  'inspect',
+  'review',
+  'audit',
+  'verify',
+  'validate',
+  'check',
+  '調査',
+  '確認',
+  '可視化',
+  '証跡',
+  '分析',
+];
+
+const SHARED_WORK_KEYWORDS = [
+  'migration',
+  'policy',
+  'integration',
+  'schema',
+  'shared',
+  '共通',
+  '依存',
+  '解除',
+  'gateway',
+];
+
+const IMPACT_KEYWORDS = [
+  'revenue',
+  'billing',
+  'ledger',
+  'approval',
+  'proposal',
+  'webhook',
+  '請求',
+  '経費',
+  '承認',
+];
+
 function usage() {
   console.log(`Usage: node summarize-handoffs.mjs [--json] [--cwd <path>]\n\nOptions:\n  --json        Output JSON\n  --cwd <path>  Workspace root (default: current directory)`);
 }
 
 function normalizePath(p) {
   return p.replace(/\\\\/g, '/');
+}
+
+function mergeLower(...parts) {
+  return parts
+    .flat()
+    .filter((v) => typeof v === 'string' && v.length > 0)
+    .join(' | ')
+    .toLowerCase();
+}
+
+function hasAny(text, keywords) {
+  return keywords.some((keyword) => text.includes(keyword.toLowerCase()));
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function parseArgs(argv) {
@@ -114,8 +215,7 @@ function cleanInlineMarkdown(text) {
 
 function normalizeP0Text(text) {
   let out = text.trim();
-  out = out.replace(/^P0:\s*/i, '');
-  out = out.replace(/^P0:\s*/i, '');
+  out = out.replace(/^(P\d:\s*)+/i, '');
   return out.trim();
 }
 
@@ -160,6 +260,10 @@ function extractRisks(lines) {
     .filter(Boolean);
 }
 
+function getMeaningfulRisks(risks) {
+  return risks.filter((risk) => !MEANINGFUL_RISK_EXCLUDE.some((exclude) => risk.includes(exclude)));
+}
+
 function isPlaceholder(text) {
   if (!text) return true;
   return PLACEHOLDER_PATTERNS.some((pattern) => text.includes(pattern));
@@ -176,12 +280,123 @@ function deriveDomain(fileRelPath) {
 }
 
 function isBlocked(risks) {
-  const meaningfulRisks = risks.filter((r) => !r.includes('docs/DESIGN_PHILOSOPHY.md'));
+  const meaningfulRisks = getMeaningfulRisks(risks);
   if (meaningfulRisks.length === 0) return false;
 
-  const keywords = ['block', 'blocked', 'fail', 'error', 'ENOTFOUND', '未実施', '必要', '要対応', '未デプロイ', 'リスク'];
   const merged = meaningfulRisks.join(' | ').toLowerCase();
-  return keywords.some((k) => merged.includes(k.toLowerCase()));
+  return BLOCK_KEYWORDS.some((keyword) => merged.includes(keyword));
+}
+
+function classifyRiskLevel({ p0, nextCmd, risks, domain }) {
+  const meaningfulRisks = getMeaningfulRisks(risks);
+  const merged = mergeLower(p0, nextCmd, meaningfulRisks, domain);
+
+  if (hasAny(merged, DESTRUCTIVE_KEYWORDS)) {
+    return 'destructive';
+  }
+
+  if (hasAny(merged, WRITE_KEYWORDS)) {
+    return 'bounded-write';
+  }
+
+  if (hasAny(merged, READ_ONLY_KEYWORDS)) {
+    return 'safe-read';
+  }
+
+  if (meaningfulRisks.length > 0) {
+    return 'bounded-write';
+  }
+
+  return nextCmd || p0 ? 'bounded-write' : 'safe-read';
+}
+
+function buildApprovalGate(riskLevel) {
+  return riskLevel === 'destructive' ? 'required' : 'not_required';
+}
+
+function buildRetryPolicy(riskLevel) {
+  const maxRetries = riskLevel === 'destructive' ? 1 : 2;
+  return {
+    maxRetries,
+    failFastOn: ['policy_conflict', 'permission_denied', 'approval_required'],
+  };
+}
+
+function daysSince(isoDate) {
+  if (!isoDate) return null;
+  const timestamp = Date.parse(isoDate);
+  if (Number.isNaN(timestamp)) return null;
+
+  const diffMs = Date.now() - timestamp;
+  return Math.max(0, diffMs / (1000 * 60 * 60 * 24));
+}
+
+function getSpecificityScore(text) {
+  if (!text || isPlaceholder(text)) return 0;
+  const normalized = text.trim();
+  const tokens = normalized.split(/\s+/).filter(Boolean).length;
+  const punctuationBonus = /[()\-:]/.test(normalized) ? 1 : 0;
+  return clamp(tokens + punctuationBonus, 0, 20);
+}
+
+function computeDirectorScore({
+  domain,
+  p0,
+  nextCmd,
+  risks,
+  blocked,
+  actionableP0,
+  lastUpdateIso,
+  riskLevel,
+}) {
+  const merged = mergeLower(domain, p0, nextCmd, risks);
+
+  let impact = 1;
+  if (domain === 'root') {
+    impact = 3;
+  } else if (domain.startsWith('server') || domain.startsWith('integration')) {
+    impact = 2;
+  }
+  if (hasAny(merged, IMPACT_KEYWORDS)) {
+    impact = clamp(impact + 1, 1, 3);
+  }
+
+  const ageDays = daysSince(lastUpdateIso);
+  let urgency = 1;
+  if (ageDays !== null) {
+    if (ageDays >= 7) urgency = 3;
+    else if (ageDays >= 2) urgency = 2;
+  }
+
+  let unblockLeverage = blocked ? 2 : 1;
+  if (hasAny(merged, SHARED_WORK_KEYWORDS)) {
+    unblockLeverage = clamp(unblockLeverage + 1, 1, 3);
+  }
+
+  let readiness = 0;
+  if (actionableP0) {
+    readiness = blocked ? 1 : 2;
+    if (nextCmd && !isPlaceholder(nextCmd)) {
+      readiness = clamp(readiness + 1, 0, 3);
+    }
+  }
+
+  let riskPenalty = 0;
+  if (riskLevel === 'bounded-write') riskPenalty = 1;
+  if (riskLevel === 'destructive') riskPenalty = 2;
+  if (blocked) riskPenalty = clamp(riskPenalty + 1, 0, 3);
+
+  const total = (3 * impact) + (2 * urgency) + (2 * unblockLeverage) + readiness - (2 * riskPenalty);
+
+  return {
+    total,
+    impact,
+    urgency,
+    unblockLeverage,
+    readiness,
+    riskPenalty,
+    specificity: getSpecificityScore(p0),
+  };
 }
 
 function toIsoDate(dateText) {
@@ -213,9 +428,19 @@ function choosePrimaryRecommendation(streams) {
   const pool = unblocked.length > 0 ? unblocked : actionable;
 
   const sorted = [...pool].sort((a, b) => {
+    const scoreDiff = b.directorScore.total - a.directorScore.total;
+    if (scoreDiff !== 0) return scoreDiff;
+
+    const leverageDiff = b.directorScore.unblockLeverage - a.directorScore.unblockLeverage;
+    if (leverageDiff !== 0) return leverageDiff;
+
     const aTime = a.lastUpdateIso || '9999-12-31T23:59:59.999Z';
     const bTime = b.lastUpdateIso || '9999-12-31T23:59:59.999Z';
     if (aTime !== bTime) return aTime.localeCompare(bTime);
+
+    const specificityDiff = b.directorScore.specificity - a.directorScore.specificity;
+    if (specificityDiff !== 0) return specificityDiff;
+
     return a.domain.localeCompare(b.domain);
   });
 
@@ -245,14 +470,16 @@ function formatMarkdownReport(payload) {
 
   lines.push('## Workstream Status');
   lines.push('');
-  lines.push('| Stream | State | Last Update | P0 | NEXT_CMD | File |');
-  lines.push('| ------ | ----- | ----------- | -- | -------- | ---- |');
+  lines.push('| Stream | State | Score | Risk | Approval | Last Update | P0 | NEXT_CMD | File |');
+  lines.push('| ------ | ----- | ----- | ---- | -------- | ----------- | -- | -------- | ---- |');
 
   for (const stream of payload.streams) {
     const p0 = stream.p0 || '(none)';
     const next = stream.nextCmd || '(none)';
     const last = stream.lastUpdate || '(none)';
-    lines.push(`| ${stream.domain} | ${stream.state} | ${last} | ${p0} | ${next} | ${stream.file} |`);
+    lines.push(
+      `| ${stream.domain} | ${stream.state} | ${stream.directorScore.total} | ${stream.riskLevel} | ${stream.approvalRequired} | ${last} | ${p0} | ${next} | ${stream.file} |`,
+    );
   }
 
   lines.push('');
@@ -266,6 +493,8 @@ function formatMarkdownReport(payload) {
     lines.push(`- Next Task: ${payload.primaryRecommendation.p0}`);
     lines.push(`- Suggested Command: \`${payload.primaryRecommendation.sessionStartCommand}\``);
     lines.push(`- Reason: ${payload.primaryReason}`);
+    lines.push(`- Director Score: ${payload.primaryRecommendation.directorScore.total}`);
+    lines.push(`- Directive Contract: risk_tier=\`${payload.primaryRecommendation.riskLevel}\`, approval_gate=\`${payload.primaryRecommendation.approvalRequired}\`, retry_budget=${payload.primaryRecommendation.retryPolicy.maxRetries}`);
   }
 
   if (payload.blockedStreams.length > 0) {
@@ -273,9 +502,16 @@ function formatMarkdownReport(payload) {
     lines.push('## Blocked / Risky Streams');
     lines.push('');
     for (const blocked of payload.blockedStreams) {
-      lines.push(`- ${blocked.domain}: ${blocked.risks.join(' / ')}`);
+      lines.push(`- ${blocked.domain} (${blocked.riskLevel}, approval=${blocked.approvalRequired}): ${blocked.risks.join(' / ')}`);
     }
   }
+
+  lines.push('');
+  lines.push('## Evaluation Targets');
+  lines.push('');
+  lines.push(`- Command Executable Rate: ${payload.evaluationContract.commandExecutableRateTarget}`);
+  lines.push(`- First-Pass Acceptance: ${payload.evaluationContract.firstPassAcceptanceTarget}`);
+  lines.push(`- Handoff Accuracy: ${payload.evaluationContract.handoffAccuracyTarget}`);
 
   return lines.join('\n');
 }
@@ -309,7 +545,7 @@ async function loadHandoffStreams(workspaceRoot) {
     const relPath = normalizePath(path.relative(workspaceRoot, filePath));
     const domain = deriveDomain(relPath);
     const remainingItems = extractRemainingItems(lines);
-    const rawP0 = remainingItems.find((item) => item.startsWith('P0:') || item.includes('P0')) || remainingItems[0] || '';
+    const rawP0 = remainingItems.find((item) => item.startsWith('P0:')) || remainingItems[0] || '';
     const p0 = normalizeP0Text(rawP0);
     const nextCmd = extractNextCmd(content);
     const risks = extractRisks(lines);
@@ -317,6 +553,19 @@ async function loadHandoffStreams(workspaceRoot) {
     const actionableP0 = !!p0 && !isPlaceholder(p0);
     const lastUpdate = extractLastTimestamp(content);
     const lastUpdateIso = toIsoDate(lastUpdate);
+    const riskLevel = classifyRiskLevel({ p0, nextCmd, risks, domain });
+    const approvalRequired = buildApprovalGate(riskLevel);
+    const retryPolicy = buildRetryPolicy(riskLevel);
+    const directorScore = computeDirectorScore({
+      domain,
+      p0,
+      nextCmd,
+      risks,
+      blocked,
+      actionableP0,
+      lastUpdateIso,
+      riskLevel,
+    });
 
     streams.push({
       domain,
@@ -331,6 +580,10 @@ async function loadHandoffStreams(workspaceRoot) {
       risks,
       blocked,
       actionableP0,
+      riskLevel,
+      approvalRequired,
+      retryPolicy,
+      directorScore,
       state: computeState({ actionableP0, blocked, nextCmd }),
     });
   }
@@ -354,9 +607,14 @@ async function main() {
       primaryRecommendation,
       primaryReason: primaryRecommendation
         ? (primaryRecommendation.blocked
-            ? 'actionable P0 の中で最も古く、かつブロッカー解消が必要なため'
-            : 'actionable P0 の中で最も古く、未ブロックのワークストリームを優先するため')
+            ? '高スコアかつ解除レバレッジが高く、ブロッカー解消を先に進めるべきため'
+            : '高スコアかつ未ブロックで、最短で成果に繋がるワークストリームのため')
         : 'no actionable stream',
+      evaluationContract: {
+        commandExecutableRateTarget: '>=0.95',
+        firstPassAcceptanceTarget: '>=0.70',
+        handoffAccuracyTarget: '>=0.90',
+      },
     };
 
     if (json) {

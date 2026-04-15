@@ -93,6 +93,20 @@ $completed_line
 $p0_line
 - [ ] **P1**: 次の優先タスクを記載
 
+## 5. Changed Files
+
+| File | What Changed |
+| ---- | ------------ |
+| \`(none)\` | - |
+
+## 6. Locked Files（編集中 - 他エージェント触らない）
+
+> なし
+
+## 9. Risks / Blockers
+
+- none
+
 ## 11. Incremental Updates
 EOF
 }
@@ -134,6 +148,37 @@ assert_contains "default file sentinel" "$handoff_sync" "No file list provided (
 assert_contains "entry id assigned" "$handoff_sync" "- Entry-ID: \`H0001\`"
 assert_contains "L1 summary synced" "$handoff_sync" "- [H0001] Completed: summary sync test"
 assert_contains "L2 open thread synced" "$handoff_sync" "- [H0001] cd server && npm run test:integration"
+assert_contains "top Changed Files synced" "$handoff_sync" "| \`(not recorded)\` | No file list provided (use --file \"path - semantic description\") |"
+
+# 2b) top-level sections stay aligned with repeated updates
+handoff_sections="$(make_temp_file)"
+create_handoff_template \
+  "$handoff_sections" \
+  "P0: first task" \
+  "- [ ] まだ未着手" \
+  "- [ ] **P0**: P0: first task"
+
+.claude/skills/incremental-handoff/scripts/append-handoff-update.sh \
+  --handoff "$handoff_sections" \
+  --done "first chunk" \
+  --next "P0: first follow-up" \
+  --file "server/a.ts - first semantic change" \
+  --validation "first chunk => PASS" >/dev/null
+
+.claude/skills/incremental-handoff/scripts/append-handoff-update.sh \
+  --handoff "$handoff_sections" \
+  --done "second chunk" \
+  --next "P0: second follow-up" \
+  --file "server/b.ts - second semantic change" \
+  --locked-file "server/b.ts - migration in progress" \
+  --landmine "avoid editing server/b.ts concurrently" \
+  --validation "second chunk => PASS" >/dev/null
+
+assert_contains "repeated sync keeps latest Completed" "$handoff_sections" "- [x] second chunk"
+assert_contains "repeated sync retains earlier Completed" "$handoff_sections" "- [x] first chunk"
+assert_contains "repeated sync updates Changed Files table" "$handoff_sections" "| \`server/b.ts\` | second semantic change |"
+assert_contains "repeated sync updates Locked Files" "$handoff_sections" "- \`server/b.ts\` - migration in progress"
+assert_contains "repeated sync updates Risks" "$handoff_sections" "- avoid editing server/b.ts concurrently"
 
 # 3) session-end guard blocks incomplete handoff
 handoff_incomplete="$(make_temp_file)"
@@ -145,7 +190,7 @@ create_handoff_template \
 
 write_active_session "$handoff_incomplete"
 incomplete_log="$(make_temp_file)"
-if scripts/session/session-end.sh >"$incomplete_log" 2>&1; then
+if SESSION_END_SKIP_TESTS=1 scripts/session/session-end.sh >"$incomplete_log" 2>&1; then
   record_fail "guard blocks incomplete handoff"
 else
   if rg -q "Handoff quality check failed" "$incomplete_log"; then
@@ -158,7 +203,7 @@ fi
 # 4) override allows intentional completion
 write_active_session "$handoff_incomplete"
 override_log="$(make_temp_file)"
-if scripts/session/session-end.sh --allow-incomplete-handoff >"$override_log" 2>&1; then
+if SESSION_END_SKIP_TESTS=1 scripts/session/session-end.sh --allow-incomplete-handoff >"$override_log" 2>&1; then
   record_pass "override allows incomplete handoff"
 else
   record_fail "override allows incomplete handoff"
@@ -179,7 +224,7 @@ EOF
 
 write_active_session "$handoff_history"
 history_log="$(make_temp_file)"
-if scripts/session/session-end.sh >"$history_log" 2>&1; then
+if SESSION_END_SKIP_TESTS=1 scripts/session/session-end.sh >"$history_log" 2>&1; then
   record_pass "history placeholders are ignored"
 else
   record_fail "history placeholders are ignored"
@@ -253,6 +298,13 @@ if scripts/session/session-start.sh --agent codex --handoff "$handoff_start" >"$
   else
     record_fail "session-start carries forward next command"
   fi
+  if rg -q --fixed-strings -- "- STATE:" "$handoff_start" \
+    && rg -q --fixed-strings -- "- Uncommitted: \`" "$handoff_start" \
+    && rg -q --fixed-strings -- "- DB migrations: \`latest local:" "$handoff_start"; then
+    record_pass "session-start injects L0 state"
+  else
+    record_fail "session-start injects L0 state"
+  fi
 else
   record_fail "session-start carries forward next command"
 fi
@@ -291,6 +343,159 @@ else
   else
     record_fail "session-start rejects unsafe domains"
   fi
+fi
+
+# 10) --session-event mode creates Session Events section and appends an event
+handoff_event="$(make_temp_file)"
+create_handoff_template \
+  "$handoff_event" \
+  "P0: keep next" \
+  "- [x] real work done" \
+  "- [ ] **P0**: P0: keep next"
+# Add the L0_END marker so ensure_session_events_section can place the block correctly
+sed -i.bak '/^## 0\. Quick Resume/a\
+\
+- NEXT_CMD: `P0: keep next`\
+\
+<!-- L0_END: test marker -->
+' "$handoff_event"
+rm -f "${handoff_event}.bak"
+
+.claude/skills/incremental-handoff/scripts/append-handoff-update.sh \
+  --handoff "$handoff_event" \
+  --session-event "claude started session" >/dev/null
+
+assert_contains "session-event creates Session Events section" "$handoff_event" "## Session Events (audit log)"
+assert_contains "session-event appends event line" "$handoff_event" "— claude started session"
+
+# 11) --session-event mode does NOT pollute Completed / L1 / L2 / L3
+.claude/skills/incremental-handoff/scripts/append-handoff-update.sh \
+  --handoff "$handoff_event" \
+  --session-event "claude ended session" >/dev/null
+
+# Should still have the original Completed line and NOT have a Session ended Completed entry
+if rg -q --fixed-strings -- "- [x] real work done" "$handoff_event" \
+  && ! rg -q --fixed-strings -- "- [x] claude ended session" "$handoff_event" \
+  && ! rg -q --fixed-strings -- "- [x] Session ended" "$handoff_event"; then
+  record_pass "session-event does not pollute Completed"
+else
+  record_fail "session-event does not pollute Completed"
+fi
+
+# Should NOT have created an Incremental Updates entry for the session events
+inc_count_after_events="$(awk '
+  /^## 1[13]\. Incremental Updates/ { in_inc = 1; next }
+  /^## [0-9]+\./ { if (in_inc) exit }
+  in_inc && /^### / { count++ }
+  END { print count + 0 }
+' "$handoff_event")"
+if [[ "$inc_count_after_events" == "0" ]]; then
+  record_pass "session-event does not append Incremental Update entry"
+else
+  record_fail "session-event does not append Incremental Update entry"
+fi
+
+# 12) --quality-gate updates the Quality Gate table row
+handoff_qg="$(make_temp_file)"
+cat > "$handoff_qg" <<'EOF'
+# Session Handoff - 2026-04-08
+
+## 0. Quick Resume (AI)
+- NEXT_CMD: `P0: test`
+
+<!-- L0_END: test marker -->
+
+## 7. Quality Gate
+
+| Check | Result | Notes |
+| ----- | ------ | ----- |
+| server typecheck | SKIP | not run yet |
+| frontend typecheck | SKIP | not run yet |
+| lint | SKIP | not run yet |
+| test | SKIP | optional |
+EOF
+
+.claude/skills/incremental-handoff/scripts/append-handoff-update.sh \
+  --handoff "$handoff_qg" \
+  --session-event "test gate update" \
+  --quality-gate "server typecheck=PASS|baseline at 12:00" \
+  --quality-gate "frontend typecheck=FAIL|3 errors in Today.tsx" >/dev/null
+
+assert_contains "quality-gate row updated (server PASS)" "$handoff_qg" "| server typecheck | PASS | baseline at 12:00 |"
+assert_contains "quality-gate row updated (frontend FAIL)" "$handoff_qg" "| frontend typecheck | FAIL | 3 errors in Today.tsx |"
+assert_contains "quality-gate untouched row preserved" "$handoff_qg" "| lint | SKIP | not run yet |"
+
+# 13) --from-git-status auto-collects files when run from a git repo
+handoff_git="$(make_temp_file)"
+create_handoff_template \
+  "$handoff_git" \
+  "P0: from git" \
+  "- [ ] まだ未着手" \
+  "- [ ] **P0**: P0: from git"
+
+.claude/skills/incremental-handoff/scripts/append-handoff-update.sh \
+  --handoff "$handoff_git" \
+  --done "exercise --from-git-status" \
+  --next "P0: next" \
+  --from-git-status \
+  --validation "from-git-status test => PASS" >/dev/null
+
+# Should mention "from git status" in Changed Files section since this repo has dirty files
+if rg -q "\[from git status:" "$handoff_git"; then
+  record_pass "--from-git-status auto-collects files"
+else
+  record_fail "--from-git-status auto-collects files"
+fi
+
+# 14) session-start dirty-state injection: working tree dirty produces carryover warning
+# (This test only meaningful when the parent repo working tree is dirty.
+#  In a clean repo, the test passes vacuously.)
+handoff_dirty="$(make_temp_file)"
+dirty_log="$(make_temp_file)"
+if scripts/session/session-start.sh --agent codex --handoff "$handoff_dirty" >"$dirty_log" 2>&1; then
+  if git status --porcelain 2>/dev/null | grep -q .; then
+    if rg -q --fixed-strings -- "> [carryover]" "$handoff_dirty"; then
+      record_pass "session-start injects carryover warning when dirty"
+    else
+      record_fail "session-start injects carryover warning when dirty"
+    fi
+    if rg -q "\[dirty:" "$handoff_dirty"; then
+      record_pass "session-start populates Changed Files with dirty entries"
+    else
+      record_fail "session-start populates Changed Files with dirty entries"
+    fi
+  else
+    record_pass "session-start dirty injection (vacuous: clean tree)"
+    record_pass "session-start dirty injection (vacuous: clean tree)"
+  fi
+else
+  record_fail "session-start runs successfully on dirty/clean tree"
+fi
+if [[ -f "$ACTIVE_SESSION_FILE" ]]; then
+  rm -f "$ACTIVE_SESSION_FILE"
+fi
+
+# 15) session-start uses --session-event (no fake Completed pollution)
+handoff_clean_start="$(make_temp_file)"
+clean_start_log="$(make_temp_file)"
+if scripts/session/session-start.sh --agent claude --handoff "$handoff_clean_start" >"$clean_start_log" 2>&1; then
+  # Should NOT contain a "Session started" Completed entry
+  if rg -q --fixed-strings -- "- [x] Session started" "$handoff_clean_start"; then
+    record_fail "session-start no longer pollutes Completed"
+  else
+    record_pass "session-start no longer pollutes Completed"
+  fi
+  # Should contain a Session Events block with the start event
+  if rg -q --fixed-strings -- "started by claude" "$handoff_clean_start"; then
+    record_pass "session-start records audit event"
+  else
+    record_fail "session-start records audit event"
+  fi
+else
+  record_fail "session-start runs without polluting"
+fi
+if [[ -f "$ACTIVE_SESSION_FILE" ]]; then
+  rm -f "$ACTIVE_SESSION_FILE"
 fi
 
 echo

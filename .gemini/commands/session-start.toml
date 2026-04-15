@@ -1,0 +1,15 @@
+description = "Start a Gemini handoff session (v2)"
+prompt = """
+Start a new GENBA QUEST handoff session as the Gemini agent.
+
+Steps:
+1. Run: `scripts/session/session-start.sh --agent gemini ${ARGUMENTS}`
+   - Pass-through args allow `--domain frontend/today`, `--baseline`, `--keep-handoff`, `--force-restart`.
+2. Read the freshly generated handoff (HANDOFF.md or handoff/<domain>.md) — only the Quick Resume (L0) block, ~15 lines.
+3. If the L0 contains a `> [carryover]` warning, read the Changed Files section to understand what is in flight before deciding the first action.
+4. Reference `docs/DESIGN_PHILOSOPHY.md` (lines 1-120) before making any implementation decision.
+
+Invariants:
+- Never write fake `--done "Session started ..."` entries — session-start already records the audit event.
+- Do not commit until at least one real session-update has been recorded.
+"""
