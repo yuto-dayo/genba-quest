@@ -709,6 +709,153 @@ describe('ProposalService', () => {
       expect(result.result_event_id).toBe(TEST_EVENT_ID);
     });
 
+    it('evaluation.finalize 実行時に profile と confirmation を更新する', async () => {
+      const approvedFinalizeProposal = makeProposal({
+        status: 'approved',
+        type: 'evaluation.finalize',
+        payload: {
+          month: '2026-04',
+          member_id: '11111111-1111-4111-8111-111111111111',
+          confirmed_big_skill_states: {
+            cross_work: 'near_independent',
+            site_trust: 'stable_independent',
+          },
+          work_days: 19,
+          A: 2,
+          R: 1,
+          Q: 2,
+          current_level: 'L3',
+          comment: '月次レビュー',
+        },
+      });
+      const executedFinalizeProposal = {
+        ...approvedFinalizeProposal,
+        status: 'executed',
+        executed_at: '2026-01-02T00:00:00Z',
+        executed_by: actors.system,
+        result_event_id: TEST_EVENT_ID,
+      };
+      const finalizeEvent = {
+        ...ledgerEvent,
+        event_type: 'evaluation_finalized',
+        payload: approvedFinalizeProposal.payload,
+      };
+
+      const getByIdChain = createChain({ data: approvedFinalizeProposal, error: null });
+      const eventSelectChain = createChain({ data: null, error: null });
+      const eventInsertChain = createChain({ data: finalizeEvent, error: null });
+      const profileUpsertChain = createChain({ data: null, error: null });
+      const confirmationsUpsertChain = createChain({ data: null, error: null });
+      const finalizationsUpsertChain = createChain({ data: null, error: null });
+      const executeUpdateChain = createChain({ data: executedFinalizeProposal, error: null });
+
+      setupMockFromSequence(mockFrom, [
+        getByIdChain,
+        eventSelectChain,
+        eventInsertChain,
+        profileUpsertChain,
+        confirmationsUpsertChain,
+        finalizationsUpsertChain,
+        executeUpdateChain,
+      ]);
+
+      const result = await service.execute(TEST_PROPOSAL_ID, actors.system);
+
+      expect(result.status).toBe('executed');
+      expect(profileUpsertChain.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          org_id: TEST_ORG_ID,
+          member_id: '11111111-1111-4111-8111-111111111111',
+          cross_work_status: 'near_independent',
+          site_trust_status: 'stable_independent',
+          current_level: 'L3',
+        }),
+        { onConflict: 'org_id,member_id' }
+      );
+      expect(confirmationsUpsertChain.upsert).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            org_id: TEST_ORG_ID,
+            month: '2026-04',
+            member_id: '11111111-1111-4111-8111-111111111111',
+            target_type: 'big_skill',
+            target_key: 'cross_work',
+            confirmation_status: 'near_independent',
+          }),
+        ]),
+        { onConflict: 'org_id,month,member_id,target_type,target_key' }
+      );
+      expect(finalizationsUpsertChain.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          org_id: TEST_ORG_ID,
+          month: '2026-04',
+          member_id: '11111111-1111-4111-8111-111111111111',
+          work_days: 19,
+          A: 2,
+          R: 1,
+          Q: 2,
+          current_level: 'L3',
+        }),
+        { onConflict: 'org_id,month,member_id' }
+      );
+    });
+
+    it('skill.achieve 実行時に certification current state を更新する', async () => {
+      const approvedSkillProposal = makeProposal({
+        status: 'approved',
+        type: 'skill.achieve',
+        payload: {
+          member_id: '11111111-1111-4111-8111-111111111111',
+          skill_key: 'joint_finish',
+          category: 'finish',
+          status: 'verified',
+          evidence_count: 2,
+          review_required_flag: false,
+        },
+      });
+      const executedSkillProposal = {
+        ...approvedSkillProposal,
+        status: 'executed',
+        executed_at: '2026-01-02T00:00:00Z',
+        executed_by: actors.system,
+        result_event_id: TEST_EVENT_ID,
+      };
+      const skillEvent = {
+        ...ledgerEvent,
+        event_type: 'skill_achieved',
+        payload: approvedSkillProposal.payload,
+      };
+
+      const getByIdChain = createChain({ data: approvedSkillProposal, error: null });
+      const eventSelectChain = createChain({ data: null, error: null });
+      const eventInsertChain = createChain({ data: skillEvent, error: null });
+      const certificationUpsertChain = createChain({ data: null, error: null });
+      const executeUpdateChain = createChain({ data: executedSkillProposal, error: null });
+
+      setupMockFromSequence(mockFrom, [
+        getByIdChain,
+        eventSelectChain,
+        eventInsertChain,
+        certificationUpsertChain,
+        executeUpdateChain,
+      ]);
+
+      const result = await service.execute(TEST_PROPOSAL_ID, actors.system);
+
+      expect(result.status).toBe('executed');
+      expect(certificationUpsertChain.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          org_id: TEST_ORG_ID,
+          member_id: '11111111-1111-4111-8111-111111111111',
+          skill_key: 'joint_finish',
+          category: 'finish',
+          status: 'verified',
+          evidence_count: 2,
+        }),
+        { onConflict: 'org_id,member_id,skill_key' }
+      );
+    });
+
     it('冪等性: 既に executed の場合はそのまま返す', async () => {
       const chain = createChain({ data: proposals.executed, error: null });
       mockFrom.mockReturnValue(chain);
@@ -869,6 +1016,52 @@ describe('ProposalService', () => {
 
       const entries = buildEntries(proposal, event);
       expect(entries![0].accountCode).toBe('5900');
+    });
+  });
+
+  // ============================================================
+  // leave.request side effect (via private access)
+  // ============================================================
+
+  describe('applyLeaveRequest', () => {
+    const applyLeaveRequest = (proposal: any) =>
+      (service as any).applyLeaveRequest(proposal);
+
+    it('personal_schedules に承認済み休暇を新規作成する', async () => {
+      const lookupChain = createChain({ data: null, error: null });
+      const insertChain = createChain({ data: null, error: null });
+      setupMockFromSequence(mockFrom, [lookupChain, insertChain]);
+
+      const leaveProposal = makeProposal({
+        type: 'leave.request',
+        payload: {
+          user_id: '11111111-1111-4111-8111-111111111111',
+          start_date: '2026-03-01',
+          end_date: '2026-03-02',
+          leave_type: 'vacation',
+          reason: '家族都合',
+        },
+      });
+
+      await expect(applyLeaveRequest(leaveProposal)).resolves.toBeUndefined();
+      expect(mockFrom).toHaveBeenNthCalledWith(1, 'personal_schedules');
+      expect(mockFrom).toHaveBeenNthCalledWith(2, 'personal_schedules');
+      expect(insertChain.insert).toHaveBeenCalled();
+    });
+
+    it('unsupported leave_type はスキップする', async () => {
+      const leaveProposal = makeProposal({
+        type: 'leave.request',
+        payload: {
+          user_id: '11111111-1111-4111-8111-111111111111',
+          start_date: '2026-03-01',
+          end_date: '2026-03-02',
+          leave_type: 'unsupported',
+        },
+      });
+
+      await expect(applyLeaveRequest(leaveProposal)).resolves.toBeUndefined();
+      expect(mockFrom).not.toHaveBeenCalled();
     });
   });
 

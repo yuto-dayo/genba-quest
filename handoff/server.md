@@ -89,12 +89,14 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] proposal-core chunk を独立して切り出せる状態まで整理
 - [x] communications-webhook chunk を独立して切り出せる状態まで整理
 - [x] CORS origin 判定を開発用 localhost/127.0.0.1 任意ポートに対応させ、5174 の preflight 失敗を解消
 ---
 
 ## 4. Remaining（優先順位順）
 
+- [ ] **P0**: proposal-core chunk を commit して差分を減らす
 - [ ] **P0**: communications-webhook chunk を commit して差分を減らす
 - [ ] **P1**: ALLOWED_ORIGINS を本番/検証環境ドメインに明示設定して運用差分をなくす
 ---

@@ -6,13 +6,16 @@
  * 2) pending は挿入可能 / proposed は制約で拒否される
  * 3) atomic RPC (approve/reject/execute) が到達可能
  * 4) assignment.create の atomic 実行で site assignment が反映される
+ * 5) leave.request の atomic 実行で personal_schedules が承認反映される
+ * 6) 021 で削除した legacy 関数が public schema に残存していない
+ * 7) 023 の Drive/document 連携カラムと制約（null許容 + gmail添付ユニーク）が有効
  *
  * Usage:
  *   npx ts-node src/scripts/verify-a1-migration.ts
  */
 
 import "dotenv/config";
-import { randomUUID } from "crypto";
+import { randomInt, randomUUID } from "crypto";
 import { createClient } from "@supabase/supabase-js";
 
 type CheckStatus = "PASS" | "FAIL";
@@ -52,6 +55,15 @@ function getErrorCode(error: unknown): string | undefined {
     return String((error as { code: unknown }).code);
   }
   return undefined;
+}
+
+function isFunctionMissingError(error: unknown): boolean {
+  const code = getErrorCode(error);
+  const message = getErrorMessage(error);
+  return (
+    code === "PGRST202" ||
+    /Could not find the function|function .* does not exist/i.test(message)
+  );
 }
 
 function makeProposal(id: string, orgId: string, status: "pending" | "proposed") {
@@ -147,11 +159,8 @@ async function checkRpc(
     return pass(functionName, "call succeeded (function exists)");
   }
 
-  const code = getErrorCode(error);
   const message = getErrorMessage(error);
-  const functionMissing =
-    code === "PGRST202" ||
-    /Could not find the function|function .* does not exist/i.test(message);
+  const functionMissing = isFunctionMissingError(error);
   if (functionMissing) {
     return fail(functionName, `function missing: ${message}`);
   }
@@ -272,6 +281,311 @@ async function checkAssignmentAtomicSideEffect(): Promise<CheckResult> {
   }
 }
 
+function buildFutureDateRange(): { startDate: string; endDate: string } {
+  const day = randomInt(1, 27);
+  const nextDay = day + 1;
+
+  return {
+    startDate: `2099-11-${String(day).padStart(2, "0")}`,
+    endDate: `2099-11-${String(nextDay).padStart(2, "0")}`,
+  };
+}
+
+async function checkLeaveRequestAtomicSideEffect(): Promise<CheckResult> {
+  const orgId = randomUUID();
+  const proposalId = randomUUID();
+  const reasonMarker = `A-1 leave atomic check ${randomUUID()}`;
+  const { startDate, endDate } = buildFutureDateRange();
+  const executor = { type: "system", id: "a1-migration-verify", name: "A1 Migration Verify" };
+  let userId: string | null = null;
+
+  try {
+    const email = `a1-verify-leave-${randomUUID()}@example.com`;
+    const password = `P@ssword-${randomUUID()}-Aa1`;
+    const { data: userData, error: userCreateError } = await supabase.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+    });
+
+    if (userCreateError || !userData.user?.id) {
+      return fail(
+        "leave_request_atomic_side_effect",
+        `failed to create auth user: ${getErrorMessage(userCreateError)}`,
+      );
+    }
+    userId = userData.user.id;
+
+    const now = new Date().toISOString();
+    const { error: proposalInsertError } = await supabase
+      .from("proposals")
+      .insert({
+        id: proposalId,
+        org_id: orgId,
+        type: "leave.request",
+        status: "approved",
+        created_by: { type: "human", id: userId, name: "A1 Verify Creator" },
+        payload: {
+          user_id: userId,
+          start_date: startDate,
+          end_date: endDate,
+          leave_type: "vacation",
+          reason: reasonMarker,
+        },
+        description: reasonMarker,
+        required_approvals: 1,
+        approvals: [
+          {
+            actor: { type: "human", id: userId, name: "A1 Verify Approver" },
+            decision: "approve",
+            reason: "A-1 verification",
+            at: now,
+          },
+        ],
+      });
+
+    if (proposalInsertError) {
+      return fail(
+        "leave_request_atomic_side_effect",
+        `failed to insert leave.request proposal: ${getErrorMessage(proposalInsertError)}`,
+      );
+    }
+
+    const executeResult = await supabase.rpc("execute_proposal_atomic", {
+      p_org_id: orgId,
+      p_proposal_id: proposalId,
+      p_executor: executor,
+    });
+
+    if (executeResult.error) {
+      return fail(
+        "leave_request_atomic_side_effect",
+        `execute_proposal_atomic failed: ${getErrorMessage(executeResult.error)}`,
+      );
+    }
+
+    const { data: scheduleAfter, error: scheduleFetchError } = await supabase
+      .from("personal_schedules")
+      .select("approved, type, start_date, end_date")
+      .eq("user_id", userId)
+      .eq("reason", reasonMarker)
+      .single();
+
+    if (scheduleFetchError || !scheduleAfter) {
+      return fail(
+        "leave_request_atomic_side_effect",
+        `failed to fetch leave schedule: ${getErrorMessage(scheduleFetchError)}`,
+      );
+    }
+
+    if (!scheduleAfter.approved) {
+      return fail(
+        "leave_request_atomic_side_effect",
+        "personal_schedules row exists but approved is false after execute_proposal_atomic",
+      );
+    }
+
+    if (
+      scheduleAfter.type !== "vacation" ||
+      scheduleAfter.start_date !== startDate ||
+      scheduleAfter.end_date !== endDate
+    ) {
+      return fail(
+        "leave_request_atomic_side_effect",
+        "leave schedule row does not match expected type/date range",
+      );
+    }
+
+    return pass(
+      "leave_request_atomic_side_effect",
+      "leave.request atomic execution inserted approved personal_schedules row",
+    );
+  } catch (error) {
+    return fail("leave_request_atomic_side_effect", `unexpected error: ${getErrorMessage(error)}`);
+  } finally {
+    await supabase
+      .from("personal_schedules")
+      .delete()
+      .eq("reason", reasonMarker);
+    await supabase
+      .from("proposals")
+      .delete()
+      .eq("org_id", orgId)
+      .eq("id", proposalId);
+    if (userId) {
+      await supabase.auth.admin.deleteUser(userId);
+    }
+  }
+}
+
+async function checkLegacyFunctionsRemoved(): Promise<CheckResult> {
+  const checks: Array<{ name: string; args: Record<string, unknown> }> = [
+    {
+      name: "rpc_assign_random_reviewer",
+      args: { p_transaction_id: randomUUID() },
+    },
+    {
+      name: "check_schedule_conflict",
+      args: {
+        p_user_id: randomUUID(),
+        p_start_date: "2099-12-01",
+        p_end_date: "2099-12-02",
+      },
+    },
+    {
+      name: "is_feature_enabled",
+      args: {
+        p_feature_key: "gmail_auto_quest",
+        p_user_id: randomUUID(),
+      },
+    },
+  ];
+
+  const remainingFunctions: string[] = [];
+
+  for (const check of checks) {
+    const { error } = await supabase.rpc(check.name, check.args);
+
+    if (!error) {
+      remainingFunctions.push(check.name);
+      continue;
+    }
+
+    if (!isFunctionMissingError(error)) {
+      remainingFunctions.push(`${check.name}(${getErrorMessage(error)})`);
+    }
+  }
+
+  if (remainingFunctions.length > 0) {
+    return fail("legacy_functions_removed", `legacy functions still reachable: ${remainingFunctions.join(", ")}`);
+  }
+
+  return pass("legacy_functions_removed", "legacy functions are not reachable via RPC");
+}
+
+function buildPseudoSha256(seed: string): string {
+  return seed.replace(/-/g, "").padEnd(64, "0").slice(0, 64);
+}
+
+async function checkDriveAttachmentSchema023(): Promise<CheckResult> {
+  const messageId = `verify-023-msg-${randomUUID()}`;
+  const attachmentId = `verify-023-att-${randomUUID()}`;
+  const driveFileId = `verify-023-file-${randomUUID()}`;
+  const driveFolderId = `verify-023-folder-${randomUUID()}`;
+  let insertedId: string | null = null;
+
+  const cleanup = async () => {
+    await supabase
+      .from("documents")
+      .delete()
+      .eq("gmail_message_id", messageId)
+      .eq("gmail_attachment_id", attachmentId);
+  };
+
+  try {
+    const { error: documentColumnError } = await supabase
+      .from("documents")
+      .select("id,gmail_message_id,gmail_attachment_id,drive_file_id,drive_file_url,drive_folder_id,ocr_text")
+      .limit(1);
+
+    if (documentColumnError) {
+      return fail(
+        "drive_attachment_schema_023",
+        `documents drive columns are not accessible: ${getErrorMessage(documentColumnError)}`,
+      );
+    }
+
+    const { error: proposalColumnError } = await supabase
+      .from("proposals")
+      .select("id,document_id,site_id")
+      .limit(1);
+
+    if (proposalColumnError) {
+      return fail(
+        "drive_attachment_schema_023",
+        `proposals document/site columns are not accessible: ${getErrorMessage(proposalColumnError)}`,
+      );
+    }
+
+    const { data: inserted, error: firstInsertError } = await supabase
+      .from("documents")
+      .insert({
+        doc_type: "other",
+        storage_path: null,
+        uploaded_by: null,
+        original_filename: "verify-023-source.pdf",
+        mime_type: "application/pdf",
+        file_size: 1234,
+        sha256: buildPseudoSha256(randomUUID()),
+        gmail_message_id: messageId,
+        gmail_attachment_id: attachmentId,
+        drive_file_id: driveFileId,
+        drive_file_url: `https://drive.google.com/file/d/${driveFileId}/view?usp=drive_link`,
+        drive_folder_id: driveFolderId,
+      })
+      .select("id,storage_path,uploaded_by")
+      .single();
+
+    if (firstInsertError || !inserted?.id) {
+      return fail("drive_attachment_schema_023", `documents insert failed: ${getErrorMessage(firstInsertError)}`);
+    }
+
+    insertedId = inserted.id;
+
+    if (inserted.storage_path !== null || inserted.uploaded_by !== null) {
+      return fail(
+        "drive_attachment_schema_023",
+        "documents.storage_path / uploaded_by are expected nullable after 023 but non-null value was returned",
+      );
+    }
+
+    const { error: duplicateInsertError } = await supabase
+      .from("documents")
+      .insert({
+        doc_type: "other",
+        storage_path: null,
+        uploaded_by: null,
+        original_filename: "verify-023-duplicate.pdf",
+        mime_type: "application/pdf",
+        file_size: 5678,
+        sha256: buildPseudoSha256(randomUUID()),
+        gmail_message_id: messageId,
+        gmail_attachment_id: attachmentId,
+        drive_file_id: `verify-023-file-${randomUUID()}`,
+      });
+
+    if (!duplicateInsertError) {
+      return fail(
+        "drive_attachment_schema_023",
+        "duplicate gmail_message_id + gmail_attachment_id insert unexpectedly succeeded",
+      );
+    }
+
+    const duplicateMessage = getErrorMessage(duplicateInsertError);
+    if (!/duplicate key value|documents_gmail_attachment_unique_idx/i.test(duplicateMessage)) {
+      return fail(
+        "drive_attachment_schema_023",
+        `unexpected duplicate insert error: ${duplicateMessage}`,
+      );
+    }
+
+    return pass(
+      "drive_attachment_schema_023",
+      "023 columns reachable, nullable fields accepted, and gmail attachment unique index enforced",
+    );
+  } catch (error) {
+    return fail("drive_attachment_schema_023", `unexpected error: ${getErrorMessage(error)}`);
+  } finally {
+    await cleanup();
+    if (insertedId) {
+      await supabase
+        .from("documents")
+        .delete()
+        .eq("id", insertedId);
+    }
+  }
+}
+
 async function main() {
   const results: CheckResult[] = [];
   const orgId = randomUUID();
@@ -322,6 +636,9 @@ async function main() {
     ),
   );
   results.push(await checkAssignmentAtomicSideEffect());
+  results.push(await checkLeaveRequestAtomicSideEffect());
+  results.push(await checkLegacyFunctionsRemoved());
+  results.push(await checkDriveAttachmentSchema023());
 
   console.log("=== A-1 migration verification ===");
   for (const result of results) {

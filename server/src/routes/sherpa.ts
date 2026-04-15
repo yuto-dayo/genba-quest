@@ -34,6 +34,7 @@ const SHERPA_ALLOWED_PROPOSAL_TYPES: ReadonlySet<ProposalType> = new Set([
     "assignment.create",
     "assignment.update",
     "assignment.cancel",
+    "leave.request",
     "site.create",
     "site.complete",
 ]);

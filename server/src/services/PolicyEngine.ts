@@ -33,6 +33,7 @@ export type ProposalType =
   | 'assignment.create'
   | 'assignment.update'
   | 'assignment.cancel'
+  | 'leave.request'
   // コミュニケーション
   | 'communication.review'
   | 'communication.task'
@@ -41,7 +42,12 @@ export type ProposalType =
   | 'site.create'
   | 'site.complete'
   // ポリシー
-  | 'policy.update';
+  | 'policy.update'
+  // LUQO評価システム
+  | 'luqo.catalog.add'
+  | 'luqo.star.achieve'
+  | 'luqo.score.update'
+  | 'luqo.reward.calculate';
 
 export type ProposalStatus = 'draft' | 'pending' | 'approved' | 'rejected' | 'executed';
 
@@ -65,6 +71,8 @@ export interface Proposal {
   org_id: string;
   type: ProposalType;
   status: ProposalStatus;
+  document_id?: string | null;
+  site_id?: string | null;
   created_by: ActorRef;
   payload: Record<string, unknown>;
   description: string;

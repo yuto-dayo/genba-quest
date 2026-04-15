@@ -21,9 +21,12 @@ const VALID_PROPOSAL_TYPES: ReadonlySet<string> = new Set<ProposalType>([
   'skill.achieve', 'skill.revoke',
   'evaluation.submit', 'evaluation.finalize',
   'assignment.create', 'assignment.update', 'assignment.cancel',
+  'leave.request',
   'communication.review', 'communication.task', 'task.revision.request',
   'site.create', 'site.complete',
   'policy.update',
+  // LUQO評価システム
+  'luqo.catalog.add', 'luqo.star.achieve', 'luqo.score.update', 'luqo.reward.calculate',
 ]);
 const DISALLOWED_INTEGRATION_TYPES: ReadonlySet<ProposalType> = new Set<ProposalType>([
   'policy.update',
@@ -109,7 +112,7 @@ function respondMappedError(res: Response, err: unknown, errorMap: ProposalError
  */
 router.post("/", async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { type, payload, description } = req.body;
+    const { type, payload, description, document_id, site_id } = req.body;
 
     if (!type || !payload || !description) {
       res.status(400).json({ error: "type, payload, description are required" });
@@ -131,6 +134,8 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
       payload,
       description,
       created_by: buildActorRef(req),
+      document_id: normalizeString(document_id),
+      site_id: normalizeString(site_id),
     });
 
     res.status(201).json(proposal);
@@ -146,7 +151,7 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
  */
 router.post("/integration", async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { type, payload, description, source, external_id, integration_name, submit = true } = req.body as {
+    const { type, payload, description, source, external_id, integration_name, submit = true, document_id, site_id } = req.body as {
       type?: string;
       payload?: Record<string, unknown>;
       description?: string;
@@ -154,6 +159,8 @@ router.post("/integration", async (req: AuthenticatedRequest, res: Response) => 
       external_id?: string;
       integration_name?: string;
       submit?: boolean;
+      document_id?: string;
+      site_id?: string;
     };
 
     if (!type || !payload || !description || !source || !external_id) {
@@ -214,6 +221,8 @@ router.post("/integration", async (req: AuthenticatedRequest, res: Response) => 
       description: normalizedDescription,
       created_by: integrationActor,
       org_id: orgId,
+      document_id: normalizeString(document_id),
+      site_id: normalizeString(site_id),
     };
 
     if (submit) {
@@ -274,11 +283,12 @@ router.post("/integration", async (req: AuthenticatedRequest, res: Response) => 
  */
 router.get("/", async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { status, type, limit, offset } = req.query;
+    const { status, type, site_id, limit, offset } = req.query;
 
     const proposals = await getProposalService(req).list({
       status: status as ProposalStatus | undefined,
       type: type as ProposalType | undefined,
+      siteId: normalizeString(site_id),
       limit: limit ? parseInt(limit as string, 10) : undefined,
       offset: offset ? parseInt(offset as string, 10) : undefined,
     });

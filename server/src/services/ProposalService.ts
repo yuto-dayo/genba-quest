@@ -13,6 +13,12 @@ import {
   ActorRef,
   Approval,
 } from "./PolicyEngine";
+import {
+  BIG_SKILL_KEYS,
+  BIG_SKILL_STATE_OPTIONS,
+  PATH_LEVEL_OPTIONS,
+  PROFILE_CERTIFICATION_STATUS_OPTIONS,
+} from "./PathEvaluationService";
 
 // ============================================================
 // Types
@@ -25,6 +31,8 @@ export interface CreateProposalInput {
   description: string;
   created_by: ActorRef;
   org_id?: string;
+  document_id?: string | null;
+  site_id?: string | null;
 }
 
 export interface SubmitResult {
@@ -99,6 +107,9 @@ const ACCOUNT_CODES = {
   otherExpense: '5900',
 } as const;
 
+const PERSONAL_SCHEDULE_TYPES = ['vacation', 'sick_leave', 'business_trip', 'training'] as const;
+type PersonalScheduleType = typeof PERSONAL_SCHEDULE_TYPES[number];
+
 // ============================================================
 // Proposal Service
 // ============================================================
@@ -136,6 +147,8 @@ export class ProposalService {
       org_id: input.org_id || this.orgId,
       type: input.type,
       status: 'draft',
+      document_id: input.document_id || null,
+      site_id: input.site_id || null,
       created_by: input.created_by,
       payload: input.payload,
       description: input.description,
@@ -841,6 +854,9 @@ export class ProposalService {
       'invoice.mark_paid': 'payment_received',
       'reward.calculate': 'reward_calculated',
       'reward.adjust': 'reward_adjusted',
+      'skill.achieve': 'skill_achieved',
+      'skill.revoke': 'skill_revoked',
+      'evaluation.finalize': 'evaluation_finalized',
     };
     return mapping[type] || 'internal_transfer';
   }
@@ -856,6 +872,18 @@ export class ProposalService {
     switch (proposal.type) {
       case 'assignment.create':
         await this.applyAssignmentCreate(proposal.payload);
+        break;
+      case 'leave.request':
+        await this.applyLeaveRequest(proposal);
+        break;
+      case 'evaluation.finalize':
+        await this.applyEvaluationFinalize(proposal.payload, event.actor);
+        break;
+      case 'skill.achieve':
+        await this.applySkillCertification(proposal.payload, event.actor, 'verified');
+        break;
+      case 'skill.revoke':
+        await this.applySkillCertification(proposal.payload, event.actor, 'revoked');
         break;
       default:
         // Proposal/Eventが正本のため、他タイプは現時点で追加副作用なし
@@ -1087,6 +1115,7 @@ export class ProposalService {
       .from('sites')
       .select('id, assigned_users')
       .eq('id', siteId)
+      .eq('org_id', this.orgId)
       .maybeSingle();
 
     if (siteError) {
@@ -1106,7 +1135,8 @@ export class ProposalService {
     const { error: updateSiteError } = await supabaseAdmin
       .from('sites')
       .update({ assigned_users: mergedAssigned })
-      .eq('id', siteId);
+      .eq('id', siteId)
+      .eq('org_id', this.orgId);
 
     if (updateSiteError) {
       throw new Error(`Failed to update site assignment: ${updateSiteError.message}`);
@@ -1120,6 +1150,330 @@ export class ProposalService {
     if (updateProfileError) {
       throw new Error(`Failed to update worker assignment: ${updateProfileError.message}`);
     }
+  }
+
+  private async applyEvaluationFinalize(
+    payload: Record<string, unknown>,
+    actor: ActorRef
+  ): Promise<void> {
+    const memberId = this.getPayloadString(payload, ['member_id', 'memberId', 'target_member_id']);
+    const month = this.getPayloadString(payload, ['month', 'review_month']);
+    const statesCandidate = (
+      payload.confirmed_big_skill_states ||
+      payload.big_skill_states ||
+      payload.states
+    );
+    const currentLevel = this.getPayloadString(payload, ['current_level', 'level']);
+    const comment = this.getPayloadString(payload, ['comment', 'reason_summary']) || '';
+    const workDays = this.toNumber(payload.work_days ?? payload.workDays) ?? 0;
+    const scoreA = this.toNumber(payload.A ?? payload.a_score ?? payload.a) ?? 1;
+    const scoreR = this.toNumber(payload.R ?? payload.r_score ?? payload.r) ?? 1;
+    const scoreQ = this.toNumber(payload.Q ?? payload.q_score ?? payload.q) ?? 1;
+
+    if (!memberId || !this.isUuid(memberId)) {
+      console.warn('[ProposalService] evaluation.finalize skipped: valid member_id not found');
+      return;
+    }
+
+    if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+      console.warn('[ProposalService] evaluation.finalize skipped: valid month not found');
+      return;
+    }
+
+    const normalizedStates =
+      statesCandidate && typeof statesCandidate === 'object' && !Array.isArray(statesCandidate)
+        ? Object.entries(statesCandidate as Record<string, unknown>).reduce<Record<string, string>>(
+            (acc, [key, value]) => {
+              if (
+                BIG_SKILL_KEYS.includes(key as (typeof BIG_SKILL_KEYS)[number]) &&
+                typeof value === 'string' &&
+                BIG_SKILL_STATE_OPTIONS.includes(value as (typeof BIG_SKILL_STATE_OPTIONS)[number])
+              ) {
+                acc[key] = value;
+              }
+              return acc;
+            },
+            {}
+          )
+        : {};
+
+    if (Object.keys(normalizedStates).length === 0 && !currentLevel) {
+      console.warn('[ProposalService] evaluation.finalize skipped: no confirmed states/current level');
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const profileUpdate: Record<string, unknown> = {
+      org_id: this.orgId,
+      member_id: memberId,
+      updated_at: now,
+    };
+
+    for (const [key, value] of Object.entries(normalizedStates)) {
+      profileUpdate[`${key}_status`] = value;
+    }
+
+    if (currentLevel && PATH_LEVEL_OPTIONS.includes(currentLevel as (typeof PATH_LEVEL_OPTIONS)[number])) {
+      profileUpdate.current_level = currentLevel;
+      profileUpdate.current_level_since = now;
+    }
+
+    const { error: profileError } = await supabaseAdmin
+      .from('member_skill_profiles')
+      .upsert(profileUpdate, { onConflict: 'org_id,member_id' });
+
+    if (profileError) {
+      throw new Error(`Failed to upsert member skill profile: ${profileError.message}`);
+    }
+
+    const confirmationRows = Object.entries(normalizedStates).map(([key, value]) => ({
+      org_id: this.orgId,
+      month,
+      member_id: memberId,
+      target_type: 'big_skill',
+      target_key: key,
+      confirmation_status: value,
+      comment,
+      confirmed_by: actor,
+      confirmed_at: now,
+      updated_at: now,
+    }));
+
+    if (confirmationRows.length > 0) {
+      const { error: confirmationError } = await supabaseAdmin
+        .from('monthly_evaluation_confirmations')
+        .upsert(confirmationRows, {
+          onConflict: 'org_id,month,member_id,target_type,target_key',
+        });
+
+      if (confirmationError) {
+        throw new Error(
+          `Failed to upsert monthly evaluation confirmations: ${confirmationError.message}`
+        );
+      }
+    }
+
+    const finalizedBy = actor;
+    const { error: finalizationError } = await supabaseAdmin
+      .from('monthly_evaluation_finalizations')
+      .upsert(
+        {
+          org_id: this.orgId,
+          month,
+          member_id: memberId,
+          proposal_id: this.getPayloadString(payload, ['proposal_id']) ?? null,
+          confirmed_big_skill_states: normalizedStates,
+          work_days: Number.isFinite(workDays) && workDays >= 0 ? Math.floor(workDays) : 0,
+          A: Number.isFinite(scoreA) ? Math.max(0, Math.min(2, Math.floor(scoreA))) : 1,
+          R: Number.isFinite(scoreR) ? Math.max(0, Math.min(2, Math.floor(scoreR))) : 1,
+          Q: Number.isFinite(scoreQ) ? Math.max(0, Math.min(2, Math.floor(scoreQ))) : 1,
+          current_level:
+            currentLevel && PATH_LEVEL_OPTIONS.includes(currentLevel as (typeof PATH_LEVEL_OPTIONS)[number])
+              ? currentLevel
+              : null,
+          comment,
+          finalized_by: finalizedBy,
+          finalized_at: now,
+          updated_at: now,
+        },
+        { onConflict: 'org_id,month,member_id' }
+      );
+
+    if (finalizationError) {
+      throw new Error(
+        `Failed to upsert monthly evaluation finalization: ${finalizationError.message}`
+      );
+    }
+  }
+
+  private async applySkillCertification(
+    payload: Record<string, unknown>,
+    actor: ActorRef,
+    defaultStatus: 'verified' | 'revoked'
+  ): Promise<void> {
+    const memberId = this.getPayloadString(payload, ['member_id', 'memberId', 'target_member_id']);
+    const skillKey = this.getPayloadString(payload, ['skill_key', 'skillKey', 'target_key']);
+    const category = this.getPayloadString(payload, ['category', 'skill_category']);
+    const status =
+      this.getPayloadString(payload, ['status', 'certification_status']) || defaultStatus;
+    const note = this.getPayloadString(payload, ['note', 'comment', 'reason']) || '';
+    const lastSiteId = this.getPayloadString(payload, ['last_site_id', 'lastSiteId']);
+    const evidenceCount = this.toNumber(payload.evidence_count ?? payload.evidenceCount) ?? 0;
+    const reviewRequiredFlag = Boolean(
+      payload.review_required_flag ?? payload.reviewRequiredFlag ?? false
+    );
+
+    if (!memberId || !this.isUuid(memberId)) {
+      console.warn('[ProposalService] skill certification skipped: valid member_id not found');
+      return;
+    }
+
+    if (!skillKey || !category) {
+      console.warn('[ProposalService] skill certification skipped: skill_key/category not found');
+      return;
+    }
+
+    if (
+      !PROFILE_CERTIFICATION_STATUS_OPTIONS.includes(
+        status as (typeof PROFILE_CERTIFICATION_STATUS_OPTIONS)[number]
+      )
+    ) {
+      console.warn('[ProposalService] skill certification skipped: invalid status');
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const { error } = await supabaseAdmin
+      .from('member_skill_certifications')
+      .upsert(
+        {
+          org_id: this.orgId,
+          member_id: memberId,
+          skill_key: skillKey,
+          category,
+          status,
+          verified_by: actor,
+          verified_at: now,
+          evidence_count: Math.max(0, Math.round(evidenceCount)),
+          last_site_id: lastSiteId && this.isUuid(lastSiteId) ? lastSiteId : null,
+          note,
+          review_required_flag: reviewRequiredFlag,
+          updated_at: now,
+        },
+        { onConflict: 'org_id,member_id,skill_key' }
+      );
+
+    if (error) {
+      throw new Error(`Failed to upsert member skill certification: ${error.message}`);
+    }
+  }
+
+  private async applyLeaveRequest(proposal: Proposal): Promise<void> {
+    const payload = proposal.payload;
+    const createdByUserId =
+      proposal.created_by.type === 'human' && this.isUuid(proposal.created_by.id)
+        ? proposal.created_by.id
+        : null;
+    const userId =
+      this.getPayloadString(payload, ['user_id', 'userId', 'target_user_id', 'targetUserId']) ||
+      createdByUserId;
+    if (!userId || !this.isUuid(userId)) {
+      console.warn('[ProposalService] leave.request skipped: valid user_id not found');
+      return;
+    }
+
+    const startDate = this.normalizeDateString(
+      this.getPayloadString(payload, ['start_date', 'startDate', 'date']),
+    );
+    const endDate =
+      this.normalizeDateString(this.getPayloadString(payload, ['end_date', 'endDate'])) || startDate;
+    if (!startDate || !endDate || startDate > endDate) {
+      console.warn('[ProposalService] leave.request skipped: invalid start_date/end_date');
+      return;
+    }
+
+    const scheduleType = this.resolvePersonalScheduleType(payload);
+    if (!scheduleType) {
+      console.warn('[ProposalService] leave.request skipped: unsupported leave_type');
+      return;
+    }
+
+    const reason =
+      this.getPayloadString(payload, ['reason', 'note']) ||
+      this.getPayloadString(payload, ['description']) ||
+      proposal.description;
+
+    const { data: existing, error: existingError } = await supabaseAdmin
+      .from('personal_schedules')
+      .select('id, approved')
+      .eq('user_id', userId)
+      .eq('start_date', startDate)
+      .eq('end_date', endDate)
+      .eq('type', scheduleType)
+      .maybeSingle();
+
+    if (existingError) {
+      throw new Error(`Failed to lookup leave request schedule: ${existingError.message}`);
+    }
+
+    if (existing) {
+      if (existing.approved === true) {
+        return;
+      }
+
+      const updatePayload: Record<string, unknown> = {
+        approved: true,
+        updated_at: new Date().toISOString(),
+      };
+      if (reason) {
+        updatePayload.reason = reason;
+      }
+
+      const { error: updateError } = await supabaseAdmin
+        .from('personal_schedules')
+        .update(updatePayload)
+        .eq('id', existing.id);
+
+      if (updateError) {
+        throw new Error(`Failed to approve existing leave schedule: ${updateError.message}`);
+      }
+      return;
+    }
+
+    const insertPayload: Record<string, unknown> = {
+      user_id: userId,
+      start_date: startDate,
+      end_date: endDate,
+      type: scheduleType,
+      approved: true,
+      updated_at: new Date().toISOString(),
+    };
+    if (reason) {
+      insertPayload.reason = reason;
+    }
+
+    const { error: insertError } = await supabaseAdmin
+      .from('personal_schedules')
+      .insert(insertPayload);
+
+    if (insertError) {
+      throw new Error(`Failed to create leave schedule: ${insertError.message}`);
+    }
+  }
+
+  private resolvePersonalScheduleType(payload: Record<string, unknown>): PersonalScheduleType | null {
+    const rawType =
+      this.getPayloadString(payload, ['leave_type', 'leaveType', 'schedule_type', 'scheduleType', 'type']) ||
+      'vacation';
+    const normalized = rawType.toLowerCase();
+
+    if (PERSONAL_SCHEDULE_TYPES.includes(normalized as PersonalScheduleType)) {
+      return normalized as PersonalScheduleType;
+    }
+
+    if (['leave', 'holiday'].includes(normalized)) {
+      return 'vacation';
+    }
+    if (['sick', 'sickleave'].includes(normalized)) {
+      return 'sick_leave';
+    }
+    if (['trip', 'business-trip', 'businesstrip'].includes(normalized)) {
+      return 'business_trip';
+    }
+
+    return null;
+  }
+
+  private normalizeDateString(value: string | null): string | null {
+    if (!value) {
+      return null;
+    }
+
+    const normalized = value.trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+      return null;
+    }
+    return normalized;
   }
 
   private extractWorkerIds(payload: Record<string, unknown>): string[] {
@@ -1331,6 +1685,7 @@ export class ProposalService {
   async list(options: {
     status?: ProposalStatus | ProposalStatus[];
     type?: ProposalType | ProposalType[];
+    siteId?: string | null;
     limit?: number;
     offset?: number;
   } = {}): Promise<Proposal[]> {
@@ -1354,6 +1709,10 @@ export class ProposalService {
       } else {
         query = query.eq('type', options.type);
       }
+    }
+
+    if (options.siteId) {
+      query = query.eq('site_id', options.siteId);
     }
 
     if (options.limit) {
