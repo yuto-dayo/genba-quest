@@ -51,6 +51,7 @@
 - 適用後の自動検証スクリプト
   - `server/src/scripts/verify-a1-migration.ts`
   - `server/src/scripts/verify-a1-health.ts`
+  - `verify-a1-migration` は assignment.create / leave.request の atomic 副作用に加え、021で削除した legacy 関数の残存も確認
 - サービス層はRPC優先 + フォールバック構成
   - `server/src/services/ProposalService.ts`
 - フォールバック削減方針を feature flag 化
@@ -61,6 +62,7 @@
   - `server/src/routes/proposals.ts`
 - 統合テスト整備（DB統合）
   - `server/src/__tests__/integration/executeProposalAtomic.integration.test.ts`
+  - `server/src/__tests__/integration/executeProposalAtomicLeaveRequest.integration.test.ts`
   - `server/src/__tests__/integration/approveProposalAtomic.integration.test.ts`
   - `server/src/__tests__/integration/rejectProposalAtomic.integration.test.ts`
   - `server/src/__tests__/integration/proposalsApi.integration.test.ts`
@@ -99,6 +101,8 @@
   - `frontend/src/components/ApprovalCard.tsx`
   - `frontend/src/components/FloatingActionButton.tsx`
   - `frontend/src/components/SherpaChat.tsx`
+- 現場シミュレーターのアーキテクチャ計画を策定
+  - `docs/PHASE_C_ASSIGNMENT_SIMULATOR_ARCHITECTURE.md`
 
 ---
 
@@ -130,6 +134,12 @@
 1. Today/Calendar/Sites/MoneyをProposal read modelに統一接続
 2. 承認待ち一覧→詳細→承認/却下のワンタップ導線を完了
 3. リアルタイム更新の反映基準を決めて実装
+4. 現場シミュレーター実装を以下の順で実施
+   - C1: Read Model/API土台
+   - C2: Drag&DropシミュレーターUI
+   - C3: Commit→Proposal化（override対応）
+   - C4: Ledger/月次報酬Proposal連携
+   - C5: E2E/運用Runbook/監視整備
 
 ## M4: D着手（高度機能）
 
