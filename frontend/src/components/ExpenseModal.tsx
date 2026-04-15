@@ -24,12 +24,24 @@ import {
 import { getErrorMessage } from "../lib/error";
 import { OcrHighlight } from "./OcrHighlight";
 import { JournalPreview } from "./JournalPreview";
-import { generateExpenseJournalLines } from "./journalLines";
+import { generateExpenseJournalLines, normalizeNetSubtotal, type ExpenseCategory } from "./journalLines";
 import styles from "./ExpenseModal.module.css";
 
 interface ExpenseModalProps {
     onClose: () => void;
     onSuccess: () => void;
+    initialSiteId?: string;
+    initialCategory?: ExpenseCategory;
+    initialTaxCategory?: "10_STANDARD" | "08_REDUCED" | "00_EXEMPT" | "00_TAXFREE";
+    initialVendorName?: string;
+    initialRecordedDate?: string;
+    initialAmountSubtotal?: string;
+    initialTaxAmount?: string;
+    initialAmountTotal?: string;
+    initialDescription?: string;
+    initialCostCenter?: "HQ" | "SITE";
+    initialExpenseItemCode?: string;
+    initialExpenseItemOther?: string;
 }
 
 type Step = "upload" | "ocr" | "form";
@@ -41,11 +53,53 @@ const CATEGORIES = [
     { value: "food", label: "食費・会議費" },
     { value: "fuel", label: "燃料費" },
     { value: "utility", label: "光熱費" },
-    { value: "other", label: "その他" },
+    { value: "other", label: "雑費・その他" },
 ];
 
-export function ExpenseModal({ onClose, onSuccess }: ExpenseModalProps) {
-    const [step, setStep] = useState<Step>("upload");
+const TAX_CATEGORIES = [
+    { value: "10_STANDARD", label: "課税 10%" },
+    { value: "08_REDUCED", label: "軽減 8%" },
+    { value: "00_EXEMPT", label: "非課税" },
+    { value: "00_TAXFREE", label: "不課税" },
+] as const;
+
+const MISC_ITEM_OPTIONS = [
+    { value: "parking", label: "駐車場代" },
+    { value: "toll", label: "高速代" },
+    { value: "consumable", label: "消耗品" },
+    { value: "cleaning", label: "清掃・片付け" },
+    { value: "waste", label: "処分費" },
+    { value: "fee", label: "手数料" },
+    { value: "other", label: "その他" },
+] as const;
+
+function isZeroTaxCategory(taxCategory: string): boolean {
+    return taxCategory === "00_EXEMPT" || taxCategory === "00_TAXFREE";
+}
+
+export function ExpenseModal({
+    onClose,
+    onSuccess,
+    initialSiteId = "",
+    initialCategory = "other",
+    initialTaxCategory = "00_TAXFREE",
+    initialVendorName = "",
+    initialRecordedDate,
+    initialAmountSubtotal = "",
+    initialTaxAmount = "",
+    initialAmountTotal = "",
+    initialDescription = "",
+    initialCostCenter = "SITE",
+    initialExpenseItemCode = "",
+    initialExpenseItemOther = "",
+}: ExpenseModalProps) {
+    const hasPrefilledForm = Boolean(
+        initialVendorName
+        || initialDescription
+        || initialAmountSubtotal
+        || initialAmountTotal
+    );
+    const [step, setStep] = useState<Step>(hasPrefilledForm ? "form" : "upload");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -60,15 +114,18 @@ export function ExpenseModal({ onClose, onSuccess }: ExpenseModalProps) {
 
     // フォーム
     const [formData, setFormData] = useState({
-        vendor_name: "",
-        recorded_date: new Date().toISOString().split("T")[0],
-        amount_subtotal: "",
-        tax_amount: "",
-        amount_total: "",
-        category: "other",
-        description: "",
-        cost_center: "SITE" as "HQ" | "SITE",
-        site_id: "" as string,
+        vendor_name: initialVendorName,
+        recorded_date: initialRecordedDate || new Date().toISOString().split("T")[0],
+        amount_subtotal: initialAmountSubtotal,
+        tax_amount: initialTaxAmount,
+        amount_total: initialAmountTotal,
+        category: initialCategory,
+        tax_category: initialTaxCategory,
+        expense_item_code: initialExpenseItemCode,
+        expense_item_other: initialExpenseItemOther,
+        description: initialDescription,
+        cost_center: initialCostCenter,
+        site_id: initialSiteId,
         invoice_number: "",
         payment_method: "cash" as "cash" | "card" | "transfer" | "other",
     });
@@ -129,55 +186,42 @@ export function ExpenseModal({ onClose, onSuccess }: ExpenseModalProps) {
     // 税率・金額整合性チェック
     const validationWarnings = useMemo(() => {
         const warnings: string[] = [];
-        const subtotal = Number(formData.amount_subtotal) || 0;
+        const rawSubtotal = Number(formData.amount_subtotal) || 0;
         const tax = Number(formData.tax_amount) || 0;
         const total = Number(formData.amount_total) || 0;
+        const zeroTax = isZeroTaxCategory(formData.tax_category);
+        const subtotal = normalizeNetSubtotal(rawSubtotal, tax, total);
 
-        if (subtotal > 0 && tax > 0 && total > 0) {
-            // 金額整合性チェック
+        if (subtotal > 0 && total > 0) {
             const calculatedTotal = subtotal + tax;
             if (Math.abs(calculatedTotal - total) > 1) {
                 warnings.push(`小計(${subtotal}) + 消費税(${tax}) = ${calculatedTotal} ≠ 合計(${total})`);
             }
+        }
 
-            // 税率チェック（10%または8%）
-            const rate10 = subtotal * 0.1;
-            const rate8 = subtotal * 0.08;
-            const tolerance = 2; // 端数誤差許容
+        if (zeroTax && tax > 0) {
+            warnings.push("非課税・不課税では消費税は 0 円になります");
+        }
 
-            if (Math.abs(tax - rate10) > tolerance && Math.abs(tax - rate8) > tolerance) {
-                warnings.push(`税額が10%（¥${Math.round(rate10)}）にも8%（¥${Math.round(rate8)}）にも一致しません`);
+        if (!zeroTax && subtotal > 0 && tax > 0) {
+            const expectedTax = formData.tax_category === "08_REDUCED" ? subtotal * 0.08 : subtotal * 0.1;
+            if (Math.abs(tax - expectedTax) > 2) {
+                warnings.push(`税額が選択した税区分（¥${Math.round(expectedTax)}）と一致しません`);
             }
         }
 
         return warnings;
-    }, [formData.amount_subtotal, formData.tax_amount, formData.amount_total]);
-
-    // 推定税率を計算
-    const estimatedTaxRate = useMemo(() => {
-        const subtotal = Number(formData.amount_subtotal) || 0;
-        const tax = Number(formData.tax_amount) || 0;
-        if (subtotal <= 0 || tax <= 0) return null;
-
-        const rate10 = subtotal * 0.1;
-        const rate8 = subtotal * 0.08;
-
-        if (Math.abs(tax - rate10) <= 2) return "10%";
-        if (Math.abs(tax - rate8) <= 2) return "8%";
-        return null;
-    }, [formData.amount_subtotal, formData.tax_amount]);
+    }, [formData.amount_subtotal, formData.tax_amount, formData.amount_total, formData.tax_category]);
 
     // 仕訳プレビュー用のライン生成
     const journalLines = useMemo(() => {
-        const subtotal = Number(formData.amount_subtotal) || 0;
+        const rawSubtotal = Number(formData.amount_subtotal) || 0;
         const tax = Number(formData.tax_amount) || 0;
         const total = Number(formData.amount_total) || 0;
+        const subtotal = normalizeNetSubtotal(rawSubtotal, tax, total);
 
-        // 税区分を推定（8%か10%か）
-        const taxCategory = estimatedTaxRate === "8%" ? "08_REDUCED" : "10_STANDARD";
-
-        return generateExpenseJournalLines(subtotal, tax, total, taxCategory);
-    }, [formData.amount_subtotal, formData.tax_amount, formData.amount_total, estimatedTaxRate]);
+        return generateExpenseJournalLines(subtotal, tax, total, formData.tax_category, formData.category as ExpenseCategory);
+    }, [formData.amount_subtotal, formData.tax_amount, formData.amount_total, formData.category, formData.tax_category]);
 
     // ファイル選択ハンドラ
     const handleFileSelect = async (file: File) => {
@@ -265,6 +309,25 @@ export function ExpenseModal({ onClose, onSuccess }: ExpenseModalProps) {
             newSources.amount_total = "ocr";
         }
 
+        const rawSubtotal = Number(newFormData.amount_subtotal) || 0;
+        const tax = Number(newFormData.tax_amount) || 0;
+        const total = Number(newFormData.amount_total) || 0;
+        const normalizedSubtotal = normalizeNetSubtotal(rawSubtotal, tax, total);
+
+        if (normalizedSubtotal > 0) {
+            newFormData.amount_subtotal = String(normalizedSubtotal);
+        }
+
+        if (normalizedSubtotal > 0 && tax > 0) {
+            const rate10 = normalizedSubtotal * 0.1;
+            const rate8 = normalizedSubtotal * 0.08;
+            if (Math.abs(tax - rate8) <= 2) {
+                newFormData.tax_category = "08_REDUCED";
+            } else if (Math.abs(tax - rate10) <= 2) {
+                newFormData.tax_category = "10_STANDARD";
+            }
+        }
+
         // インボイス登録番号
         const invoiceNum = fields.invoice_number as { value?: string | number } | undefined;
         if (invoiceNum?.value) {
@@ -278,7 +341,32 @@ export function ExpenseModal({ onClose, onSuccess }: ExpenseModalProps) {
 
     // フォーム変更
     const handleInputChange = (field: string, value: string) => {
-        setFormData((prev) => ({ ...prev, [field]: value }));
+        setFormData((prev) => {
+            const next = { ...prev, [field]: value };
+
+            if (field === "category") {
+                const nextCategory = value;
+                if (nextCategory !== "other") {
+                    next.expense_item_code = "";
+                    next.expense_item_other = "";
+                    if (prev.tax_category === "00_TAXFREE" && !prev.tax_amount) {
+                        next.tax_category = "10_STANDARD";
+                    }
+                } else if (!prev.tax_amount) {
+                    next.tax_category = "00_TAXFREE";
+                }
+            }
+
+            if (field === "tax_category" && isZeroTaxCategory(value)) {
+                next.tax_amount = "";
+            }
+
+            if (field === "expense_item_code" && value !== "other") {
+                next.expense_item_other = "";
+            }
+
+            return next;
+        });
         setInputSources((prev) => ({ ...prev, [field]: "manual" }));
     };
 
@@ -302,6 +390,11 @@ export function ExpenseModal({ onClose, onSuccess }: ExpenseModalProps) {
             return;
         }
 
+        if (formData.category === "other" && formData.expense_item_code === "other" && !formData.expense_item_other.trim()) {
+            setError("雑費で「その他」を選んだ場合は内容を入力してください");
+            return;
+        }
+
         setLoading(true);
         setError(null);
 
@@ -315,6 +408,11 @@ export function ExpenseModal({ onClose, onSuccess }: ExpenseModalProps) {
                 tax_amount: formData.tax_amount ? Number(formData.tax_amount) : undefined,
                 amount_total: Number(formData.amount_total),
                 category: formData.category,
+                tax_category: formData.tax_category,
+                expense_item_code: formData.category === "other" ? formData.expense_item_code || undefined : undefined,
+                expense_item_other: formData.category === "other" && formData.expense_item_code === "other"
+                    ? formData.expense_item_other.trim() || undefined
+                    : undefined,
                 description: formData.description || undefined,
                 cost_center: formData.cost_center,
                 site_id: formData.cost_center === "SITE" ? formData.site_id : undefined,
@@ -337,6 +435,15 @@ export function ExpenseModal({ onClose, onSuccess }: ExpenseModalProps) {
         if (file) handleFileSelect(file);
     };
 
+    const openFilePicker = () => {
+        if (!fileInputRef.current) {
+            return;
+        }
+
+        fileInputRef.current.value = "";
+        fileInputRef.current.click();
+    };
+
     return (
         <motion.div
             className={styles.overlay}
@@ -350,9 +457,9 @@ export function ExpenseModal({ onClose, onSuccess }: ExpenseModalProps) {
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="expense-modal-title"
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
+                initial={{ opacity: 0, y: 32 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 24 }}
                 onClick={(e) => e.stopPropagation()}
             >
                 <header className={styles.header}>
@@ -372,23 +479,24 @@ export function ExpenseModal({ onClose, onSuccess }: ExpenseModalProps) {
                 <div className={styles.content}>
                     {/* 左側: 画像/OCR */}
                     <div className={styles.imageSection}>
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*,application/pdf"
+                            onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handleFileSelect(file);
+                            }}
+                            className={styles.fileInput}
+                        />
+
                         {step === "upload" && !loading && (
                             <div
                                 className={styles.dropzone}
                                 onDrop={handleDrop}
                                 onDragOver={(e) => e.preventDefault()}
-                                onClick={() => fileInputRef.current?.click()}
+                                onClick={openFilePicker}
                             >
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept="image/*,application/pdf"
-                                    onChange={(e) => {
-                                        const file = e.target.files?.[0];
-                                        if (file) handleFileSelect(file);
-                                    }}
-                                    className={styles.fileInput}
-                                />
                                 <Upload size={48} className={styles.dropzoneIcon} />
                                 <p className={styles.dropzoneText}>
                                     レシート・領収書をドロップ
@@ -424,8 +532,27 @@ export function ExpenseModal({ onClose, onSuccess }: ExpenseModalProps) {
                         )}
 
                         {!imagePreview && step === "form" && (
-                            <div className={styles.noImage}>
-                                <p>画像なしで登録</p>
+                            <div
+                                className={styles.noImage}
+                                onDrop={handleDrop}
+                                onDragOver={(e) => e.preventDefault()}
+                            >
+                                <Upload size={28} className={styles.noImageIcon} />
+                                <p className={styles.noImageTitle}>画像を添付して入力補完</p>
+                                <p className={styles.noImageText}>
+                                    現場はこのまま保持したまま、レシートから取引先名・日付・金額をOCRで補完できます。
+                                </p>
+                                <button
+                                    type="button"
+                                    className={styles.attachButton}
+                                    onClick={openFilePicker}
+                                >
+                                    <Camera size={16} />
+                                    レシートを添付
+                                </button>
+                                <span className={styles.noImageHint}>
+                                    JPEG / PNG / WebP / HEIC / PDF
+                                </span>
                             </div>
                         )}
                     </div>
@@ -486,6 +613,42 @@ export function ExpenseModal({ onClose, onSuccess }: ExpenseModalProps) {
                             </div>
                         </div>
 
+                        {formData.category === "other" && (
+                            <>
+                                <div className={styles.formGroup}>
+                                    <label className={styles.label}>雑費項目</label>
+                                    <select
+                                        className={styles.select}
+                                        value={formData.expense_item_code}
+                                        onChange={(e) => handleInputChange("expense_item_code", e.target.value)}
+                                    >
+                                        <option value="">選択してください</option>
+                                        {MISC_ITEM_OPTIONS.map((option) => (
+                                            <option key={option.value} value={option.value}>
+                                                {option.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <span className={styles.fieldHint}>
+                                        頻度の高い雑費を選んでおくと後で集計しやすくなります。
+                                    </span>
+                                </div>
+
+                                {formData.expense_item_code === "other" && (
+                                    <div className={styles.formGroup}>
+                                        <label className={styles.label}>雑費内容</label>
+                                        <input
+                                            type="text"
+                                            className={styles.input}
+                                            value={formData.expense_item_other}
+                                            onChange={(e) => handleInputChange("expense_item_other", e.target.value)}
+                                            placeholder="例: 現場まわりの立替雑費"
+                                        />
+                                    </div>
+                                )}
+                            </>
+                        )}
+
                         {/* 商品明細 */}
                         {ocrFields?.items && ocrFields.items.length > 0 && (
                             <div className={styles.lineItems}>
@@ -530,20 +693,30 @@ export function ExpenseModal({ onClose, onSuccess }: ExpenseModalProps) {
                             </div>
 
                             <div className={styles.formGroup}>
+                                <label className={styles.label}>税区分</label>
+                                <select
+                                    className={styles.select}
+                                    value={formData.tax_category}
+                                    onChange={(e) => handleInputChange("tax_category", e.target.value)}
+                                >
+                                    {TAX_CATEGORIES.map((taxCategory) => (
+                                        <option key={taxCategory.value} value={taxCategory.value}>
+                                            {taxCategory.label}
+                                        </option>
+                                    ))}
+                                </select>
+                                <span className={styles.fieldHint}>
+                                    {formData.category === "other"
+                                        ? "雑費は税なし前提で初期設定しています。必要なら変更してください。"
+                                        : "領収書に合わせて税区分を選択してください。"}
+                                </span>
+                            </div>
+
+                            <div className={styles.formGroup}>
                                 <label className={styles.label}>
                                     消費税
                                     {inputSources.tax_amount === "ocr" && (
                                         <span className={styles.ocrBadge}>OCR</span>
-                                    )}
-                                    {estimatedTaxRate && (
-                                        <span
-                                            className={`${styles.taxRateBadge} ${estimatedTaxRate === "8%"
-                                                ? styles.reduced
-                                                : styles.standard
-                                                }`}
-                                        >
-                                            {estimatedTaxRate}
-                                        </span>
                                     )}
                                 </label>
                                 <input
@@ -556,6 +729,7 @@ export function ExpenseModal({ onClose, onSuccess }: ExpenseModalProps) {
                                     onMouseEnter={() => handleFieldHover("tax_amount")}
                                     onMouseLeave={() => handleFieldHover(null)}
                                     placeholder="0"
+                                    disabled={isZeroTaxCategory(formData.tax_category)}
                                 />
                             </div>
                         </div>

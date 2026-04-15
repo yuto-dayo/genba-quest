@@ -152,6 +152,25 @@
     margin: 0 0 8px 0;
 }
 
+.driveLink {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 12px;
+    border-radius: var(--md-sys-shape-corner-medium);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background: var(--md-sys-color-surface-container-low);
+    color: var(--md-sys-color-primary);
+    font: var(--md-sys-typescale-label-large);
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.driveLink:hover {
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
+}
+
 .payloadGrid {
     display: grid;
     grid-template-columns: auto 1fr;

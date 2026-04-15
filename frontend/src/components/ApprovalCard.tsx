@@ -5,6 +5,7 @@ import {
     XCircle,
     AlertTriangle,
     Image as ImageIcon,
+    ExternalLink,
     Loader2,
     ChevronDown,
     ChevronUp,
@@ -116,7 +117,22 @@ export function ApprovalCard({ transaction, onComplete }: ApprovalCardProps) {
                     exit={{ opacity: 0, height: 0 }}
                 >
                     {/* 証憑画像 */}
-                    {transaction.source_document?.storage_path ? (
+                    {transaction.source_document?.drive_file_url ? (
+                        <div className={styles.documentPreview}>
+                            <ImageIcon size={16} />
+                            <span>Drive原本あり</span>
+                            <a
+                                className={styles.documentLink}
+                                href={transaction.source_document.drive_file_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <ExternalLink size={14} />
+                                開く
+                            </a>
+                        </div>
+                    ) : transaction.source_document?.storage_path ? (
                         <div className={styles.documentPreview}>
                             <ImageIcon size={16} />
                             <span>証憑画像あり</span>

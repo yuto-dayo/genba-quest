@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import {
     RefreshCw,
     Receipt,
@@ -15,6 +16,7 @@ import {
     ChevronLeft,
     Search,
     FilterX,
+    Settings2,
 } from "lucide-react";
 import {
     fetchPL,
@@ -29,7 +31,10 @@ import { getErrorMessage } from "../lib/error";
 import { ExpenseModal } from "../components/ExpenseModal";
 import { SalesModal } from "../components/SalesModal";
 import { InvoiceModal } from "../components/InvoiceModal";
+import { InvoiceListPanel } from "../components/InvoiceListPanel";
+import { TransactionDetailModal } from "../components/TransactionDetailModal";
 import { ApprovalCard } from "../components/ApprovalCard";
+import { FloatingActionButton } from "../components/FloatingActionButton";
 import styles from "./Money.module.css";
 
 // 日付フォーマットヘルパー (YYYY/MM/DD)
@@ -45,6 +50,33 @@ interface SearchFilters {
     dateFrom: string;
     dateTo: string;
     query: string;
+}
+
+interface ExpenseCorrectionDraft {
+    siteId?: string;
+    category?: "material" | "tool" | "travel" | "food" | "fuel" | "utility" | "other";
+    taxCategory?: "10_STANDARD" | "08_REDUCED" | "00_EXEMPT" | "00_TAXFREE";
+    vendorName?: string;
+    recordedDate?: string;
+    amountSubtotal?: string;
+    taxAmount?: string;
+    amountTotal?: string;
+    description?: string;
+    costCenter?: "HQ" | "SITE";
+    expenseItemCode?: string;
+    expenseItemOther?: string;
+}
+
+interface SalesCorrectionDraft {
+    siteId?: string;
+    recordedDate?: string;
+    description?: string;
+    items?: Array<{
+        item_name: string;
+        quantity: number | null;
+        unit_name: string;
+        unit_price: number | null;
+    }>;
 }
 
 // 日付プリセットの計算
@@ -100,6 +132,7 @@ const useIsMobile = () => {
 };
 
 export function Money() {
+    const navigate = useNavigate();
     const isMobile = useIsMobile();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -129,6 +162,10 @@ export function Money() {
     const [showExpenseModal, setShowExpenseModal] = useState(false);
     const [showSalesModal, setShowSalesModal] = useState(false);
     const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+    const [invoiceRefreshKey, setInvoiceRefreshKey] = useState(0);
+    const [selectedTransaction, setSelectedTransaction] = useState<AccountingTransaction | null>(null);
+    const [expenseDraft, setExpenseDraft] = useState<ExpenseCorrectionDraft | null>(null);
+    const [salesDraft, setSalesDraft] = useState<SalesCorrectionDraft | null>(null);
 
     const loadData = useCallback(async () => {
         try {
@@ -266,17 +303,85 @@ export function Money() {
 
     const handleExpenseCreated = () => {
         setShowExpenseModal(false);
+        setExpenseDraft(null);
         loadData();
     };
 
     const handleSalesCreated = () => {
         setShowSalesModal(false);
+        setSalesDraft(null);
         loadData();
     };
 
     const handleInvoiceCreated = () => {
-        setShowInvoiceModal(false);
+        setInvoiceRefreshKey((prev) => prev + 1);
         loadData();
+    };
+
+    const openExpenseModal = (draft: ExpenseCorrectionDraft | null = null) => {
+        setExpenseDraft(draft);
+        setShowExpenseModal(true);
+    };
+
+    const openSalesModal = (draft: SalesCorrectionDraft | null = null) => {
+        setSalesDraft(draft);
+        setShowSalesModal(true);
+    };
+
+    const openInvoiceModal = () => {
+        setShowInvoiceModal(true);
+    };
+
+    const openInvoiceSettingsPage = () => {
+        navigate("/settings");
+    };
+
+    const closeExpenseModal = () => {
+        setShowExpenseModal(false);
+        setExpenseDraft(null);
+    };
+
+    const closeSalesModal = () => {
+        setShowSalesModal(false);
+        setSalesDraft(null);
+    };
+
+    const handleTransactionVoided = async () => {
+        setInvoiceRefreshKey((prev) => prev + 1);
+        await loadData();
+    };
+
+    const handleStartCorrection = (transaction: AccountingTransaction) => {
+        if (transaction.kind === "expense") {
+            openExpenseModal({
+                siteId: transaction.site_id,
+                category: transaction.category as ExpenseCorrectionDraft["category"],
+                taxCategory: transaction.tax_category,
+                vendorName: transaction.vendor_name || "",
+                recordedDate: transaction.recorded_date,
+                amountSubtotal: String(transaction.amount_subtotal ?? ""),
+                taxAmount: String(transaction.tax_amount ?? ""),
+                amountTotal: String(transaction.amount_total ?? ""),
+                description: transaction.description || "",
+                costCenter: transaction.cost_center,
+                expenseItemCode: transaction.expense_item_code || "",
+                expenseItemOther: transaction.expense_item_other || "",
+            });
+        } else if (transaction.kind === "sale") {
+            openSalesModal({
+                siteId: transaction.site_id,
+                recordedDate: transaction.recorded_date,
+                description: transaction.description || "",
+                items: transaction.items?.map((item) => ({
+                    item_name: item.item_name,
+                    quantity: item.quantity ?? null,
+                    unit_name: item.unit_name || "",
+                    unit_price: item.unit_price ?? null,
+                })),
+            });
+        }
+
+        setSelectedTransaction(null);
     };
 
     if (loading) {
@@ -310,6 +415,24 @@ export function Money() {
 
     return (
         <div className={styles.container}>
+            <section className={styles.pageHeader}>
+                <div className={styles.pageHeaderBody}>
+                    <p className={styles.pageEyebrow}>Money Workspace</p>
+                    <h1 className={styles.pageTitle}>お金</h1>
+                    <p className={styles.pageSubtitle}>
+                        承認待ちを先に処理し、登録は下の FAB から始める
+                    </p>
+                </div>
+                <button
+                    className={styles.pageSettingsButton}
+                    onClick={openInvoiceSettingsPage}
+                    aria-label="請求書設定ページを開く"
+                >
+                    <Settings2 size={18} />
+                    <span>{isMobile ? "設定" : "発行設定"}</span>
+                </button>
+            </section>
+
             {/* 承認待ちアラートバナー */}
             <AnimatePresence>
                 {pendingApprovals.length > 0 && (
@@ -394,306 +517,340 @@ export function Money() {
             )}
 
             {/* クイックアクション */}
-            <section className={styles.quickActions}>
-                <button className={styles.actionBtn} onClick={() => setShowExpenseModal(true)}>
-                    <Receipt size={20} />
-                    <span>経費登録</span>
-                </button>
-                <button className={styles.actionBtn} onClick={() => setShowSalesModal(true)}>
-                    <TrendingUp size={20} />
-                    <span>売上登録</span>
-                </button>
-                <button className={styles.actionBtn} onClick={() => setShowInvoiceModal(true)}>
-                    <FileText size={20} />
-                    <span>請求書作成</span>
-                </button>
-            </section>
+            {!isMobile && (
+                <section className={styles.quickActions}>
+                    <button className={styles.actionBtn} onClick={() => openExpenseModal()}>
+                        <Receipt size={20} />
+                        <span>経費登録</span>
+                    </button>
+                    <button className={styles.actionBtn} onClick={() => openSalesModal()}>
+                        <TrendingUp size={20} />
+                        <span>売上登録</span>
+                    </button>
+                    <button className={styles.actionBtn} onClick={openInvoiceModal}>
+                        <FileText size={20} />
+                        <span>請求書作成</span>
+                    </button>
+                </section>
+            )}
 
-            {/* 統合検索セクション */}
-            <motion.section
-                className={styles.searchSection}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-            >
-                {/* 入力エリア */}
-                <div className={styles.inputBox}>
-                    <input
-                        type="text"
-                        className={styles.mainInput}
-                        placeholder={isMobile ? "検索..." : "検索... (Enter: 確定)"}
-                        value={searchInput}
-                        onChange={(e) => setSearchInput(e.target.value)}
-                        onKeyDown={handleInputKeyDown}
-                    />
-                    <div className={styles.inputActions}>
-                        <button
-                            className={styles.searchBtn}
-                            onClick={handleSearch}
-                            disabled={!searchInput.trim()}
-                        >
-                            <Search size={16} />
-                        </button>
-                    </div>
-                </div>
+            <div className={styles.workspaceGrid}>
+                <div className={styles.primaryColumn}>
+                    {/* 統合検索セクション */}
+                    <motion.section
+                        className={styles.searchSection}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2 }}
+                    >
+                        {/* 入力エリア */}
+                        <div className={styles.inputBox}>
+                            <input
+                                type="text"
+                                className={styles.mainInput}
+                                placeholder={isMobile ? "検索..." : "検索... (Enter: 確定)"}
+                                value={searchInput}
+                                onChange={(e) => setSearchInput(e.target.value)}
+                                onKeyDown={handleInputKeyDown}
+                            />
+                            <div className={styles.inputActions}>
+                                <button
+                                    className={styles.searchBtn}
+                                    onClick={handleSearch}
+                                    disabled={!searchInput.trim()}
+                                >
+                                    <Search size={16} />
+                                </button>
+                            </div>
+                        </div>
 
-                {/* フィルターバー（常時表示） */}
-                <div className={styles.filterBar}>
-                    {/* 1行目: 種別セグメント */}
-                    <div className={styles.kindSegment}>
-                        {(["all", "expense", "sale", "invoice"] as const).map((kind) => (
-                            <button
-                                key={kind}
-                                className={`${styles.segmentBtn} ${filters.kind === kind ? styles.active : ""}`}
-                                onClick={() => setFilters({ ...filters, kind })}
-                            >
-                                {kind === "all" && "全て"}
-                                {kind === "expense" && "経費"}
-                                {kind === "sale" && "売上"}
-                                {kind === "invoice" && "請求"}
-                            </button>
-                        ))}
-                    </div>
+                        {/* フィルターバー（常時表示） */}
+                        <div className={styles.filterBar}>
+                            {/* 1行目: 種別セグメント */}
+                            <div className={styles.kindSegment}>
+                                {(["all", "expense", "sale", "invoice"] as const).map((kind) => (
+                                    <button
+                                        key={kind}
+                                        className={`${styles.segmentBtn} ${filters.kind === kind ? styles.active : ""}`}
+                                        onClick={() => setFilters({ ...filters, kind })}
+                                    >
+                                        {kind === "all" && "全て"}
+                                        {kind === "expense" && "経費"}
+                                        {kind === "sale" && "売上"}
+                                        {kind === "invoice" && "請求"}
+                                    </button>
+                                ))}
+                            </div>
 
-                    {/* 2行目: 日付 + 件数 */}
-                    <div className={styles.filterRow2}>
-                        {/* 日付プリセット */}
-                        <div className={styles.dateFilter}>
-                            <button
-                                className={`${styles.dateBtn} ${filters.datePreset !== "all" ? styles.hasValue : ""} ${showDatePicker ? styles.active : ""}`}
-                                onClick={() => setShowDatePicker(!showDatePicker)}
-                            >
-                                <Calendar size={14} />
-                                <span>
-                                    {filters.datePreset === "all" && "期間"}
-                                    {filters.datePreset === "thisMonth" && "今月"}
-                                    {filters.datePreset === "lastMonth" && "先月"}
-                                    {filters.datePreset === "custom" && "指定"}
+                            {/* 2行目: 日付 + 件数 */}
+                            <div className={styles.filterRow2}>
+                                {/* 日付プリセット */}
+                                <div className={styles.dateFilter}>
+                                    <button
+                                        className={`${styles.dateBtn} ${filters.datePreset !== "all" ? styles.hasValue : ""} ${showDatePicker ? styles.active : ""}`}
+                                        onClick={() => setShowDatePicker(!showDatePicker)}
+                                    >
+                                        <Calendar size={14} />
+                                        <span>
+                                            {filters.datePreset === "all" && "期間"}
+                                            {filters.datePreset === "thisMonth" && "今月"}
+                                            {filters.datePreset === "lastMonth" && "先月"}
+                                            {filters.datePreset === "custom" && "指定"}
+                                        </span>
+                                    </button>
+
+                                    {/* 日付ドロップダウン */}
+                                    <AnimatePresence>
+                                        {showDatePicker && (
+                                            <>
+                                                <motion.div
+                                                    className={styles.dateDropdownOverlay}
+                                                    onClick={() => setShowDatePicker(false)}
+                                                    initial={{ opacity: 0 }}
+                                                    animate={{ opacity: 1 }}
+                                                    exit={{ opacity: 0 }}
+                                                />
+                                                <motion.div
+                                                    className={styles.dateDropdown}
+                                                    initial={{ opacity: 0 }}
+                                                    animate={{ opacity: 1 }}
+                                                    exit={{ opacity: 0 }}
+                                                >
+                                                    <button
+                                                        className={filters.datePreset === "all" ? styles.active : ""}
+                                                        onClick={() => {
+                                                            setFilters(prev => ({ ...prev, datePreset: "all", dateFrom: "", dateTo: "" }));
+                                                            setShowDatePicker(false);
+                                                        }}
+                                                    >
+                                                        全期間
+                                                    </button>
+                                                    <button
+                                                        className={filters.datePreset === "thisMonth" ? styles.active : ""}
+                                                        onClick={() => {
+                                                            setFilters(prev => ({ ...prev, datePreset: "thisMonth" }));
+                                                            setShowDatePicker(false);
+                                                        }}
+                                                    >
+                                                        今月
+                                                    </button>
+                                                    <button
+                                                        className={filters.datePreset === "lastMonth" ? styles.active : ""}
+                                                        onClick={() => {
+                                                            setFilters(prev => ({ ...prev, datePreset: "lastMonth" }));
+                                                            setShowDatePicker(false);
+                                                        }}
+                                                    >
+                                                        先月
+                                                    </button>
+                                                    <div className={styles.customDateSection}>
+                                                        <span className={styles.customLabel}>カスタム期間</span>
+                                                        <div className={styles.dateInputs}>
+                                                            <div className={styles.dateInputGroup}>
+                                                                <label>開始</label>
+                                                                <input
+                                                                    type="date"
+                                                                    value={filters.dateFrom}
+                                                                    max={filters.dateTo || undefined}
+                                                                    onChange={(e) => setFilters(prev => ({
+                                                                        ...prev,
+                                                                        datePreset: "custom",
+                                                                        dateFrom: e.target.value,
+                                                                    }))}
+                                                                />
+                                                            </div>
+                                                            <div className={styles.dateInputGroup}>
+                                                                <label>終了</label>
+                                                                <input
+                                                                    type="date"
+                                                                    value={filters.dateTo}
+                                                                    min={filters.dateFrom || undefined}
+                                                                    onChange={(e) => setFilters(prev => ({
+                                                                        ...prev,
+                                                                        datePreset: "custom",
+                                                                        dateTo: e.target.value,
+                                                                    }))}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </motion.div>
+                                            </>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+
+                                {/* 検索結果件数 */}
+                                <span className={styles.resultCount}>
+                                    {searchLoading ? "..." : `${filteredTransactions.length}件`}
                                 </span>
-                            </button>
+                            </div>
+                        </div>
 
-                            {/* 日付ドロップダウン */}
-                            <AnimatePresence>
-                                {showDatePicker && (
+                        {/* アクティブフィルタータグ */}
+                        <AnimatePresence>
+                            {hasActiveFilters && (
+                                <motion.div
+                                    className={styles.activeFilters}
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: "auto" }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                >
+                                    <div className={styles.filterTags}>
+                                        {filters.kind !== "all" && (
+                                            <span className={styles.filterTag}>
+                                                {filters.kind === "expense" && "経費"}
+                                                {filters.kind === "sale" && "売上"}
+                                                {filters.kind === "invoice" && "請求"}
+                                                <button onClick={() => clearFilter("kind")}>
+                                                    <X size={12} />
+                                                </button>
+                                            </span>
+                                        )}
+                                        {filters.datePreset !== "all" && (
+                                            <span className={styles.filterTag}>
+                                                <Calendar size={12} />
+                                                {filters.datePreset === "thisMonth" && "今月"}
+                                                {filters.datePreset === "lastMonth" && "先月"}
+                                                {filters.datePreset === "custom" && `${filters.dateFrom || "?"} 〜 ${filters.dateTo || "?"}`}
+                                                <button onClick={() => clearFilter("datePreset")}>
+                                                    <X size={12} />
+                                                </button>
+                                            </span>
+                                        )}
+                                        {filters.query && (
+                                            <span className={styles.filterTag}>
+                                                "{filters.query}"
+                                                <button onClick={() => clearFilter("query")}>
+                                                    <X size={12} />
+                                                </button>
+                                            </span>
+                                        )}
+                                    </div>
+                                    <button
+                                        className={styles.clearAllFilters}
+                                        onClick={clearAllFilters}
+                                    >
+                                        クリア
+                                    </button>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </motion.section>
+
+                    {/* 取引一覧 */}
+                    <motion.section
+                        className={styles.transactionsSection}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 }}
+                    >
+                        <div className={styles.sectionHeader}>
+                            <h2 className={styles.sectionTitle}>取引一覧</h2>
+                            <span className={styles.txCountBadge}>{filteredTransactions.length}件</span>
+                        </div>
+
+                        {filteredTransactions.length === 0 ? (
+                            <div className={styles.emptyState}>
+                                {hasActiveFilters ? (
                                     <>
-                                        <motion.div
-                                            className={styles.dateDropdownOverlay}
-                                            onClick={() => setShowDatePicker(false)}
-                                            initial={{ opacity: 0 }}
-                                            animate={{ opacity: 1 }}
-                                            exit={{ opacity: 0 }}
-                                        />
-                                        <motion.div
-                                            className={styles.dateDropdown}
-                                            initial={{ opacity: 0 }}
-                                            animate={{ opacity: 1 }}
-                                            exit={{ opacity: 0 }}
+                                        <div className={styles.emptyIcon}>
+                                            <FilterX size={40} />
+                                        </div>
+                                        <p className={styles.emptyTitle}>該当する取引がありません</p>
+                                        <p className={styles.emptyDescription}>
+                                            検索条件を変更してお試しください
+                                        </p>
+                                        <button
+                                            className={styles.emptyAction}
+                                            onClick={clearAllFilters}
                                         >
-                                            <button
-                                                className={filters.datePreset === "all" ? styles.active : ""}
-                                                onClick={() => {
-                                                    setFilters(prev => ({ ...prev, datePreset: "all", dateFrom: "", dateTo: "" }));
-                                                    setShowDatePicker(false);
-                                                }}
-                                            >
-                                                全期間
-                                            </button>
-                                            <button
-                                                className={filters.datePreset === "thisMonth" ? styles.active : ""}
-                                                onClick={() => {
-                                                    setFilters(prev => ({ ...prev, datePreset: "thisMonth" }));
-                                                    setShowDatePicker(false);
-                                                }}
-                                            >
-                                                今月
-                                            </button>
-                                            <button
-                                                className={filters.datePreset === "lastMonth" ? styles.active : ""}
-                                                onClick={() => {
-                                                    setFilters(prev => ({ ...prev, datePreset: "lastMonth" }));
-                                                    setShowDatePicker(false);
-                                                }}
-                                            >
-                                                先月
-                                            </button>
-                                            <div className={styles.customDateSection}>
-                                                <span className={styles.customLabel}>カスタム期間</span>
-                                                <div className={styles.dateInputs}>
-                                                    <div className={styles.dateInputGroup}>
-                                                        <label>開始</label>
-                                                        <input
-                                                            type="date"
-                                                            value={filters.dateFrom}
-                                                            max={filters.dateTo || undefined}
-                                                            onChange={(e) => setFilters(prev => ({
-                                                                ...prev,
-                                                                datePreset: "custom",
-                                                                dateFrom: e.target.value
-                                                            }))}
-                                                        />
-                                                    </div>
-                                                    <div className={styles.dateInputGroup}>
-                                                        <label>終了</label>
-                                                        <input
-                                                            type="date"
-                                                            value={filters.dateTo}
-                                                            min={filters.dateFrom || undefined}
-                                                            onChange={(e) => setFilters(prev => ({
-                                                                ...prev,
-                                                                datePreset: "custom",
-                                                                dateTo: e.target.value
-                                                            }))}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </motion.div>
+                                            フィルターをクリア
+                                        </button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className={styles.emptyIcon}>
+                                            <Search size={40} />
+                                        </div>
+                                        <p className={styles.emptyTitle}>取引がありません</p>
+                                        <p className={styles.emptyDescription}>
+                                            経費や売上を登録してみましょう
+                                        </p>
                                     </>
                                 )}
-                            </AnimatePresence>
-                        </div>
-
-                        {/* 検索結果件数 */}
-                        <span className={styles.resultCount}>
-                            {searchLoading ? "..." : `${filteredTransactions.length}件`}
-                        </span>
-                    </div>
-                </div>
-
-                {/* アクティブフィルタータグ */}
-                <AnimatePresence>
-                    {hasActiveFilters && (
-                        <motion.div
-                            className={styles.activeFilters}
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: "auto" }}
-                            exit={{ opacity: 0, height: 0 }}
-                        >
-                            <div className={styles.filterTags}>
-                                {filters.kind !== "all" && (
-                                    <span className={styles.filterTag}>
-                                        {filters.kind === "expense" && "経費"}
-                                        {filters.kind === "sale" && "売上"}
-                                        {filters.kind === "invoice" && "請求"}
-                                        <button onClick={() => clearFilter("kind")}>
-                                            <X size={12} />
-                                        </button>
-                                    </span>
-                                )}
-                                {filters.datePreset !== "all" && (
-                                    <span className={styles.filterTag}>
-                                        <Calendar size={12} />
-                                        {filters.datePreset === "thisMonth" && "今月"}
-                                        {filters.datePreset === "lastMonth" && "先月"}
-                                        {filters.datePreset === "custom" && `${filters.dateFrom || "?"} 〜 ${filters.dateTo || "?"}`}
-                                        <button onClick={() => clearFilter("datePreset")}>
-                                            <X size={12} />
-                                        </button>
-                                    </span>
-                                )}
-                                {filters.query && (
-                                    <span className={styles.filterTag}>
-                                        "{filters.query}"
-                                        <button onClick={() => clearFilter("query")}>
-                                            <X size={12} />
-                                        </button>
-                                    </span>
-                                )}
                             </div>
-                            <button
-                                className={styles.clearAllFilters}
-                                onClick={clearAllFilters}
-                            >
-                                クリア
-                            </button>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </motion.section>
-
-            {/* 取引一覧 */}
-            <motion.section
-                className={styles.transactionsSection}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-            >
-                <div className={styles.sectionHeader}>
-                    <h2 className={styles.sectionTitle}>取引一覧</h2>
-                    <span className={styles.txCountBadge}>{filteredTransactions.length}件</span>
-                </div>
-
-                {filteredTransactions.length === 0 ? (
-                    <div className={styles.emptyState}>
-                        {hasActiveFilters ? (
-                            <>
-                                <div className={styles.emptyIcon}>
-                                    <FilterX size={40} />
-                                </div>
-                                <p className={styles.emptyTitle}>該当する取引がありません</p>
-                                <p className={styles.emptyDescription}>
-                                    検索条件を変更してお試しください
-                                </p>
-                                <button
-                                    className={styles.emptyAction}
-                                    onClick={clearAllFilters}
-                                >
-                                    フィルターをクリア
-                                </button>
-                            </>
                         ) : (
                             <>
-                                <div className={styles.emptyIcon}>
-                                    <Search size={40} />
+                                <div className={styles.txList}>
+                                    {displayedTransactions.map((tx) => (
+                                        <TransactionRow
+                                            key={tx.id}
+                                            tx={tx}
+                                            onOpenDetail={() => setSelectedTransaction(tx)}
+                                        />
+                                    ))}
                                 </div>
-                                <p className={styles.emptyTitle}>取引がありません</p>
-                                <p className={styles.emptyDescription}>
-                                    経費や売上を登録してみましょう
-                                </p>
+
+                                {/* もっと見る / 閉じる */}
+                                {filteredTransactions.length > 10 && (
+                                    <button
+                                        className={styles.showMoreBtn}
+                                        onClick={() => setShowAllTransactions(!showAllTransactions)}
+                                    >
+                                        {showAllTransactions
+                                            ? "閉じる"
+                                            : `すべて表示 (${filteredTransactions.length}件)`}
+                                    </button>
+                                )}
                             </>
                         )}
-                    </div>
-                ) : (
-                    <>
-                        <div className={styles.txList}>
-                            {displayedTransactions.map((tx) => (
-                                <TransactionRow key={tx.id} tx={tx} />
-                            ))}
-                        </div>
+                    </motion.section>
+                </div>
 
-                        {/* もっと見る / 閉じる */}
-                        {filteredTransactions.length > 10 && (
-                            <button
-                                className={styles.showMoreBtn}
-                                onClick={() => setShowAllTransactions(!showAllTransactions)}
-                            >
-                                {showAllTransactions
-                                    ? "閉じる"
-                                    : `すべて表示 (${filteredTransactions.length}件)`}
-                            </button>
-                        )}
-                    </>
-                )}
-            </motion.section>
+                <aside className={styles.secondaryColumn}>
+                    <InvoiceListPanel
+                        refreshKey={invoiceRefreshKey}
+                        onCreateInvoice={openInvoiceModal}
+                    />
+                </aside>
+            </div>
 
             {/* モーダル群 */}
             <AnimatePresence>
+                {/* <MoneyActionSheet /> は mobileFabDock 内の Expanding FAB メニューに変更したため削除 */}
                 {showExpenseModal && (
                     <ExpenseModal
-                        onClose={() => setShowExpenseModal(false)}
+                        onClose={closeExpenseModal}
                         onSuccess={handleExpenseCreated}
+                        initialSiteId={expenseDraft?.siteId}
+                        initialCategory={expenseDraft?.category}
+                        initialTaxCategory={expenseDraft?.taxCategory}
+                        initialVendorName={expenseDraft?.vendorName}
+                        initialRecordedDate={expenseDraft?.recordedDate}
+                        initialAmountSubtotal={expenseDraft?.amountSubtotal}
+                        initialTaxAmount={expenseDraft?.taxAmount}
+                        initialAmountTotal={expenseDraft?.amountTotal}
+                        initialDescription={expenseDraft?.description}
+                        initialCostCenter={expenseDraft?.costCenter}
+                        initialExpenseItemCode={expenseDraft?.expenseItemCode}
+                        initialExpenseItemOther={expenseDraft?.expenseItemOther}
                     />
                 )}
                 {showSalesModal && (
                     <SalesModal
-                        onClose={() => setShowSalesModal(false)}
+                        onClose={closeSalesModal}
                         onSuccess={handleSalesCreated}
+                        initialSiteId={salesDraft?.siteId}
+                        initialRecordedDate={salesDraft?.recordedDate}
+                        initialDescription={salesDraft?.description}
+                        initialItems={salesDraft?.items}
                     />
                 )}
                 {showInvoiceModal && (
                     <InvoiceModal
                         onClose={() => setShowInvoiceModal(false)}
-                        onSuccess={handleInvoiceCreated}
+                        onCreated={handleInvoiceCreated}
                     />
                 )}
                 {showApprovalsModal && (
@@ -703,7 +860,30 @@ export function Money() {
                         onComplete={handleApprovalComplete}
                     />
                 )}
+                {selectedTransaction && (
+                    <TransactionDetailModal
+                        transaction={selectedTransaction}
+                        onClose={() => setSelectedTransaction(null)}
+                        onVoided={handleTransactionVoided}
+                        onUpdated={loadData}
+                        onStartCorrection={handleStartCorrection}
+                    />
+                )}
             </AnimatePresence>
+
+            {isMobile && (
+                <FloatingActionButton
+                    behavior="draggable"
+                    hideOnDesktop
+                    openLabel="お金の登録メニューを開く"
+                    closeLabel="お金の登録メニューを閉じる"
+                    items={[
+                        { id: "expense", label: "経費登録", icon: <Receipt size={18} />, onClick: openExpenseModal },
+                        { id: "sale", label: "売上登録", icon: <TrendingUp size={18} />, onClick: openSalesModal },
+                        { id: "invoice", label: "請求書作成", icon: <FileText size={18} />, onClick: openInvoiceModal },
+                    ]}
+                />
+            )}
         </div>
     );
 }
@@ -740,13 +920,40 @@ function PLMetric({
 }
 
 // 取引行コンポーネント
-function TransactionRow({ tx }: { tx: AccountingTransaction }) {
-    const getStatusIcon = () => {
-        if (tx.status === "voided") return <XCircle size={16} color="#f44336" />;
-        if (tx.status === "pending_review") return <AlertTriangle size={16} color="#ffc107" />;
-        if (tx.status === "posted" || tx.status === "approved")
-            return <CheckCircle size={16} color="#4caf50" />;
-        return null;
+function TransactionRow({
+    tx,
+    onOpenDetail,
+}: {
+    tx: AccountingTransaction;
+    onOpenDetail: () => void;
+}) {
+    const getStatusMeta = () => {
+        if (tx.status === "voided") {
+            return {
+                icon: <XCircle size={14} />,
+                label: "取消",
+                tone: "statusVoided",
+            };
+        }
+        if (tx.status === "pending_review") {
+            return {
+                icon: <AlertTriangle size={14} />,
+                label: "承認待ち",
+                tone: "statusPending",
+            };
+        }
+        if (tx.status === "posted" || tx.status === "approved") {
+            return {
+                icon: <CheckCircle size={14} />,
+                label: "承認済み",
+                tone: "statusApproved",
+            };
+        }
+        return {
+            icon: <AlertCircle size={14} />,
+            label: "下書き",
+            tone: "statusNeutral",
+        };
     };
 
     const getRiskReason = (): string | null => {
@@ -765,12 +972,15 @@ function TransactionRow({ tx }: { tx: AccountingTransaction }) {
     const riskReason = getRiskReason();
     const isHighRisk = tx.risk_level === "HIGH";
     const isPending = tx.status === "pending_review";
+    const statusMeta = getStatusMeta();
 
     return (
-        <motion.div
+        <motion.button
+            type="button"
             className={`${styles.txRow} ${isHighRisk ? styles.highRiskRow : ""} ${isPending ? styles.pendingRow : ""}`}
             initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
+            onClick={onOpenDetail}
         >
             <div className={styles.colDate}>{formatDate(tx.recorded_date)}</div>
             <div className={styles.colKind}>
@@ -796,11 +1006,18 @@ function TransactionRow({ tx }: { tx: AccountingTransaction }) {
                 {tx.kind === "expense" ? "-" : "+"}¥{Math.abs(tx.amount_total).toLocaleString()}
             </div>
             <div className={styles.colStatus}>
-                {getStatusIcon()}
+                <span className={`${styles.statusBadge} ${styles[statusMeta.tone]}`}>
+                    {statusMeta.icon}
+                    <span>{statusMeta.label}</span>
+                </span>
             </div>
-        </motion.div>
+            <div className={styles.colOpen}>
+                <ChevronRight size={16} />
+            </div>
+        </motion.button>
     );
 }
+
 
 // 承認待ちモーダル
 function ApprovalsModal({
@@ -970,4 +1187,3 @@ function ApprovalsModal({
         </motion.div>
     );
 }
-

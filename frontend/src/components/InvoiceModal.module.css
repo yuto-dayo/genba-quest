@@ -1,38 +1,40 @@
-/* ============================================================
-   InvoiceModal Component — Material 3 Expressive
-   ============================================================ */
-
 .overlay {
     position: fixed;
     inset: 0;
-    background: var(--md-sys-color-scrim);
+    background: color-mix(in srgb, var(--md-sys-color-scrim) 68%, transparent);
     backdrop-filter: blur(4px);
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     justify-content: center;
     z-index: 1001;
-    padding: 24px;
+    padding: 16px 12px max(16px, env(safe-area-inset-bottom));
 }
 
 .modal {
     width: 100%;
-    max-width: 520px;
-    max-height: 90vh;
-    background: var(--md-sys-color-surface-container-lowest);
-    border-radius: var(--md-sys-shape-corner-extra-large);
+    max-width: 760px;
+    max-height: min(90vh, 940px);
+    background:
+        radial-gradient(circle at top right, color-mix(in srgb, var(--md-sys-color-tertiary-container) 70%, transparent) 0, transparent 34%),
+        linear-gradient(180deg, color-mix(in srgb, var(--md-sys-color-surface-container-highest) 26%, transparent), transparent 26%),
+        var(--md-sys-color-surface-container-lowest);
+    border-radius: 28px;
     overflow: hidden;
     display: flex;
     flex-direction: column;
     box-shadow: var(--md-sys-elevation-level4);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    box-sizing: border-box;
 }
 
 .header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 12px;
     padding: 16px 24px;
     border-bottom: 1px solid var(--md-sys-color-outline-variant);
-    background: var(--md-sys-color-tertiary-container);
+    box-sizing: border-box;
 }
 
 .title {
@@ -40,26 +42,26 @@
     align-items: center;
     gap: var(--md-sys-spacing-sm);
     font: var(--md-sys-typescale-title-large);
-    color: var(--md-sys-color-on-tertiary-container);
+    color: var(--md-sys-color-on-surface);
 }
 
 .closeButton {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
     border: none;
     border-radius: 50%;
     background: var(--md-sys-color-surface-container);
     color: var(--md-sys-color-on-surface-variant);
     cursor: pointer;
-    transition: all var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+    transition: background 180ms ease, transform 180ms ease;
 }
 
 .closeButton:hover {
     background: var(--md-sys-color-surface-container-high);
-    color: var(--md-sys-color-on-surface);
+    transform: translateY(-1px);
 }
 
 .error {
@@ -67,10 +69,10 @@
     align-items: center;
     gap: var(--md-sys-spacing-sm);
     margin: 12px 24px 0;
-    padding: 12px;
+    padding: 12px 14px;
     background: var(--md-sys-color-error-container);
-    border: 1px solid var(--md-sys-color-error);
-    border-radius: var(--md-sys-shape-corner-small);
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-error) 70%, transparent);
+    border-radius: 18px;
     color: var(--md-sys-color-on-error-container);
     font: var(--md-sys-typescale-body-medium);
 }
@@ -78,15 +80,321 @@
 .form {
     display: flex;
     flex-direction: column;
-    gap: var(--md-sys-spacing-md);
-    padding: 24px;
+    gap: 16px;
+    padding: 20px 24px 24px;
     overflow-y: auto;
+    box-sizing: border-box;
 }
 
+.successState {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 24px;
+}
+
+.successBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    align-self: flex-start;
+    min-height: 36px;
+    padding: 0 14px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--md-sys-color-primary-container) 80%, white);
+    color: var(--md-sys-color-primary);
+    font: var(--md-sys-typescale-label-large);
+    font-weight: 700;
+}
+
+.successCard {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 18px;
+    border-radius: 24px;
+    background:
+        radial-gradient(circle at top right, color-mix(in srgb, var(--md-sys-color-secondary-container) 56%, transparent), transparent 54%),
+        var(--md-sys-color-surface-container-low);
+    border: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.successRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 72%, transparent);
+    font: var(--md-sys-typescale-body-medium);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.successRow:last-child {
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.successRow strong {
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-title-small);
+    text-align: right;
+    min-width: 0;
+    word-break: break-word;
+}
+
+.successActions {
+    display: flex;
+    gap: 12px;
+}
+
+.hero,
+.selectionPanel,
+.summaryPanel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 18px;
+    border-radius: 24px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background: var(--md-sys-color-surface-container-lowest);
+}
+
+.hero {
+    background:
+        radial-gradient(circle at top right, color-mix(in srgb, var(--md-sys-color-primary-container) 38%, transparent), transparent 48%),
+        color-mix(in srgb, var(--md-sys-color-primary-container) 26%, var(--md-sys-color-surface-container-low));
+}
+
+.heroHeader,
+.sectionHeader {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.eyebrow,
+.sectionEyebrow {
+    margin: 0 0 4px;
+    font: var(--md-sys-typescale-label-medium);
+    color: var(--md-sys-color-primary);
+}
+
+.heroTitle,
+.sectionTitle {
+    margin: 0;
+    color: var(--md-sys-color-on-surface);
+}
+
+.heroTitle {
+    font: var(--md-sys-typescale-title-large);
+}
+
+.sectionTitle {
+    font: var(--md-sys-typescale-title-medium);
+}
+
+.documentChip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    padding: 0 12px;
+    border-radius: 999px;
+    font: var(--md-sys-typescale-label-medium);
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.neutral {
+    background: var(--md-sys-color-surface-container-high);
+    color: var(--md-sys-color-on-surface);
+}
+
+.accent {
+    background: var(--md-sys-color-tertiary);
+    color: var(--md-sys-color-on-tertiary);
+}
+
+.warning {
+    background: color-mix(in srgb, var(--md-sys-color-error-container) 82%, white);
+    color: var(--md-sys-color-on-error-container);
+}
+
+.heroGrid,
+.summaryGrid,
 .formRow {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
+}
+
+.summaryGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.statusCard,
+.summaryCard {
+    padding: 14px;
+    border-radius: 18px;
+    background: var(--md-sys-color-surface-container-lowest);
+    border: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.cardLabel,
+.summaryLabel {
+    display: block;
+    margin-bottom: 8px;
+    font: var(--md-sys-typescale-label-small);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.statusValue {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font: var(--md-sys-typescale-title-small);
+    color: var(--md-sys-color-on-surface);
+}
+
+.statusCard p,
+.summaryNote {
+    margin: 8px 0 0;
+    font: var(--md-sys-typescale-body-small);
+    color: var(--md-sys-color-on-surface-variant);
+    line-height: 1.5;
+}
+
+.summaryValue {
+    display: block;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-headline-small);
+}
+
+.reasonBox {
+    padding: 14px 16px;
+    border-radius: 18px;
+    background: var(--md-sys-color-surface-container-lowest);
+    border: 1px dashed var(--md-sys-color-outline);
+}
+
+.reasonTitle {
+    display: block;
+    margin-bottom: 8px;
+    font: var(--md-sys-typescale-label-medium);
+    color: var(--md-sys-color-on-surface);
+}
+
+.reasonStatus {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font: var(--md-sys-typescale-body-medium);
+    color: var(--md-sys-color-on-surface);
+}
+
+.reasonList {
+    margin: 10px 0 0;
+    padding-left: 18px;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+    line-height: 1.6;
+}
+
+.groupList {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.siteGroup {
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 20px;
+    background: var(--md-sys-color-surface-container-low);
+    overflow: hidden;
+    transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.siteGroupActive {
+    border-color: color-mix(in srgb, var(--md-sys-color-primary) 42%, transparent);
+    box-shadow: 0 12px 24px color-mix(in srgb, var(--md-sys-color-primary) 10%, transparent);
+}
+
+.siteGroupHeader {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border: none;
+    background: transparent;
+    color: var(--md-sys-color-on-surface);
+    text-align: left;
+    cursor: pointer;
+}
+
+.checkboxWrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.checkboxWrap input,
+.transactionOption input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--md-sys-color-primary);
+    cursor: pointer;
+}
+
+.siteGroupCopy,
+.transactionCopy {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.siteGroupCopy strong,
+.transactionCopy strong {
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-title-small);
+}
+
+.siteGroupCopy span,
+.transactionCopy span {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+}
+
+.transactionList {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0 12px 12px;
+}
+
+.transactionOption {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: var(--md-sys-color-surface-container-lowest);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: border-color 180ms ease, transform 180ms ease, background 180ms ease;
+}
+
+.transactionOptionActive {
+    border-color: color-mix(in srgb, var(--md-sys-color-primary) 38%, transparent);
+    background: color-mix(in srgb, var(--md-sys-color-primary-container) 34%, white);
+}
+
+.transactionAmount {
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-title-small);
+    white-space: nowrap;
 }
 
 .formGroup {
@@ -103,16 +411,34 @@
     color: var(--md-sys-color-on-surface-variant);
 }
 
+.helperText {
+    margin: 0;
+    font: var(--md-sys-typescale-body-small);
+    color: var(--md-sys-color-on-surface-variant);
+    line-height: 1.5;
+}
+
+.inlineAction {
+    align-self: flex-start;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--md-sys-color-primary);
+    font: var(--md-sys-typescale-label-medium);
+    cursor: pointer;
+}
+
 .input,
 .select,
 .textarea {
     padding: 12px 16px;
+    min-height: 48px;
     border: 1px solid var(--md-sys-color-outline);
-    border-radius: var(--md-sys-shape-corner-small);
+    border-radius: 16px;
     background: var(--md-sys-color-surface-container-lowest);
     color: var(--md-sys-color-on-surface);
     font: var(--md-sys-typescale-body-large);
-    transition: border-color var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+    transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
 }
 
 .input:focus,
@@ -120,13 +446,7 @@
 .textarea:focus {
     outline: none;
     border-color: var(--md-sys-color-primary);
-    border-width: 2px;
-    padding: 11px 15px;
-}
-
-.input:hover,
-.select:hover {
-    border-color: var(--md-sys-color-on-surface);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--md-sys-color-primary) 18%, transparent);
 }
 
 .select {
@@ -135,7 +455,7 @@
 
 .textarea {
     resize: vertical;
-    min-height: 60px;
+    min-height: 96px;
 }
 
 .loadingBox,
@@ -146,40 +466,16 @@
     gap: var(--md-sys-spacing-sm);
     padding: 20px;
     border: 1px dashed var(--md-sys-color-outline-variant);
-    border-radius: var(--md-sys-shape-corner-small);
+    border-radius: 18px;
     color: var(--md-sys-color-on-surface-variant);
     font: var(--md-sys-typescale-body-medium);
+    background: var(--md-sys-color-surface-container-low);
 }
 
-.selectedInfo {
-    padding: 12px;
-    background: var(--md-sys-color-tertiary-container);
-    border: 1px solid var(--md-sys-color-tertiary);
-    border-radius: var(--md-sys-shape-corner-small);
-}
-
-.infoRow {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 4px 0;
-}
-
-.infoLabel {
-    font: var(--md-sys-typescale-body-small);
-    color: var(--md-sys-color-on-surface-variant);
-}
-
-.infoValue {
-    font: var(--md-sys-typescale-body-medium);
-    font-weight: 600;
-    color: var(--md-sys-color-on-surface);
-}
-
-.formActions {
+.formActions,
+.successActions {
     display: flex;
     gap: 12px;
-    margin-top: var(--md-sys-spacing-sm);
 }
 
 .cancelButton,
@@ -189,13 +485,13 @@
     align-items: center;
     justify-content: center;
     gap: var(--md-sys-spacing-sm);
-    height: 40px;
-    padding: 10px;
+    min-height: 50px;
+    padding: 12px 16px;
     border: none;
-    border-radius: var(--md-sys-shape-corner-full);
+    border-radius: 999px;
     font: var(--md-sys-typescale-label-large);
     cursor: pointer;
-    transition: all var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+    transition: transform 180ms ease, opacity 180ms ease, background 180ms ease;
 }
 
 .cancelButton {
@@ -203,23 +499,20 @@
     color: var(--md-sys-color-on-surface-variant);
 }
 
-.cancelButton:hover {
-    background: var(--md-sys-color-surface-container-high);
-    color: var(--md-sys-color-on-surface);
-}
-
 .submitButton {
     background: var(--md-sys-color-tertiary);
     color: var(--md-sys-color-on-tertiary);
 }
 
-.submitButton:hover:not(:disabled) {
-    box-shadow: var(--md-sys-elevation-level2);
+.cancelButton:hover,
+.submitButton:hover {
+    transform: translateY(-1px);
 }
 
 .submitButton:disabled {
     opacity: 0.38;
     cursor: not-allowed;
+    transform: none;
 }
 
 .spinner {
@@ -232,8 +525,116 @@
     }
 }
 
-@media (max-width: 480px) {
-    .formRow {
+@media (max-width: 768px) {
+    .modal {
+        max-height: min(92vh, 960px);
+    }
+
+    .heroGrid,
+    .summaryGrid,
+    .formRow,
+    .formActions,
+    .successActions {
         grid-template-columns: 1fr;
+        flex-direction: column;
+    }
+
+    .transactionOption {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .transactionAmount {
+        grid-column: 2;
+        justify-self: flex-start;
+    }
+}
+
+@media (max-width: 480px) {
+    .overlay {
+        padding: 0;
+    }
+
+    .modal {
+        max-width: 100%;
+        max-height: 100dvh;
+        min-height: 100dvh;
+        border-radius: 24px 24px 0 0;
+        border-bottom: none;
+    }
+
+    .header {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        align-items: flex-start;
+        padding: 14px 16px;
+        background:
+            linear-gradient(180deg, color-mix(in srgb, var(--md-sys-color-surface-container-highest) 92%, transparent), transparent 100%),
+            var(--md-sys-color-surface-container-lowest);
+        backdrop-filter: blur(12px);
+    }
+
+    .title {
+        min-width: 0;
+        font: var(--md-sys-typescale-title-medium);
+    }
+
+    .form,
+    .successState {
+        padding-left: 16px;
+        padding-right: 16px;
+        padding-bottom: max(20px, env(safe-area-inset-bottom));
+    }
+
+    .hero,
+    .selectionPanel,
+    .summaryPanel,
+    .successCard {
+        padding: 16px;
+        border-radius: 20px;
+    }
+
+    .documentChip,
+    .statusValue,
+    .transactionAmount {
+        white-space: normal;
+    }
+
+    .documentChip {
+        max-width: 100%;
+    }
+
+    .siteGroupHeader,
+    .transactionOption,
+    .successRow {
+        align-items: flex-start;
+    }
+
+    .successRow strong {
+        text-align: left;
+    }
+
+    .formActions,
+    .successActions {
+        position: sticky;
+        bottom: calc(-1 * max(20px, env(safe-area-inset-bottom)));
+        margin: 8px -16px -20px;
+        padding: 12px 16px max(16px, env(safe-area-inset-bottom));
+        background:
+            linear-gradient(180deg, color-mix(in srgb, var(--md-sys-color-surface-container-lowest) 12%, transparent), var(--md-sys-color-surface-container-lowest) 32%),
+            var(--md-sys-color-surface-container-lowest);
+        border-top: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 82%, transparent);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .spinner,
+    .closeButton,
+    .siteGroup,
+    .transactionOption,
+    .cancelButton,
+    .submitButton {
+        animation: none;
+        transition: none;
     }
 }

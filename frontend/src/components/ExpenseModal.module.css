@@ -8,16 +8,16 @@
     background: var(--md-sys-color-scrim);
     backdrop-filter: blur(4px);
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     justify-content: center;
-    z-index: 1000;
-    padding: 24px;
+    z-index: 1002;
+    padding: 16px 12px max(16px, env(safe-area-inset-bottom));
 }
 
 .modal {
     width: 100%;
     max-width: 900px;
-    max-height: 90vh;
+    max-height: min(88vh, 820px);
     background: var(--md-sys-color-surface-container-lowest);
     border-radius: var(--md-sys-shape-corner-extra-large);
     overflow: hidden;
@@ -150,10 +150,60 @@
 .noImage {
     flex: 1;
     display: flex;
-    align-items: center;
+    flex-direction: column;
     justify-content: center;
+    align-items: center;
+    gap: var(--md-sys-spacing-sm);
+    padding: 32px 24px;
     border: 1px dashed var(--md-sys-color-outline-variant);
     border-radius: var(--md-sys-shape-corner-medium);
+    color: var(--md-sys-color-on-surface-variant);
+    text-align: center;
+    background: var(--md-sys-color-surface-container-low);
+}
+
+.noImageIcon {
+    color: var(--md-sys-color-primary);
+}
+
+.noImageTitle {
+    font: var(--md-sys-typescale-title-medium);
+    color: var(--md-sys-color-on-surface);
+}
+
+.noImageText {
+    max-width: 320px;
+    font: var(--md-sys-typescale-body-medium);
+    color: var(--md-sys-color-on-surface-variant);
+    line-height: 1.6;
+}
+
+.attachButton {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-sm);
+    margin-top: var(--md-sys-spacing-sm);
+    padding: 10px 16px;
+    border: none;
+    border-radius: var(--md-sys-shape-corner-full);
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+    font: var(--md-sys-typescale-label-large);
+    cursor: pointer;
+    transition: filter var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+}
+
+.attachButton:hover {
+    filter: brightness(0.96);
+}
+
+.attachButton:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--md-sys-color-primary) 24%, white);
+    outline-offset: 2px;
+}
+
+.noImageHint {
+    font: var(--md-sys-typescale-label-small);
     color: var(--md-sys-color-on-surface-variant);
 }
 
@@ -234,6 +284,12 @@
 .textarea {
     resize: vertical;
     min-height: 60px;
+}
+
+.fieldHint {
+    font: var(--md-sys-typescale-body-small);
+    color: var(--md-sys-color-on-surface-variant);
+    line-height: 1.5;
 }
 
 .radioGroup {

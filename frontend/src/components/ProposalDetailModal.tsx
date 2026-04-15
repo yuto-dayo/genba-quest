@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { X, CheckCircle, XCircle, Zap, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
+import { X, CheckCircle, XCircle, Zap, MessageSquare, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
 import type { ProposalRecord } from "../lib/api";
 import styles from "./ProposalDetailModal.module.css";
 
@@ -38,6 +38,10 @@ const PROPOSAL_TYPE_LABELS: Record<string, string> = {
     "site.create": "現場作成",
     "site.complete": "現場完了",
     "policy.update": "ポリシー更新",
+    "luqo.catalog.add": "スキル項目追加申請",
+    "luqo.star.achieve": "スター達成申請",
+    "luqo.score.update": "LUQOスコア更新",
+    "luqo.reward.calculate": "月次報酬計算",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -190,6 +194,7 @@ export function ProposalDetailModal({
     const emailBodyPreview = getPayloadText(proposal.payload, ["source_message_body_preview", "email_body_preview"]);
     const emailBodyFull = getPayloadText(proposal.payload, ["source_message_body_full", "email_body_full"]);
     const hasEmailContext = Boolean(emailSubject || emailFrom || emailBodyPreview || emailBodyFull);
+    const driveFileUrl = getPayloadText(proposal.payload, ["drive_file_url"]);
     const emailBody = showFullBody
         ? (emailBodyFull || emailBodyPreview || "")
         : (emailBodyPreview || emailBodyFull || "");
@@ -291,6 +296,21 @@ export function ProposalDetailModal({
                                 </button>
                             )}
                         </div>
+                    </section>
+                )}
+
+                {driveFileUrl && (
+                    <section className={styles.section}>
+                        <h3 className={styles.sectionTitle}>原本ファイル</h3>
+                        <a
+                            className={styles.driveLink}
+                            href={driveFileUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            <ExternalLink size={16} />
+                            Driveで開く
+                        </a>
                     </section>
                 )}
 

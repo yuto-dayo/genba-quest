@@ -118,6 +118,21 @@
     font: var(--md-sys-typescale-body-small);
 }
 
+.documentLink {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: inherit;
+    font: var(--md-sys-typescale-label-small);
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.documentLink:hover {
+    text-decoration: underline;
+}
+
 .noDocument {
     display: flex;
     align-items: center;
