@@ -62,7 +62,7 @@ class GeminiProvider implements AIProvider {
 
     async generateText(prompt: string, options?: GenerateOptions): Promise<string> {
         const model = this.client.getGenerativeModel({
-            model: "gemini-2.5-flash",
+            model: "gemini-3-flash-preview",
             generationConfig: {
                 maxOutputTokens: options?.maxTokens,
                 temperature: options?.temperature,
@@ -86,7 +86,7 @@ class GeminiProvider implements AIProvider {
         options?: GenerateOptions
     ): Promise<string> {
         const model = this.client.getGenerativeModel({
-            model: "gemini-2.5-flash",
+            model: "gemini-3-flash-preview",
             generationConfig: {
                 maxOutputTokens: options?.maxTokens,
                 temperature: options?.temperature,
@@ -111,7 +111,7 @@ class GeminiProvider implements AIProvider {
 
     async chat(messages: ChatMessage[], options?: GenerateOptions): Promise<string> {
         const model = this.client.getGenerativeModel({
-            model: "gemini-2.5-flash",
+            model: "gemini-3-flash-preview",
             generationConfig: {
                 maxOutputTokens: options?.maxTokens,
                 temperature: options?.temperature,

@@ -89,6 +89,7 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] server infra / ops chunk を独立して切り出せる状態まで整理
 - [x] PATH / LUQO chunk を独立して切り出せる状態まで整理
 - [x] sites chunk を独立して切り出せる状態まで整理
 - [x] proposal-core chunk を独立して切り出せる状態まで整理
@@ -98,6 +99,7 @@ Phase: A-0/A-1
 
 ## 4. Remaining（優先順位順）
 
+- [ ] **P0**: server infra / ops chunk を commit して差分を減らす
 - [ ] **P0**: PATH / LUQO chunk を commit して差分を減らす
 - [ ] **P0**: sites chunk を commit して差分を減らす
 - [ ] **P0**: proposal-core chunk を commit して差分を減らす

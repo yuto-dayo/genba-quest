@@ -1,12 +1,14 @@
 import { Router, Response } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
+import { resolveOrgId } from "../lib/org";
 import { supabaseAdmin } from "../lib/supabaseClient";
 
 const router = Router();
 
 // パーティステータス取得
-router.get("/status", async (_req: AuthenticatedRequest, res: Response) => {
+router.get("/status", async (req: AuthenticatedRequest, res: Response) => {
     try {
+        const orgId = resolveOrgId(req.orgId);
         // 全メンバー情報取得
         const { data: members, error: membersError } = await supabaseAdmin
             .from("profiles")
@@ -32,6 +34,8 @@ router.get("/status", async (_req: AuthenticatedRequest, res: Response) => {
                         .from("sites")
                         .select("id, name, status")
                         .eq("id", member.current_site_id)
+                        .eq("org_id", orgId)
+                        .is("deleted_at", null)
                         .single();
                     currentSite = site;
                 }
@@ -73,6 +77,7 @@ router.get("/status", async (_req: AuthenticatedRequest, res: Response) => {
         const { data: salesData } = await supabaseAdmin
             .from("sites")
             .select("revenue")
+            .eq("org_id", orgId)
             .eq("status", "completed");
 
         const totalSales = salesData?.reduce((sum, s) => sum + (s.revenue || 0), 0) || 0;

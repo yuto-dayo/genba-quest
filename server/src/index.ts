@@ -14,6 +14,11 @@ import proposalsRouter from "./routes/proposals";
 import notificationsRouter from "./routes/notifications";
 import principlesRouter from "./routes/principles";
 import communicationsRouter from "./routes/communications";
+import luqoRouter from "./routes/luqo";
+import pathEvaluationsRouter from "./routes/pathEvaluations";
+import pathRewardsRouter from "./routes/pathRewards";
+import focusItemsRouter from "./routes/focusItems";
+import devPreviewRouter from "./routes/devPreview";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 4001;
@@ -21,14 +26,34 @@ const proposalRpcFallbackMode = (process.env.PROPOSAL_RPC_FALLBACK_MODE || "allo
 const isAtomicStrictMode = ["disabled", "deny", "off"].includes(proposalRpcFallbackMode);
 
 // CORS設定
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(",").map(o => o.trim())
-    : ["http://localhost:5173"];
+const configuredAllowedOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim()).filter(Boolean)
+    : [];
+
+const defaultAllowedOrigins = ["http://localhost:5173"];
+
+function isLocalDevOrigin(origin: string): boolean {
+    return /^http:\/\/localhost:\d+$/.test(origin) || /^http:\/\/127\.0\.0\.1:\d+$/.test(origin);
+}
 
 app.use(cors({
-    origin: allowedOrigins,
+    origin(origin, callback) {
+        if (!origin) {
+            return callback(null, true);
+        }
+
+        if (configuredAllowedOrigins.length > 0) {
+            return callback(null, configuredAllowedOrigins.includes(origin));
+        }
+
+        if (defaultAllowedOrigins.includes(origin) || process.env.NODE_ENV !== "production" && isLocalDevOrigin(origin)) {
+            return callback(null, true);
+        }
+
+        return callback(null, false);
+    },
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
 }));
 
@@ -53,6 +78,9 @@ app.get("/health", (_req, res) => {
 // Webhooks（認証不要）
 app.use("/api/v1/webhooks", webhooksRouter);
 
+// 開発用プレビュー（認証不要・NODE_ENV!=productionでのみ動作）
+app.use("/api/v1/dev", devPreviewRouter);
+
 // 認証ミドルウェア
 app.use(authMiddleware);
 
@@ -68,6 +96,10 @@ app.use("/api/v1/proposals", proposalsRouter);
 app.use("/api/v1/notifications", notificationsRouter);
 app.use("/api/v1/principles", principlesRouter);
 app.use("/api/v1/communications", communicationsRouter);
+app.use("/api/v1/luqo", luqoRouter);
+app.use("/api/v1/path/evaluations", pathEvaluationsRouter);
+app.use("/api/v1/path/rewards", pathRewardsRouter);
+app.use("/api/v1/focus-items", focusItemsRouter);
 
 app.listen(PORT, "0.0.0.0", () => {
     console.log(`🏗️ GENBA QUEST server listening on http://0.0.0.0:${PORT}`);

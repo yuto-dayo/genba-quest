@@ -12,6 +12,7 @@
         "test:integration": "RUN_DB_INTEGRATION_TESTS=1 jest --runInBand --testPathPatterns=src/__tests__/integration/",
         "test:integration:proposal-core": "RUN_DB_INTEGRATION_TESTS=1 jest --runInBand --runTestsByPath src/__tests__/integration/executeProposalAtomic.integration.test.ts src/__tests__/integration/executeProposalAtomicAssignment.integration.test.ts src/__tests__/integration/executeProposalAtomicLeaveRequest.integration.test.ts src/__tests__/integration/webhookIntegrationProposalPath.integration.test.ts",
         "cleanup:demo-data": "ts-node src/scripts/cleanup-demo-data.ts",
+        "cleanup:invalid-void-chains": "ts-node src/scripts/cleanup-invalid-void-chains.ts",
         "gmail:refresh-token": "ts-node src/scripts/generate-gmail-refresh-token.ts",
         "drive:refresh-token": "ts-node src/scripts/generate-drive-refresh-token.ts",
         "verify:a1-migration": "ts-node src/scripts/verify-a1-migration.ts",
