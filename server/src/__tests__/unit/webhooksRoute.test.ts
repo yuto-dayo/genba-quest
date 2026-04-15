@@ -169,6 +169,85 @@ describe("webhooks route helpers", () => {
     expect(__webhooksTestables.getIntegrationProposalType("invoice")).toBe("expense.create");
   });
 
+  it("normalizes site keys by trimming symbols/suffixes", () => {
+    expect(__webhooksTestables.normalizeSiteNameKey(" 渋谷タワー新築工事 ")).toBe("渋谷タワー");
+    expect(__webhooksTestables.normalizeSiteNameKey("【新宿オフィスリノベ】")).toBe("新宿オフィス");
+  });
+
+  it("collects unique site name candidates from extracted data", () => {
+    const candidates = __webhooksTestables.collectSiteNameCandidates({
+      site_name: "渋谷タワー新築工事",
+      site: { name: "渋谷タワー新築工事" },
+      project: { site_name: "新宿オフィスリノベ" },
+    });
+
+    expect(candidates).toEqual(["渋谷タワー新築工事", "新宿オフィスリノベ"]);
+  });
+
+  it("selects best site match and rejects ambiguous ties", () => {
+    const matched = __webhooksTestables.selectBestSiteMatch(
+      ["渋谷タワー新築工事"],
+      [
+        { id: "site-1", name: "渋谷タワー新築工事", status: "in_progress" },
+        { id: "site-2", name: "池袋商業施設", status: "completed" },
+      ],
+    );
+    expect(matched?.id).toBe("site-1");
+
+    const ambiguous = __webhooksTestables.selectBestSiteMatch(
+      ["東京センター工事"],
+      [
+        { id: "site-a", name: "東京センター新築工事", status: "in_progress" },
+        { id: "site-b", name: "東京センター改修工事", status: "in_progress" },
+      ],
+    );
+    expect(ambiguous).toBeNull();
+  });
+
+  it("routes unknown low-confidence document to manual review", () => {
+    const decision = __webhooksTestables.buildRoutingDecision(
+      {
+        type: "unknown",
+        confidence: 55,
+        reasoning: "判定できないため手動確認が必要",
+        extracted_data: {},
+        model_used: "haiku",
+      },
+      null,
+    );
+
+    expect(decision.mode).toBe("manual_review");
+    expect(decision.proposalType).toBe("expense.create");
+  });
+
+  it("routes unknown high-confidence document with amount to expense proposal", () => {
+    const decision = __webhooksTestables.buildRoutingDecision(
+      {
+        type: "unknown",
+        confidence: 95,
+        reasoning: "金額情報を十分に抽出できたため処理可能",
+        extracted_data: {},
+        model_used: "haiku",
+      },
+      32000,
+    );
+
+    expect(decision.mode).toBe("proposal");
+    expect(decision.proposalType).toBe("expense.create");
+  });
+
+  it("normalizes historyId from string/number", () => {
+    expect(__webhooksTestables.normalizeHistoryId(" 4518 ")).toBe("4518");
+    expect(__webhooksTestables.normalizeHistoryId(4518)).toBe("4518");
+    expect(__webhooksTestables.normalizeHistoryId(null)).toBeNull();
+  });
+
+  it("detects rate limit style errors", () => {
+    expect(__webhooksTestables.isLikelyRateLimitError(new Error("429 Too Many Requests"))).toBe(true);
+    expect(__webhooksTestables.isLikelyRateLimitError(new Error("Quota exceeded"))).toBe(true);
+    expect(__webhooksTestables.isLikelyRateLimitError(new Error("network timeout"))).toBe(false);
+  });
+
   it("extracts body text from Gmail full payload", () => {
     const result = __webhooksTestables.extractMessageBody({
       payload: {

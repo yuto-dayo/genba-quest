@@ -21,58 +21,102 @@ function createMockRes(): MockRes {
   return res;
 }
 
-function getGetHandler(path: string) {
+function getHandler(method: "get" | "post" | "patch", path: string) {
   const layer = (communicationsRouter as any).stack.find(
-    (entry: any) => entry.route?.path === path && entry.route?.methods?.get
+    (entry: any) => entry.route?.path === path && entry.route?.methods?.[method]
   );
 
   if (!layer) {
-    throw new Error(`GET handler not found for path: ${path}`);
+    throw new Error(`${method.toUpperCase()} handler not found for path: ${path}`);
   }
 
   return layer.route.stack[0].handle as (req: any, res: any) => Promise<void>;
 }
 
 describe("communications router", () => {
-  const listHandler = getGetHandler("/");
-  const detailHandler = getGetHandler("/:messageId");
+  const listHandler = getHandler("get", "/");
+  const detailHandler = getHandler("get", "/:conversationId");
+  const createHandler = getHandler("post", "/");
+  const patchHandler = getHandler("patch", "/:conversationId");
   const mockFrom = (supabaseAdmin as unknown as { from: jest.Mock }).from;
 
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  it("GET / returns mapped communication review list", async () => {
-    const listChain = createChain({
+  it("GET / returns hydrated conversation list", async () => {
+    const conversationsChain = createChain({
       data: [
         {
-          id: "review-1",
-          type: "communication.review",
-          status: "pending",
-          description: "review description",
-          payload: {
-            source_message_id: "message-1",
-            source_message_subject: "見積もり確認のお願い",
-            source_message_from: "client@example.com",
-            source_message_date: "2026-02-20T08:00:00.000Z",
-            source_message_body_preview: "preview",
-            source_message_body_full: "full body",
-            summary: "summary",
-            priority: "high",
-            due_date: "2026-02-21",
-            suggested_tasks: [{ id: "task-1" }, { id: "task-2" }],
-          },
-          created_at: "2026-02-20T08:00:00.000Z",
-          updated_at: "2026-02-20T08:05:00.000Z",
+          id: "conv-1",
+          org_id: "org-1",
+          title: "工程変更の相談",
+          status: "waiting_internal",
+          source_channel: "gmail",
+          last_channel: "line",
+          external_thread_key: "thread-1",
+          assignee_user_id: "member-1",
+          site_id: "site-1",
+          site_name_snapshot: "渋谷ビル改修",
+          client_name_snapshot: "田中工務店",
+          client_email_snapshot: "tanaka@example.com",
+          ai_summary: "工程変更の可否確認が必要",
+          ai_priority: "high",
+          next_action: "現場責任者へ確認",
+          next_action_due_date: "2026-04-13",
+          last_activity_at: "2026-04-12T09:00:00.000Z",
+          last_message_preview: "LINE で日程調整の相談あり",
+          created_by_user_id: "member-1",
+          created_at: "2026-04-12T08:00:00.000Z",
+          updated_at: "2026-04-12T09:00:00.000Z",
         },
       ],
       error: null,
     });
-    mockFrom.mockReturnValue(listChain);
+    const profilesChain = createChain({
+      data: [{ id: "member-1", full_name: "山田太郎", username: "yamada", avatar_url: null }],
+      error: null,
+    });
+    const sitesChain = createChain({
+      data: [{ id: "site-1", name: "渋谷ビル改修" }],
+      error: null,
+    });
+    const participantsChain = createChain({
+      data: [
+        {
+          id: "participant-1",
+          org_id: "org-1",
+          conversation_id: "conv-1",
+          participant_kind: "client",
+          display_name: "田中工務店",
+          email: "tanaka@example.com",
+          phone: null,
+          profile_id: null,
+          is_primary: true,
+          created_at: "2026-04-12T08:00:00.000Z",
+          updated_at: "2026-04-12T08:00:00.000Z",
+        },
+      ],
+      error: null,
+    });
+    const linksChain = createChain({
+      data: [
+        { conversation_id: "conv-1", proposal_id: "proposal-1" },
+        { conversation_id: "conv-1", proposal_id: "proposal-2" },
+      ],
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [
+      conversationsChain,
+      profilesChain,
+      sitesChain,
+      participantsChain,
+      linksChain,
+    ]);
 
     const req = {
       orgId: "org-1",
-      query: { limit: "10", offset: "0", status: "pending" },
+      query: { limit: "20", offset: "0", status: "waiting_internal" },
     } as any;
     const res = createMockRes();
 
@@ -80,34 +124,25 @@ describe("communications router", () => {
 
     expect(res.status).not.toHaveBeenCalled();
     expect(res.json).toHaveBeenCalledWith([
-      {
-        review_proposal_id: "review-1",
-        source_message_id: "message-1",
-        source_message_subject: "見積もり確認のお願い",
-        source_message_from: "client@example.com",
-        source_message_date: "2026-02-20T08:00:00.000Z",
-        source_message_body_preview: "preview",
-        source_message_body_full: "full body",
-        summary: "summary",
-        priority: "high",
-        due_date: "2026-02-21",
-        review_status: "pending",
-        task_suggestion_count: 2,
-        created_at: "2026-02-20T08:00:00.000Z",
-        updated_at: "2026-02-20T08:05:00.000Z",
-      },
+      expect.objectContaining({
+        id: "conv-1",
+        title: "工程変更の相談",
+        status: "waiting_internal",
+        participant_summary: "田中工務店",
+        related_proposal_count: 2,
+        assignee: expect.objectContaining({ id: "member-1", name: "山田太郎" }),
+        site: { id: "site-1", name: "渋谷ビル改修" },
+      }),
     ]);
-    expect(mockFrom).toHaveBeenCalledWith("proposals");
-    expect(listChain.eq).toHaveBeenCalledWith("org_id", "org-1");
-    expect(listChain.eq).toHaveBeenCalledWith("type", "communication.review");
-    expect(listChain.eq).toHaveBeenCalledWith("status", "pending");
-    expect(listChain.range).toHaveBeenCalledWith(0, 9);
+    expect(conversationsChain.eq).toHaveBeenCalledWith("org_id", "org-1");
+    expect(conversationsChain.eq).toHaveBeenCalledWith("status", "waiting_internal");
+    expect(conversationsChain.range).toHaveBeenCalledWith(0, 19);
   });
 
-  it("GET / returns 400 when status query is invalid", async () => {
+  it("GET / returns 400 for invalid status", async () => {
     const req = {
-      query: { status: "invalid-status" },
       orgId: "org-1",
+      query: { status: "invalid" },
     } as any;
     const res = createMockRes();
 
@@ -118,124 +153,230 @@ describe("communications router", () => {
     expect(mockFrom).not.toHaveBeenCalled();
   });
 
-  it("GET /:messageId returns review + tasks + revisions", async () => {
-    const reviewChain = createChain({
+  it("GET /:conversationId returns detail with logs and related proposals", async () => {
+    const conversationChain = createChain({
+      data: {
+        id: "conv-1",
+        org_id: "org-1",
+        title: "見積条件の確認",
+        status: "active",
+        source_channel: "gmail",
+        last_channel: "phone",
+        external_thread_key: "thread-1",
+        assignee_user_id: "member-1",
+        site_id: "site-1",
+        site_name_snapshot: "新宿店舗改修",
+        client_name_snapshot: "田中工務店",
+        client_email_snapshot: "tanaka@example.com",
+        ai_summary: "金額条件の再確認が必要",
+        ai_priority: "medium",
+        next_action: "見積条件を整理して返信",
+        next_action_due_date: "2026-04-14",
+        last_activity_at: "2026-04-12T10:00:00.000Z",
+        last_message_preview: "電話で金額感のすり合わせ",
+        created_by_user_id: "member-1",
+        created_at: "2026-04-12T08:00:00.000Z",
+        updated_at: "2026-04-12T10:00:00.000Z",
+      },
+      error: null,
+    });
+    const hydrateProfilesChain = createChain({
+      data: [{ id: "member-1", full_name: "山田太郎", username: "yamada", avatar_url: null }],
+      error: null,
+    });
+    const hydrateSitesChain = createChain({
+      data: [{ id: "site-1", name: "新宿店舗改修" }],
+      error: null,
+    });
+    const hydrateParticipantsChain = createChain({
       data: [
         {
-          id: "review-1",
-          type: "communication.review",
-          status: "pending",
-          description: "review description",
-          payload: {
-            source_message_id: "message-1",
-            source_message_subject: "進捗共有",
-            source_message_from: "client@example.com",
-            source_message_body_preview: "preview",
-            source_message_body_full: "full body",
-            summary: "summary",
-            priority: "medium",
-          },
-          created_at: "2026-02-20T08:00:00.000Z",
-          updated_at: "2026-02-20T08:05:00.000Z",
+          id: "participant-1",
+          org_id: "org-1",
+          conversation_id: "conv-1",
+          participant_kind: "client",
+          display_name: "田中工務店",
+          email: "tanaka@example.com",
+          phone: null,
+          profile_id: null,
+          is_primary: true,
+          created_at: "2026-04-12T08:00:00.000Z",
+          updated_at: "2026-04-12T08:00:00.000Z",
         },
       ],
       error: null,
     });
-    const detailChain = createChain({
+    const hydrateLinksChain = createChain({
+      data: [{ conversation_id: "conv-1", proposal_id: "proposal-1" }],
+      error: null,
+    });
+    const logsChain = createChain({
       data: [
         {
-          id: "task-1",
+          id: "log-1",
+          org_id: "org-1",
+          conversation_id: "conv-1",
+          channel: "gmail",
+          direction: "inbound",
+          log_kind: "message",
+          subject: "見積条件の確認",
+          body: "本文",
+          summary: "要約",
+          occurred_at: "2026-04-12T09:00:00.000Z",
+          created_by_type: "integration",
+          created_by_user_id: null,
+          created_by_name_snapshot: "Gmail Watcher",
+          external_source: "gmail",
+          external_id: "message-1",
+          metadata: { source_message_id: "message-1" },
+          created_at: "2026-04-12T09:00:00.000Z",
+          updated_at: "2026-04-12T09:00:00.000Z",
+        },
+      ],
+      error: null,
+    });
+    const detailParticipantsChain = createChain({
+      data: [
+        {
+          id: "participant-2",
+          org_id: "org-1",
+          conversation_id: "conv-1",
+          participant_kind: "internal",
+          display_name: "山田太郎",
+          email: null,
+          phone: null,
+          profile_id: "member-1",
+          is_primary: false,
+          created_at: "2026-04-12T08:30:00.000Z",
+          updated_at: "2026-04-12T08:30:00.000Z",
+        },
+      ],
+      error: null,
+    });
+    const detailLinksChain = createChain({
+      data: [{ conversation_id: "conv-1", proposal_id: "proposal-1" }],
+      error: null,
+    });
+    const participantProfilesChain = createChain({
+      data: [{ id: "member-1", full_name: "山田太郎", username: "yamada", avatar_url: null }],
+      error: null,
+    });
+    const proposalsChain = createChain({
+      data: [
+        {
+          id: "proposal-1",
+          org_id: "org-1",
           type: "communication.task",
           status: "pending",
-          description: "task description",
-          payload: {
-            title: "返信ドラフト作成",
-            priority: "high",
-            due_date: "2026-02-21",
-            suggested_reply: "ドラフト案",
-            parent_proposal_id: "review-1",
-            source_message_id: "message-1",
-          },
-          created_at: "2026-02-20T09:00:00.000Z",
-          updated_at: "2026-02-20T09:00:00.000Z",
-        },
-        {
-          id: "revision-1",
-          type: "task.revision.request",
-          status: "pending",
-          description: "指示",
-          payload: {
-            instruction: "トーンを丁寧語にしてください",
-            target_proposal_id: "task-1",
-            parent_proposal_id: "review-1",
-            source_message_id: "message-1",
-          },
-          created_at: "2026-02-20T10:00:00.000Z",
-          updated_at: "2026-02-20T10:00:00.000Z",
+          payload: { title: "返信文作成" },
+          description: "返信文を確認する",
+          created_by: { type: "integration", id: "integration:gmail", name: "Gmail Watcher" },
+          approvals: [],
+          required_approvals: 1,
+          created_at: "2026-04-12T09:10:00.000Z",
+          updated_at: "2026-04-12T09:10:00.000Z",
         },
       ],
       error: null,
     });
-    setupMockFromSequence(mockFrom, [reviewChain, detailChain]);
+    setupMockFromSequence(mockFrom, [
+      conversationChain,
+      hydrateProfilesChain,
+      hydrateSitesChain,
+      hydrateParticipantsChain,
+      hydrateLinksChain,
+      logsChain,
+      detailParticipantsChain,
+      detailLinksChain,
+      participantProfilesChain,
+      proposalsChain,
+    ]);
 
     const req = {
       orgId: "org-1",
-      params: { messageId: "message-1" },
+      params: { conversationId: "conv-1" },
     } as any;
     const res = createMockRes();
 
     await detailHandler(req, res);
 
     expect(res.status).not.toHaveBeenCalled();
-    expect(res.json).toHaveBeenCalledWith({
-      review: expect.objectContaining({
-        review_proposal_id: "review-1",
-        source_message_id: "message-1",
-      }),
-      tasks: [
-        {
-          proposal_id: "task-1",
-          type: "communication.task",
-          status: "pending",
-          title: "返信ドラフト作成",
-          description: "task description",
-          priority: "high",
-          due_date: "2026-02-21",
-          suggested_reply: "ドラフト案",
-          parent_proposal_id: "review-1",
-          created_at: "2026-02-20T09:00:00.000Z",
-        },
-      ],
-      revisions: [
-        {
-          proposal_id: "revision-1",
-          type: "task.revision.request",
-          status: "pending",
-          instruction: "トーンを丁寧語にしてください",
-          target_proposal_id: "task-1",
-          parent_proposal_id: "review-1",
-          created_at: "2026-02-20T10:00:00.000Z",
-        },
-      ],
-    });
-
-    expect(reviewChain.eq).toHaveBeenCalledWith("payload->>source_message_id", "message-1");
-    expect(detailChain.eq).toHaveBeenCalledWith("payload->>source_message_id", "message-1");
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversation: expect.objectContaining({
+          id: "conv-1",
+          title: "見積条件の確認",
+          assignee: expect.objectContaining({ id: "member-1", name: "山田太郎" }),
+        }),
+        logs: [expect.objectContaining({ id: "log-1", channel: "gmail" })],
+        participants: [
+          expect.objectContaining({
+            id: "participant-2",
+            profile: expect.objectContaining({ id: "member-1", name: "山田太郎" }),
+          }),
+        ],
+        related_proposals: [expect.objectContaining({ id: "proposal-1", type: "communication.task" })],
+      })
+    );
   });
 
-  it("GET /:messageId returns 404 when review is not found", async () => {
-    const reviewChain = createChain({ data: [], error: null });
-    mockFrom.mockReturnValue(reviewChain);
-
+  it("POST / returns 400 when title is missing", async () => {
     const req = {
       orgId: "org-1",
-      params: { messageId: "missing-message" },
+      body: {
+        channel: "phone",
+        direction: "inbound",
+        body: "会話内容",
+      },
     } as any;
     const res = createMockRes();
 
-    await detailHandler(req, res);
+    await createHandler(req, res);
 
-    expect(res.status).toHaveBeenCalledWith(404);
-    expect(res.json).toHaveBeenCalledWith({ error: "Communication not found" });
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: "title is required" });
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("PATCH /:conversationId returns 400 when no fields are provided", async () => {
+    const conversationChain = createChain({
+      data: {
+        id: "conv-1",
+        org_id: "org-1",
+        title: "進捗共有",
+        status: "active",
+        source_channel: "gmail",
+        last_channel: "gmail",
+        external_thread_key: "thread-1",
+        assignee_user_id: null,
+        site_id: null,
+        site_name_snapshot: null,
+        client_name_snapshot: "田中工務店",
+        client_email_snapshot: null,
+        ai_summary: "summary",
+        ai_priority: "medium",
+        next_action: null,
+        next_action_due_date: null,
+        last_activity_at: "2026-04-12T09:00:00.000Z",
+        last_message_preview: "preview",
+        created_by_user_id: null,
+        created_at: "2026-04-12T08:00:00.000Z",
+        updated_at: "2026-04-12T09:00:00.000Z",
+      },
+      error: null,
+    });
+    mockFrom.mockReturnValue(conversationChain);
+
+    const req = {
+      orgId: "org-1",
+      params: { conversationId: "conv-1" },
+      body: {},
+    } as any;
+    const res = createMockRes();
+
+    await patchHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: "No updatable fields provided" });
   });
 });

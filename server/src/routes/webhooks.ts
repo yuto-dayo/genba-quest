@@ -6,7 +6,7 @@
 import { createHash } from "crypto";
 import express, { Request, Response } from 'express';
 import { createGmailWatcher } from '../services/GmailWatcher';
-import { analyzeDocument } from '../services/ocrService';
+import { analyzeDocument, OcrResult } from '../services/ocrService';
 import {
   getDocumentClassifier,
   ClassificationResult,
@@ -20,6 +20,7 @@ import {
 import { supabaseAdmin } from '../lib/supabaseAdmin';
 import { ProposalService } from "../services/ProposalService";
 import { ActorRef, ProposalType } from "../services/PolicyEngine";
+import { getDriveStorageService } from "../services/DriveStorageService";
 
 const router = express.Router();
 const DEFAULT_ORG_ID = process.env.DEFAULT_ORG_ID || "00000000-0000-0000-0000-000000000001";
@@ -61,6 +62,135 @@ interface ParsedMessageBody {
 const COMMUNICATION_ANALYSIS_VERSION = "v1";
 const COMMUNICATION_BODY_PREVIEW_LIMIT = 600;
 const COMMUNICATION_BODY_FULL_LIMIT = 4000;
+const APPROVAL_REQUIRED_NOTIFICATION_TYPE = "approval_required";
+const GMAIL_MESSAGE_PROCESSING_TABLE = "gmail_message_processing";
+const OCR_CACHE_TABLE = "ocr_cache";
+const PROCESSING_LOCK_TTL_MS = parsePositiveInt(
+  process.env.GMAIL_WEBHOOK_PROCESSING_LOCK_TTL_MS,
+  5 * 60 * 1000,
+);
+const LLM_RATE_LIMIT_PER_MINUTE = parsePositiveInt(process.env.GMAIL_LLM_RATE_LIMIT_PER_MINUTE, 4);
+const LLM_RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const LLM_RETRY_MAX_ATTEMPTS = parsePositiveInt(process.env.GMAIL_LLM_RETRY_MAX_ATTEMPTS, 3);
+const LLM_RETRY_BASE_DELAY_MS = parsePositiveInt(process.env.GMAIL_LLM_RETRY_BASE_DELAY_MS, 10_000);
+const UNKNOWN_AUTO_EXPENSE_CONFIDENCE_THRESHOLD = parsePositiveInt(
+  process.env.GMAIL_UNKNOWN_AUTO_EXPENSE_CONFIDENCE_THRESHOLD,
+  85,
+);
+const UNKNOWN_MANUAL_REASON_HINTS = [
+  "業務書類ではない",
+  "スキップ",
+  "判別不能",
+  "判定できない",
+  "not enough",
+  "unable to classify",
+];
+const DOCUMENT_OCR_MIN_TEXT_LENGTH = 50;
+const OCR_SUPPORTED_EXACT_MIME_TYPES: ReadonlySet<string> = new Set([
+  "application/pdf",
+]);
+const OCR_SUPPORTED_PREFIXES = ["image/"];
+const SUPPORTED_ATTACHMENT_MIME_TYPES: ReadonlySet<string> = new Set([
+  "application/pdf",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "image/jpeg",
+  "image/png",
+]);
+const SITE_INFERENCE_MIN_SCORE = parsePositiveInt(process.env.GMAIL_SITE_INFERENCE_MIN_SCORE, 90);
+const SITE_INFERENCE_TOP_MATCH_LIMIT = parsePositiveInt(process.env.GMAIL_SITE_INFERENCE_TOP_MATCH_LIMIT, 3);
+
+type MessageProcessingStatus = "processing" | "processed" | "error";
+type LlmRequestType = "ocr" | "classifier";
+type RoutingMode = "proposal" | "manual_review";
+
+interface MessageProcessingRecord {
+  message_id: string;
+  history_id: string;
+  status: MessageProcessingStatus;
+  retry_count: number | null;
+  updated_at: string | null;
+}
+
+interface OcrCacheRecord {
+  hash: string;
+  extracted_text: string;
+  ocr_result: unknown;
+  hit_count?: number;
+}
+
+interface RoutingDecision {
+  mode: RoutingMode;
+  proposalType: ProposalType;
+  reason: string;
+}
+
+interface MailboxAttachment {
+  attachmentId: string;
+  filename: string;
+  mimeType: string;
+  size?: number;
+}
+
+interface StoredDocumentRecord {
+  id: string;
+  site_id: string | null;
+  drive_file_id: string | null;
+  drive_file_url: string | null;
+  drive_folder_id: string | null;
+  mime_type: string | null;
+  original_filename: string | null;
+  sha256: string | null;
+}
+
+interface SiteLookupRecord {
+  id: string;
+  name: string | null;
+  status: string | null;
+}
+
+interface SiteMatchRecord {
+  siteId: string;
+  siteName: string | null;
+  candidate: string;
+  score: number;
+}
+
+type SiteMatchDecisionReason = "matched" | "no_match" | "ambiguous" | "score_below_threshold";
+type SiteInferenceReason =
+  | SiteMatchDecisionReason
+  | "no_candidates"
+  | "site_lookup_failed"
+  | "no_sites";
+
+interface SiteMatchDecision {
+  matched: SiteLookupRecord | null;
+  reason: SiteMatchDecisionReason;
+  bestScore: number;
+  ambiguous: boolean;
+  topMatches: SiteMatchRecord[];
+}
+
+interface SiteInferenceResult {
+  inferredSiteId: string | null;
+  inferredSiteName: string | null;
+  reason: SiteInferenceReason;
+  candidateCount: number;
+  bestScore: number;
+  ambiguous: boolean;
+  topMatches: SiteMatchRecord[];
+}
+
+interface SiteInferenceContext {
+  messageId: string;
+  attachmentId: string;
+  documentId: string;
+  currentSiteId: string | null;
+}
+
+const llmRequestTimestamps: number[] = [];
 
 // ============================================================
 // Gmail Pub/Sub Webhook
@@ -106,7 +236,11 @@ router.post('/gmail-notification', async (req: Request, res: Response) => {
 // ============================================================
 
 async function processNotification(notification: any) {
-  const { historyId } = notification;
+  const notificationHistoryId = normalizeHistoryId(notification?.historyId);
+  if (!notificationHistoryId) {
+    console.warn("[WEBHOOK] historyId が不正な通知をスキップ");
+    return;
+  }
 
   try {
     // 機能フラグチェック
@@ -132,7 +266,18 @@ async function processNotification(notification: any) {
       console.warn('[WEBHOOK] 初回実行 - historyId未保存');
       await supabaseAdmin.from('system_config').upsert({
         key: 'gmail_history_id',
-        value: historyId,
+        value: notificationHistoryId,
+        updated_at: new Date().toISOString()
+      });
+      return;
+    }
+
+    const previousHistoryId = normalizeString(config.value);
+    if (!previousHistoryId) {
+      console.warn('[WEBHOOK] gmail_history_id が空のため現在値で再同期');
+      await supabaseAdmin.from('system_config').upsert({
+        key: 'gmail_history_id',
+        value: notificationHistoryId,
         updated_at: new Date().toISOString()
       });
       return;
@@ -142,30 +287,49 @@ async function processNotification(notification: any) {
     const watcher = createGmailWatcher();
 
     // 新着メッセージ取得
-    const messages = await watcher.getNewMessages(config.value);
+    const messages = await watcher.getNewMessages(previousHistoryId);
 
     console.log(`[WEBHOOK] 新着メッセージ: ${messages.length}件`);
 
     // PDF添付のあるメールを処理
     for (const msg of messages) {
-      const attachments = await watcher.listAttachments(msg.id);
-      const pdfAttachment = attachments.find(
-        att => att.mimeType === 'application/pdf' || att.filename.toLowerCase().endsWith('.pdf')
-      );
-
-      if (pdfAttachment) {
-        console.log('[WEBHOOK] PDF検知:', msg.id, pdfAttachment.filename);
-        await processDocumentEmail(msg.id, pdfAttachment);
+      const messageHistoryId = normalizeHistoryId(msg.historyId) || notificationHistoryId;
+      const lockAcquired = await acquireMessageProcessingLock(msg.id, messageHistoryId);
+      if (!lockAcquired) {
+        console.log("[WEBHOOK] 重複通知をスキップ:", { messageId: msg.id, historyId: messageHistoryId });
         continue;
       }
 
-      await processCommunicationEmail(msg.id);
+      try {
+        const attachments = await watcher.listAttachments(msg.id);
+        if (attachments.length > 0) {
+          console.log('[WEBHOOK] 添付ファイル検知:', {
+            messageId: msg.id,
+            count: attachments.length,
+          });
+
+          for (const attachment of attachments) {
+            await processDocumentEmail(msg.id, messageHistoryId, attachment);
+          }
+        } else {
+          await processCommunicationEmail(msg.id);
+        }
+
+        await markMessageProcessingCompleted(msg.id, messageHistoryId);
+      } catch (error: unknown) {
+        await markMessageProcessingError(msg.id, messageHistoryId, error);
+        console.error("[WEBHOOK] メッセージ処理失敗:", {
+          messageId: msg.id,
+          historyId: messageHistoryId,
+          error: getErrorMessage(error),
+        });
+      }
     }
 
     // historyId更新
     await supabaseAdmin.from('system_config').upsert({
       key: 'gmail_history_id',
-      value: historyId,
+      value: notificationHistoryId,
       updated_at: new Date().toISOString()
     });
 
@@ -181,28 +345,677 @@ async function processNotification(notification: any) {
 // Document Processing with Classification
 // ============================================================
 
-interface PdfAttachment {
-  attachmentId: string;
-  filename: string;
-  mimeType: string;
+function normalizeAttachmentMimeType(inputMimeType: string, filename: string): string {
+  const normalizedMimeType = normalizeString(inputMimeType)?.toLowerCase();
+  if (normalizedMimeType) {
+    return normalizedMimeType;
+  }
+
+  const lowerFilename = filename.toLowerCase();
+  if (lowerFilename.endsWith(".pdf")) {
+    return "application/pdf";
+  }
+  if (lowerFilename.endsWith(".xlsx")) {
+    return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  }
+  if (lowerFilename.endsWith(".xls")) {
+    return "application/vnd.ms-excel";
+  }
+  if (lowerFilename.endsWith(".docx")) {
+    return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  }
+  if (lowerFilename.endsWith(".doc")) {
+    return "application/msword";
+  }
+  if (lowerFilename.endsWith(".png")) {
+    return "image/png";
+  }
+  if (lowerFilename.endsWith(".jpg") || lowerFilename.endsWith(".jpeg")) {
+    return "image/jpeg";
+  }
+  return "application/octet-stream";
 }
 
-async function processDocumentEmail(messageId: string, attachment: PdfAttachment) {
+function shouldAttemptOcr(mimeType: string, filename: string): boolean {
+  const normalizedMimeType = normalizeAttachmentMimeType(mimeType, filename);
+
+  if (OCR_SUPPORTED_EXACT_MIME_TYPES.has(normalizedMimeType)) {
+    return true;
+  }
+
+  return OCR_SUPPORTED_PREFIXES.some((prefix) => normalizedMimeType.startsWith(prefix));
+}
+
+function normalizeSiteNameKey(value: string): string {
+  const normalized = value
+    .toLowerCase()
+    .replace(/[　\s]/g, "")
+    .replace(/[()（）【】［］\[\]「」『』]/g, "")
+    .replace(/[・\-_]/g, "");
+
+  const suffixes = [
+    "新築工事",
+    "改修工事",
+    "内装工事",
+    "建築工事",
+    "リノベーション",
+    "リノベ",
+    "工事",
+    "現場",
+    "作業所",
+  ];
+
+  let current = normalized;
+  for (const suffix of suffixes) {
+    if (current.endsWith(suffix) && current.length > suffix.length) {
+      current = current.slice(0, -suffix.length);
+      break;
+    }
+  }
+
+  return current;
+}
+
+function sanitizeSiteNameCandidate(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value
+    .replace(/\s+/g, " ")
+    .replace(/[　]/g, " ")
+    .trim();
+
+  if (normalized.length < 2) {
+    return null;
+  }
+
+  return normalized;
+}
+
+function collectSiteNameCandidates(extractedData: unknown): string[] {
+  if (!extractedData || typeof extractedData !== "object") {
+    return [];
+  }
+
+  const record = extractedData as Record<string, unknown>;
+  const candidates: string[] = [];
+  const directKeys = ["site_name", "siteName", "project_name", "projectName", "construction_site", "constructionSite"];
+
+  for (const key of directKeys) {
+    const value = sanitizeSiteNameCandidate(record[key]);
+    if (value) {
+      candidates.push(value);
+    }
+  }
+
+  const nestedEntries = [record.site, record.project];
+  for (const entry of nestedEntries) {
+    if (!entry || typeof entry !== "object") {
+      continue;
+    }
+
+    const nestedRecord = entry as Record<string, unknown>;
+    const nestedKeys = ["name", "site_name", "siteName", "project_name", "projectName"];
+    for (const nestedKey of nestedKeys) {
+      const value = sanitizeSiteNameCandidate(nestedRecord[nestedKey]);
+      if (value) {
+        candidates.push(value);
+      }
+    }
+  }
+
+  const deduped = new Set<string>();
+  for (const candidate of candidates) {
+    deduped.add(candidate);
+  }
+
+  return Array.from(deduped);
+}
+
+function getSiteMatchScore(candidate: string, site: SiteLookupRecord): number {
+  const siteName = sanitizeSiteNameCandidate(site.name);
+  if (!siteName) {
+    return 0;
+  }
+
+  const candidateKey = normalizeSiteNameKey(candidate);
+  const siteKey = normalizeSiteNameKey(siteName);
+  if (!candidateKey || !siteKey) {
+    return 0;
+  }
+
+  let score = 0;
+  if (candidateKey === siteKey) {
+    score = 120;
+  } else if (candidateKey.length >= 5 && siteKey.includes(candidateKey)) {
+    score = 90;
+  } else if (siteKey.length >= 5 && candidateKey.includes(siteKey)) {
+    score = 85;
+  } else {
+    return 0;
+  }
+
+  if ((site.status || "").toLowerCase() === "in_progress") {
+    score += 2;
+  }
+
+  return score;
+}
+
+function resolveSiteMatchDecision(candidates: string[], sites: SiteLookupRecord[]): SiteMatchDecision {
+  let best: SiteLookupRecord | null = null;
+  let bestScore = 0;
+  let ambiguous = false;
+  const bestMatchBySiteId = new Map<string, SiteMatchRecord>();
+
+  for (const candidate of candidates) {
+    for (const site of sites) {
+      const score = getSiteMatchScore(candidate, site);
+      if (score <= 0) {
+        continue;
+      }
+
+      const previousMatch = bestMatchBySiteId.get(site.id);
+      if (!previousMatch || score > previousMatch.score) {
+        bestMatchBySiteId.set(site.id, {
+          siteId: site.id,
+          siteName: site.name,
+          candidate,
+          score,
+        });
+      }
+
+      if (score > bestScore) {
+        best = site;
+        bestScore = score;
+        ambiguous = false;
+        continue;
+      }
+
+      if (score === bestScore && best && site.id !== best.id) {
+        ambiguous = true;
+      }
+    }
+  }
+
+  const topMatches = Array.from(bestMatchBySiteId.values())
+    .sort((a, b) => b.score - a.score)
+    .slice(0, SITE_INFERENCE_TOP_MATCH_LIMIT);
+
+  if (!best) {
+    return {
+      matched: null,
+      reason: "no_match",
+      bestScore,
+      ambiguous,
+      topMatches,
+    };
+  }
+
+  if (ambiguous) {
+    return {
+      matched: null,
+      reason: "ambiguous",
+      bestScore,
+      ambiguous,
+      topMatches,
+    };
+  }
+
+  if (bestScore < SITE_INFERENCE_MIN_SCORE) {
+    return {
+      matched: null,
+      reason: "score_below_threshold",
+      bestScore,
+      ambiguous,
+      topMatches,
+    };
+  }
+
+  return {
+    matched: best,
+    reason: "matched",
+    bestScore,
+    ambiguous,
+    topMatches,
+  };
+}
+
+function selectBestSiteMatch(candidates: string[], sites: SiteLookupRecord[]): SiteLookupRecord | null {
+  return resolveSiteMatchDecision(candidates, sites).matched;
+}
+
+function logSiteInferenceMetric(
+  stage: string,
+  context: SiteInferenceContext,
+  payload: Record<string, unknown>,
+): void {
+  console.log("[SITE_INFERENCE_METRIC]", {
+    stage,
+    messageId: context.messageId,
+    attachmentId: context.attachmentId,
+    documentId: context.documentId,
+    currentSiteId: context.currentSiteId,
+    ...payload,
+  });
+}
+
+async function inferSiteIdForAttachment(
+  extractedData: unknown,
+  context: SiteInferenceContext,
+): Promise<SiteInferenceResult> {
+  const candidates = collectSiteNameCandidates(extractedData);
+  if (candidates.length === 0) {
+    logSiteInferenceMetric("no_candidates", context, {
+      candidateCount: 0,
+    });
+    return {
+      inferredSiteId: null,
+      inferredSiteName: null,
+      reason: "no_candidates",
+      candidateCount: 0,
+      bestScore: 0,
+      ambiguous: false,
+      topMatches: [],
+    };
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("sites")
+    .select("id,name,status")
+    .limit(200);
+
+  if (error) {
+    console.warn("[DOC_PROCESS] 現場候補の取得に失敗:", getErrorMessage(error));
+    logSiteInferenceMetric("site_lookup_failed", context, {
+      reason: "site_lookup_failed",
+      candidateCount: candidates.length,
+      error: getErrorMessage(error),
+    });
+    return {
+      inferredSiteId: null,
+      inferredSiteName: null,
+      reason: "site_lookup_failed",
+      candidateCount: candidates.length,
+      bestScore: 0,
+      ambiguous: false,
+      topMatches: [],
+    };
+  }
+
+  const sites = (data || []) as SiteLookupRecord[];
+  if (sites.length === 0) {
+    logSiteInferenceMetric("no_sites", context, {
+      reason: "no_sites",
+      candidateCount: candidates.length,
+    });
+    return {
+      inferredSiteId: null,
+      inferredSiteName: null,
+      reason: "no_sites",
+      candidateCount: candidates.length,
+      bestScore: 0,
+      ambiguous: false,
+      topMatches: [],
+    };
+  }
+
+  const decision = resolveSiteMatchDecision(candidates, sites);
+  if (!decision.matched) {
+    logSiteInferenceMetric("unresolved", context, {
+      reason: decision.reason,
+      candidateCount: candidates.length,
+      siteCount: sites.length,
+      bestScore: decision.bestScore,
+      ambiguous: decision.ambiguous,
+      threshold: SITE_INFERENCE_MIN_SCORE,
+      topMatches: decision.topMatches,
+    });
+    return {
+      inferredSiteId: null,
+      inferredSiteName: null,
+      reason: decision.reason,
+      candidateCount: candidates.length,
+      bestScore: decision.bestScore,
+      ambiguous: decision.ambiguous,
+      topMatches: decision.topMatches,
+    };
+  }
+
+  const matched = decision.matched;
+  console.log("[DOC_PROCESS] site推定:", {
+    siteId: matched.id,
+    siteName: matched.name,
+    candidateCount: candidates.length,
+  });
+  logSiteInferenceMetric("matched", context, {
+    reason: "matched",
+    candidateCount: candidates.length,
+    siteCount: sites.length,
+    inferredSiteId: matched.id,
+    inferredSiteName: matched.name,
+    bestScore: decision.bestScore,
+    topMatches: decision.topMatches,
+  });
+
+  return {
+    inferredSiteId: matched.id,
+    inferredSiteName: matched.name,
+    reason: "matched",
+    candidateCount: candidates.length,
+    bestScore: decision.bestScore,
+    ambiguous: decision.ambiguous,
+    topMatches: decision.topMatches,
+  };
+}
+
+async function applyInferredSiteToDocument(
+  storedDocument: StoredDocumentRecord,
+  extractedData: unknown,
+  driveStorage: ReturnType<typeof getDriveStorageService>,
+  context: SiteInferenceContext,
+): Promise<StoredDocumentRecord> {
+  const inference = await inferSiteIdForAttachment(extractedData, context);
+  if (!inference.inferredSiteId) {
+    return storedDocument;
+  }
+
+  if (inference.inferredSiteId === storedDocument.site_id) {
+    logSiteInferenceMetric("same_as_existing", context, {
+      reason: inference.reason,
+      inferredSiteId: inference.inferredSiteId,
+      inferredSiteName: inference.inferredSiteName,
+      bestScore: inference.bestScore,
+    });
+    return storedDocument;
+  }
+
+  const inferredSiteId = inference.inferredSiteId;
+  let nextDriveFolderId = storedDocument.drive_folder_id;
+  if (storedDocument.drive_file_id) {
+    try {
+      nextDriveFolderId = await driveStorage.moveFileToSiteInbox(
+        storedDocument.drive_file_id,
+        inferredSiteId,
+        storedDocument.drive_folder_id || undefined,
+      );
+    } catch (error: unknown) {
+      console.warn("[DOC_PROCESS] Driveのsiteフォルダ移動に失敗。metadataのみ更新します:", {
+        documentId: storedDocument.id,
+        driveFileId: storedDocument.drive_file_id,
+        siteId: inferredSiteId,
+        error: getErrorMessage(error),
+      });
+      logSiteInferenceMetric("drive_move_failed", context, {
+        inferredSiteId,
+        driveFileId: storedDocument.drive_file_id,
+        previousDriveFolderId: storedDocument.drive_folder_id,
+        error: getErrorMessage(error),
+      });
+    }
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("documents")
+    .update({
+      site_id: inferredSiteId,
+      drive_folder_id: nextDriveFolderId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", storedDocument.id)
+    .select("id, site_id, drive_file_id, drive_file_url, drive_folder_id, mime_type, original_filename, sha256")
+    .single();
+
+  if (error || !data) {
+    console.warn("[DOC_PROCESS] documents.site_id 更新失敗:", {
+      documentId: storedDocument.id,
+      siteId: inferredSiteId,
+      error: getErrorMessage(error),
+    });
+    logSiteInferenceMetric("document_update_failed", context, {
+      inferredSiteId,
+      inferredSiteName: inference.inferredSiteName,
+      bestScore: inference.bestScore,
+      previousSiteId: storedDocument.site_id,
+      nextDriveFolderId,
+      error: getErrorMessage(error),
+    });
+    return {
+      ...storedDocument,
+      site_id: inferredSiteId,
+      drive_folder_id: nextDriveFolderId,
+    };
+  }
+
+  logSiteInferenceMetric("document_updated", context, {
+    inferredSiteId,
+    inferredSiteName: inference.inferredSiteName,
+    bestScore: inference.bestScore,
+    previousSiteId: storedDocument.site_id,
+    nextDriveFolderId,
+  });
+
+  return data as StoredDocumentRecord;
+}
+
+async function upsertAttachmentDocument(input: {
+  messageId: string;
+  attachment: MailboxAttachment;
+  mimeType: string;
+  fileSize: number;
+  hash: string;
+  siteId: string | null;
+  driveFileId: string;
+  driveFileUrl: string;
+  driveFolderId: string;
+}): Promise<StoredDocumentRecord> {
+  const { data, error } = await supabaseAdmin
+    .from("documents")
+    .upsert(
+      {
+        doc_type: "other",
+        storage_path: `drive://${input.driveFileId}`,
+        original_filename: input.attachment.filename,
+        mime_type: input.mimeType,
+        file_size: input.fileSize,
+        sha256: input.hash,
+        uploaded_by: null,
+        site_id: input.siteId,
+        client_id: null,
+        gmail_message_id: input.messageId,
+        gmail_attachment_id: input.attachment.attachmentId,
+        drive_file_id: input.driveFileId,
+        drive_file_url: input.driveFileUrl,
+        drive_folder_id: input.driveFolderId,
+      },
+      { onConflict: "gmail_message_id,gmail_attachment_id" },
+    )
+    .select("id, site_id, drive_file_id, drive_file_url, drive_folder_id, mime_type, original_filename, sha256")
+    .single();
+
+  if (error || !data) {
+    throw new Error(`DOCUMENT_UPSERT_FAILED:${getErrorMessage(error)}`);
+  }
+
+  return data as StoredDocumentRecord;
+}
+
+function buildOcrFieldProvenance(ocrResult: OcrResult): Record<string, { source: "ocr"; at: string }> {
+  const timestamp = new Date().toISOString();
+  const provenance: Record<string, { source: "ocr"; at: string }> = {};
+  const fields = ocrResult.ocr_fields || {};
+  for (const key of Object.keys(fields)) {
+    provenance[key] = { source: "ocr", at: timestamp };
+  }
+  return provenance;
+}
+
+async function updateDocumentOcrResult(documentId: string, ocrResult: OcrResult): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("documents")
+    .update({
+      ocr_provider: ocrResult.provider,
+      ocr_blocks: ocrResult.ocr_blocks,
+      ocr_fields: ocrResult.ocr_fields,
+      ocr_text: ocrResult.raw_text,
+      field_provenance: buildOcrFieldProvenance(ocrResult),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", documentId);
+
+  if (error) {
+    console.warn("[DOC_PROCESS] documents OCR更新失敗:", {
+      documentId,
+      error: getErrorMessage(error),
+    });
+  }
+}
+
+function mapClassificationToAccountingDocType(type: DocumentType): "receipt" | "invoice" | "purchase_order" | "delivery_note" | "other" {
+  switch (type) {
+    case "invoice":
+      return "invoice";
+    case "delivery_slip":
+      return "delivery_note";
+    case "order":
+    case "quotation":
+    case "estimate_request":
+    case "change_order":
+      return "purchase_order";
+    default:
+      return "other";
+  }
+}
+
+async function updateDocumentClassification(documentId: string, type: DocumentType): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("documents")
+    .update({
+      doc_type: mapClassificationToAccountingDocType(type),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", documentId);
+
+  if (error) {
+    console.warn("[DOC_PROCESS] documents classification更新失敗:", {
+      documentId,
+      error: getErrorMessage(error),
+    });
+  }
+}
+
+async function processDocumentEmail(
+  messageId: string,
+  historyId: string,
+  attachment: MailboxAttachment,
+) {
+  let storedDocument: StoredDocumentRecord | null = null;
+
   try {
-    console.log('[DOC_PROCESS] 開始:', messageId, attachment.filename);
+    console.log('[DOC_PROCESS] 開始:', {
+      messageId,
+      attachmentId: attachment.attachmentId,
+      filename: attachment.filename,
+      mimeType: attachment.mimeType,
+    });
 
     const watcher = createGmailWatcher();
+    const driveStorage = getDriveStorageService();
+    const normalizedMimeType = normalizeAttachmentMimeType(attachment.mimeType, attachment.filename);
+    const supportedMime = SUPPORTED_ATTACHMENT_MIME_TYPES.has(normalizedMimeType);
+    if (!supportedMime) {
+      console.log("[DOC_PROCESS] 未定義MIMEをbinaryとして保存:", {
+        messageId,
+        attachmentId: attachment.attachmentId,
+        mimeType: normalizedMimeType,
+      });
+    }
 
-    // 1. PDF本体ダウンロード
-    const pdfBase64 = await watcher.downloadAttachment(messageId, attachment.attachmentId);
-    console.log('[DOC_PROCESS] PDFダウンロード完了');
+    // 1. 添付バイナリを取得してDriveに保存
+    const attachmentBase64 = await watcher.downloadAttachment(messageId, attachment.attachmentId);
+    const fileBuffer = Buffer.from(attachmentBase64, "base64");
+    const contentHash = buildAttachmentHash(fileBuffer);
+    const siteId: string | null = null;
+    const driveFile = await driveStorage.uploadAttachmentToDrive(
+      fileBuffer,
+      attachment.filename,
+      normalizedMimeType,
+      siteId,
+    );
 
-    // 2. OCR実行
-    const ocrResult = await analyzeDocument(pdfBase64, 'application/pdf');
+    storedDocument = await upsertAttachmentDocument({
+      messageId,
+      attachment,
+      mimeType: normalizedMimeType,
+      fileSize: fileBuffer.length,
+      hash: contentHash,
+      siteId,
+      driveFileId: driveFile.fileId,
+      driveFileUrl: driveFile.url,
+      driveFolderId: driveFile.folderId,
+    });
 
-    if (!ocrResult.raw_text || ocrResult.raw_text.length < 50) {
+    console.log("[DOC_PROCESS] Drive保存完了:", {
+      messageId,
+      attachmentId: attachment.attachmentId,
+      driveFileId: driveFile.fileId,
+      documentId: storedDocument.id,
+      mimeType: normalizedMimeType,
+    });
+
+    if (!shouldAttemptOcr(normalizedMimeType, attachment.filename)) {
+      await createManualReviewProposal(
+        messageId,
+        attachment.filename,
+        "OCR未対応のファイル形式のため、原本のみDrive保管しました。",
+        {
+          attachmentId: attachment.attachmentId,
+          historyId,
+          stage: "stored_without_ocr",
+          documentId: storedDocument.id,
+          siteId: storedDocument.site_id,
+          additionalPayload: {
+            source_mime_type: normalizedMimeType,
+            drive_file_id: storedDocument.drive_file_id,
+            drive_file_url: storedDocument.drive_file_url,
+            drive_folder_id: storedDocument.drive_folder_id,
+          },
+        },
+      );
+      return;
+    }
+
+    // 2. OCR実行（キャッシュ優先）
+    let ocrResult = await getCachedOcrResult(contentHash);
+    if (!ocrResult) {
+      ocrResult = await executeLlmStepWithRetry("ocr", () => analyzeDocument(attachmentBase64, normalizedMimeType));
+      await upsertOcrCache(contentHash, ocrResult, messageId, attachment.attachmentId);
+    } else {
+      console.log("[DOC_PROCESS] OCRキャッシュ利用:", {
+        messageId,
+        attachmentId: attachment.attachmentId,
+        hash: contentHash,
+      });
+    }
+
+    await updateDocumentOcrResult(storedDocument.id, ocrResult);
+
+    if (!ocrResult.raw_text || ocrResult.raw_text.length < DOCUMENT_OCR_MIN_TEXT_LENGTH) {
       console.warn('[DOC_PROCESS] OCRテキストが不十分 - 手動確認へ');
-      await createManualReviewProposal(messageId, attachment.filename, 'OCRテキスト抽出失敗');
+      await createManualReviewProposal(messageId, attachment.filename, 'OCRテキスト抽出失敗', {
+        attachmentId: attachment.attachmentId,
+        historyId,
+        stage: "ocr",
+        documentId: storedDocument.id,
+        siteId: storedDocument.site_id,
+        additionalPayload: {
+          source_mime_type: normalizedMimeType,
+          drive_file_id: storedDocument.drive_file_id,
+          drive_file_url: storedDocument.drive_file_url,
+          drive_folder_id: storedDocument.drive_folder_id,
+        },
+      });
       return;
     }
 
@@ -210,7 +1023,9 @@ async function processDocumentEmail(messageId: string, attachment: PdfAttachment
 
     // 3. 書類分類
     const classifier = getDocumentClassifier();
-    const classificationResult = await classifier.classify(ocrResult.raw_text);
+    const classificationResult = await executeLlmStepWithRetry("classifier", () =>
+      classifier.classify(ocrResult.raw_text),
+    );
 
     console.log('[DOC_PROCESS] 分類結果:', {
       type: classificationResult.type,
@@ -219,12 +1034,47 @@ async function processDocumentEmail(messageId: string, attachment: PdfAttachment
       reasoning: classificationResult.reasoning
     });
 
-    // 4. タイプに応じてルーティング
-    await routeDocument(messageId, attachment, classificationResult, ocrResult.raw_text);
+    storedDocument = await applyInferredSiteToDocument(
+      storedDocument,
+      classificationResult.extracted_data,
+      driveStorage,
+      {
+        messageId,
+        attachmentId: attachment.attachmentId,
+        documentId: storedDocument.id,
+        currentSiteId: storedDocument.site_id,
+      },
+    );
 
-  } catch (error: any) {
-    console.error('[DOC_PROCESS] エラー:', error.message);
-    await createManualReviewProposal(messageId, attachment.filename, error.message);
+    await updateDocumentClassification(storedDocument.id, classificationResult.type);
+
+    // 4. タイプに応じてルーティング
+    await routeDocument(
+      messageId,
+      historyId,
+      attachment,
+      classificationResult,
+      ocrResult.raw_text,
+      contentHash,
+      storedDocument,
+    );
+
+  } catch (error: unknown) {
+    const message = getErrorMessage(error);
+    console.error('[DOC_PROCESS] エラー:', message);
+    await createManualReviewProposal(messageId, attachment.filename, message, {
+      attachmentId: attachment.attachmentId,
+      historyId,
+      stage: "ocr_or_classification",
+      documentId: storedDocument?.id,
+      siteId: storedDocument?.site_id,
+      additionalPayload: {
+        source_mime_type: normalizeAttachmentMimeType(attachment.mimeType, attachment.filename),
+        drive_file_id: storedDocument?.drive_file_id,
+        drive_file_url: storedDocument?.drive_file_url,
+        drive_folder_id: storedDocument?.drive_folder_id,
+      },
+    });
   }
 }
 
@@ -496,12 +1346,288 @@ function buildCommunicationTaskDescription(task: CommunicationTaskSuggestion, su
   return `📌 ${task.title}\n\n${task.description}\n\n本文要点: ${summary}${dueLine}${replyLine}`;
 }
 
+function parseCommunicationContact(sender: string): { displayName: string; email: string | null } {
+  const normalizedSender = normalizeString(sender) || "送信者不明";
+  const emailMatch = normalizedSender.match(/<([^>]+)>/);
+  const email = emailMatch?.[1]?.trim() || null;
+  const displayName = normalizedSender.replace(/\s*<[^>]+>\s*$/, "").trim() || email || normalizedSender;
+  return { displayName, email };
+}
+
+function buildConversationNextAction(analysis: CommunicationAnalysis): string | null {
+  const firstTask = analysis.tasks[0];
+  if (firstTask?.title) {
+    return firstTask.title;
+  }
+  return analysis.summary || null;
+}
+
+function normalizeConversationDueDate(value?: string): string | null {
+  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+}
+
+function normalizeTimestampOrNow(value?: string | null): string {
+  if (!value) {
+    return new Date().toISOString();
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return new Date().toISOString();
+  }
+
+  return parsed.toISOString();
+}
+
+async function ensureCommunicationParticipant(input: {
+  orgId: string;
+  conversationId: string;
+  participantKind: "client" | "internal" | "integration";
+  displayName: string;
+  email?: string | null;
+  isPrimary?: boolean;
+}) {
+  const normalizedEmail = normalizeString(input.email);
+  let query = supabaseAdmin
+    .from("communication_participants")
+    .select("id")
+    .eq("org_id", input.orgId)
+    .eq("conversation_id", input.conversationId)
+    .eq("participant_kind", input.participantKind);
+
+  if (normalizedEmail) {
+    query = query.eq("email", normalizedEmail);
+  } else {
+    query = query.eq("display_name", input.displayName);
+  }
+
+  const { data: existing, error: existingError } = await query.maybeSingle();
+  if (existingError) {
+    throw existingError;
+  }
+
+  const payload = {
+    org_id: input.orgId,
+    conversation_id: input.conversationId,
+    participant_kind: input.participantKind,
+    display_name: input.displayName,
+    email: normalizedEmail || null,
+    is_primary: Boolean(input.isPrimary),
+    updated_at: new Date().toISOString(),
+  };
+
+  if (existing) {
+    const { error } = await supabaseAdmin
+      .from("communication_participants")
+      .update(payload)
+      .eq("id", existing.id);
+
+    if (error) {
+      throw error;
+    }
+    return;
+  }
+
+  const { error } = await supabaseAdmin
+    .from("communication_participants")
+    .insert({
+      ...payload,
+      created_at: new Date().toISOString(),
+    });
+
+  if (error) {
+    throw error;
+  }
+}
+
+async function ensureCommunicationConversationFromEmail(input: {
+  orgId: string;
+  messageId: string;
+  threadId: string;
+  subject: string;
+  sender: string;
+  receivedAt: string;
+  bodyPreview: string;
+  bodyFull: string;
+  analysis: CommunicationAnalysis;
+}): Promise<{ conversationId: string; logId: string | null }> {
+  const nextAction = buildConversationNextAction(input.analysis);
+  const dueDate = normalizeConversationDueDate(input.analysis.dueDate);
+  const receivedAt = normalizeTimestampOrNow(input.receivedAt);
+  const contact = parseCommunicationContact(input.sender);
+
+  const { data: existingConversation, error: existingError } = await supabaseAdmin
+    .from("communication_conversations")
+    .select("id,status,next_action")
+    .eq("org_id", input.orgId)
+    .eq("source_channel", "gmail")
+    .eq("external_thread_key", input.threadId)
+    .maybeSingle();
+
+  if (existingError) {
+    throw existingError;
+  }
+
+  let conversationId: string;
+
+  if (existingConversation) {
+    const { error: updateError } = await supabaseAdmin
+      .from("communication_conversations")
+      .update({
+        title: input.subject,
+        last_channel: "gmail",
+        client_name_snapshot: contact.displayName,
+        client_email_snapshot: contact.email,
+        ai_summary: input.analysis.summary,
+        ai_priority: input.analysis.priority,
+        next_action: existingConversation.next_action || nextAction,
+        next_action_due_date: existingConversation.next_action ? undefined : dueDate,
+        last_activity_at: receivedAt,
+        last_message_preview: input.bodyPreview,
+        status: existingConversation.status === "resolved" ? "waiting_internal" : existingConversation.status,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", existingConversation.id);
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    conversationId = existingConversation.id as string;
+  } else {
+    const { data: createdConversation, error: createError } = await supabaseAdmin
+      .from("communication_conversations")
+      .insert({
+        org_id: input.orgId,
+        title: input.subject,
+        status: "waiting_internal",
+        source_channel: "gmail",
+        last_channel: "gmail",
+        external_thread_key: input.threadId,
+        client_name_snapshot: contact.displayName,
+        client_email_snapshot: contact.email,
+        ai_summary: input.analysis.summary,
+        ai_priority: input.analysis.priority,
+        next_action: nextAction,
+        next_action_due_date: dueDate,
+        last_activity_at: receivedAt,
+        last_message_preview: input.bodyPreview,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single();
+
+    if (createError) {
+      throw createError;
+    }
+
+    conversationId = createdConversation.id as string;
+  }
+
+  let logId: string | null = null;
+  try {
+    const { data: createdLog, error: createLogError } = await supabaseAdmin
+      .from("communication_logs")
+      .insert({
+        org_id: input.orgId,
+        conversation_id: conversationId,
+        channel: "gmail",
+        direction: "inbound",
+        log_kind: "message",
+        subject: input.subject,
+        body: input.bodyFull || input.bodyPreview || input.subject,
+        summary: input.analysis.summary,
+        occurred_at: receivedAt,
+        created_by_type: "integration",
+        created_by_name_snapshot: INTEGRATION_NAME,
+        external_source: "gmail",
+        external_id: input.messageId,
+        metadata: {
+          source_message_id: input.messageId,
+          source_thread_id: input.threadId,
+          source_message_subject: input.subject,
+          source_message_from: input.sender,
+          source_message_date: input.receivedAt,
+          analysis_version: COMMUNICATION_ANALYSIS_VERSION,
+        },
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single();
+
+    if (createLogError) {
+      throw createLogError;
+    }
+
+    logId = createdLog.id as string;
+  } catch (error) {
+    if (isDuplicateKeyError(error)) {
+      const { data: existingLog, error: existingLogError } = await supabaseAdmin
+        .from("communication_logs")
+        .select("id")
+        .eq("external_source", "gmail")
+        .eq("external_id", input.messageId)
+        .maybeSingle();
+
+      if (existingLogError) {
+        throw existingLogError;
+      }
+
+      logId = existingLog?.id || null;
+    } else {
+      throw error;
+    }
+  }
+
+  await ensureCommunicationParticipant({
+    orgId: input.orgId,
+    conversationId,
+    participantKind: "client",
+    displayName: contact.displayName,
+    email: contact.email,
+    isPrimary: true,
+  });
+
+  return { conversationId, logId };
+}
+
+async function linkCommunicationProposal(input: {
+  orgId: string;
+  conversationId: string;
+  proposalId: string;
+  logId?: string | null;
+}) {
+  const { error } = await supabaseAdmin
+    .from("communication_links")
+    .upsert(
+      {
+        id: buildDeterministicUuid(`communication-link:${input.conversationId}:${input.proposalId}`),
+        org_id: input.orgId,
+        conversation_id: input.conversationId,
+        link_type: "proposal",
+        proposal_id: input.proposalId,
+        log_id: input.logId || null,
+        created_at: new Date().toISOString(),
+      },
+      {
+        onConflict: "conversation_id,link_type,proposal_id",
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+}
+
 async function processCommunicationEmail(messageId: string): Promise<void> {
   try {
     console.log("[COMMUNICATION] 開始:", messageId);
 
     const watcher = createGmailWatcher();
     const message = await watcher.getMessage(messageId);
+    const threadId = normalizeString((message as { threadId?: unknown }).threadId) || messageId;
     const subject = watcher.getHeader(message, "Subject") || "(件名なし)";
     const from = watcher.getHeader(message, "From") || "送信者不明";
     const receivedAt = watcher.getHeader(message, "Date");
@@ -519,12 +1645,26 @@ async function processCommunicationEmail(messageId: string): Promise<void> {
     const analysis = analyzeCommunicationEmail(subject, sourceText, from);
     const bodyPreview = toPreviewText(sourceText, COMMUNICATION_BODY_PREVIEW_LIMIT);
     const bodyFull = toPreviewText(sourceText, COMMUNICATION_BODY_FULL_LIMIT);
+    const orgId = DEFAULT_ORG_ID;
+    const communicationRecord = await ensureCommunicationConversationFromEmail({
+      orgId,
+      messageId,
+      threadId,
+      subject,
+      sender: from,
+      receivedAt: receivedAt || new Date().toISOString(),
+      bodyPreview,
+      bodyFull,
+      analysis,
+    });
 
     const parentPayload: Record<string, unknown> = {
       title: `メール要点確認: ${subject}`,
       category: "communication",
+      conversation_id: communicationRecord.conversationId,
       source: INTEGRATION_SOURCE,
       source_message_id: messageId,
+      source_thread_id: threadId,
       source_message_subject: subject,
       source_message_from: from,
       source_message_date: receivedAt || new Date().toISOString(),
@@ -548,15 +1688,22 @@ async function processCommunicationEmail(messageId: string): Promise<void> {
       integrationName: INTEGRATION_NAME,
       submit: true,
     });
+    await linkCommunicationProposal({
+      orgId,
+      conversationId: communicationRecord.conversationId,
+      proposalId: parentResult.proposalId,
+      logId: communicationRecord.logId,
+    });
 
     for (const task of analysis.tasks) {
       const taskDescription = buildCommunicationTaskDescription(task, analysis.summary);
-      await createOrReuseIntegrationProposal({
+      const taskResult = await createOrReuseIntegrationProposal({
         type: "communication.task",
         payload: {
           title: task.title,
           category: "communication",
           description: taskDescription,
+          conversation_id: communicationRecord.conversationId,
           task_kind: task.kind,
           priority: task.priority,
           due_date: task.dueDate,
@@ -564,6 +1711,7 @@ async function processCommunicationEmail(messageId: string): Promise<void> {
           parent_proposal_id: parentResult.proposalId,
           source: INTEGRATION_SOURCE,
           source_message_id: messageId,
+          source_thread_id: threadId,
           source_message_subject: subject,
           source_message_from: from,
           source_message_body_preview: bodyPreview,
@@ -576,6 +1724,12 @@ async function processCommunicationEmail(messageId: string): Promise<void> {
         externalId: `${messageId}:communication-task:${task.taskId}:${COMMUNICATION_ANALYSIS_VERSION}`,
         integrationName: INTEGRATION_NAME,
         submit: true,
+      });
+      await linkCommunicationProposal({
+        orgId,
+        conversationId: communicationRecord.conversationId,
+        proposalId: taskResult.proposalId,
+        logId: communicationRecord.logId,
       });
     }
 
@@ -598,17 +1752,54 @@ async function processCommunicationEmail(messageId: string): Promise<void> {
 
 async function routeDocument(
   messageId: string,
-  attachment: PdfAttachment,
+  historyId: string,
+  attachment: MailboxAttachment,
   result: ClassificationResult,
-  rawText: string
+  rawText: string,
+  contentHash: string,
+  storedDocument: StoredDocumentRecord,
 ) {
   const { type, confidence, reasoning, extracted_data, model_used } = result;
-  const proposalType = getIntegrationProposalType(type);
+  const amount = extractAmountFromDocumentData(extracted_data);
+  const routingDecision = buildRoutingDecision(result, amount);
+
+  console.log(`[ROUTER] ${type} -> ${routingDecision.proposalType} (${routingDecision.mode})`);
+
+  if (routingDecision.mode === "manual_review") {
+    await createManualReviewProposal(messageId, attachment.filename, routingDecision.reason, {
+      attachmentId: attachment.attachmentId,
+      historyId,
+      stage: "routing",
+      documentId: storedDocument.id,
+      siteId: storedDocument.site_id,
+      additionalPayload: {
+        source: INTEGRATION_SOURCE,
+        source_message_id: messageId,
+        source_attachment_id: attachment.attachmentId,
+        source_filename: attachment.filename,
+        source_mime_type: storedDocument.mime_type,
+        document_id: storedDocument.id,
+        drive_file_id: storedDocument.drive_file_id,
+        drive_file_url: storedDocument.drive_file_url,
+        drive_folder_id: storedDocument.drive_folder_id,
+        document_type: type,
+        pdf_hash: contentHash,
+        content_hash: contentHash,
+        classification: {
+          confidence,
+          reasoning,
+          model_used,
+        },
+        raw_text_preview: rawText.slice(0, 500),
+      },
+    });
+    return;
+  }
+
+  const proposalType = routingDecision.proposalType;
   const proposalTitle = generateProposalTitle(type, extracted_data);
   const proposalDescription = generateProposalDescription(type, extracted_data, reasoning);
-  const amount = extractAmountFromDocumentData(extracted_data);
 
-  console.log(`[ROUTER] ${type} → ${proposalType}`);
 
   const payload: Record<string, unknown> = {
     title: proposalTitle,
@@ -619,11 +1810,25 @@ async function routeDocument(
     source_message_id: messageId,
     source_attachment_id: attachment.attachmentId,
     source_filename: attachment.filename,
+    source_mime_type: storedDocument.mime_type,
+    source_history_id: historyId,
+    pdf_hash: contentHash,
+    content_hash: contentHash,
+    document_id: storedDocument.id,
+    site_id: storedDocument.site_id,
+    drive_file_id: storedDocument.drive_file_id,
+    drive_file_url: storedDocument.drive_file_url,
+    drive_folder_id: storedDocument.drive_folder_id,
     extracted_data,
     classification: {
       confidence,
       reasoning,
       model_used,
+    },
+    routing: {
+      mode: routingDecision.mode,
+      reason: routingDecision.reason,
+      proposal_type: proposalType,
     },
     raw_text_preview: rawText.slice(0, 500),
     recorded_date: new Date().toISOString().slice(0, 10),
@@ -640,6 +1845,8 @@ async function routeDocument(
     source: INTEGRATION_SOURCE,
     externalId: `${messageId}:${attachment.attachmentId}`,
     integrationName: INTEGRATION_NAME,
+    documentId: storedDocument.id,
+    siteId: storedDocument.site_id,
     submit: true,
   });
 
@@ -659,18 +1866,48 @@ async function routeDocument(
 // Helper Functions
 // ============================================================
 
-function getNotificationType(docType: DocumentType): string {
-  const mapping: Record<DocumentType, string> = {
-    order: 'auto_quest',
-    quotation: 'purchase_decision',
-    estimate_request: 'estimate_task',
-    invoice: 'accounting_invoice',
-    delivery_slip: 'inspection',
-    change_order: 'quest_update',
-    drawing: 'document_storage',
-    unknown: 'manual_review',
+function buildRoutingDecision(result: ClassificationResult, amount: number | null): RoutingDecision {
+  const proposalType = getIntegrationProposalType(result.type);
+
+  if (result.type !== "unknown") {
+    return {
+      mode: "proposal",
+      proposalType,
+      reason: "classified_document_type",
+    };
+  }
+
+  const confidenceTooLow = result.confidence < UNKNOWN_AUTO_EXPENSE_CONFIDENCE_THRESHOLD;
+  const reasoning = (result.reasoning || "").toLowerCase();
+  const reasoningSuggestsManual = UNKNOWN_MANUAL_REASON_HINTS.some((hint) =>
+    reasoning.includes(hint.toLowerCase()),
+  );
+  const missingAmount = amount === null || amount <= 0;
+
+  if (confidenceTooLow || reasoningSuggestsManual || missingAmount) {
+    const reasons: string[] = [];
+    if (confidenceTooLow) {
+      reasons.push(`confidence=${result.confidence} below ${UNKNOWN_AUTO_EXPENSE_CONFIDENCE_THRESHOLD}`);
+    }
+    if (reasoningSuggestsManual) {
+      reasons.push("reasoning suggests non-actionable document");
+    }
+    if (missingAmount) {
+      reasons.push("amount not extracted");
+    }
+
+    return {
+      mode: "manual_review",
+      proposalType: "expense.create",
+      reason: `unknown classification fallback (${reasons.join(", ")})`,
+    };
+  }
+
+  return {
+    mode: "proposal",
+    proposalType,
+    reason: "unknown_high_confidence_with_amount",
   };
-  return mapping[docType];
 }
 
 function getIntegrationProposalType(docType: DocumentType): ProposalType {
@@ -722,12 +1959,334 @@ function extractAmountFromDocumentData(data: unknown): number | null {
   return null;
 }
 
+function parsePositiveInt(value: string | undefined, fallback: number): number {
+  if (!value) {
+    return fallback;
+  }
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return parsed;
+}
+
+function normalizeHistoryId(value: unknown): string | null {
+  if (typeof value === "string") {
+    const normalized = value.trim();
+    return normalized.length > 0 ? normalized : null;
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(Math.trunc(value));
+  }
+
+  return null;
+}
+
 function normalizeString(value: unknown): string | null {
   if (typeof value !== "string") {
     return null;
   }
   const normalized = value.trim();
   return normalized.length > 0 ? normalized : null;
+}
+
+function parseTimestampMs(value: string | null | undefined): number | null {
+  if (!value) {
+    return null;
+  }
+  const ts = Date.parse(value);
+  return Number.isNaN(ts) ? null : ts;
+}
+
+function truncateText(value: string, maxLength: number): string {
+  if (value.length <= maxLength) {
+    return value;
+  }
+  return value.slice(0, maxLength);
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "object" && error !== null && "message" in error) {
+    return String((error as { message: unknown }).message);
+  }
+  return String(error);
+}
+
+function isLikelyRateLimitError(error: unknown): boolean {
+  const message = getErrorMessage(error).toLowerCase();
+  return /429|quota|rate limit|too many requests|resource has been exhausted|limit exceeded/.test(message);
+}
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
+function tryReserveLlmRequestSlot(requestType: LlmRequestType): boolean {
+  const now = Date.now();
+  while (llmRequestTimestamps.length > 0 && now - llmRequestTimestamps[0] > LLM_RATE_LIMIT_WINDOW_MS) {
+    llmRequestTimestamps.shift();
+  }
+
+  if (llmRequestTimestamps.length >= LLM_RATE_LIMIT_PER_MINUTE) {
+    console.warn("[WEBHOOK] LLM rate limit guard hit:", {
+      requestType,
+      windowUsage: llmRequestTimestamps.length,
+      limitPerMinute: LLM_RATE_LIMIT_PER_MINUTE,
+    });
+    return false;
+  }
+
+  llmRequestTimestamps.push(now);
+  return true;
+}
+
+async function executeLlmStepWithRetry<T>(requestType: LlmRequestType, operation: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; attempt <= LLM_RETRY_MAX_ATTEMPTS; attempt += 1) {
+    if (!tryReserveLlmRequestSlot(requestType)) {
+      throw new Error(`LLM_RATE_LIMIT_GUARD:${requestType}`);
+    }
+
+    try {
+      return await operation();
+    } catch (error: unknown) {
+      if (!isLikelyRateLimitError(error)) {
+        throw error;
+      }
+
+      if (attempt >= LLM_RETRY_MAX_ATTEMPTS) {
+        throw error;
+      }
+
+      const delayMs = LLM_RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1);
+      console.warn("[WEBHOOK] LLM rate limit detected. retrying with backoff:", {
+        requestType,
+        attempt,
+        delayMs,
+      });
+      await sleep(delayMs);
+    }
+  }
+
+  throw new Error(`LLM_RETRY_EXHAUSTED:${requestType}`);
+}
+
+function buildAttachmentHash(buffer: Buffer): string {
+  return createHash("sha256").update(buffer).digest("hex");
+}
+
+function toCachedOcrResult(record: OcrCacheRecord): OcrResult | null {
+  const ocrPayload = record.ocr_result;
+  if (ocrPayload && typeof ocrPayload === "object") {
+    const candidate = ocrPayload as Partial<OcrResult>;
+    if (typeof candidate.raw_text === "string" && candidate.raw_text.length > 0) {
+      return {
+        ocr_blocks: (Array.isArray(candidate.ocr_blocks) ? candidate.ocr_blocks : []) as OcrResult["ocr_blocks"],
+        ocr_fields: (
+          candidate.ocr_fields && typeof candidate.ocr_fields === "object" ? candidate.ocr_fields : {}
+        ) as OcrResult["ocr_fields"],
+        raw_text: candidate.raw_text,
+        provider: (
+          typeof candidate.provider === "string" ? candidate.provider : "gemini"
+        ) as OcrResult["provider"],
+      };
+    }
+  }
+
+  const extractedText = normalizeString(record.extracted_text);
+  if (!extractedText) {
+    return null;
+  }
+
+  return {
+    ocr_blocks: [],
+    ocr_fields: {},
+    raw_text: extractedText,
+    provider: "gemini",
+  };
+}
+
+async function getCachedOcrResult(hash: string): Promise<OcrResult | null> {
+  const { data, error } = await supabaseAdmin
+    .from(OCR_CACHE_TABLE)
+    .select("hash, extracted_text, ocr_result, hit_count")
+    .eq("hash", hash)
+    .maybeSingle();
+
+  if (error) {
+    console.warn("[DOC_PROCESS] OCRキャッシュ参照失敗:", getErrorMessage(error));
+    return null;
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  const record = data as OcrCacheRecord;
+  const cached = toCachedOcrResult(record);
+  if (!cached) {
+    return null;
+  }
+
+  const previousHit = typeof record.hit_count === "number" ? record.hit_count : 1;
+  const nextHit = Math.max(1, previousHit) + 1;
+
+  const { error: touchError } = await supabaseAdmin
+    .from(OCR_CACHE_TABLE)
+    .update({
+      hit_count: nextHit,
+      last_hit_at: new Date().toISOString(),
+    })
+    .eq("hash", hash);
+
+  if (touchError) {
+    console.warn("[DOC_PROCESS] OCRキャッシュ更新失敗:", getErrorMessage(touchError));
+  }
+
+  return cached;
+}
+
+async function upsertOcrCache(
+  hash: string,
+  ocrResult: OcrResult,
+  messageId: string,
+  attachmentId: string,
+): Promise<void> {
+  const now = new Date().toISOString();
+  const { error } = await supabaseAdmin
+    .from(OCR_CACHE_TABLE)
+    .upsert(
+      {
+        hash,
+        extracted_text: ocrResult.raw_text,
+        ocr_result: ocrResult as unknown as Record<string, unknown>,
+        source_message_id: messageId,
+        source_attachment_id: attachmentId,
+        hit_count: 1,
+        last_hit_at: now,
+      },
+      { onConflict: "hash" },
+    );
+
+  if (error) {
+    console.warn("[DOC_PROCESS] OCRキャッシュ保存失敗:", getErrorMessage(error));
+  }
+}
+
+async function acquireMessageProcessingLock(messageId: string, historyId: string): Promise<boolean> {
+  const nowIso = new Date().toISOString();
+  const { error: insertError } = await supabaseAdmin
+    .from(GMAIL_MESSAGE_PROCESSING_TABLE)
+    .insert({
+      message_id: messageId,
+      history_id: historyId,
+      status: "processing",
+      retry_count: 0,
+      last_error: null,
+      processed_at: null,
+      updated_at: nowIso,
+    });
+
+  if (!insertError) {
+    return true;
+  }
+
+  if (!isDuplicateKeyError(insertError)) {
+    throw new Error(`PROCESSING_LOCK_INSERT_FAILED:${getErrorMessage(insertError)}`);
+  }
+
+  const { data: existing, error: fetchError } = await supabaseAdmin
+    .from(GMAIL_MESSAGE_PROCESSING_TABLE)
+    .select("message_id, history_id, status, retry_count, updated_at")
+    .eq("message_id", messageId)
+    .eq("history_id", historyId)
+    .maybeSingle();
+
+  if (fetchError || !existing) {
+    throw new Error(`PROCESSING_LOCK_FETCH_FAILED:${getErrorMessage(fetchError)}`);
+  }
+
+  const record = existing as MessageProcessingRecord;
+  if (record.status === "processed") {
+    return false;
+  }
+
+  const updatedAtMs = parseTimestampMs(record.updated_at);
+  const stale =
+    record.status !== "processing" ||
+    updatedAtMs === null ||
+    Date.now() - updatedAtMs > PROCESSING_LOCK_TTL_MS;
+
+  if (!stale) {
+    return false;
+  }
+
+  const nextRetry = (record.retry_count ?? 0) + 1;
+  const { error: updateError } = await supabaseAdmin
+    .from(GMAIL_MESSAGE_PROCESSING_TABLE)
+    .update({
+      status: "processing",
+      retry_count: nextRetry,
+      last_error: null,
+      updated_at: nowIso,
+    })
+    .eq("message_id", messageId)
+    .eq("history_id", historyId);
+
+  if (updateError) {
+    throw new Error(`PROCESSING_LOCK_UPDATE_FAILED:${getErrorMessage(updateError)}`);
+  }
+
+  return true;
+}
+
+async function markMessageProcessingCompleted(messageId: string, historyId: string): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from(GMAIL_MESSAGE_PROCESSING_TABLE)
+    .update({
+      status: "processed",
+      last_error: null,
+      processed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("message_id", messageId)
+    .eq("history_id", historyId);
+
+  if (error) {
+    console.warn("[WEBHOOK] 処理完了ステータス更新失敗:", {
+      messageId,
+      historyId,
+      error: getErrorMessage(error),
+    });
+  }
+}
+
+async function markMessageProcessingError(
+  messageId: string,
+  historyId: string,
+  error: unknown,
+): Promise<void> {
+  const errorMessage = truncateText(getErrorMessage(error), 2000);
+  const { error: updateError } = await supabaseAdmin
+    .from(GMAIL_MESSAGE_PROCESSING_TABLE)
+    .update({
+      status: "error",
+      last_error: errorMessage,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("message_id", messageId)
+    .eq("history_id", historyId);
+
+  if (updateError) {
+    console.warn("[WEBHOOK] 処理失敗ステータス更新失敗:", {
+      messageId,
+      historyId,
+      error: getErrorMessage(updateError),
+    });
+  }
 }
 
 function buildDeterministicUuid(seed: string): string {
@@ -738,11 +2297,17 @@ function buildDeterministicUuid(seed: string): string {
 }
 
 function isDuplicateKeyError(err: unknown): boolean {
-  if (!(err instanceof Error)) {
+  if (err instanceof Error) {
+    return err.message.includes("duplicate key value") || err.message.includes("23505");
+  }
+
+  if (typeof err !== "object" || err === null) {
     return false;
   }
 
-  return err.message.includes("duplicate key value") || err.message.includes("23505");
+  const message = "message" in err ? String((err as { message: unknown }).message) : "";
+  const code = "code" in err ? String((err as { code: unknown }).code) : "";
+  return code === "23505" || message.includes("duplicate key value") || message.includes("23505");
 }
 
 async function createOrReuseIntegrationProposal(input: {
@@ -753,11 +2318,15 @@ async function createOrReuseIntegrationProposal(input: {
   externalId: string;
   integrationName: string;
   orgId?: string;
+  documentId?: string | null;
+  siteId?: string | null;
   submit?: boolean;
 }): Promise<IntegrationProposalResult> {
   const normalizedSource = normalizeString(input.source);
   const normalizedExternalId = normalizeString(input.externalId);
   const normalizedDescription = normalizeString(input.description);
+  const normalizedDocumentId = normalizeString(input.documentId);
+  const normalizedSiteId = normalizeString(input.siteId);
 
   if (!normalizedSource || !normalizedExternalId || !normalizedDescription) {
     throw new Error("INVALID_INTEGRATION_INPUT");
@@ -785,6 +2354,8 @@ async function createOrReuseIntegrationProposal(input: {
     description: normalizedDescription,
     created_by: integrationActor,
     org_id: orgId,
+    document_id: normalizedDocumentId,
+    site_id: normalizedSiteId,
   };
 
   try {
@@ -951,55 +2522,99 @@ async function notifyAdminsAboutCommunication(
   subject: string,
   priority: TaskPriority
 ) {
-  const { data: admins } = await supabaseAdmin
+  await notifyAdminsForApprovalRequired({
+    proposalId,
+    proposalType: "communication.review",
+    title: `メール対応提案の承認が必要です（${priority}）`,
+    message: `件名「${subject}」の要点確認と対応タスク提案を確認してください。`,
+    data: {
+      priority,
+    },
+  });
+}
+
+async function notifyAdmins(docType: DocumentType, proposalId: string, extractedData: any) {
+  const siteName = extractedData.site_name || extractedData.vendor_name || '不明';
+  await notifyAdminsForApprovalRequired({
+    proposalId,
+    proposalType: getIntegrationProposalType(docType),
+    title: `${getDocumentTypeLabel(docType)}の承認が必要です`,
+    message: `「${siteName}」の書類解析から作成された提案を確認してください。`,
+    data: {
+      document_type: docType,
+    },
+  });
+}
+
+async function notifyAdminsForApprovalRequired(input: {
+  proposalId: string;
+  proposalType: ProposalType;
+  title: string;
+  message: string;
+  data?: Record<string, unknown>;
+}) {
+  const { data: admins, error: adminError } = await supabaseAdmin
     .from("profiles")
     .select("id")
     .in("role", ["admin", "manager"]);
 
-  if (!admins || admins.length === 0) return;
+  if (adminError) {
+    console.warn(`[WEBHOOK] Failed to fetch admin recipients: ${adminError.message}`);
+    return;
+  }
+
+  if (!admins || admins.length === 0) {
+    return;
+  }
 
   const notifications = admins.map((admin: { id: string }) => ({
     user_id: admin.id,
-    type: "approval_required",
-    title: `メール対応提案が作成されました（${priority}）`,
-    message: `件名「${subject}」の要点確認と対応タスクを提案しました。`,
+    type: APPROVAL_REQUIRED_NOTIFICATION_TYPE,
+    title: input.title,
+    message: input.message,
     data: {
-      proposal_id: proposalId,
-      proposal_type: "communication.review",
-      priority,
+      proposal_id: input.proposalId,
+      proposal_type: input.proposalType,
+      ...input.data,
     },
   }));
 
-  await supabaseAdmin.from("notifications").insert(notifications);
+  const { error: insertError } = await supabaseAdmin
+    .from("notifications")
+    .insert(notifications);
+
+  if (insertError) {
+    console.warn(`[WEBHOOK] Failed to create approval_required notifications: ${insertError.message}`);
+  }
 }
 
-async function notifyAdmins(docType: DocumentType, proposalId: string, extractedData: any) {
-  const { data: admins } = await supabaseAdmin
-    .from('profiles')
-    .select('id')
-    .in('role', ['admin', 'manager']);
-
-  if (!admins || admins.length === 0) return;
-
-  const siteName = extractedData.site_name || extractedData.vendor_name || '不明';
-
-  const notifications = admins.map((admin: { id: string }) => ({
-    user_id: admin.id,
-    type: getNotificationType(docType),
-    title: `${getDocumentTypeLabel(docType)}が自動検知されました`,
-    message: `「${siteName}」の書類を自動解析しました。確認をお願いします。`,
-    data: {
-      proposal_id: proposalId,
-      document_type: docType,
-    }
-  }));
-
-  await supabaseAdmin.from('notifications').insert(notifications);
+interface ManualReviewOptions {
+  attachmentId?: string;
+  historyId?: string;
+  stage?: string;
+  externalIdSuffix?: string;
+  documentId?: string;
+  siteId?: string | null;
+  additionalPayload?: Record<string, unknown>;
 }
 
-async function createManualReviewProposal(messageId: string, filename: string, errorReason: string) {
+async function createManualReviewProposal(
+  messageId: string,
+  filename: string,
+  errorReason: string,
+  options?: ManualReviewOptions,
+) {
   try {
-    const description = `Gmail添付ファイル「${filename}」の自動解析に失敗しました。\n\n**エラー理由**: ${errorReason}\n\n手動で確認してください。\n\nGmail Message ID: ${messageId}`;
+    const normalizedReason = truncateText(errorReason, 1000);
+    const stageLine = options?.stage ? `\n処理ステージ: ${options.stage}` : "";
+    const historyLine = options?.historyId ? `\nHistory ID: ${options.historyId}` : "";
+    const description = `Gmail添付ファイル「${filename}」の自動解析に失敗しました。\n\n**エラー理由**: ${normalizedReason}${stageLine}\n\n手動で確認してください。\n\nGmail Message ID: ${messageId}${historyLine}`;
+    const externalId =
+      options?.externalIdSuffix
+        ? `${messageId}:manual-review:${options.externalIdSuffix}`
+        : options?.attachmentId
+          ? `${messageId}:${options.attachmentId}:manual-review`
+          : `${messageId}:manual-review:${filename}`;
     const result = await createOrReuseIntegrationProposal({
       type: "expense.create",
       payload: {
@@ -1007,15 +2622,23 @@ async function createManualReviewProposal(messageId: string, filename: string, e
         category: "document",
         description,
         parse_error: true,
-        error_reason: errorReason,
+        error_reason: normalizedReason,
+        source_history_id: options?.historyId,
+        source_attachment_id: options?.attachmentId,
+        processing_stage: options?.stage,
+        document_id: options?.documentId,
+        site_id: options?.siteId ?? null,
         source: INTEGRATION_SOURCE,
         source_message_id: messageId,
         source_filename: filename,
+        ...(options?.additionalPayload || {}),
       },
       description,
       source: INTEGRATION_SOURCE,
-      externalId: `${messageId}:manual-review:${filename}`,
+      externalId,
       integrationName: INTEGRATION_NAME,
+      documentId: options?.documentId || null,
+      siteId: options?.siteId || null,
       submit: true,
     });
 
@@ -1025,17 +2648,23 @@ async function createManualReviewProposal(messageId: string, filename: string, e
       status: result.status,
     });
 
-  } catch (error: any) {
-    console.error('[MANUAL_REVIEW] エラー:', error.message);
+  } catch (error: unknown) {
+    console.error('[MANUAL_REVIEW] エラー:', getErrorMessage(error));
   }
 }
 
 export const __webhooksTestables = {
   getIntegrationProposalType,
+  buildRoutingDecision,
+  normalizeSiteNameKey,
+  collectSiteNameCandidates,
+  selectBestSiteMatch,
   extractAmountFromDocumentData,
   extractMessageBody,
   analyzeCommunicationEmail,
   normalizeString,
+  normalizeHistoryId,
+  isLikelyRateLimitError,
   buildDeterministicUuid,
   isDuplicateKeyError,
   createOrReuseIntegrationProposal,

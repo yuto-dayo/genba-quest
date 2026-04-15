@@ -68,6 +68,41 @@ npm run verify:gmail-manual-e2e -- --org-id 00000000-0000-0000-0000-000000000001
   - `[PASS] reject_status`
   - `[PASS] reject_reason`
 
+## Evidence 6: Local Re-Validation (2026-02-20)
+
+- Status: PASS
+- Commands:
+
+```bash
+cd server
+npm run verify:gmail-manual-e2e -- --org-id 00000000-0000-0000-0000-000000000001 --approve-id 24a8dfed-f8e0-4081-94d4-4c9c36bf7729 --reject-id 8288940b-928b-409f-8c88-480f1def510e
+RUN_DB_INTEGRATION_TESTS=1 npx jest --runInBand --runTestsByPath src/__tests__/integration/webhookIntegrationProposalPath.integration.test.ts
+```
+
+- Output summary:
+  - `verify:gmail-manual-e2e` => All checks passed
+  - `webhookIntegrationProposalPath.integration.test.ts` => PASS (3/3)
+
+## Evidence 7: Post-Migration Regression (2026-02-22)
+
+- Status: PASS
+- Command summary:
+
+```bash
+cd server
+npm run verify:a1-migration
+npm run test:integration:proposal-core
+npm run verify:gmail-manual-e2e -- --org-id 00000000-0000-0000-0000-000000000001 --approve-id 24a8dfed-f8e0-4081-94d4-4c9c36bf7729 --reject-id 8288940b-928b-409f-8c88-480f1def510e
+```
+
+- Output summary:
+  - `verify:a1-migration` => PASS (atomic RPC health + assignment/leave.request side effects + legacy function cleanup checks)
+  - DB integration tests => PASS (8/8)
+  - `verify:gmail-manual-e2e` => PASS (approve/reject origin + status + reason)
+  - Supabase live check:
+    - `leave.request` proposal insert accepted
+    - `rpc_assign_random_reviewer`, `check_schedule_conflict`, `is_feature_enabled` are not found (removed from schema cache)
+
 ## Evidence 4: Local Webhook Probe (Server Route Reachability)
 
 - Status: PASS (local route + async processing)

@@ -205,17 +205,7 @@ export class GmailWatcher {
         return attachments;
       }
 
-      for (const part of message.payload.parts) {
-        if (part.filename && part.body && part.body.attachmentId) {
-          attachments.push({
-            messageId: messageId,
-            attachmentId: part.body.attachmentId,
-            filename: part.filename,
-            mimeType: part.mimeType || 'application/octet-stream',
-            size: part.body.size || 0
-          });
-        }
-      }
+      this.collectAttachments(message.payload.parts, messageId, attachments);
 
       console.log(`[GMAIL_WATCH] 添付ファイル: ${attachments.length}件`);
       return attachments;
@@ -223,6 +213,28 @@ export class GmailWatcher {
     } catch (error: any) {
       console.error('[GMAIL_WATCH] 添付ファイル取得エラー:', error.message);
       throw error;
+    }
+  }
+
+  private collectAttachments(parts: any[], messageId: string, attachments: GmailAttachment[]): void {
+    for (const part of parts) {
+      if (!part || typeof part !== 'object') {
+        continue;
+      }
+
+      if (part.filename && part.body && part.body.attachmentId) {
+        attachments.push({
+          messageId,
+          attachmentId: part.body.attachmentId,
+          filename: part.filename,
+          mimeType: part.mimeType || 'application/octet-stream',
+          size: part.body.size || 0,
+        });
+      }
+
+      if (Array.isArray(part.parts) && part.parts.length > 0) {
+        this.collectAttachments(part.parts, messageId, attachments);
+      }
     }
   }
 
