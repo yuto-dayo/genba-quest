@@ -5,6 +5,7 @@
 
 import { Router, Response } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
+import { resolveOrgId } from "../lib/org";
 import { supabaseAdmin } from "../lib/supabaseClient";
 import {
     generateMonsterImage,
@@ -45,6 +46,7 @@ router.post("/generate/:siteId", async (req: AuthenticatedRequest, res: Response
     try {
         const { siteId } = req.params;
         const { force = false } = req.body;
+        const orgId = resolveOrgId(req.orgId);
 
         // 既存のモンスター画像をチェック
         const { data: existingImage } = await supabaseAdmin
@@ -67,6 +69,8 @@ router.post("/generate/:siteId", async (req: AuthenticatedRequest, res: Response
             .from("sites")
             .select("*")
             .eq("id", siteId)
+            .eq("org_id", orgId)
+            .is("deleted_at", null)
             .single();
 
         if (siteError || !site) {
@@ -132,7 +136,8 @@ router.post("/generate/:siteId", async (req: AuthenticatedRequest, res: Response
                 monster_attributes: result.attributes,
                 monster_archetype: result.archetypeName,
             })
-            .eq("id", siteId);
+            .eq("id", siteId)
+            .eq("org_id", orgId);
 
         res.status(201).json({
             cached: false,
@@ -159,6 +164,7 @@ router.post("/generate/:siteId", async (req: AuthenticatedRequest, res: Response
 router.get("/battle/:siteId", async (req: AuthenticatedRequest, res: Response) => {
     try {
         const { siteId } = req.params;
+        const orgId = resolveOrgId(req.orgId);
 
         // サイト情報を取得
         const { data: site, error } = await supabaseAdmin
@@ -168,6 +174,8 @@ router.get("/battle/:siteId", async (req: AuthenticatedRequest, res: Response) =
                 client:clients(id, name)
             `)
             .eq("id", siteId)
+            .eq("org_id", orgId)
+            .is("deleted_at", null)
             .single();
 
         if (error) throw error;
@@ -226,8 +234,9 @@ router.get("/battle/:siteId", async (req: AuthenticatedRequest, res: Response) =
  * GET /active
  * 稼働中の全モンスター（サイト）を取得
  */
-router.get("/active", async (_req: AuthenticatedRequest, res: Response) => {
+router.get("/active", async (req: AuthenticatedRequest, res: Response) => {
     try {
+        const orgId = resolveOrgId(req.orgId);
         // 稼働中のサイトを取得
         const { data: sites, error } = await supabaseAdmin
             .from("sites")
@@ -236,6 +245,8 @@ router.get("/active", async (_req: AuthenticatedRequest, res: Response) => {
                 client:clients(id, name),
                 monster_images(*)
             `)
+            .eq("org_id", orgId)
+            .is("deleted_at", null)
             .in("status", ["active", "in_progress"])
             .order("created_at", { ascending: false });
 
@@ -299,8 +310,9 @@ router.get("/active", async (_req: AuthenticatedRequest, res: Response) => {
  * GET /defeated
  * 討伐済み（完了）のモンスターを取得
  */
-router.get("/defeated", async (_req: AuthenticatedRequest, res: Response) => {
+router.get("/defeated", async (req: AuthenticatedRequest, res: Response) => {
     try {
+        const orgId = resolveOrgId(req.orgId);
         const { data: sites, error } = await supabaseAdmin
             .from("sites")
             .select(`
@@ -308,6 +320,8 @@ router.get("/defeated", async (_req: AuthenticatedRequest, res: Response) => {
                 client:clients(id, name),
                 monster_images(*)
             `)
+            .eq("org_id", orgId)
+            .is("deleted_at", null)
             .eq("status", "completed")
             .order("completed_at", { ascending: false })
             .limit(20);
@@ -357,6 +371,7 @@ router.post("/attack/:siteId", async (req: AuthenticatedRequest, res: Response) 
     try {
         const { siteId } = req.params;
         const { hoursWorked, comment } = req.body;
+        const orgId = resolveOrgId(req.orgId);
 
         if (!hoursWorked || hoursWorked <= 0) {
             res.status(400).json({ error: "hoursWorked must be a positive number" });
@@ -368,6 +383,8 @@ router.post("/attack/:siteId", async (req: AuthenticatedRequest, res: Response) 
             .from("sites")
             .select("actual_hours, estimated_hours, status")
             .eq("id", siteId)
+            .eq("org_id", orgId)
+            .is("deleted_at", null)
             .single();
 
         if (siteError || !site) {
@@ -387,7 +404,8 @@ router.post("/attack/:siteId", async (req: AuthenticatedRequest, res: Response) 
         await supabaseAdmin
             .from("sites")
             .update({ actual_hours: newActualHours })
-            .eq("id", siteId);
+            .eq("id", siteId)
+            .eq("org_id", orgId);
 
         // モンスター撃破判定
         const remainingHp = Math.max(0, (site.estimated_hours || 100) - newActualHours);
@@ -400,7 +418,8 @@ router.post("/attack/:siteId", async (req: AuthenticatedRequest, res: Response) 
                     status: "completed",
                     completed_at: new Date().toISOString(),
                 })
-                .eq("id", siteId);
+                .eq("id", siteId)
+                .eq("org_id", orgId);
         }
 
         // バトルログを記録
@@ -473,6 +492,7 @@ router.post("/strategy/:siteId", async (req: AuthenticatedRequest, res: Response
     try {
         const { siteId } = req.params;
         const { comment } = req.body;
+        const orgId = resolveOrgId(req.orgId);
 
         if (!comment || comment.trim().length === 0) {
             res.status(400).json({ error: "Comment is required" });
@@ -484,6 +504,8 @@ router.post("/strategy/:siteId", async (req: AuthenticatedRequest, res: Response
             .from("sites")
             .select("id")
             .eq("id", siteId)
+            .eq("org_id", orgId)
+            .is("deleted_at", null)
             .single();
 
         if (siteError || !site) {
