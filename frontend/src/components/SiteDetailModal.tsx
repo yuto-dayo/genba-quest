@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     X,
@@ -15,13 +15,14 @@ import {
     Trash2,
     TrendingUp,
 } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
 import {
     fetchSiteDocuments,
     uploadSiteDocument,
-    completeSite,
     deleteSite,
     fetchMembers,
     fetchSiteLineItems,
+    type CompleteSiteWithCloseResult,
     type Site,
     type SiteDocument,
     type SiteLineItem,
@@ -31,31 +32,39 @@ import { getErrorMessage } from "../lib/error";
 import { formatSiteDateRange, formatSiteSchedulePattern } from "../lib/siteSchedule";
 import { SiteFormModal } from "./SiteFormModal";
 import { SalesModal } from "./SalesModal";
+import { SiteCompleteWithCloseModal } from "./SiteCompleteWithCloseModal";
 import styles from "./SiteDetailModal.module.css";
 
 interface SiteDetailModalProps {
     site: Site;
     onClose: () => void;
-    onUpdated: () => void;
+    onUpdated: (result?: { site?: Site; message?: string }) => void;
 }
 
 export function SiteDetailModal({ site, onClose, onUpdated }: SiteDetailModalProps) {
+    const [searchParams] = useSearchParams();
     const [documents, setDocuments] = useState<SiteDocument[]>([]);
     const [lineItems, setLineItems] = useState<SiteLineItem[]>([]);
     const [members, setMembers] = useState<Member[]>([]);
     const [loadingDocs, setLoadingDocs] = useState(true);
     const [uploading, setUploading] = useState(false);
-    const [completing, setCompleting] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [deleteReason, setDeleteReason] = useState("");
     const [showEditModal, setShowEditModal] = useState(false);
     const [showCompleteChoice, setShowCompleteChoice] = useState(false);
     const [showSalesModal, setShowSalesModal] = useState(false);
+    const [showCloseModal, setShowCloseModal] = useState(false);
+    const [closeDraftRevenue, setCloseDraftRevenue] = useState<number | null>(site.revenue ?? null);
     const [error, setError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const isCompleted = site.status === "completed";
+    const closePhase = site.close_phase || (isCompleted ? "completed_unclosed" : "active");
+    const rewardReturnHref = useMemo(
+        () => buildRewardReturnHref(site, searchParams),
+        [searchParams, site],
+    );
     const assignedMembers = members.filter(
         (m) => site.assigned_users?.includes(m.id)
     );
@@ -109,23 +118,18 @@ export function SiteDetailModal({ site, onClose, onUpdated }: SiteDetailModalPro
     };
 
     const handleCompleteClick = () => {
+        setCloseDraftRevenue(site.revenue ?? null);
         if (lineItems.length > 0) {
             setShowCompleteChoice(true);
         } else {
-            handleCompleteOnly();
+            openCloseModal();
         }
     };
 
-    const handleCompleteOnly = async () => {
-        try {
-            setCompleting(true);
-            setShowCompleteChoice(false);
-            await completeSite(site.id);
-            onUpdated();
-        } catch (err: unknown) {
-            setError(getErrorMessage(err));
-            setCompleting(false);
-        }
+    const openCloseModal = () => {
+        setError(null);
+        setShowCompleteChoice(false);
+        setShowCloseModal(true);
     };
 
     const handleCompleteWithSales = () => {
@@ -133,16 +137,18 @@ export function SiteDetailModal({ site, onClose, onUpdated }: SiteDetailModalPro
         setShowSalesModal(true);
     };
 
-    const handleSalesSuccess = async () => {
+    const handleSalesSuccess = (recognizedRevenue?: number) => {
         setShowSalesModal(false);
-        try {
-            setCompleting(true);
-            await completeSite(site.id);
-            onUpdated();
-        } catch (err: unknown) {
-            setError(getErrorMessage(err));
-            setCompleting(false);
-        }
+        setCloseDraftRevenue(recognizedRevenue ?? site.revenue ?? null);
+        openCloseModal();
+    };
+
+    const handleCompleteWithCloseSuccess = (result: CompleteSiteWithCloseResult) => {
+        setShowCloseModal(false);
+        onUpdated({
+            site: result.site,
+            message: buildCompleteWithCloseMessage(site.name, result),
+        });
     };
 
     const handleDelete = async () => {
@@ -400,18 +406,21 @@ export function SiteDetailModal({ site, onClose, onUpdated }: SiteDetailModalPro
                             <button
                                 className={styles.completeButton}
                                 onClick={handleCompleteClick}
-                                disabled={completing}
                             >
-                                {completing ? (
-                                    <Loader2 size={18} />
-                                ) : (
-                                    <CheckCircle2 size={18} />
-                                )}
+                                <CheckCircle2 size={18} />
                                 完了にする
                             </button>
                         ) : site.completed_at ? (
-                            <div className={styles.completedDate}>
-                                完了: {new Date(site.completed_at).toLocaleDateString("ja-JP")}
+                            <div className={styles.completedSummary}>
+                                <div className={styles.completedDate}>
+                                    完了: {new Date(site.completed_at).toLocaleDateString("ja-JP")}
+                                </div>
+                                <p className={styles.completionNote}>{buildCompletionNote(closePhase)}</p>
+                                {rewardReturnHref && (
+                                    <Link className={styles.rewardLinkButton} to={rewardReturnHref}>
+                                        この月のPATH報酬を確認
+                                    </Link>
+                                )}
                             </div>
                         ) : null}
                     </div>
@@ -498,9 +507,9 @@ export function SiteDetailModal({ site, onClose, onUpdated }: SiteDetailModalPro
                                 </button>
                                 <button
                                     className={styles.completeOnlyButton}
-                                    onClick={handleCompleteOnly}
+                                    onClick={openCloseModal}
                                 >
-                                    完了のみ
+                                    そのまま締め入力へ
                                 </button>
                             </div>
                         </motion.div>
@@ -526,6 +535,17 @@ export function SiteDetailModal({ site, onClose, onUpdated }: SiteDetailModalPro
                 )}
             </AnimatePresence>
 
+            <AnimatePresence>
+                {showCloseModal && (
+                    <SiteCompleteWithCloseModal
+                        site={site}
+                        initialRecognizedRevenue={closeDraftRevenue}
+                        onClose={() => setShowCloseModal(false)}
+                        onSuccess={handleCompleteWithCloseSuccess}
+                    />
+                )}
+            </AnimatePresence>
+
             {/* 編集モーダル */}
             <AnimatePresence>
                 {showEditModal && (
@@ -538,4 +558,75 @@ export function SiteDetailModal({ site, onClose, onUpdated }: SiteDetailModalPro
             </AnimatePresence>
         </>
     );
+}
+
+function buildCompleteWithCloseMessage(siteName: string, result: CompleteSiteWithCloseResult): string {
+    if (result.close_auto_executed) {
+        return `「${siteName}」を完了し、現場締めまで確定しました。`;
+    }
+
+    return `「${siteName}」を完了し、現場締め proposal を送信しました。`;
+}
+
+function buildCompletionNote(closePhase: Site["close_phase"]): string {
+    switch (closePhase) {
+        case "completed_close_executed":
+            return "現場締めまで確定しています。変更が必要な場合は reopen / reverse の運用フローで戻します。";
+        case "completed_close_pending":
+            return "現場完了は記録済みです。現場締め proposal は承認待ちです。";
+        case "completed_close_rejected":
+            return "現場完了は記録済みです。現場締めは差し戻されています。管理導線から再送してください。";
+        case "completed_unclosed":
+            return "現場完了は記録済みですが、締めは未送信です。管理導線から現場締めを送ってください。";
+        default:
+            return "完了の取り消しは売上連動も巻き戻すため、通常画面には出していません。必要時は運用対応です。";
+    }
+}
+
+function buildRewardReturnHref(site: Site, searchParams: URLSearchParams): string | null {
+    const period =
+        normalizeMonthValue(searchParams.get("period")) ||
+        deriveRewardMonthFromSite(site);
+
+    if (!period) {
+        return null;
+    }
+
+    const next = new URLSearchParams();
+    next.set("period", period);
+    next.set("reward", "1");
+    next.set("site", site.id);
+
+    const memberId = searchParams.get("member");
+    if (memberId) {
+        next.set("member", memberId);
+    }
+
+    return `/luqo?${next.toString()}`;
+}
+
+function deriveRewardMonthFromSite(site: Site): string | null {
+    return (
+        normalizeMonthValue(site.completed_at) ||
+        normalizeMonthValue(site.expected_completion_at) ||
+        normalizeMonthValue(site.started_at)
+    );
+}
+
+function normalizeMonthValue(value?: string | null): string | null {
+    if (!value) {
+        return null;
+    }
+
+    const directMatch = value.match(/^(\d{4})-(\d{2})$/);
+    if (directMatch) {
+        return directMatch[0];
+    }
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+        return null;
+    }
+
+    return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}`;
 }

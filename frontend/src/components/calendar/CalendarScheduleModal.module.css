@@ -1,0 +1,281 @@
+.overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(9, 18, 26, 0.38);
+    backdrop-filter: blur(8px);
+    z-index: 950;
+}
+
+.modal {
+    width: min(100%, 580px);
+    border-radius: 28px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 48%, transparent);
+    background:
+        linear-gradient(
+            180deg,
+            color-mix(in srgb, var(--md-sys-color-surface) 94%, white),
+            color-mix(in srgb, var(--md-sys-color-surface-container-low) 92%, white)
+        );
+    box-shadow: var(--md-sys-elevation-level4);
+    overflow: hidden;
+}
+
+.header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 20px 20px 12px;
+}
+
+.titleGroup {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.iconBadge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 16px;
+    background: linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--md-sys-color-secondary-container) 92%, white),
+        color-mix(in srgb, var(--md-sys-color-primary-container) 82%, white)
+    );
+    color: var(--md-sys-color-on-secondary-container);
+}
+
+.title {
+    font: var(--md-sys-typescale-title-large);
+    color: var(--md-sys-color-on-surface);
+}
+
+.subtitle {
+    margin-top: 4px;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.closeButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 999px;
+    background: var(--md-sys-color-surface-container);
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: pointer;
+    transition:
+        transform var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        color var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.closeButton:hover,
+.secondaryButton:hover,
+.primaryButton:hover {
+    transform: translateY(-1px);
+}
+
+.closeButton:hover {
+    background: var(--md-sys-color-surface-container-high);
+    color: var(--md-sys-color-on-surface);
+}
+
+.closeButton:focus-visible,
+.input:focus-visible,
+.select:focus-visible,
+.textarea:focus-visible,
+.secondaryButton:focus-visible,
+.primaryButton:focus-visible {
+    outline: 2px solid var(--md-sys-color-primary);
+    outline-offset: 3px;
+}
+
+.errorBanner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 20px 12px;
+    padding: 12px 14px;
+    border-radius: 18px;
+    background: color-mix(in srgb, #ffd9d2 86%, white);
+    color: #7b2b1b;
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.loadingState {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 24px 20px;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.contextRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 0 20px 12px;
+}
+
+.contextChip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 88%, white);
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-medium);
+}
+
+.formGrid {
+    display: grid;
+    gap: 14px;
+    padding: 8px 20px 20px;
+}
+
+.field {
+    display: grid;
+    gap: 8px;
+    padding: 14px;
+    border-radius: 20px;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 84%, white);
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 42%, transparent);
+}
+
+.label {
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-large);
+}
+
+.input,
+.select,
+.textarea {
+    width: 100%;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 70%, transparent);
+    border-radius: 18px;
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-body-large);
+}
+
+.input,
+.select {
+    min-height: 48px;
+    padding: 0 14px;
+}
+
+.textarea {
+    resize: vertical;
+    min-height: 104px;
+    padding: 12px 14px;
+}
+
+.footer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 20px 20px;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 70%, white);
+}
+
+.footerNote {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+}
+
+.secondaryButton,
+.primaryButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 16px;
+    border-radius: 999px;
+    font: var(--md-sys-typescale-label-large);
+    cursor: pointer;
+    transition:
+        transform var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        border-color var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        color var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.secondaryButton {
+    border: 1px solid var(--md-sys-color-outline);
+    background: transparent;
+    color: var(--md-sys-color-on-surface);
+}
+
+.primaryButton {
+    border: none;
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+}
+
+.secondaryButton:disabled,
+.primaryButton:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.loadingIcon {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (max-width: 640px) {
+    .overlay {
+        padding: 12px;
+        align-items: flex-end;
+    }
+
+    .modal {
+        border-radius: 24px 24px 0 0;
+    }
+
+    .footer {
+        grid-template-columns: 1fr;
+    }
+
+    .secondaryButton,
+    .primaryButton {
+        width: 100%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .closeButton,
+    .secondaryButton,
+    .primaryButton {
+        transition: none;
+    }
+
+    .loadingIcon {
+        animation: none;
+    }
+}

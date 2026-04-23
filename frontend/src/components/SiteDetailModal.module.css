@@ -415,13 +415,48 @@
     cursor: not-allowed;
 }
 
-.completedDate {
+.completedSummary {
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+}
+
+.completedDate {
     display: flex;
     align-items: center;
     justify-content: center;
     font: var(--md-sys-typescale-label-medium);
     color: var(--md-sys-color-on-surface-variant);
+}
+
+.completionNote {
+    margin: 0;
+    text-align: center;
+    font: var(--md-sys-typescale-body-small);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.rewardLinkButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 10px 16px;
+    border-radius: var(--md-sys-shape-corner-full);
+    background: var(--md-sys-color-secondary-container);
+    color: var(--md-sys-color-on-secondary-container);
+    font: var(--md-sys-typescale-label-large);
+    text-decoration: none;
+    transition: transform var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
+        box-shadow var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+}
+
+.rewardLinkButton:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--md-sys-elevation-level1);
 }
 
 /* ローディング */

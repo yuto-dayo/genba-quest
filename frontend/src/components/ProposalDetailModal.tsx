@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { X, CheckCircle, XCircle, Zap, MessageSquare, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
+import { Link } from "react-router-dom";
 import type { ProposalRecord } from "../lib/api";
+import { buildPathProposalHref, getPathProposalContext, isPathModuleProposal } from "../lib/pathProposal";
 import styles from "./ProposalDetailModal.module.css";
 
 interface ProposalDetailModalProps {
@@ -199,6 +201,9 @@ export function ProposalDetailModal({
         ? (emailBodyFull || emailBodyPreview || "")
         : (emailBodyPreview || emailBodyFull || "");
     const canToggleBody = Boolean(emailBodyFull && emailBodyPreview && emailBodyFull !== emailBodyPreview);
+    const isPathProposal = isPathModuleProposal(proposal);
+    const pathContext = getPathProposalContext(proposal);
+    const pathProposalHref = buildPathProposalHref(proposal);
 
     const handleApprove = async () => {
         await onApprove(proposal.id, reason.trim() || undefined);
@@ -262,6 +267,45 @@ export function ProposalDetailModal({
                 <span className={styles.date}>
                     {formatDate(proposal.created_at)}
                 </span>
+
+                {isPathProposal && pathContext && pathProposalHref && (
+                    <section className={styles.pathContextCard}>
+                        <div className={styles.pathContextHeader}>
+                            <span className={styles.pathContextBadge}>PATH queue</span>
+                            <Link to={pathProposalHref} className={styles.pathContextLink}>
+                                今月の評価で開く
+                                <ExternalLink size={14} />
+                            </Link>
+                        </div>
+                        <div className={styles.pathContextGrid}>
+                            <div>
+                                <span className={styles.pathContextLabel}>対象月</span>
+                                <strong>{pathContext.month || pathContext.correctionMonth || "未指定"}</strong>
+                            </div>
+                            <div>
+                                <span className={styles.pathContextLabel}>member</span>
+                                <strong>{pathContext.memberId ? `${pathContext.memberId.slice(0, 8)}...` : "未指定"}</strong>
+                            </div>
+                            <div>
+                                <span className={styles.pathContextLabel}>close / run</span>
+                                <strong>
+                                    {pathContext.closeId
+                                        ? `close ${pathContext.closeId.slice(0, 8)}...`
+                                        : pathContext.rewardRunId
+                                          ? `run ${pathContext.rewardRunId.slice(0, 8)}...`
+                                          : "参照なし"}
+                                </strong>
+                            </div>
+                            <div>
+                                <span className={styles.pathContextLabel}>reason</span>
+                                <strong>{pathContext.reasonCode || "manual_review"}</strong>
+                            </div>
+                        </div>
+                        {pathContext.note && (
+                            <p className={styles.pathContextNote}>{pathContext.note}</p>
+                        )}
+                    </section>
+                )}
 
                 {/* Email Context */}
                 {hasEmailContext && (

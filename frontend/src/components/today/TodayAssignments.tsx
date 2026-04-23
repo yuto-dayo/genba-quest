@@ -3,6 +3,8 @@ import type { Assignment, AssignmentStatus } from '../../types/calendar';
 import type { FocusItemRecord, Site } from '../../lib/api';
 import styles from './TodayComponents.module.css';
 
+type DayLogStatus = 'none' | 'saved' | 'locked';
+
 interface TodayAssignmentsProps {
     assignments: Assignment[];
     sites: Site[];
@@ -10,7 +12,9 @@ interface TodayAssignmentsProps {
     completingId: string | null;
     onCompleteFocusItem: (item: FocusItemRecord) => void;
     onOpenSite: (site: Site) => void;
-    onOpenQuickRecord: (site: Site) => void;
+    onRecordDayLog: (site: Site) => void;
+    onAddFocusItem: (site: Site) => void;
+    getDayLogStatus: (siteId: string) => DayLogStatus;
 }
 
 const STATUS_ORDER: AssignmentStatus[] = ['pending', 'confirmed', 'scheduled', 'completed'];
@@ -67,7 +71,9 @@ export function TodayAssignments({
     completingId,
     onCompleteFocusItem,
     onOpenSite,
-    onOpenQuickRecord,
+    onRecordDayLog,
+    onAddFocusItem,
+    getDayLogStatus,
 }: TodayAssignmentsProps) {
     const siteGroups = assignments.reduce<Map<string, Assignment[]>>((map, assignment) => {
         const key = assignment.site_id || assignment.site_name;
@@ -119,7 +125,20 @@ export function TodayAssignments({
                     <span>今日動く現場はありません</span>
                 </div>
             ) : (
-                siteSummaries.map((site) => (
+                siteSummaries.map((site) => {
+                    const dayLogStatus = site.site ? getDayLogStatus(site.site.id) : 'none';
+                    const dayLogLabel =
+                        dayLogStatus === 'none'
+                            ? '記録'
+                            : dayLogStatus === 'saved'
+                              ? '編集'
+                              : '記録済み';
+                    const dayLogButtonClass =
+                        dayLogStatus === 'locked'
+                            ? styles.assignmentActionButton
+                            : `${styles.assignmentActionButton} ${styles.assignmentActionPrimary}`;
+
+                    return (
                     <div key={site.siteId || site.siteName} className={styles.assignmentCard}>
                         <div className={styles.assignmentMain}>
                             <div className={styles.assignmentTopRow}>
@@ -200,11 +219,12 @@ export function TodayAssignments({
                                     </button>
                                     <button
                                         type="button"
-                                        className={`${styles.assignmentActionButton} ${styles.assignmentActionPrimary}`}
-                                        onClick={() => onOpenQuickRecord(site.site!)}
+                                        className={dayLogButtonClass}
+                                        onClick={() => onRecordDayLog(site.site!)}
+                                        disabled={dayLogStatus === 'locked'}
                                     >
                                         <Plus size={14} />
-                                        記録
+                                        {dayLogLabel}
                                     </button>
                                 </div>
                             )}
@@ -252,7 +272,7 @@ export function TodayAssignments({
                                         <button
                                             type="button"
                                             className={styles.siteTaskEmpty}
-                                            onClick={() => onOpenQuickRecord(site.site!)}
+                                            onClick={() => onAddFocusItem(site.site!)}
                                         >
                                             <Plus size={14} />
                                             今日やることを追加
@@ -262,7 +282,8 @@ export function TodayAssignments({
                             )}
                         </div>
                     </div>
-                ))
+                    );
+                })
             )}
         </div>
     );

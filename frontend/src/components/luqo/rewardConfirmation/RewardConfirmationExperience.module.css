@@ -1,0 +1,479 @@
+.shell {
+    display: grid;
+    gap: 24px;
+    align-items: start;
+}
+
+.mainColumn {
+    display: grid;
+    gap: 24px;
+}
+
+.sideColumn {
+    position: relative;
+}
+
+.hero {
+    position: relative;
+    overflow: hidden;
+    padding: 24px;
+    border-radius: 28px;
+    background:
+        radial-gradient(circle at top right, rgba(249, 115, 22, 0.16), transparent 34%),
+        linear-gradient(135deg, rgba(13, 148, 136, 0.12), rgba(255, 255, 255, 0.92));
+    border: 1px solid rgba(13, 148, 136, 0.14);
+    box-shadow: 0 18px 48px rgba(19, 78, 74, 0.08);
+}
+
+.heroHeader {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.eyebrow {
+    margin: 0 0 8px;
+    color: #0d9488;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.heroHeader h1,
+.sectionHeader h2,
+.drawerHeader h3 {
+    margin: 0;
+    color: #134e4a;
+}
+
+.subtitle {
+    margin: 10px 0 0;
+    color: rgba(19, 78, 74, 0.78);
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.statusBadge,
+.statusSubtle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(13, 148, 136, 0.18);
+    color: #0f766e;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.statusSubtle {
+    padding: 4px 10px;
+    font-size: 12px;
+}
+
+.heroGrid,
+.cardGrid,
+.metricGrid {
+    display: grid;
+    gap: 12px;
+}
+
+.heroGrid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.heroCard,
+.infoCard,
+.noticeCard,
+.stateCard,
+.tableCard,
+.aiPanel,
+.internalPanel,
+.metricCard {
+    background: rgba(255, 255, 255, 0.94);
+    border: 1px solid rgba(13, 148, 136, 0.12);
+    border-radius: 24px;
+    box-shadow: 0 12px 28px rgba(19, 78, 74, 0.06);
+}
+
+.heroCard,
+.infoCard,
+.noticeCard,
+.stateCard,
+.tableCard,
+.internalPanel,
+.aiPanel {
+    padding: 18px;
+}
+
+.heroCard span,
+.metricCard span {
+    display: block;
+    color: rgba(19, 78, 74, 0.72);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+}
+
+.heroCard strong,
+.metricCard strong {
+    display: block;
+    margin-top: 8px;
+    color: #134e4a;
+    font-size: clamp(24px, 4vw, 32px);
+    line-height: 1.1;
+}
+
+.heroCard p,
+.infoCard p,
+.noticeCard,
+.drawerCopy,
+.aiIntro,
+.aiPlaceholder,
+.internalCopy {
+    margin: 10px 0 0;
+    color: rgba(19, 78, 74, 0.76);
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.section {
+    display: grid;
+    gap: 14px;
+}
+
+.sectionHeader {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.sectionHeader p {
+    margin: 6px 0 0;
+    color: rgba(19, 78, 74, 0.68);
+    font-size: 14px;
+}
+
+.cardGrid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.reasonColumns {
+    display: grid;
+    gap: 12px;
+}
+
+.reasonList,
+.reasonListCompact {
+    margin: 0;
+    padding-left: 18px;
+    color: #134e4a;
+}
+
+.reasonList {
+    display: grid;
+    gap: 10px;
+}
+
+.reasonList li,
+.reasonListCompact li {
+    line-height: 1.6;
+}
+
+.reasonList li strong {
+    display: block;
+    margin-bottom: 2px;
+}
+
+.reasonList li span {
+    color: rgba(19, 78, 74, 0.76);
+    font-size: 14px;
+}
+
+.reasonListCompact {
+    margin-top: 10px;
+    font-size: 14px;
+}
+
+.evidenceRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.evidenceLink,
+.evidencePill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 10px;
+    border-radius: 999px;
+    background: rgba(13, 148, 136, 0.08);
+    color: #0f766e;
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.tableCard {
+    overflow: hidden;
+    padding: 0;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.table th,
+.table td {
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(19, 78, 74, 0.08);
+    text-align: left;
+    vertical-align: top;
+    font-size: 14px;
+}
+
+.table th {
+    color: rgba(19, 78, 74, 0.72);
+    font-size: 12px;
+    font-weight: 700;
+    background: rgba(13, 148, 136, 0.05);
+}
+
+.table tbody tr:hover {
+    background: rgba(13, 148, 136, 0.04);
+}
+
+.inlineButton,
+.primaryButton,
+.questionChip,
+.internalToggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: none;
+    cursor: pointer;
+    font: inherit;
+    transition:
+        transform 180ms ease,
+        box-shadow 180ms ease,
+        background 180ms ease,
+        opacity 180ms ease;
+}
+
+.inlineButton {
+    padding: 0;
+    background: transparent;
+    color: #0f766e;
+    font-weight: 700;
+}
+
+.primaryButton,
+.questionChip,
+.internalToggle {
+    width: 100%;
+    border-radius: 18px;
+}
+
+.primaryButton {
+    padding: 13px 18px;
+    background: linear-gradient(135deg, #f97316, #fb923c);
+    color: #fff;
+    font-weight: 700;
+    box-shadow: 0 10px 24px rgba(249, 115, 22, 0.22);
+}
+
+.primaryButton:disabled {
+    cursor: default;
+    opacity: 0.7;
+}
+
+.questionChip {
+    width: auto;
+    padding: 10px 12px;
+    background: rgba(13, 148, 136, 0.08);
+    color: #134e4a;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.internalToggle {
+    justify-content: space-between;
+    padding: 15px 18px;
+    background: rgba(13, 148, 136, 0.08);
+    color: #134e4a;
+    font-weight: 700;
+}
+
+.primaryButton:hover,
+.questionChip:hover,
+.internalToggle:hover,
+.inlineButton:hover {
+    transform: translateY(-1px);
+}
+
+.metricGrid {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.metricCard {
+    padding: 16px;
+}
+
+.rowBetween {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.chipRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.inputLabel {
+    display: grid;
+    gap: 8px;
+    color: #134e4a;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.textarea {
+    width: 100%;
+    min-height: 120px;
+    padding: 14px 16px;
+    border: 1px solid rgba(19, 78, 74, 0.16);
+    border-radius: 18px;
+    background: rgba(240, 253, 250, 0.6);
+    color: #134e4a;
+    font: inherit;
+    resize: vertical;
+    outline: none;
+}
+
+.textarea:focus {
+    border-color: rgba(13, 148, 136, 0.48);
+    box-shadow: 0 0 0 4px rgba(13, 148, 136, 0.12);
+}
+
+.aiPanel {
+    display: grid;
+    gap: 14px;
+}
+
+.aiAnswer {
+    display: grid;
+    gap: 12px;
+}
+
+.aiSection {
+    padding-top: 12px;
+    border-top: 1px solid rgba(19, 78, 74, 0.1);
+}
+
+.aiSection:first-child {
+    padding-top: 0;
+    border-top: 0;
+}
+
+.aiSection h4,
+.drawerSection h4,
+.infoCard h3 {
+    margin: 0 0 8px;
+    color: #134e4a;
+}
+
+.aiSection p,
+.aiSection ul {
+    margin: 0;
+}
+
+.drawerBackdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    display: flex;
+    justify-content: flex-end;
+    background: rgba(19, 78, 74, 0.28);
+    backdrop-filter: blur(4px);
+}
+
+.drawer {
+    width: min(100%, 560px);
+    height: 100%;
+    overflow-y: auto;
+    padding: 24px;
+    background: #f8fffd;
+    box-shadow: -24px 0 48px rgba(19, 78, 74, 0.16);
+}
+
+.drawerHeader {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.drawerSection {
+    margin-top: 22px;
+}
+
+.stateCard {
+    padding: 28px;
+    text-align: center;
+}
+
+@media (min-width: 1100px) {
+    .shell {
+        grid-template-columns: minmax(0, 1fr) 360px;
+    }
+
+    .sideColumn {
+        position: sticky;
+        top: 88px;
+    }
+
+    .reasonColumns {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 799px) {
+    .hero {
+        padding: 20px;
+        border-radius: 24px;
+    }
+
+    .heroHeader,
+    .rowBetween,
+    .drawerHeader,
+    .sectionHeader {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .tableCard {
+        overflow-x: auto;
+    }
+
+    .table {
+        min-width: 720px;
+    }
+
+    .drawer {
+        width: 100%;
+        padding: 20px;
+    }
+}

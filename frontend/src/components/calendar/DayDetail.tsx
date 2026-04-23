@@ -27,16 +27,32 @@ export function DayDetail({ day }: DayDetailProps) {
         return `${d.getMonth() + 1}月${d.getDate()}日 (${days[d.getDay()]})`;
     };
 
+    const formatTimeRange = (start?: string, end?: string) => {
+        if (start && end) {
+            return `${start} - ${end}`;
+        }
+        if (start) {
+            return start;
+        }
+        if (end) {
+            return end;
+        }
+        return '未定';
+    };
+
     return (
         <div className={styles.detailContainer}>
             <div className={styles.detailHeader}>
                 <span className={styles.detailDate}>{formatDate(day.date)}</span>
-                {day.shift?.available === false && (
-                    <span className={styles.detailHolidayTag}>
-                        <AlertCircle size={14} aria-hidden="true" />
-                        休暇・不可
-                    </span>
-                )}
+                <div className={styles.detailMeta}>
+                    <span className={styles.detailCountPill}>{day.assignments.length}</span>
+                    {day.shift?.available === false && (
+                        <span className={styles.detailHolidayTag}>
+                            <AlertCircle size={14} aria-hidden="true" />
+                            休み
+                        </span>
+                    )}
+                </div>
             </div>
 
             <div className={styles.assignmentList}>
@@ -47,12 +63,28 @@ export function DayDetail({ day }: DayDetailProps) {
                         const meta = STATUS_META[assignment.status];
                         const Icon = meta.icon;
                         return (
-                            <div key={assignment.id} className={styles.assignmentCard}>
-                                <div className={styles.timeSlot}>
-                                    <Clock3 size={12} aria-hidden="true" />
-                                    <span>{assignment.start_time || '未定'}</span>
-                                </div>
-                                <div className={styles.siteInfo}>
+                            <div
+                                key={assignment.id}
+                                className={`${styles.assignmentCard} ${styles[`assignment_${meta.className}`]}`}
+                            >
+                                <div className={styles.assignmentContent}>
+                                    <div className={styles.assignmentTopLine}>
+                                        <div className={styles.timeSlot}>
+                                            <Clock3 size={12} aria-hidden="true" />
+                                            <span>
+                                                {formatTimeRange(
+                                                    assignment.start_time,
+                                                    assignment.end_time
+                                                )}
+                                            </span>
+                                        </div>
+                                        <span
+                                            className={`${styles.statusIconBadge} ${styles[meta.className]}`}
+                                            aria-label={meta.label}
+                                        >
+                                            <Icon size={14} aria-hidden="true" />
+                                        </span>
+                                    </div>
                                     <div className={styles.siteName}>{assignment.site_name}</div>
                                     {assignment.client_name && (
                                         <div className={styles.clientRow}>
@@ -61,13 +93,6 @@ export function DayDetail({ day }: DayDetailProps) {
                                         </div>
                                     )}
                                 </div>
-                                <span
-                                    className={`${styles.statusBadge} ${styles[meta.className]}`}
-                                    aria-label={meta.label}
-                                >
-                                    <Icon size={12} aria-hidden="true" />
-                                    <span>{meta.label}</span>
-                                </span>
                             </div>
                         );
                     })

@@ -6,6 +6,8 @@ export interface Shift {
     note?: string;
 }
 
+export type AvailabilityTokenKind = 'leave_request' | 'available';
+
 export type AssignmentStatus = 'pending' | 'scheduled' | 'confirmed' | 'completed';
 
 export interface Assignment {

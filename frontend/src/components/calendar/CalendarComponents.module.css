@@ -14,11 +14,11 @@
     padding: 6px 0;
 }
 
-.weekHeaderLabel[data-weekday="sat"] {
+.weekHeaderLabel[data-weekday='sat'] {
     color: var(--md-sys-color-primary);
 }
 
-.weekHeaderLabel[data-weekday="sun"] {
+.weekHeaderLabel[data-weekday='sun'] {
     color: var(--md-sys-color-error);
 }
 
@@ -34,19 +34,17 @@
 }
 
 .dayCell {
-    /* button reset */
     appearance: none;
     border: none;
     text-align: left;
     font: inherit;
     color: inherit;
-
     background: var(--md-sys-color-surface-container-lowest);
     padding: 6px 6px 4px;
-    min-height: 72px;
+    min-height: 88px;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 6px;
     cursor: pointer;
     position: relative;
     transition: background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
@@ -68,17 +66,24 @@
     outline-offset: -2px;
 }
 
-/* Status background colors (color-blind safe: color + icon in cell when pending) */
 .status_free {
     background: var(--md-sys-color-surface-container-lowest);
 }
 
 .status_busy {
-    background: color-mix(in srgb, var(--md-sys-color-primary-container) 55%, var(--md-sys-color-surface-container-lowest));
+    background: color-mix(
+        in srgb,
+        var(--md-sys-color-primary-container) 55%,
+        var(--md-sys-color-surface-container-lowest)
+    );
 }
 
 .status_attention {
-    background: color-mix(in srgb, var(--md-sys-color-error-container) 55%, var(--md-sys-color-surface-container-lowest));
+    background: color-mix(
+        in srgb,
+        var(--md-sys-color-error-container) 55%,
+        var(--md-sys-color-surface-container-lowest)
+    );
 }
 
 .status_holiday {
@@ -95,7 +100,11 @@
 .dayCell.selected {
     outline: 2px solid var(--md-sys-color-primary);
     outline-offset: -2px;
-    background: color-mix(in srgb, var(--md-sys-color-secondary-container) 70%, var(--md-sys-color-surface-container-lowest));
+    background: color-mix(
+        in srgb,
+        var(--md-sys-color-secondary-container) 70%,
+        var(--md-sys-color-surface-container-lowest)
+    );
 }
 
 .dayCell.today {
@@ -134,41 +143,121 @@
     color: var(--md-sys-color-error);
 }
 
-.dayCellBody {
+.dayDensity {
+    display: grid;
+    gap: 6px;
+    margin-top: auto;
+}
+
+.dayDensityTrack,
+.weekDensityTrack {
     display: flex;
-    flex-direction: column;
-    gap: 2px;
+    height: 6px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--md-sys-color-outline-variant) 55%, white);
+}
+
+.dayDensityConfirmed,
+.weekDensityConfirmed {
+    background: var(--md-sys-color-primary);
+}
+
+.dayDensityPending,
+.weekDensityPending {
+    background: var(--md-sys-color-tertiary);
+}
+
+.availabilityChip,
+.weekAvailability,
+.availabilityIconChip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 20px;
+    min-width: 20px;
+    padding: 0 8px;
+    border-radius: 999px;
+    font: var(--md-sys-typescale-label-small);
+    width: fit-content;
+}
+
+.availabilityIconChip {
+    padding: 0;
+}
+
+.availabilityGlyph {
+    opacity: 0.92;
+}
+
+.availabilityLeave {
+    background: color-mix(in srgb, var(--md-sys-color-error-container) 80%, white);
+    color: var(--md-sys-color-on-error-container);
+}
+
+.availabilityAvailable {
+    background: color-mix(in srgb, var(--md-sys-color-primary-container) 84%, white);
+    color: var(--md-sys-color-on-primary-container);
+}
+
+.availabilityHoliday {
+    background: var(--md-sys-color-surface-container-high);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.dayGlyphRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+}
+
+.dayDotGroup {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     min-width: 0;
 }
 
-.dayCellSite {
-    font: var(--md-sys-typescale-label-small);
-    font-weight: 600;
-    color: var(--md-sys-color-on-surface);
-    line-height: 1.2;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 100%;
+.dayDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, white 30%, transparent);
 }
 
-.dayCellOverflow {
+.dayDotConfirmed {
+    background: var(--md-sys-color-primary);
+}
+
+.dayDotPending {
+    background: var(--md-sys-color-tertiary);
+}
+
+.dayDotNeutral {
+    background: color-mix(in srgb, var(--md-sys-color-outline) 46%, white);
+}
+
+.dayCountBadge,
+.weekCountBadge,
+.detailCountPill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 7px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 86%, white);
+    color: var(--md-sys-color-on-surface);
     font: var(--md-sys-typescale-label-small);
     font-weight: 700;
-    color: var(--md-sys-color-primary);
-    line-height: 1;
 }
 
-.dayCellHolidayLabel {
-    font: var(--md-sys-typescale-label-small);
-    color: var(--md-sys-color-on-surface-variant);
-    opacity: 0.8;
-}
-
-/* Mobile: denser cells but still ≥48px tap target */
+/* Mobile: denser cells but still >=48px tap target */
 @media (max-width: 480px) {
     .dayCell {
-        min-height: 64px;
+        min-height: 78px;
         padding: 5px 4px 3px;
     }
 
@@ -177,23 +266,26 @@
         font-weight: 600;
     }
 
-    .dayCellSite {
-        font-size: 10.5px;
+    .availabilityChip,
+    .weekAvailability,
+    .availabilityIconChip {
+        padding: 0 6px;
+        font-size: 10px;
     }
 
-    .dayCellOverflow {
-        font-size: 10.5px;
+    .availabilityIconChip {
+        min-width: 18px;
+        padding: 0;
     }
 }
 
-/* Small phones: keep minimum tap size */
 @media (max-width: 360px) {
     .dayCell {
-        min-height: 56px;
+        min-height: 68px;
     }
 }
 
-/* WeekCalendar (unchanged visual, kept for compat) */
+/* WeekCalendar */
 .weekGrid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
@@ -202,15 +294,18 @@
 }
 
 .weekDay {
+    appearance: none;
+    border: none;
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 12px 4px;
+    gap: 8px;
+    padding: 12px 4px 10px;
     border-radius: var(--md-sys-shape-corner-medium);
     background: var(--md-sys-color-surface-container);
     cursor: pointer;
     transition: all var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
-    min-height: 56px;
+    min-height: 112px;
 }
 
 .weekDay:hover {
@@ -227,9 +322,48 @@
     opacity: 0.8;
 }
 
-.weekDayNumber {
+.weekDayMeta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.weekMeter {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 50px;
+    height: 50px;
+}
+
+.weekMeterCircle {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    border-radius: 999px;
+    background: conic-gradient(
+        var(--md-sys-color-primary) 0deg var(--week-confirmed-angle, 0deg),
+        var(--md-sys-color-tertiary) var(--week-confirmed-angle, 0deg) var(--week-pending-angle, 0deg),
+        color-mix(in srgb, var(--md-sys-color-outline) 24%, white) var(--week-pending-angle, 0deg) 360deg
+    );
+}
+
+.weekMeterCircle::after {
+    content: '';
+    position: absolute;
+    inset: 6px;
+    border-radius: 999px;
+    background: var(--md-sys-color-surface);
+}
+
+.weekMeterCore {
+    position: relative;
+    z-index: 1;
     font: var(--md-sys-typescale-title-medium);
     font-weight: 700;
+    color: var(--md-sys-color-on-surface);
 }
 
 /* DayDetail */
@@ -244,9 +378,16 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 12px;
     margin-bottom: 12px;
     padding-bottom: 8px;
     border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.detailMeta {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .detailDate {
@@ -278,13 +419,44 @@
 
 .assignmentCard {
     display: flex;
-    align-items: center;
-    gap: 12px;
+    align-items: stretch;
+    gap: 0;
     padding: 12px;
     min-height: 56px;
     background: var(--md-sys-color-surface-container-lowest);
     border: 1px solid var(--md-sys-color-outline-variant);
     border-radius: var(--md-sys-shape-corner-small);
+    overflow: hidden;
+}
+
+.assignment_pending {
+    box-shadow: inset 4px 0 0 var(--md-sys-color-error);
+}
+
+.assignment_confirmed {
+    box-shadow: inset 4px 0 0 var(--md-sys-color-secondary);
+}
+
+.assignment_scheduled {
+    box-shadow: inset 4px 0 0 var(--md-sys-color-primary);
+}
+
+.assignment_completed {
+    box-shadow: inset 4px 0 0 var(--md-sys-color-outline);
+}
+
+.assignmentContent {
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    gap: 6px;
+}
+
+.assignmentTopLine {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
 }
 
 .timeSlot {
@@ -293,11 +465,6 @@
     gap: 4px;
     font: var(--md-sys-typescale-label-medium);
     color: var(--md-sys-color-primary);
-    min-width: 68px;
-}
-
-.siteInfo {
-    flex: 1;
     min-width: 0;
 }
 
@@ -319,7 +486,8 @@
     font: var(--md-sys-typescale-label-small);
 }
 
-.statusBadge {
+.statusBadge,
+.statusIconBadge {
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -328,6 +496,13 @@
     padding: 4px 10px;
     border-radius: var(--md-sys-shape-corner-full);
     white-space: nowrap;
+}
+
+.statusIconBadge {
+    min-width: 28px;
+    min-height: 28px;
+    justify-content: center;
+    padding: 0;
 }
 
 .statusBadge.pending {
@@ -346,6 +521,26 @@
 }
 
 .statusBadge.completed {
+    background: var(--md-sys-color-surface-variant);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.statusIconBadge.pending {
+    background: var(--md-sys-color-error-container);
+    color: var(--md-sys-color-on-error-container);
+}
+
+.statusIconBadge.confirmed {
+    background: var(--md-sys-color-secondary-container);
+    color: var(--md-sys-color-on-secondary-container);
+}
+
+.statusIconBadge.scheduled {
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
+}
+
+.statusIconBadge.completed {
     background: var(--md-sys-color-surface-variant);
     color: var(--md-sys-color-on-surface-variant);
 }

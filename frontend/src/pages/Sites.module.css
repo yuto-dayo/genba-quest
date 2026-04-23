@@ -77,6 +77,45 @@
     color: var(--md-sys-color-primary);
 }
 
+.successBanner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--md-sys-spacing-sm);
+    margin-bottom: var(--md-sys-spacing-md);
+    padding: 12px 14px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-primary) 24%, transparent);
+    border-radius: var(--md-sys-shape-corner-medium);
+    background: color-mix(in srgb, var(--md-sys-color-primary-container) 72%, white);
+    color: var(--md-sys-color-on-primary-container);
+    box-shadow: var(--md-sys-elevation-level1);
+}
+
+.successContent {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font: var(--md-sys-typescale-body-medium);
+    line-height: 1.5;
+}
+
+.successDismiss {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: var(--md-sys-shape-corner-full);
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+}
+
+.successDismiss:hover {
+    background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
 /* フィルター */
 .filters {
     display: flex;

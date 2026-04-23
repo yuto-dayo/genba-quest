@@ -16,7 +16,7 @@ import styles from "./SalesModal.module.css";
 
 interface SalesModalProps {
     onClose: () => void;
-    onSuccess: () => void;
+    onSuccess: (recognizedRevenue?: number) => void;
     initialSiteId?: string;
     initialRecordedDate?: string;
     initialDescription?: string;
@@ -241,7 +241,7 @@ export function SalesModal({
                 },
             });
 
-            onSuccess();
+            onSuccess(totals.total);
         } catch (err: unknown) {
             setError(getErrorMessage(err));
         } finally {

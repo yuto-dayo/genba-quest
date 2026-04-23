@@ -376,7 +376,7 @@ export function Settings() {
                             Level、今月の評価、認定技能をまとめて確認します
                         </p>
                     </div>
-                    <Link to="/luqo" className={styles.secondaryButton}>
+                    <Link to="/luqo?tab=path" className={styles.secondaryButton}>
                         今月の評価を開く
                         <ChevronRight size={16} />
                     </Link>

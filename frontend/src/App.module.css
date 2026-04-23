@@ -13,16 +13,23 @@
 
 .header {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 16px;
-    background: var(--md-sys-color-surface-container-lowest);
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 16px 10px;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-lowest) 92%, var(--md-sys-color-surface));
     border-bottom: 1px solid var(--md-sys-color-outline-variant);
     position: sticky;
     top: 0;
     z-index: 100;
     box-shadow: var(--md-sys-elevation-level1);
-    height: 64px;
+    backdrop-filter: blur(16px);
+}
+
+.headerTop {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
 }
 
 .logo {
@@ -39,223 +46,210 @@
     color: var(--md-sys-color-primary);
 }
 
+.orgBadge {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    min-width: 0;
+    padding: 8px 12px;
+    border-radius: 18px;
+    background:
+        linear-gradient(135deg,
+            color-mix(in srgb, var(--md-sys-color-primary-container) 88%, white),
+            color-mix(in srgb, var(--md-sys-color-surface-container-high) 92%, white));
+    color: var(--md-sys-color-on-primary-container);
+    box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, var(--md-sys-color-primary) 14%, transparent),
+        0 8px 18px rgba(11, 76, 69, 0.08);
+}
+
+.orgBadgeWarning {
+    background:
+        linear-gradient(135deg,
+            color-mix(in srgb, var(--md-sys-color-tertiary-container) 82%, white),
+            color-mix(in srgb, var(--md-sys-color-surface-container-high) 94%, white));
+    color: var(--md-sys-color-on-tertiary-container);
+    box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, var(--md-sys-color-tertiary) 18%, transparent),
+        0 8px 18px rgba(125, 82, 24, 0.1);
+}
+
+.orgBadgeEyebrow {
+    font: var(--md-sys-typescale-label-small);
+    color: color-mix(in srgb, currentColor 74%, transparent);
+    white-space: nowrap;
+}
+
+.orgBadgeValue {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    font: var(--md-sys-typescale-label-large);
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.orgSelectWrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.orgSelect {
+    min-width: 0;
+    max-width: 220px;
+    border: none;
+    padding: 0;
+    background: transparent;
+    color: inherit;
+    font: var(--md-sys-typescale-label-large);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.orgSelect:focus {
+    outline: none;
+}
+
 /* ============================================================
-   Desktop Nav
+   Chip Nav
    ============================================================ */
 
-.desktopNav {
-    display: flex;
-    gap: 4px;
+.chipViewport {
+    position: relative;
+    margin-inline: -4px;
 }
 
-@media (max-width: 768px) {
-    .desktopNav {
-        display: none;
-    }
+.chipViewport::before,
+.chipViewport::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 28px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-emphasized);
+    z-index: 1;
 }
 
-.navLink {
+.chipViewport::before {
+    left: 0;
+    background: linear-gradient(90deg,
+            color-mix(in srgb, var(--md-sys-color-surface-container-lowest) 96%, transparent),
+            transparent);
+}
+
+.chipViewport::after {
+    right: 0;
+    background: linear-gradient(270deg,
+            color-mix(in srgb, var(--md-sys-color-surface-container-lowest) 96%, transparent),
+            transparent);
+}
+
+.chipViewportLeft::before {
+    opacity: 1;
+}
+
+.chipViewportRight::after {
+    opacity: 1;
+}
+
+.chipRail {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 16px;
-    min-height: 44px;
-    background: transparent;
-    border: none;
-    border-radius: var(--md-sys-shape-corner-full);
-    color: var(--md-sys-color-on-surface-variant);
-    text-decoration: none;
-    font: var(--md-sys-typescale-label-large);
-    transition: all var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
-    cursor: pointer;
-    position: relative;
-}
-
-.navLink:hover {
-    background: rgba(79, 70, 229, 0.08);
-    color: var(--md-sys-color-on-surface);
-}
-
-.navLink.active {
-    background: var(--md-sys-color-primary-container);
-    color: var(--md-sys-color-on-primary-container);
-    font-weight: 700;
-}
-
-/* ============================================================
-   Header Right Controls
-   ============================================================ */
-
-.headerRight {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.iconButton {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    color: var(--md-sys-color-on-surface-variant);
-    text-decoration: none;
-    transition: background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
-}
-
-.iconButton:hover {
-    background: rgba(79, 70, 229, 0.08);
-    color: var(--md-sys-color-on-surface);
-}
-
-.iconButtonActive {
-    background: var(--md-sys-color-primary-container);
-    color: var(--md-sys-color-on-primary-container);
-}
-
-.bellButton {
-    position: relative;
-    background: transparent;
-    border: none;
-    border-radius: 50%;
-    width: 40px;
-    height: 40px;
-    color: var(--md-sys-color-on-surface-variant);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
-}
-
-.bellButtonPending {
-    background: color-mix(in srgb, var(--md-sys-color-tertiary-container) 82%, white);
-    color: var(--md-sys-color-tertiary);
-    box-shadow: var(--md-sys-elevation-level1);
-}
-
-.bellButtonDone {
-    color: var(--md-sys-color-on-surface-variant);
-}
-
-.bellButton:hover {
-    background: rgba(79, 70, 229, 0.08);
-    color: var(--md-sys-color-on-surface);
-}
-
-.bellIconPending {
-    transform-origin: top center;
-    animation: bell-swing 1.8s ease-in-out infinite;
-}
-
-.bellBadge {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    min-width: 16px;
-    height: 16px;
+    overflow-x: auto;
+    overflow-y: hidden;
     padding: 0 4px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+}
+
+.chipRail::-webkit-scrollbar {
+    display: none;
+}
+
+.navChip {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    min-height: 48px;
+    padding: 8px 0;
+    border: none;
+    background: transparent;
+    text-decoration: none;
+    cursor: pointer;
+    color: inherit;
+}
+
+.navChipSurface {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 32px;
+    padding: 0 14px;
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent);
+    color: var(--md-sys-color-on-surface);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--md-sys-color-outline) 12%, transparent);
+    transition:
+        background var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-emphasized),
+        color var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-emphasized),
+        box-shadow var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-emphasized),
+        transform var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-emphasized);
+}
+
+.navChip:hover .navChipSurface,
+.navChip:focus-visible .navChipSurface {
+    background: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent);
+}
+
+.navChipActive .navChipSurface {
+    background: var(--md-sys-color-surface-bright);
+    color: var(--md-sys-color-on-surface);
+    box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.08),
+        0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.navChipAction .navChipSurface {
+    background: color-mix(in srgb, var(--md-sys-color-primary-container) 48%, white);
+    color: var(--md-sys-color-on-primary-container);
+}
+
+.navChipActionPending .navChipSurface {
+    background: color-mix(in srgb, var(--md-sys-color-tertiary-container) 78%, white);
+    color: var(--md-sys-color-on-tertiary-container);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--md-sys-color-tertiary) 18%, transparent);
+}
+
+.navChipLabel {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    font: 500 14px/20px var(--md-sys-typescale-font-display);
+}
+
+.navChipBadge {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
     background: var(--md-sys-color-error);
     border-radius: var(--md-sys-shape-corner-full);
     color: var(--md-sys-color-on-error);
     font: var(--md-sys-typescale-label-small);
     font-weight: 700;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     line-height: 1;
-}
-
-@keyframes bell-swing {
-    0%,
-    100% {
-        transform: rotate(0deg);
-    }
-
-    15% {
-        transform: rotate(18deg);
-    }
-
-    35% {
-        transform: rotate(-14deg);
-    }
-
-    55% {
-        transform: rotate(10deg);
-    }
-
-    75% {
-        transform: rotate(-6deg);
-    }
-}
-
-/* ============================================================
-   Mobile Menu
-   ============================================================ */
-
-.menuButton {
-    display: none;
-    background: transparent;
-    border: 1px solid var(--md-sys-color-outline-variant);
-    border-radius: var(--md-sys-shape-corner-medium);
-    color: var(--md-sys-color-on-surface);
-    cursor: pointer;
-    padding: 8px;
-    min-width: 44px;
-    min-height: 44px;
-    transition: background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
-}
-
-.menuButton:hover {
-    background: rgba(79, 70, 229, 0.08);
-}
-
-@media (max-width: 768px) {
-    .menuButton {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-}
-
-.mobileNav {
-    position: fixed;
-    top: 64px;
-    left: 0;
-    right: 0;
-    background: var(--md-sys-color-surface-container-lowest);
-    border-bottom: 1px solid var(--md-sys-color-outline-variant);
-    padding: 8px;
-    z-index: 99;
-    box-shadow: var(--md-sys-elevation-level2);
-}
-
-.mobileNavLink {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 14px 16px;
-    min-height: 48px;
-    background: transparent;
-    border: none;
-    border-radius: var(--md-sys-shape-corner-medium);
-    color: var(--md-sys-color-on-surface);
-    text-decoration: none;
-    font: var(--md-sys-typescale-label-large);
-    margin-bottom: 2px;
-    cursor: pointer;
-    transition: all var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
-}
-
-.mobileNavLink:hover {
-    background: rgba(79, 70, 229, 0.08);
-}
-
-.mobileNavLink.active {
-    background: var(--md-sys-color-primary-container);
-    color: var(--md-sys-color-on-primary-container);
-    font-weight: 700;
 }
 
 /* ============================================================
@@ -263,44 +257,327 @@
    ============================================================ */
 
 .main {
-    min-height: calc(100vh - 64px);
+    min-height: 100vh;
 }
 
 /* ============================================================
-   Placeholder
+   Entry Gate
    ============================================================ */
 
-.placeholder {
+.entryShell {
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: 60vh;
-    text-align: center;
-    color: var(--md-sys-color-on-surface-variant);
+    min-height: 100vh;
+    padding: 24px 16px;
+    background:
+        radial-gradient(circle at top right, color-mix(in srgb, var(--md-sys-color-primary-container) 45%, transparent), transparent 42%),
+        linear-gradient(180deg, var(--md-sys-color-surface-container-lowest), var(--md-sys-color-surface));
 }
 
-.placeholder h1 {
-    font: var(--md-sys-typescale-headline-medium);
-    margin-bottom: 16px;
+.entryCard {
+    width: min(100%, 560px);
+    border-radius: 28px;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-lowest) 92%, white);
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 14%, transparent);
+    box-shadow: 0 18px 44px rgba(10, 31, 68, 0.08);
+    overflow: hidden;
+}
+
+.entryHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 20px 20px 0;
+}
+
+.entryLogo {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     color: var(--md-sys-color-primary);
+    text-decoration: none;
+    font: var(--md-sys-typescale-title-large);
 }
 
-.placeholder p {
-    font: var(--md-sys-typescale-body-large);
+.entryBadge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--md-sys-color-primary-container) 68%, white);
+    color: var(--md-sys-color-on-primary-container);
+    font: var(--md-sys-typescale-label-large);
+    font-weight: 700;
+}
+
+.entryBody {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 20px;
+}
+
+.entryBody h1 {
+    margin: 0;
+    color: var(--md-sys-color-primary);
+    font: var(--md-sys-typescale-headline-medium);
+}
+
+.entryBody p {
+    margin: 0;
     color: var(--md-sys-color-on-surface-variant);
+}
+
+.entryActions,
+.entryList {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.entryListCard,
+.entrySelectButton,
+.entryInfoCard,
+.bootstrapCard {
+    border-radius: 22px;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 88%, white);
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 12%, transparent);
+}
+
+.entryListCard,
+.entrySelectButton {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 18px;
+}
+
+.entrySelectButton {
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    color: inherit;
+}
+
+.entryListCard strong,
+.entrySelectButton strong,
+.entryInfoCard h2,
+.bootstrapCard h2 {
+    color: var(--md-sys-color-on-surface);
+}
+
+.entryListCard p,
+.entrySelectButton p,
+.entryInfoCard p,
+.bootstrapCard p {
+    margin-top: 4px;
+}
+
+.entryListIcon {
+    color: var(--md-sys-color-primary);
+    flex: 0 0 auto;
+}
+
+.bootstrapCard {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 18px;
+}
+
+.bootstrapCardHeader {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.entryIconBadge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--md-sys-color-primary-container) 72%, white);
+    color: var(--md-sys-color-on-primary-container);
+    flex: 0 0 auto;
+}
+
+.entryField {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-large);
+}
+
+.entryInput {
+    min-height: 48px;
+    padding: 0 14px;
+    border-radius: 16px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 18%, transparent);
+    background: white;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-body-large);
+}
+
+.entryInput:focus {
+    outline: 2px solid color-mix(in srgb, var(--md-sys-color-primary) 28%, transparent);
+    outline-offset: 2px;
+}
+
+.primaryButton,
+.secondaryButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 48px;
+    border-radius: 18px;
+    padding: 0 16px;
+    font: var(--md-sys-typescale-label-large);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.primaryButton {
+    border: none;
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+}
+
+.primaryButton:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.primaryButtonBusy:disabled {
+    cursor: progress;
+}
+
+.secondaryButton {
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 18%, transparent);
+    background: white;
+    color: var(--md-sys-color-on-surface);
+}
+
+.entryInfoCard {
+    padding: 16px 18px;
+}
+
+.entryInfoMeta,
+.modalHint {
+    font: var(--md-sys-typescale-label-medium);
+}
+
+.entryError {
+    color: var(--md-sys-color-error);
+    font: var(--md-sys-typescale-label-large);
+}
+
+.entryLoading {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.spinnerIcon {
+    animation: spin 1s linear infinite;
+}
+
+.modalOverlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(15, 23, 42, 0.28);
+    z-index: 300;
+}
+
+.modalCard {
+    width: min(100%, 420px);
+    position: relative;
+    border-radius: 24px;
+    background: white;
+    box-shadow: 0 22px 54px rgba(15, 23, 42, 0.2);
+}
+
+.modalBody {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 24px;
+}
+
+.modalBody h2,
+.modalBody p {
+    margin: 0;
+}
+
+.modalCloseButton {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 86%, white);
+    color: var(--md-sys-color-on-surface);
+    cursor: pointer;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .navLink,
-    .iconButton,
-    .bellButton,
-    .mobileNavLink,
-    .menuButton {
+    .chipViewport::before,
+    .chipViewport::after,
+    .navChipSurface,
+    .spinnerIcon {
         transition: none;
+        animation: none;
+    }
+}
+
+@media (max-width: 768px) {
+    .headerTop {
+        align-items: flex-start;
     }
 
-    .bellIconPending {
-        animation: none;
+    .orgBadge {
+        align-items: flex-start;
+        max-width: 58vw;
+    }
+
+    .orgBadgeValue {
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .orgSelect {
+        max-width: 42vw;
+    }
+
+    .entryShell {
+        padding: 16px;
+    }
+
+    .entryCard {
+        border-radius: 24px;
     }
 }

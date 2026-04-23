@@ -1,51 +1,185 @@
-/* Calendar Page Styles */
 .container {
+    position: relative;
+    display: grid;
+    gap: 18px;
     padding: var(--md-sys-spacing-lg);
-    max-width: 800px;
+    max-width: 1360px;
     margin: 0 auto;
     min-height: 100vh;
 }
 
-.container.simulatorMode {
-    max-width: 1320px;
+.container::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto;
+    height: 360px;
+    border-radius: 40px;
+    background:
+        radial-gradient(circle at top left, rgba(20, 184, 166, 0.18), transparent 48%),
+        radial-gradient(circle at top right, rgba(249, 115, 22, 0.14), transparent 42%),
+        linear-gradient(
+            180deg,
+            color-mix(in srgb, var(--md-sys-color-primary-container) 44%, white),
+            transparent
+        );
+    pointer-events: none;
+    z-index: -1;
 }
 
-.header {
-    display: flex;
-    justify-content: space-between;
+.hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.95fr);
+    gap: 16px;
+    padding: 24px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 52%, transparent);
+    border-radius: 32px;
+    background:
+        linear-gradient(
+            135deg,
+            color-mix(in srgb, var(--md-sys-color-surface-container-low) 86%, white),
+            color-mix(in srgb, var(--md-sys-color-surface) 92%, white)
+        );
+    box-shadow: var(--md-sys-elevation-level2);
+}
+
+.heroPrimary {
+    display: grid;
+    gap: 16px;
+    align-content: start;
+}
+
+.heroText {
+    display: grid;
+    gap: 10px;
+}
+
+.eyebrow,
+.sectionEyebrow {
+    display: inline-flex;
     align-items: center;
-    margin-bottom: 24px;
+    width: fit-content;
+    min-height: 28px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--md-sys-color-primary-container) 72%, white);
+    color: var(--md-sys-color-on-primary-container);
+    font: var(--md-sys-typescale-label-medium);
+    letter-spacing: 0.08em;
 }
 
-.titleGroup {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.monthTitle {
-    font: var(--md-sys-typescale-headline-small);
+.pageTitle {
+    font: var(--md-sys-typescale-display-small);
+    letter-spacing: -0.03em;
     color: var(--md-sys-color-on-surface);
 }
 
-.navGroup {
+.pageDescription {
+    max-width: 640px;
+    font: var(--md-sys-typescale-body-large);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.heroMetaRow {
     display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.heroMetaChip,
+.monthBadge,
+.modeNotice {
+    display: inline-flex;
     align-items: center;
     gap: 8px;
+    min-height: 34px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 88%, white);
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-medium);
+}
+
+.heroActions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin-top: auto;
+}
+
+.primaryAction,
+.todayBtn,
+.navBtn,
+.segmentButton,
+.availabilityTokenButton,
+.todayFab {
+    transition:
+        transform var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        border-color var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        color var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        box-shadow var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.primaryAction {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 18px;
+    border: none;
+    border-radius: 999px;
+    background: linear-gradient(
+        135deg,
+        var(--md-sys-color-primary),
+        color-mix(in srgb, var(--md-sys-color-secondary) 88%, white)
+    );
+    color: var(--md-sys-color-on-primary);
+    font: var(--md-sys-typescale-label-large);
+    box-shadow: var(--md-sys-elevation-level2);
+    cursor: pointer;
+}
+
+.primaryAction:hover,
+.todayBtn:hover,
+.navBtn:hover,
+.segmentButton:hover,
+.availabilityTokenButton:hover,
+.todayFab:hover {
+    transform: translateY(-1px);
+}
+
+.primaryAction:focus-visible,
+.todayBtn:focus-visible,
+.navBtn:focus-visible,
+.segmentButton:focus-visible,
+.availabilityTokenButton:focus-visible,
+.todayFab:focus-visible {
+    outline: 2px solid var(--md-sys-color-primary);
+    outline-offset: 3px;
+}
+
+.navGroup {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 76%, white);
 }
 
 .navBtn {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    width: 38px;
+    height: 38px;
     border: none;
-    border-radius: var(--md-sys-shape-corner-full);
-    background: var(--md-sys-color-surface-container);
+    border-radius: 999px;
+    background: var(--md-sys-color-surface);
     color: var(--md-sys-color-on-surface-variant);
     cursor: pointer;
-    transition: all var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
 }
 
 .navBtn:hover {
@@ -54,41 +188,384 @@
 }
 
 .todayBtn {
-    padding: 6px 12px;
-    border: 1px solid var(--md-sys-color-outline);
-    border-radius: var(--md-sys-shape-corner-full);
+    min-height: 38px;
+    padding: 0 14px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 72%, transparent);
+    border-radius: 999px;
     background: transparent;
     color: var(--md-sys-color-primary);
     font: var(--md-sys-typescale-label-medium);
     cursor: pointer;
-    margin-right: 8px;
 }
 
-.viewToggle {
+.heroInsightGrid {
+    display: grid;
+    gap: 12px;
+}
+
+.heroInsightCard {
+    display: grid;
+    gap: 8px;
+    min-height: 112px;
+    padding: 18px;
+    border-radius: 24px;
+    background:
+        linear-gradient(
+            180deg,
+            color-mix(in srgb, var(--md-sys-color-surface) 94%, white),
+            color-mix(in srgb, var(--md-sys-color-surface-container-high) 92%, white)
+        );
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 46%, transparent);
+}
+
+.heroInsightLabel {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-medium);
+}
+
+.heroInsightValue {
+    font: var(--md-sys-typescale-headline-small);
+    color: var(--md-sys-color-on-surface);
+}
+
+.heroInsightCaption {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+}
+
+.controlBoard {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.controlGroup,
+.summarySection,
+.mainPanel,
+.sidePanel {
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 55%, transparent);
+    border-radius: 28px;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 82%, white);
+    box-shadow: var(--md-sys-elevation-level1);
+}
+
+.controlGroup {
+    display: grid;
+    gap: 14px;
+    padding: 18px;
+}
+
+.controlHeader {
+    display: grid;
+    gap: 6px;
+}
+
+.controlLabel {
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-title-medium);
+}
+
+.controlHint {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+}
+
+.segment {
     display: flex;
-    background: var(--md-sys-color-surface-container);
-    border-radius: var(--md-sys-shape-corner-full);
-    padding: 2px;
-    margin-bottom: 16px;
-    gap: 2px;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
-.toggleBtn {
-    flex: 1;
-    padding: 6px 16px;
-    border: none;
-    border-radius: var(--md-sys-shape-corner-full);
-    background: transparent;
+.active {}
+
+.segmentButton {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 0 14px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 55%, transparent);
+    border-radius: 999px;
+    background: var(--md-sys-color-surface-container-low);
     color: var(--md-sys-color-on-surface-variant);
     font: var(--md-sys-typescale-label-medium);
     cursor: pointer;
-    transition: all var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
 }
 
-.toggleBtn.active {
-    background: var(--md-sys-color-secondary-container);
+.segmentButton.active {
+    border-color: transparent;
+    background: linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--md-sys-color-primary-container) 88%, white),
+        color-mix(in srgb, var(--md-sys-color-secondary-container) 92%, white)
+    );
     color: var(--md-sys-color-on-secondary-container);
     box-shadow: var(--md-sys-elevation-level1);
+}
+
+.modeNotice {
+    color: var(--md-sys-color-on-surface);
+}
+
+.summarySection,
+.mainPanel,
+.sidePanel {
+    padding: 20px;
+}
+
+.sectionHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.sectionHeader h2 {
+    margin-top: 10px;
+    font: var(--md-sys-typescale-title-large);
+    color: var(--md-sys-color-on-surface);
+}
+
+.sectionHeader p {
+    margin-top: 6px;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.summaryGrid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.summaryCard {
+    display: grid;
+    gap: 8px;
+    min-height: 132px;
+    padding: 16px;
+    border-radius: 22px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 36%, transparent);
+    background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--md-sys-color-surface) 92%, white),
+        color-mix(in srgb, var(--md-sys-color-surface-container) 96%, white)
+    );
+}
+
+.summaryWarn {
+    background: linear-gradient(
+        180deg,
+        color-mix(in srgb, #ffe3c1 78%, white),
+        color-mix(in srgb, #ffd29a 86%, white)
+    );
+}
+
+.summaryOk {
+    background: linear-gradient(
+        180deg,
+        color-mix(in srgb, #d9f6df 78%, white),
+        color-mix(in srgb, #c5eccc 90%, white)
+    );
+}
+
+.summaryLabel {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-medium);
+}
+
+.summaryValue {
+    font: var(--md-sys-typescale-headline-small);
+    color: var(--md-sys-color-on-surface);
+}
+
+.summaryCaption {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+}
+
+.contentGrid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.75fr) minmax(280px, 0.85fr);
+    gap: 16px;
+}
+
+.mainPanel,
+.sidePanel {
+    min-width: 0;
+}
+
+.sidePanel {
+    position: sticky;
+    top: 88px;
+    align-self: start;
+}
+
+.canvasBlock {
+    padding: 18px;
+    border-radius: 24px;
+    background: color-mix(in srgb, var(--md-sys-color-surface) 92%, white);
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 42%, transparent);
+}
+
+.personalAvailabilityPanel {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding: 18px;
+    border-radius: 24px;
+    background: linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--md-sys-color-secondary-container) 74%, white),
+        color-mix(in srgb, var(--md-sys-color-primary-container) 82%, white)
+    );
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 65%, transparent);
+}
+
+.personalAvailabilityHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.personalAvailabilityHeader h3 {
+    margin: 0;
+    font: var(--md-sys-typescale-title-medium);
+    color: var(--md-sys-color-on-surface);
+}
+
+.personalAvailabilityHeader p {
+    margin: 4px 0 0;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+}
+
+.availabilityCurrent {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-medium);
+}
+
+.availabilityTokenRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.availabilityTokenButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 70%, transparent);
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-medium);
+    cursor: pointer;
+}
+
+.availabilityTokenLeaveActive {
+    border-color: transparent;
+    background: color-mix(in srgb, var(--md-sys-color-error-container) 86%, white);
+    color: var(--md-sys-color-on-error-container);
+}
+
+.availabilityTokenAvailableActive {
+    border-color: transparent;
+    background: color-mix(in srgb, var(--md-sys-color-primary-container) 88%, white);
+    color: var(--md-sys-color-on-primary-container);
+}
+
+.sideStack,
+.proposalList,
+.personalScenarioPanel {
+    display: grid;
+    gap: 12px;
+}
+
+.proposalCard,
+.attentionCard,
+.drawerCard,
+.emptyPanel,
+.personalScenarioPanel {
+    padding: 16px;
+    border-radius: 20px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 40%, transparent);
+    background: var(--md-sys-color-surface);
+}
+
+.proposalMeta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.proposalType,
+.proposalStatus,
+.attentionType {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 10px;
+    border-radius: 999px;
+    font: var(--md-sys-typescale-label-small);
+}
+
+.proposalType {
+    background: var(--md-sys-color-secondary-container);
+    color: var(--md-sys-color-on-secondary-container);
+}
+
+.proposalStatus {
+    background: color-mix(in srgb, #ffd29a 75%, white);
+    color: #6b4600;
+}
+
+.proposalTitle {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-title-medium);
+}
+
+.proposalBody,
+.attentionCard p,
+.drawerCard p,
+.personalScenarioPanel p,
+.emptyPanel {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.attentionCard {
+    display: grid;
+    gap: 8px;
+    background: color-mix(in srgb, #fff5d6 70%, white);
+}
+
+.attentionType {
+    justify-self: start;
+    background: color-mix(in srgb, #ffd29a 70%, white);
+    color: #6b4600;
+}
+
+.drawerCard {
+    background: color-mix(in srgb, var(--md-sys-color-tertiary-container) 68%, white);
+}
+
+.personalScenarioPanel {
+    background: color-mix(in srgb, var(--md-sys-color-primary-container) 54%, white);
 }
 
 .todayFab {
@@ -110,37 +587,81 @@
     cursor: pointer;
     z-index: 40;
     -webkit-tap-highlight-color: transparent;
-    transition:
-        box-shadow var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
-        background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
 }
 
-.todayFab:hover {
-    background: color-mix(in srgb, var(--md-sys-color-primary) 92%, black);
-    box-shadow: var(--md-sys-elevation-level4);
+@media (max-width: 1024px) {
+    .hero,
+    .controlBoard,
+    .contentGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .summaryGrid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .sidePanel {
+        position: static;
+    }
 }
 
-.todayFab:active {
-    box-shadow: var(--md-sys-elevation-level2);
-}
-
-.todayFab:focus-visible {
-    outline: 3px solid color-mix(in srgb, var(--md-sys-color-primary) 50%, white);
-    outline-offset: 2px;
-}
-
-@media (max-width: 480px) {
+@media (max-width: 640px) {
     .container {
         padding: var(--md-sys-spacing-md);
     }
 
-    .monthTitle {
-        font-size: 18px;
+    .hero,
+    .summarySection,
+    .mainPanel,
+    .sidePanel,
+    .controlGroup {
+        padding: 16px;
+        border-radius: 24px;
     }
 
-    .todayBtn {
-        font-size: 12px;
-        padding: 4px 10px;
+    .pageTitle {
+        font: var(--md-sys-typescale-headline-medium);
+    }
+
+    .pageDescription {
+        font: var(--md-sys-typescale-body-medium);
+    }
+
+    .heroInsightCaption,
+    .summaryCaption,
+    .sectionHeader p {
+        display: none;
+    }
+
+    .heroActions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .primaryAction {
+        width: 100%;
+    }
+
+    .navGroup {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .heroInsightGrid,
+    .summaryGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .sectionHeader {
+        flex-direction: column;
+    }
+
+    .personalAvailabilityHeader {
+        flex-direction: column;
+    }
+
+    .availabilityTokenButton {
+        flex: 1 1 140px;
     }
 
     .todayFab {
@@ -148,6 +669,16 @@
         bottom: calc(env(safe-area-inset-bottom, 0px) + 80px);
         padding: 10px 16px;
         font: var(--md-sys-typescale-label-medium);
-        font-weight: 600;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .primaryAction,
+    .todayBtn,
+    .navBtn,
+    .segmentButton,
+    .availabilityTokenButton,
+    .todayFab {
+        transition: none;
     }
 }

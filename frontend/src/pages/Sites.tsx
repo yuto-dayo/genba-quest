@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Map, RefreshCw, Plus, Building2, AlertTriangle, AlertCircle, Users, Calendar } from "lucide-react";
+import { Map, RefreshCw, Plus, Building2, AlertTriangle, AlertCircle, Users, Calendar, CheckCircle2, X } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { fetchSites, fetchSite, type Site } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
 import { formatSiteDateRange, formatSiteSchedulePattern } from "../lib/siteSchedule";
@@ -13,13 +14,17 @@ import styles from "./Sites.module.css";
 type FilterStatus = "active" | "completed";
 
 export function Sites() {
+    const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
     const [sites, setSites] = useState<Site[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState<string | null>(null);
     const [filter, setFilter] = useState<FilterStatus>("active");
     const [selectedSite, setSelectedSite] = useState<Site | null>(null);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showClientModal, setShowClientModal] = useState(false);
+    const requestedSiteId = searchParams.get("site");
 
     const loadData = async () => {
         try {
@@ -38,12 +43,79 @@ export function Sites() {
         loadData();
     }, []);
 
-    const handleSiteUpdated = () => {
+    useEffect(() => {
+        if (!requestedSiteId) {
+            return;
+        }
+
+        let cancelled = false;
+
+        void fetchSite(requestedSiteId)
+            .then((site) => {
+                if (cancelled) {
+                    return;
+                }
+                setSelectedSite(site);
+                setFilter(site.status === "completed" ? "completed" : "active");
+            })
+            .catch(() => {
+                if (cancelled) {
+                    return;
+                }
+                setError("現場が見つかりませんでした");
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [requestedSiteId]);
+
+    const clearSiteQuery = () => {
+        if (!requestedSiteId) {
+            return;
+        }
+
+        const next = new URLSearchParams(searchParams);
+        next.delete("site");
+        setSearchParams(next, { replace: true });
+    };
+
+    const closeSiteDetail = () => {
         setSelectedSite(null);
+
+        const returnHref = buildReturnHref(searchParams);
+        if (returnHref) {
+            navigate(returnHref, { replace: true });
+            return;
+        }
+
+        clearSiteQuery();
+    };
+
+    const openSiteDetail = async (siteId: string) => {
+        const next = new URLSearchParams(searchParams);
+        next.set("site", siteId);
+        setSearchParams(next, { replace: true });
+
+        try {
+            const full = await fetchSite(siteId);
+            setSelectedSite(full);
+            setFilter(full.status === "completed" ? "completed" : "active");
+        } catch {
+            setError("現場の詳細を開けませんでした");
+        }
+    };
+
+    const handleSiteUpdated = (result?: { site?: Site; message?: string }) => {
+        setSelectedSite(null);
+        clearSiteQuery();
+        if (result?.message) {
+            setSuccess(result.message);
+        }
         loadData();
     };
 
-    const handleCreateSuccess = async (created?: Site) => {
+    const handleCreateSuccess = useCallback(async (created?: Site) => {
         setShowCreateModal(false);
         await loadData();
         if (created?.id) {
@@ -51,11 +123,14 @@ export function Sites() {
             try {
                 const full = await fetchSite(created.id);
                 setSelectedSite(full);
+                const next = new URLSearchParams(searchParams);
+                next.set("site", created.id);
+                setSearchParams(next, { replace: true });
             } catch {
                 // If fetch fails, just show the list
             }
         }
-    };
+    }, [searchParams, setSearchParams]);
 
     const handleClientSaved = async () => {
         setShowClientModal(false);
@@ -120,6 +195,30 @@ export function Sites() {
                 </h1>
             </motion.section>
 
+            <AnimatePresence>
+                {success && (
+                    <motion.div
+                        className={styles.successBanner}
+                        initial={{ opacity: 0, y: -12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -12 }}
+                    >
+                        <div className={styles.successContent}>
+                            <CheckCircle2 size={18} />
+                            <span>{success}</span>
+                        </div>
+                        <button
+                            type="button"
+                            className={styles.successDismiss}
+                            onClick={() => setSuccess(null)}
+                            aria-label="完了メッセージを閉じる"
+                        >
+                            <X size={16} />
+                        </button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {/* フィルター */}
             <div className={styles.filters}>
                 <button
@@ -174,7 +273,7 @@ export function Sites() {
                                     key={site.id}
                                     site={site}
                                     index={index}
-                                    onTap={() => setSelectedSite(site)}
+                                    onTap={() => void openSiteDetail(site.id)}
                                 />
                             ))}
                         </div>
@@ -197,7 +296,7 @@ export function Sites() {
                 {selectedSite && (
                     <SiteDetailModal
                         site={selectedSite}
-                        onClose={() => setSelectedSite(null)}
+                        onClose={closeSiteDetail}
                         onUpdated={handleSiteUpdated}
                     />
                 )}
@@ -226,6 +325,36 @@ export function Sites() {
             </AnimatePresence>
         </div>
     );
+}
+
+function buildReturnHref(searchParams: URLSearchParams): string | null {
+    if (searchParams.get("return") !== "luqo") {
+        return null;
+    }
+
+    const next = new URLSearchParams();
+
+    const period = searchParams.get("period");
+    if (period) {
+        next.set("period", period);
+    }
+
+    if (searchParams.get("reward") === "1") {
+        next.set("reward", "1");
+    }
+
+    const member = searchParams.get("member");
+    if (member) {
+        next.set("member", member);
+    }
+
+    const proposal = searchParams.get("proposal");
+    if (proposal) {
+        next.set("proposal", proposal);
+    }
+
+    const query = next.toString();
+    return `/luqo${query ? `?${query}` : ""}`;
 }
 
 interface SiteCardProps {

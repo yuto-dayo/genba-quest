@@ -1,21 +1,53 @@
 import { getAuthToken } from "./supabase";
+import { getActiveOrgId } from "../stores/activeOrg";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4001";
+function isLoopbackApiUrl(value: string): boolean {
+    try {
+        const url = new URL(value);
+        return url.hostname === "localhost" || url.hostname === "127.0.0.1";
+    } catch {
+        return false;
+    }
+}
+
+const configuredApiBase = import.meta.env.VITE_API_URL?.trim() || "";
+const rawApiBase =
+    import.meta.env.DEV && (!configuredApiBase || isLoopbackApiUrl(configuredApiBase))
+        ? ""
+        : configuredApiBase;
+const API_BASE = rawApiBase.endsWith("/") ? rawApiBase.slice(0, -1) : rawApiBase;
 
 export const api = async <T>(
     endpoint: string,
     options: RequestInit = {}
 ): Promise<T> => {
     const token = await getAuthToken();
+    const activeOrgId = getActiveOrgId();
+    const headers = new Headers(options.headers);
 
-    const response = await fetch(`${API_BASE}${endpoint}`, {
-        ...options,
-        headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-            ...options.headers,
-        },
-    });
+    if (!headers.has("Content-Type")) {
+        headers.set("Content-Type", "application/json");
+    }
+
+    headers.set("Authorization", `Bearer ${token}`);
+
+    if (activeOrgId && !headers.has("x-org-id")) {
+        headers.set("x-org-id", activeOrgId);
+    }
+
+    let response: Response;
+    try {
+        response = await fetch(`${API_BASE}${endpoint}`, {
+            ...options,
+            headers,
+        });
+    } catch (error) {
+        if (error instanceof TypeError) {
+            throw new Error("NETWORK_ERROR: API server is unreachable. Start the server or set VITE_API_URL.");
+        }
+
+        throw error;
+    }
 
     if (!response.ok) {
         let errorMessage = `API Error: ${response.status}`;
@@ -95,6 +127,8 @@ export type ProposalType =
     | "task.revision.request"
     | "site.create"
     | "site.complete"
+    | "site.close.finalize"
+    | "site.close.reopen"
     | "policy.update"
     | "luqo.catalog.add"
     | "luqo.star.achieve"
@@ -366,6 +400,38 @@ export const commitSimulatorDraft = async (
     };
 };
 
+export interface AssignmentProposalCreateInput {
+    worker_id: string;
+    site_id: string;
+    site_name: string;
+    date: string;
+    note?: string;
+}
+
+export interface AssignmentProposalCreateResponse {
+    proposal: ProposalRecord;
+    auto_approved: boolean;
+    auto_executed: boolean;
+}
+
+export const submitAssignmentCreateProposal = (
+    input: AssignmentProposalCreateInput
+) =>
+    api<AssignmentProposalCreateResponse>("/api/v1/proposals/create-and-submit", {
+        method: "POST",
+        body: JSON.stringify({
+            type: "assignment.create",
+            payload: {
+                worker_id: input.worker_id,
+                site_id: input.site_id,
+                site_name: input.site_name,
+                date: input.date,
+                note: input.note?.trim() || undefined,
+            },
+            description: `${input.site_name}（${input.date}）への配置`,
+        }),
+    });
+
 export type CommunicationConversationStatus = "active" | "waiting_internal" | "waiting_client" | "resolved";
 
 export type CommunicationChannel =
@@ -456,6 +522,121 @@ export interface CommunicationDetailRecord {
     related_proposals: ProposalRecord[];
 }
 
+export type CommunicationContactStatus =
+    | "overdue"
+    | "waiting_internal"
+    | "waiting_client"
+    | "resolved"
+    | "needs_review";
+
+export type CommunicationContactRiskFlag =
+    | "overdue_next_action"
+    | "no_next_action"
+    | "stale_7d"
+    | "pending_proposal_stale"
+    | "no_owner";
+
+export type CommunicationWaitingOn = "internal" | "client" | "none";
+
+export type CommunicationStatusReasonSource =
+    | "next_action"
+    | "ai_summary"
+    | "last_message_preview"
+    | "none";
+
+export interface CommunicationContactStatusRecord {
+    contact_key: string;
+    client_name: string | null;
+    contact_name: string | null;
+    contact_email: string | null;
+    owner: CommunicationMemberSummary | null;
+    status: CommunicationContactStatus;
+    risk_flags: CommunicationContactRiskFlag[];
+    waiting_on: CommunicationWaitingOn;
+    attention_score: number;
+    status_reason: string | null;
+    status_reason_source: CommunicationStatusReasonSource;
+    evidence_excerpt: string | null;
+    latest_activity_at: string | null;
+    last_external_activity_at: string | null;
+    days_since_latest_activity: number | null;
+    last_inbound_at: string | null;
+    last_outbound_at: string | null;
+    days_since_client_response: number | null;
+    next_action: string | null;
+    next_action_due_date: string | null;
+    has_next_action: boolean;
+    relevant_conversation_id: string | null;
+    site: CommunicationSiteSummary | null;
+    conversation_count: number;
+    open_conversation_count: number;
+    in_flight_proposal_count: number;
+}
+
+export interface CommunicationContactWhyNowItem {
+    code: CommunicationContactRiskFlag | CommunicationContactStatus;
+    title: string;
+    description: string;
+}
+
+export interface CommunicationContactRecentLogRecord extends CommunicationLogRecord {
+    conversation_id: string;
+    conversation_title: string;
+}
+
+export interface CommunicationContactStatusDetail {
+    summary: CommunicationContactStatusRecord;
+    why_now: CommunicationContactWhyNowItem[];
+    related_proposals: ProposalRecord[];
+    conversations: CommunicationConversationRecord[];
+    recent_logs: CommunicationContactRecentLogRecord[];
+    default_conversation_id: string | null;
+}
+
+export interface CommunicationContactListResponse {
+    items: CommunicationContactStatusRecord[];
+    total_count: number;
+}
+
+export interface CommunicationInsightsSummary {
+    hygiene: {
+        open_contacts: number;
+        owner_coverage_rate: number;
+        next_action_coverage_rate: number;
+        overdue_rate: number;
+        overdue_count: number;
+        no_next_action_count: number;
+        no_owner_count: number;
+    };
+    stagnation: {
+        stale_7d_count: number;
+        by_status: Array<{ status: CommunicationContactStatus; count: number }>;
+        by_owner: Array<{ owner_id: string | null; owner_name: string; stale_count: number }>;
+    };
+    proposal_health: {
+        in_flight_stale_count: number;
+        follow_up_missing_after_link_count: number;
+    };
+    owner_workload: Array<{
+        owner_id: string | null;
+        owner_name: string;
+        open_contacts: number;
+        overdue_count: number;
+        unowned_count: number;
+    }>;
+    reason_clusters: Array<{ key: string; label: string; count: number }>;
+    client_health: Array<{
+        rollup_key: string;
+        client_id: string | null;
+        client_name: string;
+        open_contacts: number;
+        overdue_count: number;
+        in_flight_proposal_count: number;
+        owner_count: number;
+        sites: string[];
+    }>;
+}
+
 export interface CreateCommunicationConversationRequest {
     title: string;
     channel: Exclude<CommunicationChannel, "system">;
@@ -512,6 +693,35 @@ export const fetchCommunications = (params?: {
 
 export const fetchCommunicationDetail = (conversationId: string) =>
     api<CommunicationDetailRecord>(`/api/v1/communications/${encodeURIComponent(conversationId)}`);
+
+export const fetchCommunicationContacts = (params?: {
+    q?: string;
+    status?: CommunicationContactStatus[];
+    ownerUserId?: string[];
+    risk?: CommunicationContactRiskFlag[];
+    includeResolved?: boolean;
+    sort?: "attention" | "latest_activity";
+    page?: number;
+    pageSize?: number;
+}) => {
+    const searchParams = new URLSearchParams();
+    if (params?.q) searchParams.append("q", params.q);
+    params?.status?.forEach((value) => searchParams.append("status", value));
+    params?.ownerUserId?.forEach((value) => searchParams.append("ownerUserId", value));
+    params?.risk?.forEach((value) => searchParams.append("risk", value));
+    if (params?.includeResolved !== undefined) searchParams.append("includeResolved", String(params.includeResolved));
+    if (params?.sort) searchParams.append("sort", params.sort);
+    if (params?.page !== undefined) searchParams.append("page", String(params.page));
+    if (params?.pageSize !== undefined) searchParams.append("pageSize", String(params.pageSize));
+    const query = searchParams.toString();
+    return api<CommunicationContactListResponse>(`/api/v1/communications/contacts${query ? `?${query}` : ""}`);
+};
+
+export const fetchCommunicationContactDetail = (contactKey: string) =>
+    api<CommunicationContactStatusDetail>(`/api/v1/communications/contacts/${encodeURIComponent(contactKey)}`);
+
+export const fetchCommunicationInsightsSummary = () =>
+    api<CommunicationInsightsSummary>("/api/v1/communications/insights/summary");
 
 export const createCommunicationConversation = (payload: CreateCommunicationConversationRequest) =>
     api<CommunicationDetailRecord>("/api/v1/communications", {
@@ -638,12 +848,28 @@ export const createSite = (site: Partial<Site>) =>
     api<Site>("/api/v1/sites", { method: "POST", body: JSON.stringify(site) });
 export const updateSite = (id: string, site: Partial<Site>) =>
     api<Site>(`/api/v1/sites/${id}`, { method: "PUT", body: JSON.stringify(site) });
-export const completeSite = (id: string) =>
-    api<Site>(`/api/v1/sites/${id}/complete`, { method: "POST" });
+export const completeSite = (id: string, payload?: { effective_completed_at?: string }) =>
+    api<SiteCompletionResult>(`/api/v1/sites/${id}/complete`, {
+        method: "POST",
+        body: payload ? JSON.stringify(payload) : undefined,
+    });
+export const completeSiteWithClose = (id: string, payload: CompleteSiteWithCloseRequest) =>
+    api<CompleteSiteWithCloseResult>(`/api/v1/sites/${id}/complete-with-close`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+    });
+export const reverseSiteCompletion = (
+    id: string,
+    payload?: { effective_reversed_at?: string; reason?: string }
+) =>
+    api<SiteCompletionReversalResult>(`/api/v1/sites/${id}/complete/reverse`, {
+        method: "POST",
+        body: payload ? JSON.stringify(payload) : undefined,
+    });
 export const deleteSite = (id: string, reason: string) =>
     api<Site>(`/api/v1/sites/${id}`, { method: "DELETE", body: JSON.stringify({ reason }) });
 export const fetchMembers = () =>
-    api<Member[]>("/api/v1/sites/members");
+    api<Member[]>("/api/v1/org/members");
 export const fetchClients = (params?: { status?: "active" | "deleted" | "all" }) => {
     const searchParams = new URLSearchParams();
     if (params?.status) searchParams.append("status", params.status);
@@ -711,10 +937,119 @@ export const accountingChatWithSherpa = (message: string, context?: ChatMessage[
 // 型定義
 export interface Member {
     id: string;
+    user_id?: string;
+    org_id?: string;
+    role?: "admin" | "member";
+    status?: "active" | "suspended" | "removed";
+    title?: string | null;
+    approval_limit?: number | null;
+    joined_at?: string | null;
+    display_name?: string | null;
     full_name: string | null;
     username: string | null;
     avatar_url: string | null;
 }
+
+export interface OrgContextRecord {
+    org: {
+        id: string;
+        name: string;
+        slug: string | null;
+        status: "active" | "suspended";
+    };
+    membership: {
+        org_id: string;
+        user_id: string;
+        role: "admin" | "member";
+        status: "active" | "suspended" | "removed";
+        title?: string | null;
+        approval_limit?: number | null;
+        joined_at?: string | null;
+    };
+}
+
+export const fetchOrgContext = () =>
+    api<OrgContextRecord>("/api/v1/org/context");
+
+export interface AppEntryMembershipRecord {
+    org_id: string;
+    org_name: string;
+    role: "admin" | "member";
+}
+
+export interface AppEntryPendingInvite {
+    invite_id: string;
+    org_id: string;
+    org_name: string;
+    role: "admin" | "member";
+    email_normalized: string;
+}
+
+export type AppEntryStateRecord =
+    | {
+          state: "needs_system_bootstrap";
+          viewer_email: string | null;
+      }
+    | {
+          state: "needs_onboarding";
+          viewer_email: string | null;
+          bootstrap_allowed: boolean;
+          memberships: [];
+          pending_invites: [];
+      }
+    | {
+          state: "needs_invite_action";
+          viewer_email: string | null;
+          bootstrap_allowed: boolean;
+          memberships: [];
+          pending_invites: AppEntryPendingInvite[];
+      }
+    | {
+          state: "needs_org_selection";
+          viewer_email: string | null;
+          memberships: AppEntryMembershipRecord[];
+      }
+    | {
+          state: "ready";
+          viewer_email: string | null;
+          active_org: AppEntryMembershipRecord;
+          memberships: AppEntryMembershipRecord[];
+      };
+
+export interface OrgBootstrapRequest {
+    name: string;
+    slug?: string | null;
+}
+
+export interface OrgBootstrapResponse {
+    active_org: {
+        id: string;
+        name: string;
+        slug: string | null;
+        status: "active";
+    };
+    membership: {
+        org_id: string;
+        user_id: string;
+        role: "admin";
+        status: "active";
+    };
+}
+
+export const fetchAppEntryState = () =>
+    api<AppEntryStateRecord>("/api/v1/app-entry-state");
+
+export const bootstrapFirstOrg = (payload: OrgBootstrapRequest) =>
+    api<OrgBootstrapResponse>("/api/v1/system/bootstrap-first-org", {
+        method: "POST",
+        body: JSON.stringify(payload),
+    });
+
+export const bootstrapOrg = (payload: OrgBootstrapRequest) =>
+    api<OrgBootstrapResponse>("/api/v1/org/bootstrap", {
+        method: "POST",
+        body: JSON.stringify(payload),
+    });
 
 export interface Client {
     id: string;
@@ -805,9 +1140,93 @@ export interface Site {
     working_weekdays?: number[];
     custom_work_dates?: string[];
     created_at: string;
+    updated_at?: string;
     completed_at?: string;
     description?: string;
     cautions?: string;
+    close_phase?: "active" | "completed_unclosed" | "completed_close_pending" | "completed_close_rejected" | "completed_close_executed";
+    active_close_proposal?: {
+        id: string;
+        status: ProposalStatus;
+        required_approvals: number;
+        created_at: string;
+        executed_at?: string | null;
+    } | null;
+}
+
+export interface SiteCompletionResult {
+    site_id: string;
+    site_completion_event_id: string | null;
+    revenue_basis_id: string | null;
+    income_proposal_id: string | null;
+    idempotent: boolean;
+    site: Site;
+}
+
+export interface SiteCloseDraftInput {
+    recognized_revenue: number;
+    included_day_log_ids: string[];
+    material_cost: number;
+    external_cost: number;
+    direct_cost: number;
+    overhead_allocated: number;
+    known_rework_cost: number;
+    approved_adjustments: number;
+    difficulty_band: PathDifficultyBand;
+    share_mode: PathV31ShareMode;
+    fixed_template_key?: string | null;
+    fixed_template_reason_code?: string | null;
+    fixed_template_members?: Array<{
+        member_id: string;
+        share_ratio: number;
+        role_type?: PathV31RoleType;
+        source_day_log_ids?: string[];
+    }>;
+    outcome_snapshots?: Array<{
+        member_id: string;
+        outcome_status: PathV31OutcomeStatus;
+        rework_units?: number;
+        source?: string;
+        notes?: string;
+    }>;
+    closed_at?: string | null;
+}
+
+export interface CompleteSiteWithCloseRequest extends SiteCloseDraftInput {
+    client_request_id: string;
+    effective_completed_at?: string;
+    expected_site_updated_at?: string;
+}
+
+export interface SiteCloseProposalSummary {
+    id: string;
+    status: ProposalStatus;
+    required_approvals: number;
+    created_at: string;
+    executed_at?: string | null;
+}
+
+export interface CompleteSiteWithCloseResult {
+    site_id: string;
+    site_completion_event_id: string | null;
+    revenue_basis_id: string | null;
+    income_proposal_id: string | null;
+    idempotent: boolean;
+    site: Site;
+    close_proposal: SiteCloseProposalSummary;
+    close_auto_approved: boolean;
+    close_auto_executed: boolean;
+    close_summary: Record<string, unknown>;
+}
+
+export interface SiteCompletionReversalResult {
+    site_id: string;
+    reversal_event_id: string | null;
+    revenue_basis_id: string | null;
+    income_reverse_proposal_id: string | null;
+    reward_adjust_proposal_id: string | null;
+    idempotent: boolean;
+    site: Site;
 }
 
 export interface SiteDocument {
@@ -1033,12 +1452,18 @@ export const fetchPL = (params?: { month?: string; site_id?: string; cost_center
 export const fetchTransactions = (params?: {
     kind?: "expense" | "sale" | "invoice";
     status?: string;
+    created_by?: string;
+    date_from?: string;
+    date_to?: string;
     limit?: number;
     offset?: number;
 }) => {
     const searchParams = new URLSearchParams();
     if (params?.kind) searchParams.append("kind", params.kind);
     if (params?.status) searchParams.append("status", params.status);
+    if (params?.created_by) searchParams.append("created_by", params.created_by);
+    if (params?.date_from) searchParams.append("date_from", params.date_from);
+    if (params?.date_to) searchParams.append("date_to", params.date_to);
     if (params?.limit) searchParams.append("limit", String(params.limit));
     if (params?.offset) searchParams.append("offset", String(params.offset));
     const query = searchParams.toString();
@@ -1347,6 +1772,22 @@ export const PATH_BIG_SKILL_STATE_OPTIONS = [
 ] as const;
 
 export const PATH_LEVEL_OPTIONS = ["L1", "L2", "L3", "L4"] as const;
+export const PATH_TRADE_FAMILY_OPTIONS = [
+    "wall_finish",
+    "floor_finish",
+    "substrate_preparation",
+    "decorative_sheet_or_film",
+    "common_site_operations",
+] as const;
+export const PATH_DIFFICULTY_BAND_OPTIONS = ["S1", "S2", "S3"] as const;
+export const PATH_ROLE_TYPE_OPTIONS = ["lead", "support", "teaching"] as const;
+export const PATH_QUALITY_RESULT_OPTIONS = ["pass", "minor_fix", "major_fix"] as const;
+export const PATH_OPPORTUNITY_STATUS_OPTIONS = [
+    "not_observed",
+    "opportunity_not_granted",
+    "recheck_required",
+    "observed",
+] as const;
 
 export const PATH_CERTIFICATION_STATUS_OPTIONS = [
     "candidate",
@@ -1358,6 +1799,11 @@ export const PATH_CERTIFICATION_STATUS_OPTIONS = [
 export type PathBigSkillKey = (typeof PATH_BIG_SKILL_KEYS)[number];
 export type PathBigSkillState = (typeof PATH_BIG_SKILL_STATE_OPTIONS)[number];
 export type PathLevel = (typeof PATH_LEVEL_OPTIONS)[number];
+export type PathTradeFamily = (typeof PATH_TRADE_FAMILY_OPTIONS)[number];
+export type PathDifficultyBand = (typeof PATH_DIFFICULTY_BAND_OPTIONS)[number];
+export type PathRoleType = (typeof PATH_ROLE_TYPE_OPTIONS)[number];
+export type PathQualityResult = (typeof PATH_QUALITY_RESULT_OPTIONS)[number];
+export type PathOpportunityStatus = (typeof PATH_OPPORTUNITY_STATUS_OPTIONS)[number];
 export type PathCertificationStatus = (typeof PATH_CERTIFICATION_STATUS_OPTIONS)[number];
 
 export interface PathMonthlyEvaluationForm {
@@ -1366,6 +1812,11 @@ export interface PathMonthlyEvaluationForm {
     month: string;
     member_id: string;
     selected_big_skill_states: Partial<Record<PathBigSkillKey, PathBigSkillState>>;
+    work_days: number;
+    A: number;
+    R: number;
+    Q: number;
+    current_level: PathLevel | null;
     selected_roles: string[];
     site_ids: string[];
     photo_flag: boolean;
@@ -1379,6 +1830,11 @@ export interface PathMonthlyEvaluationFormInput {
     month: string;
     member_id: string;
     selected_big_skill_states: Partial<Record<PathBigSkillKey, PathBigSkillState>>;
+    work_days?: number;
+    A?: number;
+    R?: number;
+    Q?: number;
+    current_level?: PathLevel | null;
     selected_roles?: string[];
     site_ids?: string[];
     photo_flag?: boolean;
@@ -1618,6 +2074,585 @@ export interface PathRewardCalculationSnapshot {
     created_at: string;
 }
 
+export interface PathModuleMonthlyCloseInput {
+    id: string;
+    org_id: string;
+    month: string;
+    member_id: string;
+    role_level: PathLevel | null;
+    trade_family_observations: Record<string, unknown>;
+    aqr_input: Record<string, unknown>;
+    selected_site_ids: string[];
+    comment: string;
+    submitted_by: Record<string, unknown> | null;
+    submitted_at: string;
+    updated_at: string;
+}
+
+export interface PathModuleEvidenceRecord {
+    id: string;
+    org_id: string;
+    month: string;
+    member_id: string;
+    trade_family: PathTradeFamily | null;
+    evidence_class: string;
+    origin_event_id: string;
+    source_type: string;
+    source_ref: string | null;
+    summary: string;
+    metadata: Record<string, unknown>;
+    created_by: Record<string, unknown> | null;
+    created_at: string;
+}
+
+export interface PathModuleAiAnnotation {
+    id: string;
+    org_id: string;
+    month: string;
+    member_id: string;
+    reviewer_kind: "A" | "B";
+    adapter_key: string;
+    annotation: Record<string, unknown>;
+    supporting_evidence_ids: string[];
+    challenged_evidence_ids: string[];
+    model_version: string;
+    prompt_version: string;
+    schema_version: string;
+    created_by: Record<string, unknown> | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface PathModuleSiteItemProfitSnapshot {
+    id: string;
+    org_id: string;
+    month: string;
+    site_id: string;
+    item_key: string;
+    item_name: string;
+    trade_family: PathTradeFamily;
+    revenue: number;
+    material_cost: number;
+    subcontract_cost: number;
+    direct_cost: number;
+    gross_profit: number;
+    estimated_std_hours: number;
+    difficulty_band: PathDifficultyBand;
+    metadata: Record<string, unknown>;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface PathModuleOpportunityAudit {
+    id: string;
+    org_id: string;
+    month: string;
+    member_id: string;
+    trade_family: PathTradeFamily;
+    opportunity_status: PathOpportunityStatus;
+    eligible_but_unassigned_days: number;
+    opportunity_concentration_score: number;
+    promotion_blocked_by_opportunity: boolean;
+    protected_challenge_count: number;
+    summary: Record<string, unknown>;
+    source_proposal_id: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface PathModuleMonthCloseProposalRequest {
+    month: string;
+    member_id: string;
+    current_role_level?: PathLevel | null;
+    A?: number;
+    R?: number;
+    Q?: number;
+    selected_site_ids?: string[];
+    neutral_flags?: string[];
+    evidence_ids: string[];
+    credited_units: Array<{
+        member_id: string;
+        unit_type: string;
+        units: number;
+        source_id?: string;
+        metadata?: Record<string, unknown>;
+    }>;
+    opportunity_audits?: Array<{
+        member_id: string;
+        trade_family: PathTradeFamily;
+        opportunity_status: PathOpportunityStatus;
+        eligible_but_unassigned_days?: number;
+        opportunity_concentration_score?: number;
+        promotion_blocked_by_opportunity?: boolean;
+        protected_challenge_count?: number;
+        summary?: Record<string, unknown>;
+    }>;
+    explanation?: Record<string, unknown>;
+}
+
+export interface PathModuleRewardPoolInput {
+    recognized_revenue: number;
+    direct_costs: number;
+    overhead_allocated: number;
+    rule_reserve: number;
+    prior_period_adjustments: number;
+}
+
+export interface PathModuleRewardContributionInput {
+    package_id: string;
+    trade_family: PathTradeFamily;
+    std_hours: number;
+    difficulty_band: PathDifficultyBand;
+    responsibility_share: number;
+    role_type: PathRoleType;
+    quality_result: PathQualityResult;
+    rated_units?: number;
+}
+
+export interface PathModuleRewardRunMemberInput {
+    member_id: string;
+    name: string;
+    role_level: PathLevel;
+    credited_units: number;
+    guaranteed_pay?: number;
+    A?: number;
+    R?: number;
+    Q?: number;
+    neutral_flags?: string[];
+    package_contributions: PathModuleRewardContributionInput[];
+}
+
+export interface PathModuleRewardPreviewMember {
+    member_id: string;
+    name: string;
+    role_level: PathLevel;
+    credited_units: number;
+    rated_units: number;
+    A: number;
+    R: number;
+    Q: number;
+    monthly_point_total: number;
+    monthly_coefficient: number;
+    base_weight: number;
+    variable_weight: number;
+    base_amount: number;
+    variable_amount: number;
+    calculated_pay: number;
+    guaranteed_pay: number;
+    guarantee_adjustment: number;
+    final_pay: number;
+    package_points_total: number;
+    explanations: Record<string, unknown>;
+}
+
+export interface PathModuleRewardPreview {
+    calculation_system: "path_v22";
+    calculation_version: string;
+    month: string;
+    close_id: string | null;
+    month_close_id?: string | null;
+    policy_bundle: {
+        id: string;
+        bundle_key: string;
+        version: string;
+        revision: number;
+        effective_from: string;
+        fingerprint: string;
+    };
+    input_hash: string;
+    closed_profit: number;
+    path_pool_amount: number;
+    base_pool_amount: number;
+    variable_pool_amount: number;
+    guaranteed_total_amount: number;
+    members: PathModuleRewardPreviewMember[];
+    explanation_snapshots: Array<Record<string, unknown>>;
+}
+
+export interface PathModuleRewardRunProposalRequest {
+    month_close_id: string;
+}
+
+export interface PathModuleRewardRunProposalResponse {
+    proposal: ProposalRecord | null;
+    auto_approved: boolean;
+    auto_executed: boolean;
+    preview: PathModuleRewardPreview;
+    existing_reward_run?: PathModuleMonthCloseSummaryRewardRun | null;
+    reused_existing?: boolean;
+}
+
+export interface PathModuleRewardAdjustmentProposalRequest {
+    reward_run_id: string;
+    correction_month: string;
+    mode: "adjustment" | "reversal";
+    reason_code: string;
+    member_adjustments: Array<{
+        member_id: string;
+        amount: number;
+        explanation: Record<string, unknown>;
+    }>;
+    note?: string;
+}
+
+export interface PathModuleMonthCloseSummaryClose {
+    id: string;
+    proposal_id: string | null;
+    member_id: string;
+    month: string;
+    policy_fingerprint: string | null;
+    input_hash: string | null;
+    current_role_level?: PathLevel | null;
+    A?: number;
+    R?: number;
+    Q?: number;
+    selected_site_ids?: string[];
+    neutral_flags?: string[];
+    evidence_ids?: string[];
+    explanation?: Record<string, unknown>;
+    close_status?: string;
+    finalized_at?: string;
+    [key: string]: unknown;
+}
+
+export interface PathModuleMonthCloseSummaryRewardRun {
+    id: string;
+    proposal_id: string | null;
+    month: string;
+    run_type: string;
+    status?: string;
+    close_id?: string | null;
+    policy_fingerprint?: string | null;
+    input_hash?: string | null;
+    closed_profit?: number;
+    path_pool_amount?: number;
+    base_pool_amount?: number;
+    variable_pool_amount?: number;
+    guarantee_total_amount?: number;
+    reward_payload?: Record<string, unknown>;
+    target_month?: string | null;
+    correction_of_reward_run_id?: string | null;
+    approved_at?: string;
+    [key: string]: unknown;
+}
+
+export interface PathModuleMonthCloseSummary {
+    month: string;
+    closes: PathModuleMonthCloseSummaryClose[];
+    reward_runs: PathModuleMonthCloseSummaryRewardRun[];
+    eligible_closes?: Array<{
+        id: string;
+        month_close_id: string;
+        month: string;
+        status: string;
+        fixed_at?: string | null;
+        reward_rule_version_id?: string | null;
+        preview_snapshot_id?: string | null;
+        preview_cached?: boolean;
+        member_count?: number | null;
+        canonical_reward_run_id?: string | null;
+        blocked_reason?: string | null;
+    }>;
+    latest_eligible_month_close_id?: string | null;
+    canonical_reward_runs?: Array<Record<string, unknown>>;
+}
+
+export interface PathModulePendingProposal {
+    id: string;
+    type: ProposalType;
+    status: ProposalStatus;
+    description: string;
+    created_by: ProposalActorRef | null;
+    policy_ref?: string | null;
+    required_approvals: number;
+    created_at: string;
+    payload?: Record<string, unknown>;
+}
+
+export interface PathModuleRewardExplanationSnapshot {
+    id: string;
+    reward_run_id?: string | null;
+    proposal_id?: string | null;
+    month: string;
+    member_id: string;
+    explanation_json: Record<string, unknown>;
+    selected_site_ids?: string[];
+    allocation_basis?: string;
+    site_allocations?: PathModuleRewardExplanationSiteAllocation[];
+    rendered_at?: string;
+    [key: string]: unknown;
+}
+
+export interface PathModuleRewardExplanationSiteAllocation {
+    site_id: string | null;
+    site_name: string;
+    site_selected: boolean;
+    allocation_scope: "selected_site" | "matched_site" | "unmatched_package";
+    package_count: number;
+    package_ids: string[];
+    std_hours_total: number;
+    rated_units_total: number;
+    package_points_total: number;
+    member_points_total: number;
+    member_point_share: number;
+    variable_weight_allocated: number;
+    variable_amount_allocated: number;
+}
+
+export interface PathRewardEvidenceRef {
+    kind: "site" | "proposal" | "rule" | "section" | "status";
+    label: string;
+    href?: string | null;
+    anchor?: string | null;
+    site_id?: string | null;
+    proposal_id?: string | null;
+    meta?: Record<string, unknown>;
+}
+
+export interface PathRewardDeltaReason {
+    key: "workload" | "high_profit_sites" | "corrections" | "responsibility" | "performance";
+    label: string;
+    direction: "increase" | "decrease" | "neutral";
+    summary: string;
+    impact_amount: number | null;
+    evidence_refs: PathRewardEvidenceRef[];
+}
+
+export interface PathRewardSiteBreakdownDetail {
+    self_explanation: {
+        amount: number;
+        floor_amount: number;
+        result_amount: number;
+        correction_amount: number;
+        reflected_ratio: number;
+        credited_units: number;
+        reason_lines: string[];
+    };
+    site_summary: {
+        distributable_profit: number;
+        participant_count: number;
+        self_rank: number | null;
+        self_band: "top" | "upper" | "middle" | "lower" | "solo";
+        privacy_mode: "exact_distribution" | "band_only";
+        anonymous_relative_distribution: number[];
+    };
+}
+
+export interface PathRewardSiteBreakdown {
+    site_id: string;
+    site_name: string;
+    amount: number;
+    reflected_ratio: number;
+    reason_summary: string;
+    correction_state: "なし" | "あり";
+    evidence_refs: PathRewardEvidenceRef[];
+    detail: PathRewardSiteBreakdownDetail;
+}
+
+export interface PathRewardCorrectionHistoryItem {
+    proposal_id: string;
+    status: string;
+    reason: string;
+    amount: number;
+    correction_month: string | null;
+    target_month: string | null;
+    mode: "adjustment" | "reversal" | "unknown";
+    note: string;
+    created_at: string;
+    evidence_refs: PathRewardEvidenceRef[];
+}
+
+export interface PathRewardCorrectionSummary {
+    total_amount: number;
+    applied_amount: number;
+    count: number;
+    has_corrections: boolean;
+    items: PathRewardCorrectionHistoryItem[];
+}
+
+export interface PathRewardConfirmationSummary {
+    month: string;
+    member_id: string;
+    member_name: string;
+    status: "試算中" | "確定申請中" | "確定済み";
+    estimated_amount: number;
+    base_amount: number;
+    result_amount: number;
+    correction_amount: number;
+    delta_amount: number | null;
+    delta_empty_state: string | null;
+    top_reasons: PathRewardDeltaReason[];
+    increase_reasons: PathRewardDeltaReason[];
+    decrease_reasons: PathRewardDeltaReason[];
+    explanation_cards: Array<{
+        id: "increase" | "decrease" | "corrections" | "rule";
+        title: string;
+        body: string;
+        evidence_refs: PathRewardEvidenceRef[];
+    }>;
+    explanation_missing: boolean;
+    explanation_missing_message: string | null;
+    site_breakdown: PathRewardSiteBreakdown[];
+    corrections: PathRewardCorrectionSummary;
+    evidence_refs: PathRewardEvidenceRef[];
+    internal_controls: {
+        can_manage: boolean;
+        month: string;
+    };
+}
+
+export interface PathRewardQaRequest {
+    month: string;
+    member_id: string;
+    question: string;
+    site_id?: string | null;
+}
+
+export interface PathRewardQaResponse {
+    conclusion: string;
+    reasons: string[];
+    evidence_refs: PathRewardEvidenceRef[];
+    next_action: string | null;
+}
+
+export type PathV31RoleType = "assist" | "lead" | "solo" | "support";
+export type PathV31ShareMode = "auto_points" | "fixed_template";
+export type PathV31OutcomeStatus = "ok" | "rework" | "unknown";
+export type PathV31SpeedClass = "slow" | "normal" | "fast";
+
+export interface PathV31DayLog {
+    id: string;
+    org_id: string;
+    date: string;
+    site_id: string;
+    member_id: string;
+    trade_families: PathTradeFamily[];
+    role_type: PathV31RoleType;
+    credited_unit: number;
+    memo: string;
+    locked_by_site_close_id: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface PathV31SiteCloseRequest {
+    site_id: string;
+    included_day_log_ids: string[];
+    recognized_revenue: number;
+    material_cost: number;
+    external_cost: number;
+    direct_cost: number;
+    overhead_allocated: number;
+    known_rework_cost: number;
+    approved_adjustments: number;
+    difficulty_band: PathDifficultyBand;
+    share_mode: PathV31ShareMode;
+    fixed_template_key?: string | null;
+    fixed_template_reason_code?: string | null;
+    fixed_template_members?: Array<{
+        member_id: string;
+        share_ratio: number;
+        role_type?: PathV31RoleType;
+        source_day_log_ids?: string[];
+    }>;
+    outcome_snapshots?: Array<{
+        member_id: string;
+        outcome_status: PathV31OutcomeStatus;
+        rework_units?: number;
+        source?: string;
+        notes?: string;
+    }>;
+    closed_at?: string | null;
+}
+
+export interface PathV31SiteClose {
+    id: string;
+    org_id: string;
+    site_id: string;
+    proposal_id: string;
+    distributable_profit: number;
+    difficulty_band: PathDifficultyBand;
+    share_mode: PathV31ShareMode;
+    fixed_template_key?: string | null;
+    fixed_template_reason_code?: string | null;
+    share_snapshot: Array<{
+        member_id: string;
+        credited_units: number;
+        raw_points: number;
+        role_type_mix: Record<string, number>;
+        result_share: number;
+        result_eligible: boolean;
+        source_day_log_ids: string[];
+    }>;
+    path_rule_version_id?: string | null;
+    path_rule_version: string;
+    path_rule_fingerprint: string;
+    calculation_snapshot: Record<string, unknown>;
+    closed_at: string;
+    closed_by: Record<string, unknown> | null;
+    status: string;
+}
+
+export interface PathV31MonthlyDistributionPreview {
+    month: string;
+    pool_amount: number;
+    floor_rate: number;
+    result_rate: number;
+    nonlinear_exponent: number;
+    path_rule_version_id: string;
+    path_rule_version: string;
+    path_rule_fingerprint: string;
+    calculation_snapshot: Record<string, unknown>;
+    members: Array<{
+        member_id: string;
+        member_name: string;
+        floor_units: number;
+        floor_pay: number;
+        raw_result_weight: number;
+        boosted_result_weight: number;
+        speed_class: PathV31SpeedClass;
+        speed_coeff: number;
+        result_pay: number;
+        correction: number;
+        total_pay: number;
+        calculation_snapshot: Record<string, unknown>;
+    }>;
+}
+
+export interface PathV31Experience {
+    member_id: string;
+    cutover_date: string;
+    ledgers: Array<{
+        id: string;
+        member_id: string;
+        trade_family: PathTradeFamily;
+        assist_units: number;
+        lead_units: number;
+        solo_units: number;
+        recent_90d_units: number;
+        ok_count: number;
+        rework_count: number;
+        last_performed_at: string | null;
+        derived_labels: string[];
+        metadata: Record<string, unknown>;
+    }>;
+}
+
+export interface PathV31LeadRecommendationRequest {
+    date: string;
+    site_id: string;
+    trade_family: PathTradeFamily;
+    difficulty_band: PathDifficultyBand;
+    risk_band?: "low" | "medium" | "high";
+    candidate_member_ids: string[];
+    chosen_member_id?: string | null;
+    override_reason_code?: string | null;
+    excluded_member_ids?: string[];
+    restricted_member_ids?: string[];
+    incident_blocked_member_ids?: string[];
+    bad_condition_member_ids?: string[];
+}
+
 export const fetchPathForms = (params?: { month?: string; member_id?: string; limit?: number }) => {
     const searchParams = new URLSearchParams();
     if (params?.month) searchParams.append("month", params.month);
@@ -1769,6 +2804,232 @@ export const fetchPathRewardCalculations = (params?: {
     );
 };
 
+export const fetchPathModuleMonthlyCloseInputs = (params?: {
+    month?: string;
+    member_id?: string;
+    limit?: number;
+}) => {
+    const searchParams = new URLSearchParams();
+    if (params?.month) searchParams.append("month", params.month);
+    if (params?.member_id) searchParams.append("member_id", params.member_id);
+    if (params?.limit !== undefined) searchParams.append("limit", String(params.limit));
+    const query = searchParams.toString();
+    return api<{ inputs: PathModuleMonthlyCloseInput[] }>(
+        `/api/v1/path/module/monthly-close-inputs${query ? `?${query}` : ""}`
+    );
+};
+
+export const fetchPathModuleEvidence = (params?: {
+    month?: string;
+    member_id?: string;
+    trade_family?: PathTradeFamily;
+    limit?: number;
+}) => {
+    const searchParams = new URLSearchParams();
+    if (params?.month) searchParams.append("month", params.month);
+    if (params?.member_id) searchParams.append("member_id", params.member_id);
+    if (params?.trade_family) searchParams.append("trade_family", params.trade_family);
+    if (params?.limit !== undefined) searchParams.append("limit", String(params.limit));
+    const query = searchParams.toString();
+    return api<{ evidence: PathModuleEvidenceRecord[] }>(
+        `/api/v1/path/module/evidence${query ? `?${query}` : ""}`
+    );
+};
+
+export const fetchPathModuleAiAnnotations = (params?: {
+    month?: string;
+    member_id?: string;
+    reviewer_kind?: "A" | "B";
+    limit?: number;
+}) => {
+    const searchParams = new URLSearchParams();
+    if (params?.month) searchParams.append("month", params.month);
+    if (params?.member_id) searchParams.append("member_id", params.member_id);
+    if (params?.reviewer_kind) searchParams.append("reviewer_kind", params.reviewer_kind);
+    if (params?.limit !== undefined) searchParams.append("limit", String(params.limit));
+    const query = searchParams.toString();
+    return api<{ annotations: PathModuleAiAnnotation[] }>(
+        `/api/v1/path/module/ai-annotations${query ? `?${query}` : ""}`
+    );
+};
+
+export const createPathModuleMonthCloseProposal = (data: PathModuleMonthCloseProposalRequest) =>
+    api<PathProposalResponse>("/api/v1/path/module/month-close-proposals", {
+        method: "POST",
+        body: JSON.stringify(data),
+    });
+
+export const previewPathModuleRewardRun = (data: PathModuleRewardRunProposalRequest) =>
+    api<{ preview: PathModuleRewardPreview }>("/api/v1/path/module/reward-run/preview", {
+        method: "POST",
+        body: JSON.stringify(data),
+    }).then((response) => response.preview);
+
+export const createPathModuleRewardRunProposal = (data: PathModuleRewardRunProposalRequest) =>
+    api<PathModuleRewardRunProposalResponse>("/api/v1/path/module/reward-run/proposals", {
+        method: "POST",
+        body: JSON.stringify(data),
+    });
+
+export const createPathModuleRewardAdjustmentProposal = (
+    data: PathModuleRewardAdjustmentProposalRequest
+) =>
+    api<PathProposalResponse>("/api/v1/path/module/reward-adjustment-proposals", {
+        method: "POST",
+        body: JSON.stringify(data),
+    });
+
+export const fetchPathModuleMonthCloseSummary = (month: string) =>
+    api<PathModuleMonthCloseSummary>(
+        `/api/v1/path/module/month-close-summary?month=${encodeURIComponent(month)}`
+    );
+
+export const fetchPathModulePendingProposals = (limit = 50) =>
+    api<{ proposals: PathModulePendingProposal[] }>(
+        `/api/v1/path/module/pending-proposals?limit=${encodeURIComponent(String(limit))}`
+    );
+
+export const fetchPathModuleRewardExplanation = (memberId: string, month: string) =>
+    api<{ explanation: PathModuleRewardExplanationSnapshot | null }>(
+        `/api/v1/path/module/members/${encodeURIComponent(memberId)}/reward-explanation?month=${encodeURIComponent(month)}`
+    );
+
+export const fetchPathRewardConfirmation = (month: string, memberId: string) =>
+    api<{ summary: PathRewardConfirmationSummary }>(
+        `/api/v1/path/module/reward-confirmation?month=${encodeURIComponent(month)}&member_id=${encodeURIComponent(memberId)}`
+    ).then((response) => response.summary);
+
+export const askPathRewardConfirmationQuestion = (data: PathRewardQaRequest) =>
+    api<{ answer: PathRewardQaResponse }>("/api/v1/path/module/reward-confirmation/qa", {
+        method: "POST",
+        body: JSON.stringify(data),
+    }).then((response) => response.answer);
+
+export const fetchPathModuleSiteItemProfitSummary = (params?: {
+    month?: string;
+    site_id?: string;
+    limit?: number;
+}) => {
+    const searchParams = new URLSearchParams();
+    if (params?.month) searchParams.append("month", params.month);
+    if (params?.site_id) searchParams.append("site_id", params.site_id);
+    if (params?.limit !== undefined) searchParams.append("limit", String(params.limit));
+    const query = searchParams.toString();
+    return api<{ summary: PathModuleSiteItemProfitSnapshot[] }>(
+        `/api/v1/path/module/site-item-profit-summary${query ? `?${query}` : ""}`
+    );
+};
+
+export const fetchPathModuleOpportunityAuditSummary = (month: string) =>
+    api<{ summary: PathModuleOpportunityAudit[] }>(
+        `/api/v1/path/module/opportunity-audit-summary?month=${encodeURIComponent(month)}`
+    );
+
+export const fetchPathV31DayLogs = (params?: {
+    site_id?: string;
+    member_id?: string;
+    from?: string;
+    to?: string;
+    limit?: number;
+}) => {
+    const searchParams = new URLSearchParams();
+    if (params?.site_id) searchParams.append("site_id", params.site_id);
+    if (params?.member_id) searchParams.append("member_id", params.member_id);
+    if (params?.from) searchParams.append("from", params.from);
+    if (params?.to) searchParams.append("to", params.to);
+    if (params?.limit !== undefined) searchParams.append("limit", String(params.limit));
+    const query = searchParams.toString();
+    return api<{ logs: PathV31DayLog[] }>(
+        `/api/v1/path/module/day-logs${query ? `?${query}` : ""}`
+    );
+};
+
+export const savePathV31DayLog = (data: {
+    id?: string;
+    date: string;
+    site_id: string;
+    member_id: string;
+    trade_families: PathTradeFamily[];
+    role_type: PathV31RoleType;
+    credited_unit: number;
+    memo?: string;
+}) =>
+    api<{ log: PathV31DayLog }>("/api/v1/path/module/day-logs", {
+        method: "POST",
+        body: JSON.stringify(data),
+    });
+
+export const fetchPathV31SiteCloses = (params?: {
+    month?: string;
+    site_id?: string;
+    limit?: number;
+}) => {
+    const searchParams = new URLSearchParams();
+    if (params?.month) searchParams.append("month", params.month);
+    if (params?.site_id) searchParams.append("site_id", params.site_id);
+    if (params?.limit !== undefined) searchParams.append("limit", String(params.limit));
+    const query = searchParams.toString();
+    return api<{ site_closes: PathV31SiteClose[] }>(
+        `/api/v1/path/module/site-closes${query ? `?${query}` : ""}`
+    );
+};
+
+export const createPathV31SiteCloseProposal = (data: PathV31SiteCloseRequest) =>
+    api<{
+        proposal: ProposalRecord;
+        auto_approved: boolean;
+        auto_executed: boolean;
+        preview: Record<string, unknown>;
+    }>("/api/v1/path/module/site-closes", {
+        method: "POST",
+        body: JSON.stringify(data),
+    });
+
+export const createPathV31SiteCloseReopenProposal = (data: {
+    site_close_id: string;
+    reason_code: string;
+    note?: string;
+}) =>
+    api<PathProposalResponse>("/api/v1/path/module/site-close-reopen-proposals", {
+        method: "POST",
+        body: JSON.stringify(data),
+    });
+
+export const previewPathV31MonthlyDistribution = (month: string) =>
+    api<{ preview: PathV31MonthlyDistributionPreview }>(
+        "/api/v1/path/module/monthly-distribution/preview",
+        {
+            method: "POST",
+            body: JSON.stringify({ month }),
+        }
+    ).then((response) => response.preview);
+
+export const createPathV31MonthlyDistributionProposal = (month: string) =>
+    api<{
+        proposal: ProposalRecord;
+        auto_approved: boolean;
+        auto_executed: boolean;
+        preview: Record<string, unknown>;
+    }>("/api/v1/path/module/monthly-distribution/proposals", {
+        method: "POST",
+        body: JSON.stringify({ month }),
+    });
+
+export const fetchPathV31Experience = (memberId: string) =>
+    api<{ experience: PathV31Experience }>(
+        `/api/v1/path/module/members/${encodeURIComponent(memberId)}/experience`
+    ).then((response) => response.experience);
+
+export const recommendPathV31LeadAssignment = (data: PathV31LeadRecommendationRequest) =>
+    api<{
+        recommendation: Record<string, unknown>;
+        ranking: Array<Record<string, unknown>>;
+        log: Record<string, unknown>;
+    }>("/api/v1/path/module/lead-assignments/recommendation", {
+        method: "POST",
+        body: JSON.stringify(data),
+    });
+
 // ============================================================
 // LUQO評価システム
 // ============================================================
@@ -1863,6 +3124,31 @@ export interface LUQORewardCalculation {
     created_at: string;
 }
 
+const LUQO_MEMBER_ID_PATTERN =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function assertValidLegacyLuqoMembers(
+    members: Array<{
+        member_id: string;
+        name: string;
+    }>
+) {
+    const seen = new Set<string>();
+
+    members.forEach((member, index) => {
+        if (!LUQO_MEMBER_ID_PATTERN.test(member.member_id)) {
+            throw new Error(`LEGACY_LUQO_MEMBER_ID_REQUIRED:${index}`);
+        }
+        if (!member.name.trim()) {
+            throw new Error(`LEGACY_LUQO_MEMBER_NAME_REQUIRED:${index}`);
+        }
+        if (seen.has(member.member_id)) {
+            throw new Error("LEGACY_LUQO_DUPLICATE_MEMBER_ID");
+        }
+        seen.add(member.member_id);
+    });
+}
+
 // カタログ取得
 export const fetchLUQOCategories = () =>
     api<{ categories: LUQOCategory[] }>("/api/v1/luqo/categories");
@@ -1889,7 +3175,7 @@ export const fetchLUQOScores = (params?: { period?: string; member_id?: string }
     return api<{ scores: LUQOPeriodScore[] }>(`/api/v1/luqo/scores${q ? `?${q}` : ""}`);
 };
 
-// 報酬計算プレビュー
+// 報酬計算プレビュー（legacy/debug 専用）
 export const previewLUQOReward = (data: {
     period: string;
     profit: number;
@@ -1901,11 +3187,14 @@ export const previewLUQOReward = (data: {
         tech_stars: number;
         speed_stars: number;
     }>;
-}) =>
-    api<LUQORewardPreview>("/api/v1/luqo/reward/preview", {
+}) => {
+    assertValidLegacyLuqoMembers(data.members);
+
+    return api<LUQORewardPreview>("/api/v1/luqo/reward/preview", {
         method: "POST",
         body: JSON.stringify(data),
     });
+};
 
 export const fetchLUQORewardCalculations = (params?: { period?: string }) => {
     const searchParams = new URLSearchParams();
@@ -1916,14 +3205,16 @@ export const fetchLUQORewardCalculations = (params?: { period?: string }) => {
     );
 };
 
-// 報酬計算確定 (Proposalを作成して申請)
+// 報酬計算確定（legacy/debug 専用、主導線では未使用）
 export const submitLUQORewardProposal = (data: {
     period: string;
     profit: number;
     company_rate: number;
     breakdown: LUQORewardBreakdownItem[];
-}) =>
-    api<{ proposal: ProposalRecord; auto_approved: boolean; auto_executed: boolean }>(
+}) => {
+    assertValidLegacyLuqoMembers(data.breakdown);
+
+    return api<{ proposal: ProposalRecord; auto_approved: boolean; auto_executed: boolean }>(
         "/api/v1/proposals/create-and-submit",
         {
             method: "POST",
@@ -1939,6 +3230,7 @@ export const submitLUQORewardProposal = (data: {
             }),
         }
     );
+};
 
 // スター達成申請 (Proposal作成)
 export const submitStarAchieveProposal = (data: {

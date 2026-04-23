@@ -137,6 +137,77 @@
     margin-bottom: 16px;
 }
 
+.pathContextCard {
+    margin-bottom: 16px;
+    padding: 14px;
+    border-radius: var(--md-sys-shape-corner-large);
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-tertiary) 26%, transparent);
+    background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--md-sys-color-tertiary-container) 58%, white 42%),
+        var(--md-sys-color-surface-container-low)
+    );
+}
+
+.pathContextHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.pathContextBadge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 10px;
+    border-radius: var(--md-sys-shape-corner-full);
+    background: var(--md-sys-color-tertiary);
+    color: var(--md-sys-color-on-tertiary);
+    font: var(--md-sys-typescale-label-medium);
+}
+
+.pathContextLink {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--md-sys-color-tertiary);
+    font: var(--md-sys-typescale-label-large);
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.pathContextGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.pathContextGrid div {
+    display: grid;
+    gap: 4px;
+}
+
+.pathContextLabel {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-small);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.pathContextGrid strong {
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.pathContextNote {
+    margin: 12px 0 0;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+    line-height: 1.5;
+}
+
 /* ============================================================
    Payload Section
    ============================================================ */

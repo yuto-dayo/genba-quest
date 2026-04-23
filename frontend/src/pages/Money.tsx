@@ -16,18 +16,20 @@ import {
     ChevronLeft,
     Search,
     FilterX,
-    Settings2,
 } from "lucide-react";
 import {
     fetchPL,
+    fetchPathModulePendingProposals,
     fetchTransactions,
     fetchPendingApprovals,
     searchTransactions,
     batchReviewExpenses,
     type PLReport,
     type AccountingTransaction,
+    type PathModulePendingProposal,
 } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
+import { buildPathProposalHref, getPathProposalContext } from "../lib/pathProposal";
 import { ExpenseModal } from "../components/ExpenseModal";
 import { SalesModal } from "../components/SalesModal";
 import { InvoiceModal } from "../components/InvoiceModal";
@@ -41,6 +43,15 @@ import styles from "./Money.module.css";
 const formatDate = (dateStr?: string | null) => {
     if (!dateStr) return "";
     return dateStr.replace(/-/g, "/");
+};
+
+const PATH_PROPOSAL_LABELS: Record<string, string> = {
+    "policy.update": "PATH policy publish",
+    "evaluation.finalize": "月締め",
+    "reward.calculate": "報酬 run",
+    "reward.adjust": "補正 / reversal",
+    "skill.achieve": "技能認定",
+    "skill.revoke": "技能取消",
 };
 
 // 検索フィルター型
@@ -146,6 +157,7 @@ export function Money() {
     const [pl, setPL] = useState<PLReport | null>(null);
     const [transactions, setTransactions] = useState<AccountingTransaction[]>([]);
     const [pendingApprovals, setPendingApprovals] = useState<AccountingTransaction[]>([]);
+    const [pathPendingProposals, setPathPendingProposals] = useState<PathModulePendingProposal[]>([]);
 
     // フィルター関連（統合型）
     const [filters, setFilters] = useState<SearchFilters>(defaultFilters);
@@ -171,13 +183,15 @@ export function Money() {
         try {
             setLoading(true);
             setError(null);
-            const [plData, txData, pendingData] = await Promise.all([
+            const [plData, txData, pendingData, pathPendingData] = await Promise.all([
                 fetchPL({ month: selectedMonth }),
                 fetchTransactions({ limit: 50 }),
                 fetchPendingApprovals(),
+                fetchPathModulePendingProposals(6).catch(() => ({ proposals: [] })),
             ]);
             setPL(plData);
             setTransactions(txData);
+            setPathPendingProposals(pathPendingData.proposals);
             // 決定的ソート順
             const sortedPending = [...pendingData].sort((a, b) => {
                 const riskOrder = { HIGH: 0, LOW: 1 };
@@ -332,10 +346,6 @@ export function Money() {
         setShowInvoiceModal(true);
     };
 
-    const openInvoiceSettingsPage = () => {
-        navigate("/settings");
-    };
-
     const closeExpenseModal = () => {
         setShowExpenseModal(false);
         setExpenseDraft(null);
@@ -415,24 +425,6 @@ export function Money() {
 
     return (
         <div className={styles.container}>
-            <section className={styles.pageHeader}>
-                <div className={styles.pageHeaderBody}>
-                    <p className={styles.pageEyebrow}>Money Workspace</p>
-                    <h1 className={styles.pageTitle}>お金</h1>
-                    <p className={styles.pageSubtitle}>
-                        承認待ちを先に処理し、登録は下の FAB から始める
-                    </p>
-                </div>
-                <button
-                    className={styles.pageSettingsButton}
-                    onClick={openInvoiceSettingsPage}
-                    aria-label="請求書設定ページを開く"
-                >
-                    <Settings2 size={18} />
-                    <span>{isMobile ? "設定" : "発行設定"}</span>
-                </button>
-            </section>
-
             {/* 承認待ちアラートバナー */}
             <AnimatePresence>
                 {pendingApprovals.length > 0 && (
@@ -451,6 +443,58 @@ export function Money() {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {pathPendingProposals.length > 0 && (
+                <motion.section
+                    className={styles.pathQueueSection}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.05 }}
+                >
+                    <div className={styles.pathQueueHeader}>
+                        <div>
+                            <p className={styles.pathQueueEyebrow}>PATH approval queue</p>
+                            <h2 className={styles.pathQueueTitle}>評価・支給の承認待ち</h2>
+                            <p className={styles.pathQueueDescription}>
+                                Money からも PATH の承認待ちへ移動できます。会計と同じ日に確認する前提で並べています。
+                            </p>
+                        </div>
+                    </div>
+                    <div className={styles.pathQueueList}>
+                        {pathPendingProposals.map((proposal) => {
+                            const context = getPathProposalContext(proposal);
+                            const proposalHref = buildPathProposalHref(proposal);
+
+                            return (
+                                <button
+                                    key={proposal.id}
+                                    type="button"
+                                    className={styles.pathQueueItem}
+                                    onClick={() => {
+                                        if (proposalHref) {
+                                            navigate(proposalHref);
+                                        }
+                                    }}
+                                >
+                                    <div className={styles.pathQueueItemTop}>
+                                        <span className={styles.pathQueueKind}>
+                                            {PATH_PROPOSAL_LABELS[proposal.type] || proposal.type}
+                                        </span>
+                                        <span className={styles.pathQueueApprovals}>
+                                            {proposal.required_approvals} approvals
+                                        </span>
+                                    </div>
+                                    <strong className={styles.pathQueueItemTitle}>{proposal.description}</strong>
+                                    <p className={styles.pathQueueMeta}>
+                                        {context?.month ? `対象月 ${context.month}` : "対象月未指定"}
+                                        {context?.memberId ? ` ・ member ${context.memberId.slice(0, 8)}...` : ""}
+                                    </p>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </motion.section>
+            )}
 
             {/* PLサマリー - 横一列ダッシュボード */}
             {pl && (

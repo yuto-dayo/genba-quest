@@ -1,52 +1,73 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { useSearchParams } from "react-router-dom";
 import {
+    Activity,
     AlertCircle,
     ArrowRight,
+    BarChart3,
     Bot,
     CalendarClock,
+    ChevronRight,
     ClipboardList,
+    Filter,
     Mail,
     MapPinned,
     MessageSquare,
-    Phone,
     Plus,
     RefreshCw,
-    SendHorizontal,
+    Search,
+    Sparkles,
     UserCircle2,
     Users,
 } from "lucide-react";
 import {
-    addCommunicationLog,
     approveProposal,
-    createCommunicationConversation,
     executeProposal,
-    fetchCommunicationDetail,
-    fetchCommunications,
+    fetchCommunicationContactDetail,
+    fetchCommunicationContacts,
+    fetchCommunicationInsightsSummary,
     fetchMembers,
     fetchSites,
     instructProposal,
     rejectProposal,
-    updateCommunicationConversation,
     type CommunicationChannel,
-    type CommunicationConversationRecord,
-    type CommunicationConversationStatus,
-    type CommunicationDetailRecord,
-    type CommunicationDirection,
-    type CommunicationLogKind,
+    type CommunicationContactRiskFlag,
+    type CommunicationContactStatus,
+    type CommunicationContactStatusDetail,
+    type CommunicationContactStatusRecord,
+    type CommunicationInsightsSummary,
     type Member,
     type ProposalRecord,
     type Site,
 } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
+import { CommunicationRecordSheet, type CommunicationRecordSheetSaveResult } from "../components/CommunicationRecordSheet";
+import { FloatingActionButton } from "../components/FloatingActionButton";
 import { ProposalDetailModal } from "../components/ProposalDetailModal";
 import styles from "./Communications.module.css";
 
-const STATUS_LABELS: Record<CommunicationConversationStatus, string> = {
+const BOARD_STATUS_LABELS: Record<CommunicationContactStatus, string> = {
+    overdue: "対応遅れ",
+    waiting_internal: "こちら対応待ち",
+    waiting_client: "返答待ち",
+    resolved: "完了",
+    needs_review: "確認中",
+};
+
+const CONVERSATION_STATUS_LABELS: Record<CommunicationConversationStatus, string> = {
     active: "対応中",
     waiting_internal: "社内対応待ち",
     waiting_client: "相手待ち",
     resolved: "完了",
+};
+
+const RISK_LABELS: Record<CommunicationContactRiskFlag, string> = {
+    overdue_next_action: "期限超過",
+    no_next_action: "次なし",
+    stale_7d: "7日停滞",
+    pending_proposal_stale: "提案停滞",
+    no_owner: "担当なし",
 };
 
 const CHANNEL_LABELS: Record<CommunicationChannel, string> = {
@@ -65,45 +86,11 @@ const DIRECTION_LABELS: Record<CommunicationDirection, string> = {
     internal: "内部",
 };
 
-const PRIORITY_LABELS: Record<string, string> = {
-    urgent: "最優先",
-    high: "高",
-    medium: "中",
-    low: "低",
-};
-
-type ConversationFormState = {
-    title: string;
-    status: CommunicationConversationStatus;
-    assignee_user_id: string;
-    site_id: string;
-    next_action: string;
-    next_action_due_date: string;
-};
-
-type LogFormState = {
-    channel: Exclude<CommunicationChannel, "system">;
-    direction: CommunicationDirection;
-    log_kind: Exclude<CommunicationLogKind, "proposal_link">;
-    subject: string;
-    summary: string;
-    body: string;
-    occurred_at: string;
-    participant_name: string;
-    participant_email: string;
-    participant_phone: string;
-};
-
-type ConversationComposerState = ConversationFormState &
-    Omit<LogFormState, "log_kind"> & {
-        participant_name: string;
-        participant_email: string;
-        participant_phone: string;
-    };
+type TabId = "board" | "analyze";
 
 function formatDateTime(value?: string | null): string {
     if (!value) {
-        return "日時未設定";
+        return "未記録";
     }
 
     const date = new Date(value);
@@ -112,7 +99,6 @@ function formatDateTime(value?: string | null): string {
     }
 
     return date.toLocaleString("ja-JP", {
-        year: "numeric",
         month: "2-digit",
         day: "2-digit",
         hour: "2-digit",
@@ -136,33 +122,8 @@ function formatDateOnly(value?: string | null): string {
     });
 }
 
-function toDateTimeLocalInput(date: Date): string {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    const hour = String(date.getHours()).padStart(2, "0");
-    const minute = String(date.getMinutes()).padStart(2, "0");
-    return `${year}-${month}-${day}T${hour}:${minute}`;
-}
-
-function toIsoFromLocalInput(value: string): string | undefined {
-    if (!value) {
-        return undefined;
-    }
-
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) {
-        return undefined;
-    }
-
-    return parsed.toISOString();
-}
-
-function getPriorityLabel(value?: string | null): string {
-    if (!value) {
-        return "未設定";
-    }
-    return PRIORITY_LABELS[value] || value;
+function formatPercent(value: number): string {
+    return `${Math.round(value * 100)}%`;
 }
 
 function getProposalStatusLabel(value: ProposalRecord["status"]): string {
@@ -176,257 +137,623 @@ function getProposalStatusLabel(value: ProposalRecord["status"]): string {
     return labels[value] || value;
 }
 
-function getDefaultLogForm(): LogFormState {
-    return {
-        channel: "phone",
-        direction: "internal",
-        log_kind: "note",
-        subject: "",
-        summary: "",
-        body: "",
-        occurred_at: toDateTimeLocalInput(new Date()),
-        participant_name: "",
-        participant_email: "",
-        participant_phone: "",
-    };
+function BoardHeader({
+    totalCount,
+    onRefresh,
+    refreshing,
+}: {
+    totalCount: number;
+    onRefresh: () => void;
+    refreshing: boolean;
+}) {
+    return (
+        <motion.header
+            className={styles.header}
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+        >
+            <div>
+                <p className={styles.eyebrow}>Relationship Operations</p>
+                <h1 className={styles.pageTitle}>連絡</h1>
+                <p className={styles.pageSubtitle}>
+                    今どこで止まっているかを共有して、次に何をやるかを決める。
+                    会話ログは根拠として残し、一覧は判断に必要な情報だけを先に出す。
+                </p>
+            </div>
+
+            <div className={styles.headerActions}>
+                <div className={styles.headerStat}>
+                    <span>表示中</span>
+                    <strong>{totalCount}件</strong>
+                </div>
+                <button type="button" className={styles.secondaryButton} onClick={onRefresh} disabled={refreshing}>
+                    <RefreshCw size={16} />
+                    {refreshing ? "更新中..." : "更新"}
+                </button>
+            </div>
+        </motion.header>
+    );
 }
 
-function getDefaultComposer(): ConversationComposerState {
-    return {
-        title: "",
-        status: "waiting_internal",
-        assignee_user_id: "",
-        site_id: "",
-        next_action: "",
-        next_action_due_date: "",
-        channel: "phone",
-        direction: "inbound",
-        subject: "",
-        summary: "",
-        body: "",
-        occurred_at: toDateTimeLocalInput(new Date()),
-        participant_name: "",
-        participant_email: "",
-        participant_phone: "",
-    };
+function CommunicationKpiStrip({ contacts }: { contacts: CommunicationContactStatusRecord[] }) {
+    const metrics = useMemo(() => {
+        const openContacts = contacts.filter((contact) => contact.status !== "resolved");
+        return [
+            {
+                id: "attention",
+                label: "要対応",
+                value: openContacts.length,
+                tone: "default",
+            },
+            {
+                id: "overdue",
+                label: "期限超過",
+                value: openContacts.filter((contact) => contact.status === "overdue").length,
+                tone: "danger",
+            },
+            {
+                id: "missing-action",
+                label: "次なし",
+                value: openContacts.filter((contact) => contact.risk_flags.includes("no_next_action")).length,
+                tone: "warning",
+            },
+            {
+                id: "proposal-stale",
+                label: "提案停滞",
+                value: openContacts.filter((contact) => contact.risk_flags.includes("pending_proposal_stale")).length,
+                tone: "danger",
+            },
+            {
+                id: "no-owner",
+                label: "担当なし",
+                value: openContacts.filter((contact) => contact.risk_flags.includes("no_owner")).length,
+                tone: "warning",
+            },
+        ];
+    }, [contacts]);
+
+    return (
+        <section className={styles.kpiStrip}>
+            {metrics.map((metric) => (
+                <article
+                    key={metric.id}
+                    className={`${styles.kpiCard} ${
+                        metric.tone === "danger"
+                            ? styles.kpiCardDanger
+                            : metric.tone === "warning"
+                              ? styles.kpiCardWarning
+                              : ""
+                    }`}
+                >
+                    <span>{metric.label}</span>
+                    <strong>{metric.value}</strong>
+                </article>
+            ))}
+        </section>
+    );
 }
 
-function getConversationForm(conversation: CommunicationConversationRecord): ConversationFormState {
-    return {
-        title: conversation.title,
-        status: conversation.status,
-        assignee_user_id: conversation.assignee?.id || "",
-        site_id: conversation.site?.id || "",
-        next_action: conversation.next_action || "",
-        next_action_due_date: conversation.next_action_due_date || "",
-    };
+function CommunicationContactFilters({
+    query,
+    onQueryChange,
+    statusFilters,
+    toggleStatus,
+    riskFilters,
+    toggleRisk,
+    ownerFilter,
+    setOwnerFilter,
+    includeResolved,
+    setIncludeResolved,
+    members,
+}: {
+    query: string;
+    onQueryChange: (value: string) => void;
+    statusFilters: CommunicationContactStatus[];
+    toggleStatus: (status: CommunicationContactStatus) => void;
+    riskFilters: CommunicationContactRiskFlag[];
+    toggleRisk: (risk: CommunicationContactRiskFlag) => void;
+    ownerFilter: string;
+    setOwnerFilter: (value: string) => void;
+    includeResolved: boolean;
+    setIncludeResolved: (value: boolean) => void;
+    members: Member[];
+}) {
+    return (
+        <section className={styles.filterCard}>
+            <div className={styles.searchRow}>
+                <label className={styles.searchField}>
+                    <Search size={16} />
+                    <input
+                        value={query}
+                        onChange={(event) => onQueryChange(event.target.value)}
+                        placeholder="会社名・相手・担当で探す"
+                    />
+                </label>
+                <label className={styles.ownerSelect}>
+                    <Filter size={16} />
+                    <select value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)}>
+                        <option value="">担当すべて</option>
+                        {members.map((member) => (
+                            <option key={member.id} value={member.id}>
+                                {member.full_name || member.username || member.id}
+                            </option>
+                        ))}
+                    </select>
+                </label>
+            </div>
+
+            <div className={styles.filterGroup}>
+                <span>状態</span>
+                <div className={styles.chipRow}>
+                    {(Object.keys(BOARD_STATUS_LABELS) as CommunicationContactStatus[]).map((status) => (
+                        <button
+                            key={status}
+                            type="button"
+                            className={`${styles.filterChip} ${
+                                statusFilters.includes(status) ? styles.filterChipActive : ""
+                            }`}
+                            onClick={() => toggleStatus(status)}
+                        >
+                            {BOARD_STATUS_LABELS[status]}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            <div className={styles.filterGroup}>
+                <span>リスク</span>
+                <div className={styles.chipRow}>
+                    {(Object.keys(RISK_LABELS) as CommunicationContactRiskFlag[]).map((risk) => (
+                        <button
+                            key={risk}
+                            type="button"
+                            className={`${styles.filterChip} ${
+                                riskFilters.includes(risk) ? styles.filterChipActive : ""
+                            }`}
+                            onClick={() => toggleRisk(risk)}
+                        >
+                            {RISK_LABELS[risk]}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            <label className={styles.checkboxRow}>
+                <input
+                    type="checkbox"
+                    checked={includeResolved}
+                    onChange={(event) => setIncludeResolved(event.target.checked)}
+                />
+                完了も見る
+            </label>
+        </section>
+    );
+}
+
+function CommunicationContactRow({
+    contact,
+    selected,
+    onSelect,
+}: {
+    contact: CommunicationContactStatusRecord;
+    selected: boolean;
+    onSelect: () => void;
+}) {
+    return (
+        <button
+            type="button"
+            className={`${styles.contactRow} ${selected ? styles.contactRowSelected : ""}`}
+            onClick={onSelect}
+        >
+            <div className={styles.contactRowTop}>
+                <div>
+                    <p className={styles.contactCompany}>{contact.client_name || "会社名未設定"}</p>
+                    <h3 className={styles.contactName}>{contact.contact_name || contact.contact_email || "担当未設定"}</h3>
+                </div>
+                <span
+                    className={`${styles.statusPill} ${
+                        contact.status === "overdue"
+                            ? styles.statusPillDanger
+                            : contact.status === "waiting_internal"
+                              ? styles.statusPillWarning
+                              : ""
+                    }`}
+                >
+                    {BOARD_STATUS_LABELS[contact.status]}
+                </span>
+            </div>
+
+            <p className={styles.reasonText}>{contact.status_reason || "理由はまだ整理されていません。"}</p>
+
+            <div className={styles.metaGrid}>
+                <span>
+                    <UserCircle2 size={14} />
+                    {contact.owner?.name || "担当未設定"}
+                </span>
+                <span>
+                    <CalendarClock size={14} />
+                    {formatDateTime(contact.latest_activity_at)}
+                </span>
+                <span>
+                    <ArrowRight size={14} />
+                    {contact.next_action || "次アクション未設定"}
+                </span>
+                <span>
+                    <MapPinned size={14} />
+                    {contact.site?.name || "現場未設定"}
+                </span>
+            </div>
+
+            <div className={styles.contactRowFooter}>
+                <div className={styles.riskRow}>
+                    {contact.risk_flags.length === 0 ? (
+                        <span className={styles.riskBadgeMuted}>リスクなし</span>
+                    ) : (
+                        contact.risk_flags.map((risk) => (
+                            <span key={risk} className={styles.riskBadge}>
+                                {RISK_LABELS[risk]}
+                            </span>
+                        ))
+                    )}
+                </div>
+                <div className={styles.countMeta}>
+                    <span>期限 {formatDateOnly(contact.next_action_due_date)}</span>
+                    <span>提案 {contact.in_flight_proposal_count}件</span>
+                </div>
+            </div>
+        </button>
+    );
+}
+
+function AnalyzeTab({
+    insights,
+    loading,
+    error,
+}: {
+    insights: CommunicationInsightsSummary | null;
+    loading: boolean;
+    error: string | null;
+}) {
+    if (loading) {
+        return <p className={styles.panelState}>分析を読み込み中...</p>;
+    }
+
+    if (error) {
+        return (
+            <div className={styles.errorBanner}>
+                <AlertCircle size={14} />
+                {error}
+            </div>
+        );
+    }
+
+    if (!insights) {
+        return <p className={styles.panelState}>分析データがまだありません。</p>;
+    }
+
+    return (
+        <div className={styles.analyzeLayout}>
+            <section className={styles.analysisCard}>
+                <div className={styles.analysisTitle}>
+                    <Activity size={16} />
+                    <h2>運用衛生</h2>
+                </div>
+                <div className={styles.analysisMetricGrid}>
+                    <div>
+                        <span>open contacts</span>
+                        <strong>{insights.hygiene.open_contacts}</strong>
+                    </div>
+                    <div>
+                        <span>owner あり率</span>
+                        <strong>{formatPercent(insights.hygiene.owner_coverage_rate)}</strong>
+                    </div>
+                    <div>
+                        <span>next_action あり率</span>
+                        <strong>{formatPercent(insights.hygiene.next_action_coverage_rate)}</strong>
+                    </div>
+                    <div>
+                        <span>overdue 率</span>
+                        <strong>{formatPercent(insights.hygiene.overdue_rate)}</strong>
+                    </div>
+                </div>
+            </section>
+
+            <section className={styles.analysisCard}>
+                <div className={styles.analysisTitle}>
+                    <Sparkles size={16} />
+                    <h2>停滞</h2>
+                </div>
+                <div className={styles.analysisMetricGrid}>
+                    <div>
+                        <span>7日停滞</span>
+                        <strong>{insights.stagnation.stale_7d_count}</strong>
+                    </div>
+                    <div>
+                        <span>提案停滞</span>
+                        <strong>{insights.proposal_health.in_flight_stale_count}</strong>
+                    </div>
+                    <div>
+                        <span>follow-up なし</span>
+                        <strong>{insights.proposal_health.follow_up_missing_after_link_count}</strong>
+                    </div>
+                </div>
+                <div className={styles.analysisList}>
+                    {insights.stagnation.by_status.map((item) => (
+                        <div key={item.status} className={styles.analysisRow}>
+                            <span>{BOARD_STATUS_LABELS[item.status]}</span>
+                            <strong>{item.count}</strong>
+                        </div>
+                    ))}
+                </div>
+            </section>
+
+            <section className={styles.analysisCard}>
+                <div className={styles.analysisTitle}>
+                    <Users size={16} />
+                    <h2>担当負荷</h2>
+                </div>
+                <div className={styles.analysisList}>
+                    {insights.owner_workload.map((item) => (
+                        <div key={item.owner_id || item.owner_name} className={styles.analysisRow}>
+                            <div>
+                                <strong>{item.owner_name}</strong>
+                                <p>open {item.open_contacts} / overdue {item.overdue_count}</p>
+                            </div>
+                            <span>未担当 {item.unowned_count}</span>
+                        </div>
+                    ))}
+                </div>
+            </section>
+
+            <section className={styles.analysisCard}>
+                <div className={styles.analysisTitle}>
+                    <BarChart3 size={16} />
+                    <h2>停滞理由</h2>
+                </div>
+                <div className={styles.analysisList}>
+                    {insights.reason_clusters.map((item) => (
+                        <div key={item.key} className={styles.analysisRow}>
+                            <span>{item.label}</span>
+                            <strong>{item.count}</strong>
+                        </div>
+                    ))}
+                </div>
+            </section>
+
+            <section className={`${styles.analysisCard} ${styles.analysisCardWide}`}>
+                <div className={styles.analysisTitle}>
+                    <MessageSquare size={16} />
+                    <h2>会社単位の俯瞰</h2>
+                </div>
+                <div className={styles.analysisList}>
+                    {insights.client_health.map((item) => (
+                        <div key={item.rollup_key} className={styles.analysisRow}>
+                            <div>
+                                <strong>{item.client_name}</strong>
+                                <p>{item.sites.join(" / ") || "現場情報なし"}</p>
+                            </div>
+                            <div className={styles.clientHealthMeta}>
+                                <span>open {item.open_contacts}</span>
+                                <span>overdue {item.overdue_count}</span>
+                                <span>提案 {item.in_flight_proposal_count}</span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </section>
+        </div>
+    );
 }
 
 export function Communications() {
-    const [conversations, setConversations] = useState<CommunicationConversationRecord[]>([]);
-    const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
-    const [detail, setDetail] = useState<CommunicationDetailRecord | null>(null);
+    const [searchParams] = useSearchParams();
+    const proposalQuery = searchParams.get("proposal");
+    const [tab, setTab] = useState<TabId>("board");
+    const [contacts, setContacts] = useState<CommunicationContactStatusRecord[]>([]);
+    const [totalCount, setTotalCount] = useState(0);
+    const [selectedContactKey, setSelectedContactKey] = useState<string | null>(null);
+    const [detail, setDetail] = useState<CommunicationContactStatusDetail | null>(null);
+    const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
     const [members, setMembers] = useState<Member[]>([]);
     const [sites, setSites] = useState<Site[]>([]);
-    const [conversationForm, setConversationForm] = useState<ConversationFormState | null>(null);
-    const [logForm, setLogForm] = useState<LogFormState>(getDefaultLogForm());
-    const [composer, setComposer] = useState<ConversationComposerState>(getDefaultComposer());
-    const [showComposer, setShowComposer] = useState(false);
+    const [insights, setInsights] = useState<CommunicationInsightsSummary | null>(null);
+    const [query, setQuery] = useState("");
+    const [statusFilters, setStatusFilters] = useState<CommunicationContactStatus[]>([]);
+    const [riskFilters, setRiskFilters] = useState<CommunicationContactRiskFlag[]>([]);
+    const [ownerFilter, setOwnerFilter] = useState("");
+    const [includeResolved, setIncludeResolved] = useState(false);
+    const [recordSheetOpen, setRecordSheetOpen] = useState(false);
     const [selectedProposal, setSelectedProposal] = useState<ProposalRecord | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [detailLoading, setDetailLoading] = useState(false);
     const [detailError, setDetailError] = useState<string | null>(null);
-    const [savingMeta, setSavingMeta] = useState(false);
-    const [savingLog, setSavingLog] = useState(false);
-    const [savingConversation, setSavingConversation] = useState(false);
+    const [insightsLoading, setInsightsLoading] = useState(false);
+    const [insightsError, setInsightsError] = useState<string | null>(null);
     const [proposalActing, setProposalActing] = useState(false);
 
-    const selectedConversation =
-        conversations.find((conversation) => conversation.id === selectedConversationId) || null;
+    const activeConversation = useMemo(
+        () => detail?.conversations.find((conversation) => conversation.id === activeConversationId) || null,
+        [activeConversationId, detail],
+    );
 
-    async function loadConversations(nextSelectedId?: string | null) {
+    const refreshContacts = useCallback(async (keepSelectedKey?: string | null) => {
         try {
             setLoading(true);
             setError(null);
-            const data = await fetchCommunications({ limit: 60 });
-            setConversations(data);
-            setSelectedConversationId((current) => {
-                const candidate = nextSelectedId ?? current;
-                if (candidate && data.some((conversation) => conversation.id === candidate)) {
+            const response = await fetchCommunicationContacts({
+                q: query || undefined,
+                status: statusFilters,
+                ownerUserId: ownerFilter ? [ownerFilter] : undefined,
+                risk: riskFilters,
+                includeResolved,
+                sort: "attention",
+                page: 1,
+                pageSize: 200,
+            });
+            setContacts(response.items);
+            setTotalCount(response.total_count);
+            setSelectedContactKey((current) => {
+                const candidate = keepSelectedKey ?? current;
+                if (candidate && response.items.some((item) => item.contact_key === candidate)) {
                     return candidate;
                 }
-                return data[0]?.id || null;
+                return response.items[0]?.contact_key || null;
             });
-        } catch (err: unknown) {
-            setConversations([]);
-            setSelectedConversationId(null);
-            setError(getErrorMessage(err));
+        } catch (requestError: unknown) {
+            setContacts([]);
+            setTotalCount(0);
+            setSelectedContactKey(null);
+            setError(getErrorMessage(requestError));
         } finally {
             setLoading(false);
         }
-    }
+    }, [includeResolved, ownerFilter, query, riskFilters, statusFilters]);
 
-    async function loadReferenceData() {
-        try {
-            const [memberData, siteData] = await Promise.all([fetchMembers(), fetchSites()]);
-            setMembers(memberData);
-            setSites(siteData);
-        } catch (err) {
-            console.error("Failed to load communications references:", err);
-        }
-    }
-
-    async function loadDetail(conversationId: string) {
+    const loadDetail = useCallback(async (contactKey: string) => {
         try {
             setDetailLoading(true);
             setDetailError(null);
-            const data = await fetchCommunicationDetail(conversationId);
+            const data = await fetchCommunicationContactDetail(contactKey);
             setDetail(data);
-            setConversationForm(getConversationForm(data.conversation));
-        } catch (err: unknown) {
+            setActiveConversationId((current) => {
+                if (current && data.conversations.some((conversation) => conversation.id === current)) {
+                    return current;
+                }
+                return data.default_conversation_id || data.conversations[0]?.id || null;
+            });
+        } catch (requestError: unknown) {
             setDetail(null);
-            setConversationForm(null);
-            setDetailError(getErrorMessage(err));
+            setActiveConversationId(null);
+            setDetailError(getErrorMessage(requestError));
         } finally {
             setDetailLoading(false);
         }
-    }
+    }, []);
 
-    async function refreshSelectedConversation(conversationId: string, keepProposalId?: string | null) {
-        const [listData, detailData] = await Promise.all([
-            fetchCommunications({ limit: 60 }),
-            fetchCommunicationDetail(conversationId),
-        ]);
-        setConversations(listData);
-        setSelectedConversationId(conversationId);
-        setDetail(detailData);
-        setConversationForm(getConversationForm(detailData.conversation));
-        if (keepProposalId) {
-            setSelectedProposal(
-                detailData.related_proposals.find((proposal) => proposal.id === keepProposalId) || null
-            );
+    const loadInsights = useCallback(async () => {
+        try {
+            setInsightsLoading(true);
+            setInsightsError(null);
+            setInsights(await fetchCommunicationInsightsSummary());
+        } catch (requestError: unknown) {
+            setInsightsError(getErrorMessage(requestError));
+        } finally {
+            setInsightsLoading(false);
         }
-    }
-
-    useEffect(() => {
-        void Promise.all([loadConversations(), loadReferenceData()]);
     }, []);
 
     useEffect(() => {
-        if (!selectedConversationId) {
+        void refreshContacts();
+    }, [refreshContacts]);
+
+    useEffect(() => {
+        void Promise.all([fetchMembers(), fetchSites()])
+            .then(([memberData, siteData]) => {
+                setMembers(memberData);
+                setSites(siteData);
+            })
+            .catch((requestError) => {
+                console.error("failed to load communication references:", requestError);
+            });
+    }, []);
+
+    useEffect(() => {
+        if (!selectedContactKey) {
             setDetail(null);
-            setConversationForm(null);
+            setActiveConversationId(null);
             return;
         }
-        void loadDetail(selectedConversationId);
-    }, [selectedConversationId]);
+        void loadDetail(selectedContactKey);
+    }, [loadDetail, selectedContactKey]);
+
+    useEffect(() => {
+        if (tab === "analyze" && !insights && !insightsLoading) {
+            void loadInsights();
+        }
+    }, [insights, insightsLoading, loadInsights, tab]);
+
+    useEffect(() => {
+        if (!proposalQuery || contacts.length === 0 || selectedProposal) {
+            return;
+        }
+
+        let cancelled = false;
+        void Promise.all(
+            contacts.slice(0, 50).map((contact) =>
+                fetchCommunicationContactDetail(contact.contact_key)
+                    .then((candidate) =>
+                        candidate.related_proposals.some((proposal) => proposal.id === proposalQuery)
+                            ? candidate
+                            : null,
+                    )
+                    .catch(() => null),
+            ),
+        ).then((results) => {
+            if (cancelled) {
+                return;
+            }
+            const matched = results.find((candidate) => candidate?.related_proposals.some((proposal) => proposal.id === proposalQuery));
+            if (matched) {
+                setSelectedContactKey(matched.summary.contact_key);
+                const linkedProposal = matched.related_proposals.find((proposal) => proposal.id === proposalQuery) || null;
+                setSelectedProposal(linkedProposal);
+            }
+        });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [contacts, proposalQuery, selectedProposal]);
+
+    function toggleStatus(status: CommunicationContactStatus) {
+        setStatusFilters((current) =>
+            current.includes(status) ? current.filter((value) => value !== status) : [...current, status],
+        );
+    }
+
+    function toggleRisk(risk: CommunicationContactRiskFlag) {
+        setRiskFilters((current) =>
+            current.includes(risk) ? current.filter((value) => value !== risk) : [...current, risk],
+        );
+    }
 
     async function handleRefresh() {
-        await loadConversations(selectedConversationId);
-        if (selectedConversationId) {
-            await loadDetail(selectedConversationId);
+        await refreshContacts(selectedContactKey);
+        if (selectedContactKey) {
+            await loadDetail(selectedContactKey);
+        }
+        if (tab === "analyze") {
+            await loadInsights();
         }
     }
 
-    async function handleSaveConversation() {
-        if (!selectedConversationId || !conversationForm) {
-            return;
-        }
+    const handleRecordSaved = useCallback(
+        async ({ contactKey, conversationId }: CommunicationRecordSheetSaveResult) => {
+            const nextContactKey = contactKey || selectedContactKey;
 
-        try {
-            setSavingMeta(true);
-            const updated = await updateCommunicationConversation(selectedConversationId, {
-                title: conversationForm.title,
-                status: conversationForm.status,
-                assignee_user_id: conversationForm.assignee_user_id || null,
-                site_id: conversationForm.site_id || null,
-                next_action: conversationForm.next_action || null,
-                next_action_due_date: conversationForm.next_action_due_date || null,
-            });
-            setDetail(updated);
-            setConversationForm(getConversationForm(updated.conversation));
-            await loadConversations(updated.conversation.id);
-        } catch (err: unknown) {
-            setDetailError(getErrorMessage(err));
-        } finally {
-            setSavingMeta(false);
-        }
-    }
-
-    async function handleAddLog() {
-        if (!selectedConversationId || !logForm.body.trim()) {
-            return;
-        }
-
-        try {
-            setSavingLog(true);
-            const updated = await addCommunicationLog(selectedConversationId, {
-                channel: logForm.channel,
-                direction: logForm.direction,
-                log_kind: logForm.log_kind,
-                subject: logForm.subject || undefined,
-                summary: logForm.summary || undefined,
-                body: logForm.body,
-                occurred_at: toIsoFromLocalInput(logForm.occurred_at),
-                participant_name: logForm.participant_name || null,
-                participant_email: logForm.participant_email || null,
-                participant_phone: logForm.participant_phone || null,
-            });
-            setDetail(updated);
-            setConversationForm(getConversationForm(updated.conversation));
-            setLogForm(getDefaultLogForm());
-            await loadConversations(updated.conversation.id);
-        } catch (err: unknown) {
-            setDetailError(getErrorMessage(err));
-        } finally {
-            setSavingLog(false);
-        }
-    }
-
-    async function handleCreateConversation() {
-        if (!composer.title.trim() || !composer.body.trim()) {
-            return;
-        }
-
-        try {
-            setSavingConversation(true);
-            const created = await createCommunicationConversation({
-                title: composer.title,
-                channel: composer.channel,
-                direction: composer.direction,
-                subject: composer.subject || undefined,
-                summary: composer.summary || undefined,
-                body: composer.body,
-                occurred_at: toIsoFromLocalInput(composer.occurred_at),
-                status: composer.status,
-                assignee_user_id: composer.assignee_user_id || null,
-                site_id: composer.site_id || null,
-                next_action: composer.next_action || null,
-                next_action_due_date: composer.next_action_due_date || null,
-                participant_name: composer.participant_name || null,
-                participant_email: composer.participant_email || null,
-                participant_phone: composer.participant_phone || null,
-                log_kind: "message",
-            });
-            setShowComposer(false);
-            setComposer(getDefaultComposer());
-            setDetail(created);
-            setConversationForm(getConversationForm(created.conversation));
-            await loadConversations(created.conversation.id);
-        } catch (err: unknown) {
-            setError(getErrorMessage(err));
-        } finally {
-            setSavingConversation(false);
-        }
-    }
+            try {
+                await refreshContacts(nextContactKey);
+                if (nextContactKey) {
+                    setSelectedContactKey(nextContactKey);
+                    await loadDetail(nextContactKey);
+                }
+                if (conversationId) {
+                    setActiveConversationId(conversationId);
+                }
+            } catch (requestError) {
+                console.error("failed to refresh communication board after save:", requestError);
+            }
+        },
+        [loadDetail, refreshContacts, selectedContactKey],
+    );
 
     async function handleProposalMutation(
         proposalId: string,
         action: "approve" | "reject" | "instruct" | "execute",
-        payload?: string
+        payload?: string,
     ) {
-        if (!selectedConversationId) {
+        if (!selectedContactKey) {
             return;
         }
 
@@ -442,53 +769,17 @@ export function Communications() {
                 await executeProposal(proposalId);
             }
 
-            await refreshSelectedConversation(selectedConversationId, proposalId);
-        } catch (err: unknown) {
-            setDetailError(getErrorMessage(err));
+            await Promise.all([refreshContacts(selectedContactKey), loadDetail(selectedContactKey), loadInsights()]);
+        } catch (requestError: unknown) {
+            setDetailError(getErrorMessage(requestError));
         } finally {
             setProposalActing(false);
         }
     }
 
-    if (loading) {
-        return (
-            <div className={styles.loading}>
-                <div className={styles.spinner} />
-                <p>連絡ハブを読み込み中...</p>
-            </div>
-        );
-    }
-
     return (
         <div className={styles.container}>
-            <motion.header
-                className={styles.header}
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-            >
-                <div>
-                    <p className={styles.eyebrow}>Shared Conversation Hub</p>
-                    <h1 className={styles.pageTitle}>連絡</h1>
-                    <p className={styles.pageSubtitle}>
-                        取引先との会話を会話単位で残し、担当・次アクション・Proposal まで一気通貫で追う。
-                    </p>
-                </div>
-
-                <div className={styles.headerActions}>
-                    <button
-                        type="button"
-                        className={styles.secondaryButton}
-                        onClick={() => setShowComposer((current) => !current)}
-                    >
-                        <Plus size={16} />
-                        新しい会話
-                    </button>
-                    <button type="button" className={styles.primaryButton} onClick={handleRefresh}>
-                        <RefreshCw size={16} />
-                        更新
-                    </button>
-                </div>
-            </motion.header>
+            <BoardHeader totalCount={totalCount} onRefresh={handleRefresh} refreshing={loading || detailLoading} />
 
             {error && (
                 <div className={styles.errorBanner}>
@@ -497,335 +788,76 @@ export function Communications() {
                 </div>
             )}
 
-            <div className={styles.layout}>
-                <section className={styles.listPane}>
-                    <div className={styles.paneHeader}>
-                        <div>
-                            <p className={styles.paneEyebrow}>会話一覧</p>
-                            <h2 className={styles.paneTitle}>{conversations.length}件の会話</h2>
-                        </div>
-                    </div>
+            <div className={styles.tabRail}>
+                <button
+                    type="button"
+                    className={`${styles.tabButton} ${tab === "board" ? styles.tabButtonActive : ""}`}
+                    onClick={() => setTab("board")}
+                >
+                    <ClipboardList size={16} />
+                    Board
+                </button>
+                <button
+                    type="button"
+                    className={`${styles.tabButton} ${tab === "analyze" ? styles.tabButtonActive : ""}`}
+                    onClick={() => setTab("analyze")}
+                >
+                    <BarChart3 size={16} />
+                    Analyze
+                </button>
+            </div>
 
-                    {conversations.length === 0 ? (
-                        <div className={styles.emptyPane}>
-                            <MessageSquare size={36} />
-                            <strong>会話はまだありません</strong>
-                            <span>Gmail 取込か手動追加で、取引先とのやり取りをここに集約します。</span>
-                        </div>
-                    ) : (
-                        <div className={styles.conversationList}>
-                            {conversations.map((conversation) => {
-                                const isSelected = conversation.id === selectedConversationId;
-                                return (
+            {tab === "board" ? (
+                <>
+                    <CommunicationKpiStrip contacts={contacts} />
+                    <CommunicationContactFilters
+                        query={query}
+                        onQueryChange={setQuery}
+                        statusFilters={statusFilters}
+                        toggleStatus={toggleStatus}
+                        riskFilters={riskFilters}
+                        toggleRisk={toggleRisk}
+                        ownerFilter={ownerFilter}
+                        setOwnerFilter={setOwnerFilter}
+                        includeResolved={includeResolved}
+                        setIncludeResolved={setIncludeResolved}
+                        members={members}
+                    />
+
+                    <div className={styles.boardLayout}>
+                        <section className={styles.boardPane}>
+                            {loading ? (
+                                <p className={styles.panelState}>連絡ボードを読み込み中...</p>
+                            ) : contacts.length === 0 ? (
+                                <div className={styles.emptyPane}>
+                                    <MessageSquare size={36} />
+                                    <strong>該当する連絡先はありません</strong>
+                                    <span>絞り込みを戻すか、新しい会話を追加してください。</span>
                                     <button
-                                        key={conversation.id}
                                         type="button"
-                                        className={`${styles.conversationCard} ${
-                                            isSelected ? styles.conversationCardSelected : ""
-                                        }`}
-                                        onClick={() => {
-                                            setShowComposer(false);
-                                            setSelectedConversationId(conversation.id);
-                                        }}
+                                        className={styles.primaryButton}
+                                        onClick={() => setRecordSheetOpen(true)}
                                     >
-                                        <div className={styles.cardTopRow}>
-                                            <span className={styles.channelBadge}>
-                                                {CHANNEL_LABELS[conversation.last_channel]}
-                                            </span>
-                                            <span className={styles.statusBadge}>
-                                                {STATUS_LABELS[conversation.status]}
-                                            </span>
-                                        </div>
-
-                                        <h3 className={styles.cardTitle}>{conversation.title}</h3>
-                                        <p className={styles.cardParticipant}>{conversation.participant_summary}</p>
-                                        <p className={styles.cardSummary}>
-                                            {conversation.last_message_preview || conversation.ai_summary || "最新ログなし"}
-                                        </p>
-
-                                        <div className={styles.cardMeta}>
-                                            <span>{formatDateTime(conversation.last_activity_at)}</span>
-                                            <span>{conversation.related_proposal_count} Proposal</span>
-                                        </div>
-
-                                        <div className={styles.cardFooter}>
-                                            <span>{conversation.assignee?.name || "担当未設定"}</span>
-                                            <ArrowRight size={14} />
-                                            <span>{conversation.next_action || "次アクション未設定"}</span>
-                                        </div>
+                                        <Plus size={16} />
+                                        連絡を記録
                                     </button>
-                                );
-                            })}
-                        </div>
-                    )}
-                </section>
-
-                <section className={styles.timelinePane}>
-                    {showComposer && (
-                        <div className={styles.composeCard}>
-                            <div className={styles.paneHeader}>
-                                <div>
-                                    <p className={styles.paneEyebrow}>新規会話</p>
-                                    <h2 className={styles.paneTitle}>電話・LINE・対面の会話を起票</h2>
                                 </div>
-                            </div>
-
-                            <div className={styles.formGrid}>
-                                <label className={styles.field}>
-                                    <span>会話タイトル</span>
-                                    <input
-                                        value={composer.title}
-                                        onChange={(event) =>
-                                            setComposer((current) => ({ ...current, title: event.target.value }))
-                                        }
-                                        placeholder="例: 工程変更の確認"
-                                    />
-                                </label>
-
-                                <label className={styles.field}>
-                                    <span>取引先名</span>
-                                    <input
-                                        value={composer.participant_name}
-                                        onChange={(event) =>
-                                            setComposer((current) => ({
-                                                ...current,
-                                                participant_name: event.target.value,
-                                            }))
-                                        }
-                                        placeholder="例: 田中工務店"
-                                    />
-                                </label>
-
-                                <label className={styles.field}>
-                                    <span>チャネル</span>
-                                    <select
-                                        value={composer.channel}
-                                        onChange={(event) =>
-                                            setComposer((current) => ({
-                                                ...current,
-                                                channel: event.target.value as ConversationComposerState["channel"],
-                                            }))
-                                        }
-                                    >
-                                        <option value="phone">電話</option>
-                                        <option value="line">LINE</option>
-                                        <option value="in_person">対面</option>
-                                        <option value="sms">SMS</option>
-                                        <option value="manual">手動メモ</option>
-                                        <option value="gmail">Gmail</option>
-                                    </select>
-                                </label>
-
-                                <label className={styles.field}>
-                                    <span>方向</span>
-                                    <select
-                                        value={composer.direction}
-                                        onChange={(event) =>
-                                            setComposer((current) => ({
-                                                ...current,
-                                                direction: event.target.value as CommunicationDirection,
-                                            }))
-                                        }
-                                    >
-                                        <option value="inbound">受信</option>
-                                        <option value="outbound">送信</option>
-                                        <option value="internal">内部整理</option>
-                                    </select>
-                                </label>
-
-                                <label className={styles.field}>
-                                    <span>担当</span>
-                                    <select
-                                        value={composer.assignee_user_id}
-                                        onChange={(event) =>
-                                            setComposer((current) => ({
-                                                ...current,
-                                                assignee_user_id: event.target.value,
-                                            }))
-                                        }
-                                    >
-                                        <option value="">未設定</option>
-                                        {members.map((member) => (
-                                            <option key={member.id} value={member.id}>
-                                                {member.full_name || member.username || member.id}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </label>
-
-                                <label className={styles.field}>
-                                    <span>関連現場</span>
-                                    <select
-                                        value={composer.site_id}
-                                        onChange={(event) =>
-                                            setComposer((current) => ({ ...current, site_id: event.target.value }))
-                                        }
-                                    >
-                                        <option value="">未設定</option>
-                                        {sites.map((site) => (
-                                            <option key={site.id} value={site.id}>
-                                                {site.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </label>
-
-                                <label className={styles.field}>
-                                    <span>次アクション</span>
-                                    <input
-                                        value={composer.next_action}
-                                        onChange={(event) =>
-                                            setComposer((current) => ({
-                                                ...current,
-                                                next_action: event.target.value,
-                                            }))
-                                        }
-                                        placeholder="例: 見積条件を確認して折り返す"
-                                    />
-                                </label>
-
-                                <label className={styles.field}>
-                                    <span>期限</span>
-                                    <input
-                                        type="date"
-                                        value={composer.next_action_due_date}
-                                        onChange={(event) =>
-                                            setComposer((current) => ({
-                                                ...current,
-                                                next_action_due_date: event.target.value,
-                                            }))
-                                        }
-                                    />
-                                </label>
-
-                                <label className={styles.field}>
-                                    <span>メールアドレス</span>
-                                    <input
-                                        value={composer.participant_email}
-                                        onChange={(event) =>
-                                            setComposer((current) => ({
-                                                ...current,
-                                                participant_email: event.target.value,
-                                            }))
-                                        }
-                                        placeholder="contact@example.com"
-                                    />
-                                </label>
-
-                                <label className={styles.field}>
-                                    <span>電話番号</span>
-                                    <input
-                                        value={composer.participant_phone}
-                                        onChange={(event) =>
-                                            setComposer((current) => ({
-                                                ...current,
-                                                participant_phone: event.target.value,
-                                            }))
-                                        }
-                                        placeholder="090-xxxx-xxxx"
-                                    />
-                                </label>
-
-                                <label className={styles.field}>
-                                    <span>件名 / トピック</span>
-                                    <input
-                                        value={composer.subject}
-                                        onChange={(event) =>
-                                            setComposer((current) => ({ ...current, subject: event.target.value }))
-                                        }
-                                        placeholder="任意"
-                                    />
-                                </label>
-
-                                <label className={styles.field}>
-                                    <span>記録時刻</span>
-                                    <input
-                                        type="datetime-local"
-                                        value={composer.occurred_at}
-                                        onChange={(event) =>
-                                            setComposer((current) => ({
-                                                ...current,
-                                                occurred_at: event.target.value,
-                                            }))
-                                        }
-                                    />
-                                </label>
-
-                                <label className={`${styles.field} ${styles.fieldFull}`}>
-                                    <span>要約</span>
-                                    <textarea
-                                        value={composer.summary}
-                                        onChange={(event) =>
-                                            setComposer((current) => ({ ...current, summary: event.target.value }))
-                                        }
-                                        placeholder="短い要約"
-                                        rows={2}
-                                    />
-                                </label>
-
-                                <label className={`${styles.field} ${styles.fieldFull}`}>
-                                    <span>会話内容</span>
-                                    <textarea
-                                        value={composer.body}
-                                        onChange={(event) =>
-                                            setComposer((current) => ({ ...current, body: event.target.value }))
-                                        }
-                                        placeholder="誰が何を言い、次に何をするかを書き残す"
-                                        rows={6}
-                                    />
-                                </label>
-                            </div>
-
-                            <div className={styles.cardActions}>
-                                <button
-                                    type="button"
-                                    className={styles.secondaryButton}
-                                    onClick={() => {
-                                        setComposer(getDefaultComposer());
-                                        setShowComposer(false);
-                                    }}
-                                >
-                                    閉じる
-                                </button>
-                                <button
-                                    type="button"
-                                    className={styles.primaryButton}
-                                    onClick={handleCreateConversation}
-                                    disabled={savingConversation}
-                                >
-                                    <SendHorizontal size={16} />
-                                    {savingConversation ? "作成中..." : "会話を作成"}
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {!showComposer && !selectedConversation && (
-                        <div className={styles.emptyPane}>
-                            <ClipboardList size={36} />
-                            <strong>会話を選択してください</strong>
-                            <span>左の一覧から選ぶか、新しい会話を作成してください。</span>
-                        </div>
-                    )}
-
-                    {!showComposer && selectedConversation && (
-                        <>
-                            <div className={styles.timelineHeader}>
-                                <div>
-                                    <p className={styles.paneEyebrow}>タイムライン</p>
-                                    <h2 className={styles.timelineTitle}>{selectedConversation.title}</h2>
-                                    <p className={styles.timelineSubtitle}>
-                                        {selectedConversation.participant_summary} ・ 最終更新{" "}
-                                        {formatDateTime(selectedConversation.last_activity_at)}
-                                    </p>
+                            ) : (
+                                <div className={styles.contactList}>
+                                    {contacts.map((contact) => (
+                                        <CommunicationContactRow
+                                            key={contact.contact_key}
+                                            contact={contact}
+                                            selected={contact.contact_key === selectedContactKey}
+                                            onSelect={() => setSelectedContactKey(contact.contact_key)}
+                                        />
+                                    ))}
                                 </div>
-                                <div className={styles.timelineHeaderMeta}>
-                                    <span>{selectedConversation.assignee?.name || "担当未設定"}</span>
-                                    <span>{selectedConversation.next_action || "次アクション未設定"}</span>
-                                </div>
-                            </div>
+                            )}
+                        </section>
 
-                            {detailLoading && <p className={styles.detailState}>会話詳細を読み込み中...</p>}
+                        <aside className={styles.detailPane}>
+                            {detailLoading && <p className={styles.panelState}>詳細を読み込み中...</p>}
 
                             {detailError && (
                                 <div className={styles.errorBanner}>
@@ -834,488 +866,175 @@ export function Communications() {
                                 </div>
                             )}
 
+                            {!detailLoading && !detail && (
+                                <div className={styles.emptyPane}>
+                                    <Users size={36} />
+                                    <strong>相手を選ぶ</strong>
+                                    <span>一覧から選ぶと、根拠・会話・提案・次アクションをここで確認できます。</span>
+                                </div>
+                            )}
+
                             {detail && (
                                 <>
-                                    <div className={styles.timelineList}>
-                                        {detail.logs.map((log) => (
-                                            <article
-                                                key={log.id}
-                                                className={`${styles.logCard} ${
-                                                    log.direction === "inbound"
-                                                        ? styles.logInbound
-                                                        : log.direction === "outbound"
-                                                          ? styles.logOutbound
-                                                          : styles.logInternal
-                                                }`}
-                                            >
-                                                <div className={styles.logHeader}>
-                                                    <div className={styles.logBadges}>
-                                                        <span className={styles.channelBadge}>
-                                                            {CHANNEL_LABELS[log.channel]}
-                                                        </span>
-                                                        <span className={styles.directionBadge}>
-                                                            {DIRECTION_LABELS[log.direction]}
-                                                        </span>
-                                                        {log.log_kind !== "message" && (
-                                                            <span className={styles.kindBadge}>{log.log_kind}</span>
-                                                        )}
-                                                    </div>
-                                                    <span className={styles.logDate}>
-                                                        {formatDateTime(log.occurred_at)}
-                                                    </span>
-                                                </div>
+                                    <section className={styles.detailCard}>
+                                        <div className={styles.sectionTitle}>
+                                            <Sparkles size={16} />
+                                            <h2>Why now?</h2>
+                                        </div>
+                                        <div className={styles.whyNowList}>
+                                            {detail.why_now.map((item) => (
+                                                <article key={`${item.code}-${item.title}`} className={styles.whyNowItem}>
+                                                    <strong>{item.title}</strong>
+                                                    <p>{item.description}</p>
+                                                </article>
+                                            ))}
+                                        </div>
+                                    </section>
 
-                                                {log.subject && <h3 className={styles.logSubject}>{log.subject}</h3>}
-                                                {log.summary && <p className={styles.logSummary}>{log.summary}</p>}
-                                                <pre className={styles.logBody}>{log.body}</pre>
-
-                                                <div className={styles.logFooter}>
-                                                    <span>{log.created_by_name || "記録者不明"}</span>
-                                                    {log.external_source && <span>{log.external_source}</span>}
-                                                </div>
-                                            </article>
-                                        ))}
-                                    </div>
-
-                                    <div className={styles.composeCard}>
-                                        <div className={styles.paneHeader}>
+                                    <section className={styles.detailCard}>
+                                        <div className={styles.sectionTitle}>
+                                            <Bot size={16} />
+                                            <h2>集約サマリ</h2>
+                                        </div>
+                                        <div className={styles.summaryHero}>
                                             <div>
-                                                <p className={styles.paneEyebrow}>手動ログ追加</p>
-                                                <h2 className={styles.paneTitle}>電話・LINE・対面の内容を追記</h2>
+                                                <p className={styles.contactCompany}>{detail.summary.client_name || "会社名未設定"}</p>
+                                                <h3 className={styles.contactName}>
+                                                    {detail.summary.contact_name || detail.summary.contact_email || "担当未設定"}
+                                                </h3>
+                                            </div>
+                                            <span className={styles.statusPill}>{BOARD_STATUS_LABELS[detail.summary.status]}</span>
+                                        </div>
+                                        <div className={styles.summaryGrid}>
+                                            <div>
+                                                <span>社内担当</span>
+                                                <strong>{detail.summary.owner?.name || "担当未設定"}</strong>
+                                            </div>
+                                            <div>
+                                                <span>最終接点</span>
+                                                <strong>{formatDateTime(detail.summary.latest_activity_at)}</strong>
+                                            </div>
+                                            <div>
+                                                <span>次アクション</span>
+                                                <strong>{detail.summary.next_action || "未設定"}</strong>
+                                            </div>
+                                            <div>
+                                                <span>期限</span>
+                                                <strong>{formatDateOnly(detail.summary.next_action_due_date)}</strong>
                                             </div>
                                         </div>
+                                    </section>
 
-                                        <div className={styles.formGrid}>
-                                            <label className={styles.field}>
-                                                <span>チャネル</span>
-                                                <select
-                                                    value={logForm.channel}
-                                                    onChange={(event) =>
-                                                        setLogForm((current) => ({
-                                                            ...current,
-                                                            channel: event.target.value as LogFormState["channel"],
-                                                        }))
-                                                    }
-                                                >
-                                                    <option value="phone">電話</option>
-                                                    <option value="line">LINE</option>
-                                                    <option value="in_person">対面</option>
-                                                    <option value="sms">SMS</option>
-                                                    <option value="manual">手動メモ</option>
-                                                    <option value="gmail">Gmail</option>
-                                                </select>
-                                            </label>
-
-                                            <label className={styles.field}>
-                                                <span>方向</span>
-                                                <select
-                                                    value={logForm.direction}
-                                                    onChange={(event) =>
-                                                        setLogForm((current) => ({
-                                                            ...current,
-                                                            direction: event.target.value as CommunicationDirection,
-                                                        }))
-                                                    }
-                                                >
-                                                    <option value="inbound">受信</option>
-                                                    <option value="outbound">送信</option>
-                                                    <option value="internal">内部</option>
-                                                </select>
-                                            </label>
-
-                                            <label className={styles.field}>
-                                                <span>種別</span>
-                                                <select
-                                                    value={logForm.log_kind}
-                                                    onChange={(event) =>
-                                                        setLogForm((current) => ({
-                                                            ...current,
-                                                            log_kind: event.target.value as LogFormState["log_kind"],
-                                                        }))
-                                                    }
-                                                >
-                                                    <option value="message">会話</option>
-                                                    <option value="note">メモ</option>
-                                                    <option value="summary_update">整理メモ</option>
-                                                </select>
-                                            </label>
-
-                                            <label className={styles.field}>
-                                                <span>記録時刻</span>
-                                                <input
-                                                    type="datetime-local"
-                                                    value={logForm.occurred_at}
-                                                    onChange={(event) =>
-                                                        setLogForm((current) => ({
-                                                            ...current,
-                                                            occurred_at: event.target.value,
-                                                        }))
-                                                    }
-                                                />
-                                            </label>
-
-                                            <label className={styles.field}>
-                                                <span>件名</span>
-                                                <input
-                                                    value={logForm.subject}
-                                                    onChange={(event) =>
-                                                        setLogForm((current) => ({
-                                                            ...current,
-                                                            subject: event.target.value,
-                                                        }))
-                                                    }
-                                                    placeholder="任意"
-                                                />
-                                            </label>
-
-                                            <label className={styles.field}>
-                                                <span>要約</span>
-                                                <input
-                                                    value={logForm.summary}
-                                                    onChange={(event) =>
-                                                        setLogForm((current) => ({
-                                                            ...current,
-                                                            summary: event.target.value,
-                                                        }))
-                                                    }
-                                                    placeholder="短い要約"
-                                                />
-                                            </label>
-
-                                            <label className={styles.field}>
-                                                <span>追加参加者</span>
-                                                <input
-                                                    value={logForm.participant_name}
-                                                    onChange={(event) =>
-                                                        setLogForm((current) => ({
-                                                            ...current,
-                                                            participant_name: event.target.value,
-                                                        }))
-                                                    }
-                                                    placeholder="必要なら追加"
-                                                />
-                                            </label>
-
-                                            <label className={styles.field}>
-                                                <span>メール</span>
-                                                <input
-                                                    value={logForm.participant_email}
-                                                    onChange={(event) =>
-                                                        setLogForm((current) => ({
-                                                            ...current,
-                                                            participant_email: event.target.value,
-                                                        }))
-                                                    }
-                                                />
-                                            </label>
-
-                                            <label className={`${styles.field} ${styles.fieldFull}`}>
-                                                <span>会話内容</span>
-                                                <textarea
-                                                    value={logForm.body}
-                                                    onChange={(event) =>
-                                                        setLogForm((current) => ({
-                                                            ...current,
-                                                            body: event.target.value,
-                                                        }))
-                                                    }
-                                                    placeholder="誰が何を言い、今どこまで進んだかを記録"
-                                                    rows={5}
-                                                />
-                                            </label>
+                                    <section className={styles.detailCard}>
+                                        <div className={styles.sectionTitle}>
+                                            <ClipboardList size={16} />
+                                            <h2>関連 Proposal</h2>
                                         </div>
-
-                                        <div className={styles.cardActions}>
-                                            <button
-                                                type="button"
-                                                className={styles.primaryButton}
-                                                onClick={handleAddLog}
-                                                disabled={savingLog}
-                                            >
-                                                <SendHorizontal size={16} />
-                                                {savingLog ? "追加中..." : "ログを追加"}
-                                            </button>
+                                        <div className={styles.listStack}>
+                                            {detail.related_proposals.length === 0 ? (
+                                                <p className={styles.smallMuted}>関連 Proposal はまだありません。</p>
+                                            ) : (
+                                                detail.related_proposals.map((proposal) => (
+                                                    <button
+                                                        key={proposal.id}
+                                                        type="button"
+                                                        className={styles.inlineCardButton}
+                                                        onClick={() => setSelectedProposal(proposal)}
+                                                    >
+                                                        <div>
+                                                            <strong>{proposal.type}</strong>
+                                                            <p>{proposal.description}</p>
+                                                        </div>
+                                                        <span>{getProposalStatusLabel(proposal.status)}</span>
+                                                    </button>
+                                                ))
+                                            )}
                                         </div>
-                                    </div>
+                                    </section>
+
+                                    <section className={styles.detailCard}>
+                                        <div className={styles.sectionTitle}>
+                                            <MessageSquare size={16} />
+                                            <h2>紐づく会話</h2>
+                                        </div>
+                                        <div className={styles.listStack}>
+                                            {detail.conversations.map((conversation) => (
+                                                <button
+                                                    key={conversation.id}
+                                                    type="button"
+                                                    className={`${styles.inlineCardButton} ${
+                                                        activeConversationId === conversation.id ? styles.inlineCardButtonActive : ""
+                                                    }`}
+                                                    onClick={() => setActiveConversationId(conversation.id)}
+                                                >
+                                                    <div>
+                                                        <strong>{conversation.title}</strong>
+                                                        <p>{conversation.participant_summary}</p>
+                                                    </div>
+                                                    <div className={styles.inlineCardMeta}>
+                                                        <span>{CONVERSATION_STATUS_LABELS[conversation.status]}</span>
+                                                        <ChevronRight size={14} />
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </section>
+
+                                    <section className={styles.detailCard}>
+                                        <div className={styles.sectionTitle}>
+                                            <Mail size={16} />
+                                            <h2>直近 5 件ログ</h2>
+                                        </div>
+                                        <div className={styles.logList}>
+                                            {detail.recent_logs.map((log) => (
+                                                <article key={log.id} className={styles.logItem}>
+                                                    <div className={styles.logItemHeader}>
+                                                        <div className={styles.logBadges}>
+                                                            <span className={styles.channelBadge}>
+                                                                {CHANNEL_LABELS[log.channel]}
+                                                            </span>
+                                                            <span className={styles.directionBadge}>
+                                                                {DIRECTION_LABELS[log.direction]}
+                                                            </span>
+                                                        </div>
+                                                        <span>{formatDateTime(log.occurred_at)}</span>
+                                                    </div>
+                                                    <strong>{log.subject || log.conversation_title}</strong>
+                                                    <p>{log.summary || log.body}</p>
+                                                </article>
+                                            ))}
+                                        </div>
+                                    </section>
                                 </>
                             )}
-                        </>
-                    )}
-                </section>
+                        </aside>
+                    </div>
+                </>
+            ) : (
+                <AnalyzeTab insights={insights} loading={insightsLoading} error={insightsError} />
+            )}
 
-                <aside className={styles.sidebarPane}>
-                    {!detail && !showComposer && (
-                        <div className={styles.emptyPane}>
-                            <Users size={36} />
-                            <strong>会話メタデータ</strong>
-                            <span>選択した会話の AI要約、担当、次アクションをここで管理します。</span>
-                        </div>
-                    )}
-
-                    {detail && conversationForm && (
-                        <>
-                            <section className={styles.sidebarCard}>
-                                <div className={styles.sidebarTitleRow}>
-                                    <Bot size={16} />
-                                    <h3>AI要約</h3>
-                                </div>
-                                <p className={styles.summaryHeadline}>
-                                    {detail.conversation.ai_summary || "AI要約はまだありません。"}
-                                </p>
-                                <div className={styles.inlineMeta}>
-                                    <span>優先度: {getPriorityLabel(detail.conversation.ai_priority)}</span>
-                                    <span>最新チャネル: {CHANNEL_LABELS[detail.conversation.last_channel]}</span>
-                                </div>
-                            </section>
-
-                            <section className={styles.sidebarCard}>
-                                <div className={styles.sidebarTitleRow}>
-                                    <ClipboardList size={16} />
-                                    <h3>担当と次アクション</h3>
-                                </div>
-
-                                <div className={styles.sidebarForm}>
-                                    <label className={styles.field}>
-                                        <span>会話タイトル</span>
-                                        <input
-                                            value={conversationForm.title}
-                                            onChange={(event) =>
-                                                setConversationForm((current) =>
-                                                    current
-                                                        ? { ...current, title: event.target.value }
-                                                        : current
-                                                )
-                                            }
-                                        />
-                                    </label>
-
-                                    <label className={styles.field}>
-                                        <span>状態</span>
-                                        <select
-                                            value={conversationForm.status}
-                                            onChange={(event) =>
-                                                setConversationForm((current) =>
-                                                    current
-                                                        ? {
-                                                              ...current,
-                                                              status: event.target
-                                                                  .value as CommunicationConversationStatus,
-                                                          }
-                                                        : current
-                                                )
-                                            }
-                                        >
-                                            {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                                                <option key={value} value={value}>
-                                                    {label}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </label>
-
-                                    <label className={styles.field}>
-                                        <span>担当</span>
-                                        <select
-                                            value={conversationForm.assignee_user_id}
-                                            onChange={(event) =>
-                                                setConversationForm((current) =>
-                                                    current
-                                                        ? {
-                                                              ...current,
-                                                              assignee_user_id: event.target.value,
-                                                          }
-                                                        : current
-                                                )
-                                            }
-                                        >
-                                            <option value="">未設定</option>
-                                            {members.map((member) => (
-                                                <option key={member.id} value={member.id}>
-                                                    {member.full_name || member.username || member.id}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </label>
-
-                                    <label className={styles.field}>
-                                        <span>関連現場</span>
-                                        <select
-                                            value={conversationForm.site_id}
-                                            onChange={(event) =>
-                                                setConversationForm((current) =>
-                                                    current
-                                                        ? { ...current, site_id: event.target.value }
-                                                        : current
-                                                )
-                                            }
-                                        >
-                                            <option value="">未設定</option>
-                                            {sites.map((site) => (
-                                                <option key={site.id} value={site.id}>
-                                                    {site.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </label>
-
-                                    <label className={`${styles.field} ${styles.fieldFull}`}>
-                                        <span>次アクション</span>
-                                        <textarea
-                                            value={conversationForm.next_action}
-                                            onChange={(event) =>
-                                                setConversationForm((current) =>
-                                                    current
-                                                        ? { ...current, next_action: event.target.value }
-                                                        : current
-                                                )
-                                            }
-                                            rows={3}
-                                            placeholder="次に誰が何をするか"
-                                        />
-                                    </label>
-
-                                    <label className={styles.field}>
-                                        <span>期限</span>
-                                        <input
-                                            type="date"
-                                            value={conversationForm.next_action_due_date}
-                                            onChange={(event) =>
-                                                setConversationForm((current) =>
-                                                    current
-                                                        ? {
-                                                              ...current,
-                                                              next_action_due_date: event.target.value,
-                                                          }
-                                                        : current
-                                                )
-                                            }
-                                        />
-                                    </label>
-                                </div>
-
-                                <div className={styles.cardActions}>
-                                    <button
-                                        type="button"
-                                        className={styles.primaryButton}
-                                        onClick={handleSaveConversation}
-                                        disabled={savingMeta}
-                                    >
-                                        {savingMeta ? "保存中..." : "右パネルの内容を保存"}
-                                    </button>
-                                </div>
-                            </section>
-
-                            <section className={styles.sidebarCard}>
-                                <div className={styles.sidebarTitleRow}>
-                                    <Users size={16} />
-                                    <h3>参加者</h3>
-                                </div>
-
-                                <div className={styles.participantList}>
-                                    {detail.participants.length === 0 && (
-                                        <p className={styles.smallMuted}>参加者はまだ登録されていません。</p>
-                                    )}
-                                    {detail.participants.map((participant) => (
-                                        <div key={participant.id} className={styles.participantRow}>
-                                            <div>
-                                                <strong>{participant.display_name}</strong>
-                                                <p>
-                                                    {participant.participant_kind}
-                                                    {participant.is_primary ? " ・ primary" : ""}
-                                                </p>
-                                            </div>
-                                            <div className={styles.participantMeta}>
-                                                {participant.email && <span>{participant.email}</span>}
-                                                {participant.phone && <span>{participant.phone}</span>}
-                                                {participant.profile && <span>{participant.profile.name}</span>}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </section>
-
-                            <section className={styles.sidebarCard}>
-                                <div className={styles.sidebarTitleRow}>
-                                    <MapPinned size={16} />
-                                    <h3>関連情報</h3>
-                                </div>
-
-                                <div className={styles.infoList}>
-                                    <div className={styles.infoRow}>
-                                        <Mail size={14} />
-                                        <span>{detail.conversation.client_email || "メールアドレス未設定"}</span>
-                                    </div>
-                                    <div className={styles.infoRow}>
-                                        <UserCircle2 size={14} />
-                                        <span>{detail.conversation.assignee?.name || "担当未設定"}</span>
-                                    </div>
-                                    <div className={styles.infoRow}>
-                                        <CalendarClock size={14} />
-                                        <span>
-                                            期限 {formatDateOnly(detail.conversation.next_action_due_date)}
-                                        </span>
-                                    </div>
-                                    <div className={styles.infoRow}>
-                                        {detail.conversation.last_channel === "phone" ? (
-                                            <Phone size={14} />
-                                        ) : (
-                                            <MessageSquare size={14} />
-                                        )}
-                                        <span>
-                                            最終チャネル {CHANNEL_LABELS[detail.conversation.last_channel]}
-                                        </span>
-                                    </div>
-                                    <div className={styles.infoRow}>
-                                        <MapPinned size={14} />
-                                        <span>{detail.conversation.site?.name || "現場未設定"}</span>
-                                    </div>
-                                </div>
-                            </section>
-
-                            <section className={styles.sidebarCard}>
-                                <div className={styles.sidebarTitleRow}>
-                                    <ClipboardList size={16} />
-                                    <h3>関連Proposal</h3>
-                                </div>
-
-                                <div className={styles.proposalList}>
-                                    {detail.related_proposals.length === 0 && (
-                                        <p className={styles.smallMuted}>
-                                            まだ Proposal は紐づいていません。Gmail 取込時は自動でここに接続されます。
-                                        </p>
-                                    )}
-                                    {detail.related_proposals.map((proposal) => (
-                                        <button
-                                            key={proposal.id}
-                                            type="button"
-                                            className={styles.proposalCard}
-                                            onClick={() => setSelectedProposal(proposal)}
-                                        >
-                                            <div className={styles.proposalCardHeader}>
-                                                <strong>{proposal.type}</strong>
-                                                <span>{getProposalStatusLabel(proposal.status)}</span>
-                                            </div>
-                                            <p>{proposal.description}</p>
-                                        </button>
-                                    ))}
-                                </div>
-                            </section>
-                        </>
-                    )}
-                </aside>
-            </div>
+            <FloatingActionButton
+                behavior="draggable"
+                openLabel="連絡の操作メニューを開く"
+                closeLabel="連絡の操作メニューを閉じる"
+                items={[
+                    {
+                        id: "communication-record",
+                        label: "連絡を記録",
+                        icon: <Plus size={18} />,
+                        onClick: () => setRecordSheetOpen(true),
+                    },
+                ]}
+            />
 
             <AnimatePresence>
                 {selectedProposal && (
                     <ProposalDetailModal
                         proposal={selectedProposal}
                         onClose={() => setSelectedProposal(null)}
-                        onApprove={(proposalId, reason) =>
-                            handleProposalMutation(proposalId, "approve", reason)
-                        }
-                        onReject={(proposalId, reason) =>
-                            handleProposalMutation(proposalId, "reject", reason)
-                        }
+                        onApprove={(proposalId, reason) => handleProposalMutation(proposalId, "approve", reason)}
+                        onReject={(proposalId, reason) => handleProposalMutation(proposalId, "reject", reason)}
                         onInstruct={(proposalId, instruction) =>
                             handleProposalMutation(proposalId, "instruct", instruction)
                         }
@@ -1324,6 +1043,26 @@ export function Communications() {
                     />
                 )}
             </AnimatePresence>
+
+            <CommunicationRecordSheet
+                open={recordSheetOpen}
+                onClose={() => setRecordSheetOpen(false)}
+                initialTargetKind={activeConversation ? "follow_up" : "new_topic"}
+                activeConversationSummary={activeConversation}
+                contactSeed={
+                    detail
+                        ? {
+                              partnerName: detail.summary.contact_name,
+                              partnerEmail: detail.summary.contact_email,
+                              clientName: detail.summary.client_name,
+                          }
+                        : undefined
+                }
+                availableMembers={members}
+                availableSites={sites}
+                onSaved={handleRecordSaved}
+                onRequestPickContext={() => setRecordSheetOpen(false)}
+            />
         </div>
     );
 }
