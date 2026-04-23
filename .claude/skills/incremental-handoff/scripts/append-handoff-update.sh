@@ -428,17 +428,30 @@ apply_quality_gate_updates() {
 sync_handoff_summary() {
   local file="$1"
   local next="$2"
+  local head_sha
+  head_sha="$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+  local updated_at
+  updated_at="$(date '+%Y-%m-%dT%H:%M:%S%z')"
   local tmp
   tmp="$(mktemp)"
 
-  awk -v next_text="$next" '
+  awk -v next_text="$next" -v head_sha="$head_sha" -v updated_at="$updated_at" '
     BEGIN {
       in_quick = 0
+      in_state = 0
+      has_head = 0
+      has_updated = 0
     }
     {
       if ($0 ~ /^## 0\. Quick Resume \(AI\)/) {
         in_quick = 1
       } else if ($0 ~ /^## / && in_quick) {
+        # Leaving Quick Resume — inject missing STATE fields before exit
+        if (in_state) {
+          if (!has_head)    print "  - HEAD: `" head_sha "`"
+          if (!has_updated) print "  - Updated: `" updated_at "`"
+          in_state = 0
+        }
         in_quick = 0
       }
 
@@ -447,7 +460,43 @@ sync_handoff_summary() {
         next
       }
 
+      if (in_quick && $0 ~ /^- STATE:/) {
+        in_state = 1
+        print
+        next
+      }
+
+      if (in_state) {
+        # Detect end of STATE block (non-indented line or new top-level field)
+        if ($0 !~ /^  / && $0 !~ /^$/) {
+          # Inject missing fields before leaving STATE
+          if (!has_head)    print "  - HEAD: `" head_sha "`"
+          if (!has_updated) print "  - Updated: `" updated_at "`"
+          in_state = 0
+          print
+          next
+        }
+
+        if ($0 ~ /^  - HEAD:/) {
+          print "  - HEAD: `" head_sha "`"
+          has_head = 1
+          next
+        }
+        if ($0 ~ /^  - Updated:/) {
+          print "  - Updated: `" updated_at "`"
+          has_updated = 1
+          next
+        }
+      }
+
       print
+    }
+    END {
+      # Handle edge case: file ends inside STATE block
+      if (in_state) {
+        if (!has_head)    print "  - HEAD: `" head_sha "`"
+        if (!has_updated) print "  - Updated: `" updated_at "`"
+      }
     }
   ' "$file" > "$tmp"
 

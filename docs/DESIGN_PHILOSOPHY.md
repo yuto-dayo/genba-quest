@@ -7,6 +7,8 @@
 > 2. Event志向Ledger - 追記のみ、逆仕訳で修正、借方=貸方
 > 3. AIはPolicyに従属 - AI自己承認禁止（絶対ゲート）
 >
+> **Current production note:** 2026-04-17 時点の現DB canonical execution model は [docs/adr/2026-04-17-current-db-canonical-execution-model.md](./adr/2026-04-17-current-db-canonical-execution-model.md) を参照。本文は ideal target を主に記述する。
+>
 > **Actor Types:** `human`(職人) / `ai`(Sherpa) / `integration`(Gmail等) / `system`(自動処理)
 >
 > **承認ルール:** ≤5,000円=自動 / 5,001-30,000円=1名 / >30,000円=2名
@@ -75,6 +77,8 @@
 ### 1. Proposal中心の一元管理
 
 すべての状態変更はProposal経由。直接書き換えは存在しない。
+
+> Current production note: 現DBでは human / AI initiated change の primary entry は `proposals` だが、internal / system / integration flow は direct `ledger_events` を許容している。現行の正系は [ADR: Freeze Current DB Canonical Execution Model](./adr/2026-04-17-current-db-canonical-execution-model.md) を参照。
 
 ```
 User/AI → Proposal作成 → Policy評価 → 承認/自動承認 → 実行 → Event発行

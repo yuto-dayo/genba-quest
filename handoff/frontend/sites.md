@@ -1,8 +1,8 @@
-# Session Handoff - 2026-04-14
+# Session Handoff - 2026-04-18
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `ブラウザでSitesページのFABメニューを開き、新規現場モーダルと取引先追加モーダルが正しく起動することを確認する。必要なら次にSitesのactive/in_progress表示条件も揃える。`
+- NEXT_CMD: `P1: operator/admin 権限制御が入ったら reverse-site-completion 導線を別フローで設計する`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/frontend/sites.md`
@@ -13,18 +13,22 @@
   - `sed -n '1,120p' docs/DESIGN_PHILOSOPHY.md`
 - STATE:
   - Branch: `master`
-  - Uncommitted: `146 files`
-  - DB migrations: `latest local: 041_sites_org_scope.sql`
+  - Uncommitted: `132 files`
+  - DB migrations: `latest local: 055_execute_proposal_explicit_event_types.sql`
   - Tests: `not run yet`
   - Lint: `not run yet`
 
+  - HEAD: `9c942f6`
+  - Updated: `2026-04-18T18:21:52+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
 
 <!-- HANDOFF_SESSION_EVENTS_START -->
-- 2026-04-14 12:09:22 +0900 — started by codex
-- 2026-04-14 12:11:44 +0900 — ended by codex
+- 2026-04-18 13:57:11 +0900 — started by codex
+- 2026-04-18 13:58:55 +0900 — ended by codex
+- 2026-04-18 18:19:59 +0900 — started by codex
+- 2026-04-18 18:22:05 +0900 — ended by codex
 <!-- HANDOFF_SESSION_EVENTS_END -->
 
 ---
@@ -32,33 +36,37 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `ブラウザでSitesページのFABメニューを開き、新規現場モーダルと取引先追加モーダルが正しく起動することを確認する。必要なら次にSitesのactive/in_progress表示条件も揃える。`. Source: realtime
-- [H0001] Completed: SitesページをMoneyと同じ展開型FAB構造に変更し、下部FABから『新規現場』『取引先追加』を起動できるようにした。ClientSettingsModalをSitesから直接開けるよう接続した。
-- [H0001] Remaining: ブラウザでSitesページのFABメニューを開き、新規現場モーダルと取引先追加モーダルが正しく起動することを確認する。必要なら次にSitesのactive/in_progress表示条件も揃える。
+- [focus] NEXT_CMD: `P1: operator/admin 権限制御が入ったら reverse-site-completion 導線を別フローで設計する`. Source: realtime
+- [H0002] Completed: Completed-state UI now states that reverse site completion stays out of the normal Sites UI and is handled operationally because it rewinds sales lineage.
+- [H0002] Remaining: P1: operator/admin 権限制御が入ったら reverse-site-completion 導線を別フローで設計する
+- [H0001] Completed: Surfaced site completion metadata in the Sites UI via completion success messaging
+- [H0001] Remaining: Consider whether reverse-site-completion should be exposed in the UI or reserved for admin/operator flows
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
-- [H0001] Auto-captured decision: SitesページをMoneyと同じ展開型FAB構造に変更し、下部FABから『新規現場』『取引先追加』を起動できるようにした。ClientSettingsModalをSitesから直接開けるよう接続した。
+- [H0002] Auto-captured decision: Completed-state UI now states that reverse site completion stays out of the normal Sites UI and is handled operationally because it rewinds sales lineage.
+- [H0001] Auto-captured decision: Surfaced site completion metadata in the Sites UI via completion success messaging
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0001] No new landmines reported in this chunk.
+- [H0002] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
-- [H0001] ブラウザでSitesページのFABメニューを開き、新規現場モーダルと取引先追加モーダルが正しく起動することを確認する。必要なら次にSitesのactive/in_progress表示条件も揃える。
+- [H0002] P1: operator/admin 権限制御が入ったら reverse-site-completion 導線を別フローで設計する
+- [H0001] Consider whether reverse-site-completion should be exposed in the UI or reserved for admin/operator flows
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `1`
+- current_l3_entries: `2`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -73,7 +81,7 @@ Branch: master
 Phase: A-0/A-1
 ```
 
-> [carryover] Working tree was dirty at session start (146 files). Prior session may have unfinished work — verify NEXT_CMD before executing.
+> [carryover] Working tree was dirty at session start (132 files). Prior session may have unfinished work — verify NEXT_CMD before executing.
 
 1. `docs/DESIGN_PHILOSOPHY.md` の冒頭を確認
 2. このファイルを更新しながら実装を進める
@@ -89,20 +97,26 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
-- [x] SitesページをMoneyと同じ展開型FAB構造に変更し、下部FABから『新規現場』『取引先追加』を起動できるようにした。ClientSettingsModalをSitesから直接開けるよう接続した。
+- [x] Completed-state UI now states that reverse site completion stays out of the normal Sites UI and is handled operationally because it rewinds sales lineage.
+- [x] Surfaced site completion metadata in the Sites UI via completion success messaging
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: ブラウザでSitesページのFABメニューを開き、新規現場モーダルと取引先追加モーダルが正しく起動することを確認する。必要なら次にSitesのactive/in_progress表示条件も揃える。
+- [ ] **P1**: operator/admin 権限制御が入ったら reverse-site-completion 導線を別フローで設計する
+- [ ] **P1**: Consider whether reverse-site-completion should be exposed in the UI or reserved for admin/operator flows
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
-| `frontend/src/pages/Sites.module.css` | Sites用FABメニューとMoney寄せのCTAスタイルを追加 |
-| `frontend/src/pages/Sites.tsx` | Money式の展開FABを追加し、新規現場/取引先追加の起動導線を実装 |
+| `frontend/src/components/SiteDetailModal.test.tsx` | reverse completion を通常UIに出さない回帰テストを追加 |
+| `frontend/src/components/SiteDetailModal.module.css` | completed state の注記レイアウトを追加 |
+| `frontend/src/components/SiteDetailModal.tsx` | completed state に reverse 完了解除を通常UIへ出さない方針文言を追加 |
+| `frontend/src/pages/Sites.module.css` | style success banner for site completion feedback |
+| `frontend/src/pages/Sites.tsx` | render completion success banner using dedicated endpoint response |
+| `frontend/src/components/SiteDetailModal.tsx` | pass completion result metadata to parent and build user-facing completion message |
 ---
 
 ## 6. Locked Files（編集中 - 他エージェント触らない）
@@ -120,10 +134,10 @@ cd frontend && npx eslint src/
 
 | Check | Result | Notes |
 | ----- | ------ | ----- |
-| server typecheck | PASS | run by session-end (2026-04-14 12:11) |
-| frontend typecheck | PASS | run by session-end (2026-04-14 12:11) |
-| lint | FAIL | frontend eslint src/ at 2026-04-14 12:11 |
-| test | PASS | server npm test -- --runInBand at 2026-04-14 12:11 |
+| server typecheck | PASS | run by session-end (2026-04-18 18:21) |
+| frontend typecheck | PASS | run by session-end (2026-04-18 18:21) |
+| lint | PASS | frontend eslint src/ at 2026-04-18 18:22 |
+| test | PASS | server npm test -- --runInBand at 2026-04-18 18:22 |
 
 ---
 
@@ -149,19 +163,41 @@ cd frontend && npx eslint src/
 
 ## 11. Incremental Updates
 
-### 2026-04-14 12:11:29 +0900
+### 2026-04-18 13:58:39 +0900
 
 - Entry-ID: `H0001`
 - Completed:
-  - [x] SitesページをMoneyと同じ展開型FAB構造に変更し、下部FABから『新規現場』『取引先追加』を起動できるようにした。ClientSettingsModalをSitesから直接開けるよう接続した。
+  - [x] Surfaced site completion metadata in the Sites UI via completion success messaging
 - Remaining:
-  - [ ] ブラウザでSitesページのFABメニューを開き、新規現場モーダルと取引先追加モーダルが正しく起動することを確認する。必要なら次にSitesのactive/in_progress表示条件も揃える。
+  - [ ] Consider whether reverse-site-completion should be exposed in the UI or reserved for admin/operator flows
 - Changed Files:
-  - `frontend/src/pages/Sites.tsx` - Money式の展開FABを追加し、新規現場/取引先追加の起動導線を実装
-  - `frontend/src/pages/Sites.module.css` - Sites用FABメニューとMoney寄せのCTAスタイルを追加
+  - `frontend/src/components/SiteDetailModal.tsx` - pass completion result metadata to parent and build user-facing completion message
+  - `frontend/src/pages/Sites.tsx` - render completion success banner using dedicated endpoint response
+  - `frontend/src/pages/Sites.module.css` - style success banner for site completion feedback
 - Working Context:
-  - Auto-captured decision: SitesページをMoneyと同じ展開型FAB構造に変更し、下部FABから『新規現場』『取引先追加』を起動できるようにした。ClientSettingsModalをSitesから直接開けるよう接続した。
+  - Auto-captured decision: Surfaced site completion metadata in the Sites UI via completion success messaging
 - Validation:
   - `cd frontend && npx tsc --noEmit => PASS`
+  - `cd frontend && npx eslint src/pages/Sites.tsx src/components/SiteDetailModal.tsx src/lib/api.ts => PASS`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-04-18 18:21:52 +0900
+
+- Entry-ID: `H0002`
+- Completed:
+  - [x] Completed-state UI now states that reverse site completion stays out of the normal Sites UI and is handled operationally because it rewinds sales lineage.
+- Remaining:
+  - [ ] P1: operator/admin 権限制御が入ったら reverse-site-completion 導線を別フローで設計する
+- Changed Files:
+  - `frontend/src/components/SiteDetailModal.tsx` - completed state に reverse 完了解除を通常UIへ出さない方針文言を追加
+  - `frontend/src/components/SiteDetailModal.module.css` - completed state の注記レイアウトを追加
+  - `frontend/src/components/SiteDetailModal.test.tsx` - reverse completion を通常UIに出さない回帰テストを追加
+- Working Context:
+  - Auto-captured decision: Completed-state UI now states that reverse site completion stays out of the normal Sites UI and is handled operationally because it rewinds sales lineage.
+- Validation:
+  - `cd frontend && npx vitest run src/components/SiteDetailModal.test.tsx src/pages/Sites.test.tsx => PASS`
+  - `cd frontend && npx tsc --noEmit => PASS`
+  - `cd frontend && npx eslint src/components/SiteDetailModal.tsx src/components/SiteDetailModal.test.tsx src/pages/Sites.tsx => PASS`
 - Landmines:
   - No new landmines reported in this chunk.

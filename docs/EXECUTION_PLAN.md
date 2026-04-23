@@ -46,12 +46,14 @@
   - `reject_proposal_atomic`: `server/sql/015_reject_proposal_atomic.sql`
   - `pending` 用語統一 + 関数更新: `server/sql/016_pending_status_unification.sql`
   - `assignment.create` の atomic副作用反映: `server/sql/017_execute_atomic_assignment_side_effects.sql`
+  - reward canonical guard: `server/sql/054_canonical_reward_guards.sql`
+  - explicit event type alignment (`assignment.update` / `assignment.cancel`): `server/sql/055_execute_proposal_explicit_event_types.sql`
 - stg/prod 適用Runbook（順序・検証項目を標準化）
   - `docs/DB_MIGRATION_RUNBOOK_A1.md`
 - 適用後の自動検証スクリプト
   - `server/src/scripts/verify-a1-migration.ts`
   - `server/src/scripts/verify-a1-health.ts`
-  - `verify-a1-migration` は assignment.create / leave.request の atomic 副作用に加え、021で削除した legacy 関数の残存も確認
+  - `verify-a1-migration` は assignment.create / leave.request の atomic 副作用に加え、055 explicit event type と 021で削除した legacy 関数の残存も確認
 - サービス層はRPC優先 + フォールバック構成
   - `server/src/services/ProposalService.ts`
 - フォールバック削減方針を feature flag 化
@@ -110,7 +112,7 @@
 
 ## M1: A-1クローズ（最優先）
 
-1. 全環境へ `013/014/015/016/017` の適用手順を標準化（stg/prod）
+1. 全環境へ `013/014/015/016/017/054/055` の適用手順を標準化（stg/prod）
    - Runbook作成済み: `docs/DB_MIGRATION_RUNBOOK_A1.md`
    - 残: stg/prod 実環境への適用実施と記録
 2. `ProposalService` のフォールバック削減方針を段階適用（stg→prodで `PROPOSAL_RPC_FALLBACK_MODE=disabled` を有効化）

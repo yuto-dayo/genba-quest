@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `Money/請求書フローで取引先マスタ活用範囲をさらに広げるか判断`
+- NEXT_CMD: `P1: Money/請求書フローで取引先マスタ活用範囲をさらに広げるか判断`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/frontend/money.md`
@@ -14,22 +14,30 @@
 
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
+## Session Events (audit log)
+
+<!-- HANDOFF_SESSION_EVENTS_START -->
+- 2026-04-18 20:51:57 +0900 — started by codex
+- 2026-04-18 20:52:22 +0900 — ended by codex
+<!-- HANDOFF_SESSION_EVENTS_END -->
+
 ---
 
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `Money/請求書フローで取引先マスタ活用範囲をさらに広げるか判断`. Source: realtime
+- [focus] NEXT_CMD: `P1: Money/請求書フローで取引先マスタ活用範囲をさらに広げるか判断`. Source: realtime
+- [H0004] Completed: Removed the Money page hero block (eyebrow/title/subtitle/settings chip) so the page starts directly with actionable content.
+- [H0004] Remaining: P1: Money/請求書フローで取引先マスタ活用範囲をさらに広げるか判断
 - [H0003] Completed: Session ended (codex) - quality gate recorded
 - [H0003] Remaining: Money/請求書フローで取引先マスタ活用範囲をさらに広げるか判断
-- [H0002] Completed: 設定ページと取引先マスタ編集UI、請求書自動補完を実装
-- [H0002] Remaining: Money/請求書フローで取引先マスタ活用範囲をさらに広げるか判断
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0004] Auto-captured decision: Removed the Money page hero block (eyebrow/title/subtitle/settings chip) so the page starts directly with actionable content.
 - [H0003] Auto-captured decision: Session ended (codex) - quality gate recorded
 - [H0002] Auto-captured decision: 設定ページと取引先マスタ編集UI、請求書自動補完を実装
 - [H0001] Auto-captured decision: Session started (codex) - handoff reviewed
@@ -37,11 +45,12 @@
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0003] No new landmines reported in this chunk.
+- [H0004] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0004] P1: Money/請求書フローで取引先マスタ活用範囲をさらに広げるか判断
 - [H0003] Money/請求書フローで取引先マスタ活用範囲をさらに広げるか判断
 - [H0001] P0: 現セッションの最優先タスクを記載
 <!-- HANDOFF_L2_THREADS_END -->
@@ -50,7 +59,7 @@
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `3`
+- current_l3_entries: `4`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -79,29 +88,35 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] Removed the Money page hero block (eyebrow/title/subtitle/settings chip) so the page starts directly with actionable content.
+- [x] Session ended (codex) - quality gate recorded
+- [x] 設定ページと取引先マスタ編集UI、請求書自動補完を実装
 - [x] Session started (codex) - handoff reviewed
-
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: Money/請求書フローで取引先マスタ活用範囲をさらに広げるか判断
-- [ ] **P1**: 次の優先タスクを記載
-
+- [ ] **P1**: Money/請求書フローで取引先マスタ活用範囲をさらに広げるか判断
+- [ ] **P1**: Money/請求書フローで取引先マスタ活用範囲をさらに広げるか判断
+- [ ] **P0**: 現セッションの最優先タスクを記載
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
-| `(none)` | - |
-
+| `frontend/src/pages/Money.module.css` | 不要になった Money ヒーロー用スタイルを削除 |
+| `frontend/src/pages/Money.tsx` | 冒頭ヒーローを削除して実コンテンツ開始位置を前倒し |
+| `handoff/frontend/money.md` | session-end quality gate result recorded by codex |
+| `frontend/src/components/InvoiceModal.tsx` | 取引先マスタから請求先自動補完 |
+| `server/src/routes/sites.ts` | 取引先CRUD API追加 |
+| `frontend/src/pages/Settings.tsx` | 設定ページと取引先編集UI |
+| `handoff/frontend/money.md` | session start review logged by codex |
 ---
 
 ## 6. Locked Files（編集中 - 他エージェント触らない）
 
 > なし
-
 ---
 
 ## 7. Quality Gate
@@ -114,10 +129,10 @@ cd frontend && npx eslint src/
 
 | Check | Result | Notes |
 | ----- | ------ | ----- |
-| server typecheck | SKIP | not run yet |
-| frontend typecheck | SKIP | not run yet |
-| lint | SKIP | not run yet |
-| test | SKIP | optional |
+| server typecheck | PASS | run by session-end (2026-04-18 20:52) |
+| frontend typecheck | PASS | run by session-end (2026-04-18 20:52) |
+| lint | PASS | frontend eslint src/ at 2026-04-18 20:52 |
+| test | PASS | server npm test -- --runInBand at 2026-04-18 20:52 |
 
 ---
 
@@ -131,8 +146,7 @@ cd frontend && npx eslint src/
 
 ## 9. Risks / Blockers
 
-- `docs/DESIGN_PHILOSOPHY.md` 未参照で実装すると、Proposal中心設計から逸脱するリスクがある
-
+- 新規の blocker は未記録
 ---
 
 ## 10. References
@@ -201,3 +215,21 @@ cd frontend && npx eslint src/
   - No new landmines reported in this chunk.
 - Note:
   - session-end handshake completed
+
+### 2026-04-18 20:52:09 +0900
+
+- Entry-ID: `H0004`
+- Completed:
+  - [x] Removed the Money page hero block (eyebrow/title/subtitle/settings chip) so the page starts directly with actionable content.
+- Remaining:
+  - [ ] P1: Money/請求書フローで取引先マスタ活用範囲をさらに広げるか判断
+- Changed Files:
+  - `frontend/src/pages/Money.tsx` - 冒頭ヒーローを削除して実コンテンツ開始位置を前倒し
+  - `frontend/src/pages/Money.module.css` - 不要になった Money ヒーロー用スタイルを削除
+- Working Context:
+  - Auto-captured decision: Removed the Money page hero block (eyebrow/title/subtitle/settings chip) so the page starts directly with actionable content.
+- Validation:
+  - `cd frontend && npx tsc --noEmit => PASS`
+  - `cd frontend && npx eslint src/pages/Money.tsx => PASS`
+- Landmines:
+  - No new landmines reported in this chunk.

@@ -26,6 +26,7 @@
 | 設計判断・レビュー | `genba-quest-dao-principles`(75行) | `docs/DESIGN_PHILOSOPHY.md` |
 | 技術選定・依存関係 | `genba-quest-tech-stack`(67行) | `server/package.json`, `frontend/package.json` |
 | UI実装 | `genba-quest-design-system`(180行) | `docs/UI_ARCHITECTURE.md` |
+| UI文言・マイクロコピー | `ux-writing` | `.claude/skills/ux-writing/references/` |
 | コーディング規約 | `genba-quest-principles`(98行) | - |
 | Proposal型追加 | `proposal-type-generator`(188行) | `docs/PROPOSAL_SYSTEM.md` |
 | 進捗確認 | `phase-progress-checker`(178行) | `docs/EVOLUTION_ROADMAP.md` |

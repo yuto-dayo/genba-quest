@@ -1,5 +1,9 @@
 # Phase C: 現場シミュレーターUI アーキテクチャ計画
 
+> 2026-04-16 更新: Calendar 全体の情報設計と状態モデルは
+> [docs/CALENDAR_COCKPIT_ARCHITECTURE.md](/Users/yutoyoshino/Documents/genba-quest/docs/CALENDAR_COCKPIT_ARCHITECTURE.md)
+> を正本とする。本書は simulator / drag-and-drop 実装の詳細計画として扱う。
+
 最終更新: 2026-02-20
 対象フェーズ: Phase C（UI刷新） / Phase D（自動化接続の先行設計）
 

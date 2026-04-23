@@ -13,10 +13,12 @@
   - `{{VERIFY_CMD_1}}`
 - STATE:
   - Branch: `{{BRANCH}}`
+  - HEAD: `{{HEAD_SHA}}`
   - Uncommitted: `{{UNCOMMITTED_COUNT}} files`
   - DB migrations: `applied up to {{LAST_APPLIED_SQL}} / pending: {{PENDING_SQL_LIST}}`
   - Tests: `{{TEST_PASS}}/{{TEST_TOTAL}} pass, {{TEST_SKIP}} skip`
   - Lint: `{{LINT_ERROR}} errors, {{LINT_WARN}} warnings`
+  - Updated: `{{UPDATED_AT}}`
 
 ---
 

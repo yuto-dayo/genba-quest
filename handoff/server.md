@@ -1,8 +1,8 @@
-# Session Handoff - 2026-04-15
+# Session Handoff - 2026-04-23
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `P1: ALLOWED_ORIGINS を本番/検証環境ドメインに明示設定して運用差分をなくす`
+- NEXT_CMD: `Use ./.claude/skills/guarding-supabase-rls-sql/scripts/check-migration-guards.sh on each new migration before schema linting.`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/server.md`
@@ -13,18 +13,20 @@
   - `sed -n '1,120p' docs/DESIGN_PHILOSOPHY.md`
 - STATE:
   - Branch: `master`
-  - Uncommitted: `161 files`
-  - DB migrations: `latest local: 043_client_structured_profile_fields.sql`
+  - Uncommitted: `218 files`
+  - DB migrations: `latest local: 079_reward_write_guard_status_security_invoker.sql`
   - Tests: `not run yet`
   - Lint: `not run yet`
 
+  - HEAD: `9c942f6`
+  - Updated: `2026-04-23T12:28:29+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
 
 <!-- HANDOFF_SESSION_EVENTS_START -->
-- 2026-04-14 18:00:27 +0900 — started by codex
-- 2026-04-14 18:02:46 +0900 — ended by codex
+- 2026-04-23 12:26:02 +0900 — started by codex
+- 2026-04-23 12:28:44 +0900 — ended by codex
 <!-- HANDOFF_SESSION_EVENTS_END -->
 
 ---
@@ -32,26 +34,26 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `P1: ALLOWED_ORIGINS を本番/検証環境ドメインに明示設定して運用差分をなくす`. Source: realtime
-- [H0001] Completed: CORS origin 判定を開発用 localhost/127.0.0.1 任意ポートに対応させ、5174 の preflight 失敗を解消
-- [H0001] Remaining: P1: ALLOWED_ORIGINS を本番/検証環境ドメインに明示設定して運用差分をなくす
+- [focus] NEXT_CMD: `Use ./.claude/skills/guarding-supabase-rls-sql/scripts/check-migration-guards.sh on each new migration before schema linting.`. Source: realtime
+- [H0001] Completed: Added a reusable SQL guard script for guarding-supabase-rls-sql and wired the skill docs to it.
+- [H0001] Remaining: Use ./.claude/skills/guarding-supabase-rls-sql/scripts/check-migration-guards.sh on each new migration before schema linting.
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
-- [H0001] Auto-captured decision: CORS origin 判定を開発用 localhost/127.0.0.1 任意ポートに対応させ、5174 の preflight 失敗を解消
+- [H0001] Auto-captured decision: Added a reusable SQL guard script for guarding-supabase-rls-sql and wired the skill docs to it.
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0001] No new landmines reported in this chunk.
+- [H0001] Validation failure to follow up: ./.claude/skills/guarding-supabase-rls-sql/scripts/check-migration-guards.sh server/sql/053_legacy_reward_write_freeze.sql => FAIL (expected; legacy hazards detected)
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
-- [H0001] P1: ALLOWED_ORIGINS を本番/検証環境ドメインに明示設定して運用差分をなくす
+- [H0001] Use ./.claude/skills/guarding-supabase-rls-sql/scripts/check-migration-guards.sh on each new migration before schema linting.
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
@@ -73,7 +75,7 @@ Branch: master
 Phase: A-0/A-1
 ```
 
-> [carryover] Working tree was dirty at session start (161 files). Prior session may have unfinished work — verify NEXT_CMD before executing.
+> [carryover] Working tree was dirty at session start (218 files). Prior session may have unfinished work — verify NEXT_CMD before executing.
 
 1. `docs/DESIGN_PHILOSOPHY.md` の冒頭を確認
 2. このファイルを更新しながら実装を進める
@@ -89,30 +91,21 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
-- [x] server infra / ops chunk を独立して切り出せる状態まで整理
-- [x] PATH / LUQO chunk を独立して切り出せる状態まで整理
-- [x] sites chunk を独立して切り出せる状態まで整理
-- [x] proposal-core chunk を独立して切り出せる状態まで整理
-- [x] communications-webhook chunk を独立して切り出せる状態まで整理
-- [x] CORS origin 判定を開発用 localhost/127.0.0.1 任意ポートに対応させ、5174 の preflight 失敗を解消
+- [x] Added a reusable SQL guard script for guarding-supabase-rls-sql and wired the skill docs to it.
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: server infra / ops chunk を commit して差分を減らす
-- [ ] **P0**: PATH / LUQO chunk を commit して差分を減らす
-- [ ] **P0**: sites chunk を commit して差分を減らす
-- [ ] **P0**: proposal-core chunk を commit して差分を減らす
-- [ ] **P0**: communications-webhook chunk を commit して差分を減らす
-- [ ] **P1**: ALLOWED_ORIGINS を本番/検証環境ドメインに明示設定して運用差分をなくす
+- [ ] **P0**: Use ./.claude/skills/guarding-supabase-rls-sql/scripts/check-migration-guards.sh on each new migration before schema linting.
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
-| `server/.env.example` | ALLOWED_ORIGINS の使い方と開発時の自動許可を追記 |
-| `server/src/index.ts` | CORS の origin 判定を関数化し、開発時の localhost 任意ポートを許可 |
+| `.claude/skills/guarding-supabase-rls-sql/references/sql-rls-patterns.md` | added fast local verification guidance |
+| `.claude/skills/guarding-supabase-rls-sql/SKILL.md` | documented script usage in validation flow |
+| `.claude/skills/guarding-supabase-rls-sql/scripts/check-migration-guards.sh` | added low-noise migration guard script for RLS/view/org-auth hazards |
 ---
 
 ## 6. Locked Files（編集中 - 他エージェント触らない）
@@ -130,10 +123,10 @@ cd frontend && npx eslint src/
 
 | Check | Result | Notes |
 | ----- | ------ | ----- |
-| server typecheck | PASS | run by session-end (2026-04-14 18:02) |
-| frontend typecheck | PASS | run by session-end (2026-04-14 18:02) |
-| lint | PASS | frontend eslint src/ at 2026-04-14 18:02 |
-| test | PASS | server npm test -- --runInBand at 2026-04-14 18:02 |
+| server typecheck | PASS | run by session-end (2026-04-23 12:28) |
+| frontend typecheck | PASS | run by session-end (2026-04-23 12:28) |
+| lint | PASS | frontend eslint src/ at 2026-04-23 12:28 |
+| test | PASS | server npm test -- --runInBand at 2026-04-23 12:28 |
 
 ---
 
@@ -147,7 +140,7 @@ cd frontend && npx eslint src/
 
 ## 9. Risks / Blockers
 
-- 新規の blocker は未記録
+- Validation failure to follow up: ./.claude/skills/guarding-supabase-rls-sql/scripts/check-migration-guards.sh server/sql/053_legacy_reward_write_freeze.sql => FAIL (expected; legacy hazards detected)
 ---
 
 ## 10. References
@@ -159,20 +152,22 @@ cd frontend && npx eslint src/
 
 ## 11. Incremental Updates
 
-### 2026-04-14 18:01:49 +0900
+### 2026-04-23 12:28:29 +0900
 
 - Entry-ID: `H0001`
 - Completed:
-  - [x] CORS origin 判定を開発用 localhost/127.0.0.1 任意ポートに対応させ、5174 の preflight 失敗を解消
+  - [x] Added a reusable SQL guard script for guarding-supabase-rls-sql and wired the skill docs to it.
 - Remaining:
-  - [ ] P1: ALLOWED_ORIGINS を本番/検証環境ドメインに明示設定して運用差分をなくす
+  - [ ] Use ./.claude/skills/guarding-supabase-rls-sql/scripts/check-migration-guards.sh on each new migration before schema linting.
 - Changed Files:
-  - `server/src/index.ts` - CORS の origin 判定を関数化し、開発時の localhost 任意ポートを許可
-  - `server/.env.example` - ALLOWED_ORIGINS の使い方と開発時の自動許可を追記
+  - `.claude/skills/guarding-supabase-rls-sql/scripts/check-migration-guards.sh` - added low-noise migration guard script for RLS/view/org-auth hazards
+  - `.claude/skills/guarding-supabase-rls-sql/SKILL.md` - documented script usage in validation flow
+  - `.claude/skills/guarding-supabase-rls-sql/references/sql-rls-patterns.md` - added fast local verification guidance
 - Working Context:
-  - Auto-captured decision: CORS origin 判定を開発用 localhost/127.0.0.1 任意ポートに対応させ、5174 の preflight 失敗を解消
+  - Auto-captured decision: Added a reusable SQL guard script for guarding-supabase-rls-sql and wired the skill docs to it.
 - Validation:
-  - `cd server && npx tsc --noEmit => PASS`
-  - `curl -i -X OPTIONS http://localhost:4001/api/v1/sites -H 'Origin: http://localhost:5174' -H 'Access-Control-Request-Method: GET' -H 'Access-Control-Request-Headers: authorization,content-type' => PASS (Access-Control-Allow-Origin: http://localhost:5174)`
+  - `./.claude/skills/guarding-supabase-rls-sql/scripts/check-migration-guards.sh server/sql/067_site_line_items_rls.sql server/sql/079_reward_write_guard_status_security_invoker.sql => PASS`
+  - `./.claude/skills/guarding-supabase-rls-sql/scripts/check-migration-guards.sh server/sql/053_legacy_reward_write_freeze.sql => FAIL (expected; legacy hazards detected)`
+  - `git diff --check -- .claude/skills/guarding-supabase-rls-sql => PASS`
 - Landmines:
-  - No new landmines reported in this chunk.
+  - Validation failure to follow up: ./.claude/skills/guarding-supabase-rls-sql/scripts/check-migration-guards.sh server/sql/053_legacy_reward_write_freeze.sql => FAIL (expected; legacy hazards detected)

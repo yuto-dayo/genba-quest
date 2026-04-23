@@ -203,6 +203,7 @@ When asked to list available skills:
 | `genba-quest-dao-principles` | DAO設計原則（凝縮版） | 75 |
 | `genba-quest-tech-stack` | 技術スタック定義 | 67 |
 | `genba-quest-design-system` | UIデザイン仕様 | 180 |
+| `ux-writing` | UI文言・マイクロコピー（4基準＋アクセシビリティ） | — |
 | `genba-quest-principles` | コーディング原則 | 98 |
 | `proposal-type-generator` | Proposal型スキャフォールド | 188 |
 | `phase-progress-checker` | フェーズ進捗確認 | 178 |
@@ -219,6 +220,7 @@ When asked to list available skills:
 | 設計判断・レビュー | `$genba-quest-dao-principles` | `docs/DESIGN_PHILOSOPHY.md` |
 | 技術選定 | `$genba-quest-tech-stack` | `server/package.json` |
 | UI実装 | `$genba-quest-design-system` | `docs/UI_ARCHITECTURE.md` |
+| UI文言・マイクロコピー | `$ux-writing` | `.claude/skills/ux-writing/references/` |
 | コーディング規約 | `$genba-quest-principles` | — |
 | Proposal型追加 | `$proposal-type-generator` | `docs/PROPOSAL_SYSTEM.md` |
 | 進捗確認 | `$phase-progress-checker` | `docs/EVOLUTION_ROADMAP.md` |

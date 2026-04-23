@@ -1,10 +1,12 @@
-# Project Handoff Index - 2026-02-20
+# Project Handoff Index - 2026-04-23
 
 ## Active Domains
 
 | Domain | File | Last Updated | Status |
 | ------ | ---- | ------------ | ------ |
-| server | `handoff/server.md` | 2026-02-20 | active |
+| repo/diff-audit | `handoff/repo/diff-audit.md` | 2026-04-23 | 変更を workstream ごとに stage して分割コミ�... |
+| repo/commit-split | `handoff/repo/commit-split.md` | 2026-04-23 | session/docs → org/auth → communications → site com... |
+| repo/commit-exec | `handoff/repo/commit-exec.md` | 2026-04-23 | active |
 
 ## Domain Selection Guide
 

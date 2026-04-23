@@ -1,8 +1,8 @@
-# Session Handoff - 2026-04-15
+# Session Handoff - 2026-04-22
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `P0: Today の pending 一覧に要点プレビューや Communications へのジャンプを足すか、approve/reject 後の楽観更新をさらに磨く`
+- NEXT_CMD: `dirty worktree の他差分と干渉しない範囲で必要なら UI 文言や integration coverage を追加調整`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/frontend/today.md`
@@ -14,17 +14,19 @@
 - STATE:
   - Branch: `master`
   - Uncommitted: `180 files`
-  - DB migrations: `latest local: 044_accounting_invoice_sources.sql`
+  - DB migrations: `latest local: 062_path_v31_reward_execution_guard.sql`
   - Tests: `not run yet`
   - Lint: `not run yet`
 
+  - HEAD: `9c942f6`
+  - Updated: `2026-04-22T12:51:57+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
 
 <!-- HANDOFF_SESSION_EVENTS_START -->
-- 2026-04-15 13:32:50 +0900 — started by codex
-- 2026-04-15 13:38:24 +0900 — ended by codex
+- 2026-04-22 12:42:09 +0900 — started by codex
+- 2026-04-22 12:52:19 +0900 — ended by codex
 <!-- HANDOFF_SESSION_EVENTS_END -->
 
 ---
@@ -32,26 +34,26 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `P0: Today の pending 一覧に要点プレビューや Communications へのジャンプを足すか、approve/reject 後の楽観更新をさらに磨く`. Source: realtime
-- [H0001] Completed: Today の pending badge から一覧シートと ProposalDetailModal へ入れる導線を実装
-- [H0001] Remaining: P0: Today の pending 一覧に要点プレビューや Communications へのジャンプを足すか、approve/reject 後の楽観更新をさらに磨く
+- [focus] NEXT_CMD: `dirty worktree の他差分と干渉しない範囲で必要なら UI 文言や integration coverage を追加調整`. Source: realtime
+- [H0001] Completed: Today起点のPATH日次記録一本化を実装。day-log自然キーupsert・本人限定保存・Today記録シート・PathV31Tab cleanup を反映
+- [H0001] Remaining: dirty worktree の他差分と干渉しない範囲で必要なら UI 文言や integration coverage を追加調整
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
-- [H0001] Today は件数しか持っていなかったため、既存ProposalDetailModalとproposal APIを流用して最小導線で詳細操作までつないだ
+- [H0001] Auto-captured decision: Today起点のPATH日次記録一本化を実装。day-log自然キーupsert・本人限定保存・Today記録シート・PathV31Tab cleanup を反映
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0001] 検証は開発モード前提。pending Proposal の操作結果を即時反映するため Today 内で fetchPendingProposals を再実行している
+- [H0001] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
-- [H0001] P0: Today の pending 一覧に要点プレビューや Communications へのジャンプを足すか、approve/reject 後の楽観更新をさらに磨く
+- [H0001] dirty worktree の他差分と干渉しない範囲で必要なら UI 文言や integration coverage を追加調整
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
@@ -89,22 +91,24 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
-- [x] Today の pending badge から一覧シートと ProposalDetailModal へ入れる導線を実装
+- [x] Today起点のPATH日次記録一本化を実装。day-log自然キーupsert・本人限定保存・Today記録シート・PathV31Tab cleanup を反映
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: Today の pending 一覧に要点プレビューや Communications へのジャンプを足すか、approve/reject 後の楽観更新をさらに磨く
+- [ ] **P0**: dirty worktree の他差分と干渉しない範囲で必要なら UI 文言や integration coverage を追加調整
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
-| `frontend/src/components/today/TodayComponents.module.css` | バッジbuttonのhover/focus状態を追加 |
-| `frontend/src/components/today/PendingBadge.tsx` | クリック可能バッジに拡張 |
-| `frontend/src/pages/Today.module.css` | pending一覧シートとカード表示スタイルを追加 |
-| `frontend/src/pages/Today.tsx` | pending一覧シートとProposalDetailModal接続を追加 |
+| `frontend/src/components/luqo/PathV31Tab.tsx` | today入力タブを削除して monthly 起点へ整理 |
+| `frontend/src/components/today/TodayAssignments.tsx` | day-log CTA と FocusItem 追加導線を分離 |
+| `frontend/src/pages/Today.tsx` | Today起点のday-log preload/saveシートと local state 更新を追加 |
+| `server/src/routes/pathModule.ts` | day-log save の 200応答と error code payload を追加 |
+| `server/src/services/PathV31Service.ts` | logical upsert と本人限定・lock制御を追加 |
+| `server/sql/063_site_day_logs_natural_key.sql` | site_day_logs の自然キー重複整理と一意制約追加 |
 ---
 
 ## 6. Locked Files（編集中 - 他エージェント触らない）
@@ -122,10 +126,10 @@ cd frontend && npx eslint src/
 
 | Check | Result | Notes |
 | ----- | ------ | ----- |
-| server typecheck | PASS | run by session-end (2026-04-15 13:38) |
-| frontend typecheck | PASS | run by session-end (2026-04-15 13:38) |
-| lint | PASS | frontend eslint src/ at 2026-04-15 13:38 |
-| test | PASS | server npm test -- --runInBand at 2026-04-15 13:38 |
+| server typecheck | PASS | run by session-end (2026-04-22 12:52) |
+| frontend typecheck | PASS | run by session-end (2026-04-22 12:52) |
+| lint | FAIL | frontend eslint src/ at 2026-04-22 12:52 |
+| test | PASS | server npm test -- --runInBand at 2026-04-22 12:52 |
 
 ---
 
@@ -139,7 +143,7 @@ cd frontend && npx eslint src/
 
 ## 9. Risks / Blockers
 
-- 検証は開発モード前提。pending Proposal の操作結果を即時反映するため Today 内で fetchPendingProposals を再実行している
+- 新規の blocker は未記録
 ---
 
 ## 10. References
@@ -151,25 +155,23 @@ cd frontend && npx eslint src/
 
 ## 11. Incremental Updates
 
-### 2026-04-15 13:38:10 +0900
+### 2026-04-22 12:51:57 +0900
 
 - Entry-ID: `H0001`
 - Completed:
-  - [x] Today の pending badge から一覧シートと ProposalDetailModal へ入れる導線を実装
+  - [x] Today起点のPATH日次記録一本化を実装。day-log自然キーupsert・本人限定保存・Today記録シート・PathV31Tab cleanup を反映
 - Remaining:
-  - [ ] P0: Today の pending 一覧に要点プレビューや Communications へのジャンプを足すか、approve/reject 後の楽観更新をさらに磨く
+  - [ ] dirty worktree の他差分と干渉しない範囲で必要なら UI 文言や integration coverage を追加調整
 - Changed Files:
-  - `frontend/src/pages/Today.tsx` - pending一覧シートとProposalDetailModal接続を追加
-  - `frontend/src/pages/Today.module.css` - pending一覧シートとカード表示スタイルを追加
-  - `frontend/src/components/today/PendingBadge.tsx` - クリック可能バッジに拡張
-  - `frontend/src/components/today/TodayComponents.module.css` - バッジbuttonのhover/focus状態を追加
+  - `server/sql/063_site_day_logs_natural_key.sql` - site_day_logs の自然キー重複整理と一意制約追加
+  - `server/src/services/PathV31Service.ts` - logical upsert と本人限定・lock制御を追加
+  - `server/src/routes/pathModule.ts` - day-log save の 200応答と error code payload を追加
+  - `frontend/src/pages/Today.tsx` - Today起点のday-log preload/saveシートと local state 更新を追加
+  - `frontend/src/components/today/TodayAssignments.tsx` - day-log CTA と FocusItem 追加導線を分離
+  - `frontend/src/components/luqo/PathV31Tab.tsx` - today入力タブを削除して monthly 起点へ整理
 - Working Context:
-  - Today は件数しか持っていなかったため、既存ProposalDetailModalとproposal APIを流用して最小導線で詳細操作までつないだ
+  - Auto-captured decision: Today起点のPATH日次記録一本化を実装。day-log自然キーupsert・本人限定保存・Today記録シート・PathV31Tab cleanup を反映
 - Validation:
-  - `cd frontend && npx tsc --noEmit => PASS`
-  - `cd frontend && npx eslint src/pages/Today.tsx src/components/today/PendingBadge.tsx => PASS`
-  - `puppeteer: badge -> pending list -> ProposalDetailModal を確認, screenshot=/tmp/genba-today-pending-detail.png`
-  - `curl POST /api/v1/proposals/9c6e4038-6428-4b7d-ad76-dc9ecd6373e5/reject => cleanup complete`
-  - `curl GET /api/v1/proposals/pending => []`
+  - `cd server && npx tsc --noEmit => PASS; cd server && npm test -- --runInBand --runTestsByPath src/__tests__/unit/PathV31Service.test.ts src/__tests__/unit/pathModuleRoute.test.ts => PASS; cd frontend && npx tsc --noEmit => PASS; cd frontend && npm test -- src/pages/Today.test.tsx src/components/today/TodayAssignments.test.tsx src/components/luqo/PathV31Tab.test.tsx src/pages/LUQO.test.tsx => PASS`
 - Landmines:
-  - 検証は開発モード前提。pending Proposal の操作結果を即時反映するため Today 内で fetchPendingProposals を再実行している
+  - No new landmines reported in this chunk.

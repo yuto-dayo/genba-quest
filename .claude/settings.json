@@ -10,7 +10,8 @@
       "Bash(TS_NODE_PROJECT=tools/ai-memory/tsconfig.json node --require /Users/yutoyoshino/Documents/genba-quest/tools/ai-memory/node_modules/ts-node/register /Users/yutoyoshino/Documents/genba-quest/tools/ai-memory/src/cli.ts resume --no-cache)"
     ],
     "additionalDirectories": [
-      "/Users/yutoyoshino/Documents/genba-quest/.claude/skills"
+      "/Users/yutoyoshino/Documents/genba-quest/.claude/skills",
+      "/private/tmp/ux-writing-skill"
     ]
   }
 }
