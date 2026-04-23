@@ -6,7 +6,7 @@
 | ------ | ---- | ------------ | ------ |
 | repo/diff-audit | `handoff/repo/diff-audit.md` | 2026-04-23 | 変更を workstream ごとに stage して分割コミ�... |
 | repo/commit-split | `handoff/repo/commit-split.md` | 2026-04-23 | session/docs → org/auth → communications → site com... |
-| repo/commit-exec | `handoff/repo/commit-exec.md` | 2026-04-23 | active |
+| repo/commit-exec | `handoff/repo/commit-exec.md` | 2026-04-23 | 必要なら migration 059 の重複番号を整理する |
 
 ## Domain Selection Guide
 
