@@ -41,6 +41,8 @@ export type ProposalType =
   // 現場
   | 'site.create'
   | 'site.complete'
+  | 'site.close.finalize'
+  | 'site.close.reopen'
   // ポリシー
   | 'policy.update'
   // LUQO評価システム

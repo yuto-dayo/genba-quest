@@ -87,6 +87,7 @@ function getPutHandler(path: string) {
 describe("accounting router", () => {
   const createExpenseHandler = getPostHandler("/expenses");
   const createSaleHandler = getPostHandler("/sales");
+  const getTransactionsHandler = getGetHandler("/transactions");
   const getInvoiceSettingsHandler = getGetHandler("/invoice-settings");
   const updateInvoiceSettingsHandler = getPutHandler("/invoice-settings");
   const getInvoiceEligibilityHandler = getGetHandler("/invoice-eligibility/:transactionId");
@@ -168,6 +169,34 @@ describe("accounting router", () => {
       expect.objectContaining({ account_code: "1100", debit: 0, credit: 1100 }),
     ]));
     expect(res.status).toHaveBeenCalledWith(201);
+  });
+
+  it("GET /transactions applies creator and month filters", async () => {
+    const queryChain = createChain({
+      data: [],
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [queryChain]);
+
+    const req = {
+      query: {
+        kind: "expense",
+        created_by: "user-42",
+        date_from: "2026-04-01",
+        date_to: "2026-04-30",
+        limit: "20",
+        offset: "0",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await getTransactionsHandler(req, res);
+
+    expect(queryChain.eq).toHaveBeenCalledWith("kind", "expense");
+    expect(queryChain.eq).toHaveBeenCalledWith("created_by", "user-42");
+    expect(queryChain.gte).toHaveBeenCalledWith("recorded_date", "2026-04-01");
+    expect(queryChain.lte).toHaveBeenCalledWith("recorded_date", "2026-04-30");
+    expect(res.json).toHaveBeenCalledWith([]);
   });
 
   it("POST /expenses stores misc expenses as tax-free when selected", async () => {
@@ -397,6 +426,13 @@ describe("accounting router", () => {
   });
 
   it("POST /sales stores a single item when unit price and quantity are provided", async () => {
+    const siteLookupChain = createChain({
+      data: {
+        id: "site-1",
+        status: "active",
+      },
+      error: null,
+    });
     const txInsertChain = createChain({
       data: {
         id: "sale-1",
@@ -413,6 +449,7 @@ describe("accounting router", () => {
     const entryInsertChain = createChain({ data: { id: "entry-2" }, error: null });
     const lineInsertChain = createChain({ data: null, error: null });
     setupMockFromSequence(mockFrom, [
+      siteLookupChain,
       txInsertChain,
       saleItemInsertChain,
       existingEntryChain,
@@ -464,6 +501,13 @@ describe("accounting router", () => {
   });
 
   it("POST /sales stores multiple line items and recalculates totals from them", async () => {
+    const siteLookupChain = createChain({
+      data: {
+        id: "site-1",
+        status: "active",
+      },
+      error: null,
+    });
     const txInsertChain = createChain({
       data: {
         id: "sale-2",
@@ -481,6 +525,7 @@ describe("accounting router", () => {
     const entryInsertChain = createChain({ data: { id: "entry-3" }, error: null });
     const lineInsertChain = createChain({ data: null, error: null });
     setupMockFromSequence(mockFrom, [
+      siteLookupChain,
       txInsertChain,
       saleItemInsertChain,
       existingEntryChain,
@@ -549,7 +594,46 @@ describe("accounting router", () => {
     expect(res.status).toHaveBeenCalledWith(201);
   });
 
+  it("POST /sales rejects completed sites", async () => {
+    const siteLookupChain = createChain({
+      data: {
+        id: "site-1",
+        status: "completed",
+      },
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [siteLookupChain]);
+
+    const req = {
+      userId: "user-1",
+      body: {
+        site_id: "site-1",
+        description: "足場工事",
+        unit_price: 50000,
+        quantity: 2,
+        amount_subtotal: 100000,
+        tax_amount: 10000,
+        amount_total: 110000,
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createSaleHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({ error: "SITE_COMPLETED_SALES_IMMUTABLE" });
+  });
+
   it("POST /sales rejects when only unit price is provided", async () => {
+    const siteLookupChain = createChain({
+      data: {
+        id: "site-1",
+        status: "active",
+      },
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [siteLookupChain]);
+
     const req = {
       userId: "user-1",
       body: {
@@ -564,10 +648,18 @@ describe("accounting router", () => {
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith({ error: "unit_price and quantity must be provided together" });
-    expect(mockFrom).not.toHaveBeenCalled();
   });
 
   it("POST /sales rejects item rows without unit_name", async () => {
+    const siteLookupChain = createChain({
+      data: {
+        id: "site-1",
+        status: "active",
+      },
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [siteLookupChain]);
+
     const req = {
       userId: "user-1",
       body: {
@@ -587,7 +679,6 @@ describe("accounting router", () => {
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith({ error: "items[0].unit_name is required" });
-    expect(mockFrom).not.toHaveBeenCalled();
   });
 
   it("GET /invoice-settings returns default values when org settings do not exist", async () => {

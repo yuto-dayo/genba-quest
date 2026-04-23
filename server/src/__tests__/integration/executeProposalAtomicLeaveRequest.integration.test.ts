@@ -111,6 +111,9 @@ describeIntegration('execute_proposal_atomic leave.request side effects integrat
     const firstProposal = normalizeRpcProposal(firstExecute.data);
     expect(firstProposal?.status).toBe('executed');
 
+    const firstEventType = await fetchLedgerEventType(orgId, proposalId);
+    expect(firstEventType).toBe('leave.recorded');
+
     const firstScheduleCount = await countPersonalSchedules(userId, reasonMarker);
     expect(firstScheduleCount).toBe(1);
 
@@ -171,6 +174,21 @@ describeIntegration('execute_proposal_atomic leave.request side effects integrat
     }
 
     return count ?? 0;
+  }
+
+  async function fetchLedgerEventType(testOrgId: string, proposalId: string): Promise<string> {
+    const { data, error } = await supabase
+      .from('ledger_events')
+      .select('event_type')
+      .eq('org_id', testOrgId)
+      .eq('proposal_id', proposalId)
+      .single();
+
+    if (error || !data?.event_type) {
+      throw new Error(`Failed to fetch ledger event: ${error?.message ?? 'not found'}`);
+    }
+
+    return data.event_type;
   }
 
   async function fetchPersonalSchedule(testUserId: string, testReason: string) {

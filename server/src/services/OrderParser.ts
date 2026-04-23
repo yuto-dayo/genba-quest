@@ -29,6 +29,10 @@ export interface OrderParseResult {
   errors: string[];
 }
 
+interface ParseOcrTextOptions {
+  suppressIncompleteWarning?: boolean;
+}
+
 // ============================================================
 // Order Parser
 // ============================================================
@@ -37,7 +41,7 @@ export class OrderParser {
   /**
    * OCRテキストから発注書情報を抽出
    */
-  parseOcrText(text: string): ParsedOrder | null {
+  parseOcrText(text: string, options: ParseOcrTextOptions = {}): ParsedOrder | null {
     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
     try {
@@ -45,7 +49,9 @@ export class OrderParser {
       const dates = this.extractDates(lines);
 
       if (!siteName || !dates) {
-        console.warn('[ORDER_PARSER] 必須項目が見つかりません');
+        if (!options.suppressIncompleteWarning) {
+          console.warn('[ORDER_PARSER] 必須項目が見つかりません');
+        }
         return null;
       }
 

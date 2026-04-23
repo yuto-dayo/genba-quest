@@ -1,6 +1,9 @@
+import { proposalPayloads } from '../helpers/fixtures';
+
 const mockApproveBatch = jest.fn();
 const mockRejectBatch = jest.fn();
 const mockGetById = jest.fn();
+const mockCreate = jest.fn();
 const mockCreateAndSubmit = jest.fn();
 
 jest.mock('../../services/ProposalService', () => ({
@@ -8,6 +11,7 @@ jest.mock('../../services/ProposalService', () => ({
     approveBatch: mockApproveBatch,
     rejectBatch: mockRejectBatch,
     getById: mockGetById,
+    create: mockCreate,
     createAndSubmit: mockCreateAndSubmit,
   })),
 }));
@@ -44,13 +48,63 @@ function getPostHandler(path: string) {
 }
 
 describe('proposals router batch endpoints', () => {
+  const createHandler = getPostHandler('/');
+  const createIntegrationHandler = getPostHandler('/integration');
   const approveBatchHandler = getPostHandler('/approve/batch');
   const rejectBatchHandler = getPostHandler('/reject/batch');
+  const createAndSubmitHandler = getPostHandler('/create-and-submit');
   const instructHandler = getPostHandler('/:id/instruct');
   const mockProposalServiceCtor = ProposalService as unknown as jest.Mock;
 
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('POST / rejects site.complete because canonical RPC is required', async () => {
+    const req = {
+      body: {
+        type: 'site.complete',
+        payload: proposalPayloads.siteComplete,
+        description: 'mark site complete',
+      },
+      userId: 'user-1',
+      userName: 'Route Test User',
+      orgId: '11111111-1111-4111-8111-111111111111',
+    } as any;
+    const res = createMockRes();
+
+    await createHandler(req, res);
+
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({
+      error: 'SITE_COMPLETE_CANONICAL_RPC_REQUIRED',
+      code: 'SITE_COMPLETE_CANONICAL_RPC_REQUIRED',
+    });
+  });
+
+  it('POST /integration rejects site.complete because canonical RPC is required', async () => {
+    const req = {
+      body: {
+        type: 'site.complete',
+        payload: proposalPayloads.siteComplete,
+        description: 'mark site complete',
+        source: 'gmail',
+        external_id: 'message-1',
+      },
+      orgId: '11111111-1111-4111-8111-111111111111',
+    } as any;
+    const res = createMockRes();
+
+    await createIntegrationHandler(req, res);
+
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(mockCreateAndSubmit).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({
+      error: 'SITE_COMPLETE_CANONICAL_RPC_REQUIRED',
+      code: 'SITE_COMPLETE_CANONICAL_RPC_REQUIRED',
+    });
   });
 
   it('POST /approve/batch validates empty proposal_ids', async () => {
@@ -207,6 +261,148 @@ describe('proposals router batch endpoints', () => {
       { type: 'human', id: 'user-1', name: 'Route Test User' },
       'no'
     );
+  });
+
+  it('POST /create-and-submit requires org context', async () => {
+    const req = {
+      body: {
+        type: 'luqo.reward.calculate',
+        payload: { breakdown: [] },
+        description: 'legacy luqo proposal',
+      },
+      userId: 'user-1',
+      userName: 'Route Test User',
+    } as any;
+    const res = createMockRes();
+
+    await createAndSubmitHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({
+      error: 'ORG_CONTEXT_REQUIRED',
+      code: 'ORG_CONTEXT_REQUIRED',
+    });
+  });
+
+  it('POST /create-and-submit maps LUQO validation errors to 400', async () => {
+    mockCreateAndSubmit.mockRejectedValue(new Error('INVALID_MEMBER_ID'));
+    const req = {
+      body: {
+        type: 'luqo.reward.calculate',
+        payload: { breakdown: [{ member_id: '', name: '田中' }] },
+        description: 'legacy luqo proposal',
+      },
+      userId: 'user-1',
+      userName: 'Route Test User',
+      orgId: '11111111-1111-4111-8111-111111111111',
+    } as any;
+    const res = createMockRes();
+
+    await createAndSubmitHandler(req, res);
+
+    expect(mockProposalServiceCtor).toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111');
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      error: 'INVALID_MEMBER_ID',
+      code: 'INVALID_MEMBER_ID',
+    });
+  });
+
+  it('POST /create-and-submit maps wrapped canonical reward guard errors', async () => {
+    mockCreateAndSubmit.mockRejectedValue(
+      new Error('Failed to execute proposal atomically: MONTH_CLOSE_NOT_FOUND')
+    );
+    const req = {
+      body: {
+        type: 'reward.calculate',
+        payload: {
+          calculation_system: 'path_v22',
+          month_close_id: '11111111-1111-4111-8111-111111111111',
+        },
+        description: 'canonical reward proposal',
+      },
+      userId: 'user-1',
+      userName: 'Route Test User',
+      orgId: '11111111-1111-4111-8111-111111111111',
+    } as any;
+    const res = createMockRes();
+
+    await createAndSubmitHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({
+      error: 'MONTH_CLOSE_NOT_FOUND',
+      code: 'MONTH_CLOSE_NOT_FOUND',
+    });
+  });
+
+  it.each([
+    {
+      type: 'assignment.update',
+      payload: proposalPayloads.assignmentUpdate,
+      description: 'move scheduled assignment',
+    },
+    {
+      type: 'assignment.cancel',
+      payload: proposalPayloads.assignmentCancel,
+      description: 'cancel scheduled assignment',
+    },
+  ])('POST /create-and-submit preserves $type payload contract', async ({ type, payload, description }) => {
+    mockCreateAndSubmit.mockResolvedValue({
+      proposal: { id: 'proposal-contract', type, status: 'pending' },
+      autoApproved: false,
+      autoExecuted: false,
+    });
+
+    const req = {
+      body: {
+        type,
+        payload,
+        description,
+      },
+      userId: 'user-1',
+      userName: 'Route Test User',
+      orgId: '11111111-1111-4111-8111-111111111111',
+    } as any;
+    const res = createMockRes();
+
+    await createAndSubmitHandler(req, res);
+
+    expect(mockCreateAndSubmit).toHaveBeenCalledWith({
+      type,
+      payload,
+      description,
+      created_by: { type: 'human', id: 'user-1', name: 'Route Test User' },
+    });
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({
+      proposal: { id: 'proposal-contract', type, status: 'pending' },
+      auto_approved: false,
+      auto_executed: false,
+    });
+  });
+
+  it('POST /create-and-submit rejects site.complete because canonical RPC is required', async () => {
+    const req = {
+      body: {
+        type: 'site.complete',
+        payload: proposalPayloads.siteComplete,
+        description: 'mark site complete',
+      },
+      userId: 'user-1',
+      userName: 'Route Test User',
+      orgId: '11111111-1111-4111-8111-111111111111',
+    } as any;
+    const res = createMockRes();
+
+    await createAndSubmitHandler(req, res);
+
+    expect(mockCreateAndSubmit).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({
+      error: 'SITE_COMPLETE_CANONICAL_RPC_REQUIRED',
+      code: 'SITE_COMPLETE_CANONICAL_RPC_REQUIRED',
+    });
   });
 
   it('POST /:id/instruct validates instruction', async () => {

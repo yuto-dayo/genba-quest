@@ -4,6 +4,7 @@ import { supabaseAdmin } from "../lib/supabaseClient";
 export interface AuthenticatedRequest extends Request {
     userId?: string;
     userName?: string;
+    userEmail?: string | null;
     orgId?: string;
 }
 
@@ -41,6 +42,7 @@ export const authMiddleware = async (
     if (DEV_MODE) {
         req.userId = DEV_USER_ID;
         req.userName = "Dev User";
+        req.userEmail = process.env.DEV_USER_EMAIL || "dev@example.com";
         req.orgId = DEFAULT_ORG_ID;
         return next();
     }
@@ -62,6 +64,7 @@ export const authMiddleware = async (
 
         req.userId = user.id;
         req.userName = user.user_metadata?.name || user.email || "Unknown User";
+        req.userEmail = user.email ?? null;
         req.orgId = resolveOrgIdFromUser(user);
         next();
     } catch (err) {

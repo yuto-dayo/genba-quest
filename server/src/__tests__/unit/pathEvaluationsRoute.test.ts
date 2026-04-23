@@ -123,6 +123,16 @@ describe("pathEvaluations router", () => {
     expect(res.json).toHaveBeenCalledWith({ forms: [{ id: "form-1" }] });
   });
 
+  it("GET /forms requires org context", async () => {
+    const req = { query: {} } as any;
+    const res = createMockRes();
+
+    await listFormsHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({ error: "ORG_CONTEXT_REQUIRED" });
+  });
+
   it("POST /forms returns 400 for validation errors", async () => {
     mockUpsertMonthlyForm.mockRejectedValue(new Error("INVALID_MONTH_FORMAT"));
     const req = { orgId: "org-1", body: {}, userId: "user-1", userName: "Tester" } as any;

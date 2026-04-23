@@ -216,6 +216,10 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function isCanonicalRouteRequiredProposalType(type: ProposalType): boolean {
+    return type === "site.complete";
+}
+
 // ============================================================
 // エンドポイント
 // ============================================================
@@ -840,6 +844,14 @@ router.post("/proposals", async (req: AuthenticatedRequest, res: Response) => {
         if (!SHERPA_ALLOWED_PROPOSAL_TYPES.has(type)) {
             res.status(400).json({
                 error: `proposal type is not allowed for sherpa: ${type}`,
+            });
+            return;
+        }
+
+        if (isCanonicalRouteRequiredProposalType(type)) {
+            res.status(409).json({
+                error: "SITE_COMPLETE_CANONICAL_RPC_REQUIRED",
+                code: "SITE_COMPLETE_CANONICAL_RPC_REQUIRED",
             });
             return;
         }

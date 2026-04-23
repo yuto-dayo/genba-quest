@@ -92,13 +92,23 @@ describe("pathRewards router", () => {
     }));
   });
 
-  it("POST /proposals creates canonical reward.calculate proposal", async () => {
-    mockCreateAndSubmit.mockResolvedValue({
-      proposal: { id: "proposal-1", type: "reward.calculate", status: "pending" },
-      autoApproved: false,
-      autoExecuted: false,
-    });
+  it("POST /preview requires org context", async () => {
+    const req = {
+      body: {
+        month: "2026-04",
+        profit_inputs: { sales: 50000 },
+        members: [],
+      },
+    } as any;
+    const res = createMockRes();
 
+    await previewHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({ error: "ORG_CONTEXT_REQUIRED" });
+  });
+
+  it("POST /proposals rejects legacy reward writes with 409", async () => {
     const req = {
       userId: "33333333-3333-4333-8333-333333333333",
       userName: "管理者",
@@ -132,24 +142,46 @@ describe("pathRewards router", () => {
 
     await proposalHandler(req, res);
 
-    expect(mockCreateAndSubmit).toHaveBeenCalledWith(expect.objectContaining({
-      type: "reward.calculate",
-      description: "2026-04 PATH報酬計算",
-      created_by: {
-        type: "human",
-        id: "33333333-3333-4333-8333-333333333333",
-        name: "管理者",
+    expect(mockCreateAndSubmit).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({ error: "LEGACY_WRITE_FROZEN" });
+  });
+
+  it("POST /proposals always returns LEGACY_WRITE_FROZEN during cutover", async () => {
+    const req = {
+      userId: "33333333-3333-4333-8333-333333333333",
+      userName: "管理者",
+      orgId: "00000000-0000-0000-0000-000000000001",
+      body: {
+        month: "2026-04",
+        profit_inputs: {
+          sales: 50000,
+          outsourcing_cost: 5000,
+          materials_cost: 0,
+          parking_cost: 0,
+          transport_cost: 0,
+          other_direct_cost: 0,
+          common_cost: 0,
+          reserve_amount: 0,
+        },
+        members: [
+          {
+            member_id: "11111111-1111-4111-8111-111111111111",
+            name: "田中",
+            work_days: 10,
+            level: "L2",
+            A: 1,
+            R: 1,
+            Q: 1,
+          },
+        ],
       },
-      payload: expect.objectContaining({
-        calculation_system: "path_v2",
-        amount_total: 45000,
-        total_amount: 45000,
-      }),
-    }));
-    expect(res.status).toHaveBeenCalledWith(201);
-    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
-      proposal: expect.objectContaining({ id: "proposal-1" }),
-      preview: expect.objectContaining({ total_amount: 45000 }),
-    }));
+    } as any;
+    const res = createMockRes();
+
+    await proposalHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({ error: "LEGACY_WRITE_FROZEN" });
   });
 });

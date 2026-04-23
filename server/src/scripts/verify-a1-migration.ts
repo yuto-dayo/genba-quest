@@ -9,6 +9,8 @@
  * 5) leave.request の atomic 実行で personal_schedules が承認反映される
  * 6) 021 で削除した legacy 関数が public schema に残存していない
  * 7) 023 の Drive/document 連携カラムと制約（null許容 + gmail添付ユニーク）が有効
+ * 8) 055 の explicit event type patch が DB に適用され、assignment.update /
+ *    assignment.cancel が internal_transfer ではなく assignment.* へ記録される
  *
  * Usage:
  *   npx ts-node src/scripts/verify-a1-migration.ts
@@ -418,6 +420,141 @@ async function checkLeaveRequestAtomicSideEffect(): Promise<CheckResult> {
   }
 }
 
+async function checkExplicitEventType055(
+  proposalType: "assignment.update" | "assignment.cancel",
+  expectedEventType: "assignment.rescheduled" | "assignment.cancelled",
+): Promise<CheckResult> {
+  const orgId = randomUUID();
+  const proposalId = randomUUID();
+  const now = new Date().toISOString();
+
+  const payload =
+    proposalType === "assignment.update"
+      ? {
+          assignment_id: randomUUID(),
+          user_id: randomUUID(),
+          site_id: randomUUID(),
+          date: "2099-12-01",
+          previous_site_id: randomUUID(),
+          previous_date: "2099-11-28",
+          reason: "A-1 explicit event type verification",
+        }
+      : {
+          assignment_id: randomUUID(),
+          user_id: randomUUID(),
+          site_id: randomUUID(),
+          date: "2099-12-01",
+          reason: "A-1 explicit event type verification",
+        };
+
+  try {
+    const { error: proposalInsertError } = await supabase
+      .from("proposals")
+      .insert({
+        id: proposalId,
+        org_id: orgId,
+        type: proposalType,
+        status: "approved",
+        created_by: { type: "human", id: randomUUID(), name: "A1 Verify Creator" },
+        payload,
+        description: `A-1 ${proposalType} explicit event type verification`,
+        required_approvals: 1,
+        approvals: [
+          {
+            actor: { type: "human", id: randomUUID(), name: "A1 Verify Approver" },
+            decision: "approve",
+            reason: "A-1 verification",
+            at: now,
+          },
+        ],
+      });
+
+    if (proposalInsertError) {
+      return fail(
+        `${proposalType}_event_type_055`,
+        `failed to insert ${proposalType} proposal: ${getErrorMessage(proposalInsertError)}`,
+      );
+    }
+
+    const executeResult = await supabase.rpc("execute_proposal_atomic", {
+      p_org_id: orgId,
+      p_proposal_id: proposalId,
+      p_executor: { type: "system", id: "a1-migration-verify", name: "A1 Migration Verify" },
+    });
+
+    if (executeResult.error) {
+      return fail(
+        `${proposalType}_event_type_055`,
+        `execute_proposal_atomic failed: ${getErrorMessage(executeResult.error)}`,
+      );
+    }
+
+    const { data: ledgerEvent, error: ledgerEventError } = await supabase
+      .from("ledger_events")
+      .select("event_type")
+      .eq("org_id", orgId)
+      .eq("proposal_id", proposalId)
+      .single();
+
+    if (ledgerEventError || !ledgerEvent?.event_type) {
+      return fail(
+        `${proposalType}_event_type_055`,
+        `failed to fetch ledger event: ${getErrorMessage(ledgerEventError)}`,
+      );
+    }
+
+    if (ledgerEvent.event_type !== expectedEventType) {
+      return fail(
+        `${proposalType}_event_type_055`,
+        `expected ${expectedEventType} but got ${ledgerEvent.event_type} (055_execute_proposal_explicit_event_types.sql may be missing on this environment)`,
+      );
+    }
+
+    const { count: transactionCount, error: transactionCountError } = await supabase
+      .from("ledger_transactions")
+      .select("id", { count: "exact", head: true })
+      .eq("org_id", orgId);
+
+    if (transactionCountError) {
+      return fail(
+        `${proposalType}_event_type_055`,
+        `failed to count ledger transactions: ${getErrorMessage(transactionCountError)}`,
+      );
+    }
+
+    if ((transactionCount ?? 0) !== 0) {
+      return fail(
+        `${proposalType}_event_type_055`,
+        `expected no ledger journal for side-effect-thin proposal but found ${transactionCount ?? 0}`,
+      );
+    }
+
+    return pass(
+      `${proposalType}_event_type_055`,
+      `${proposalType} recorded as ${expectedEventType} without creating ledger journal`,
+    );
+  } catch (error) {
+    return fail(
+      `${proposalType}_event_type_055`,
+      `unexpected error: ${getErrorMessage(error)}`,
+    );
+  } finally {
+    await supabase
+      .from("ledger_transactions")
+      .delete()
+      .eq("org_id", orgId);
+    await supabase
+      .from("ledger_events")
+      .delete()
+      .eq("org_id", orgId);
+    await supabase
+      .from("proposals")
+      .delete()
+      .eq("org_id", orgId)
+      .eq("id", proposalId);
+  }
+}
+
 async function checkLegacyFunctionsRemoved(): Promise<CheckResult> {
   const checks: Array<{ name: string; args: Record<string, unknown> }> = [
     {
@@ -637,6 +774,8 @@ async function main() {
   );
   results.push(await checkAssignmentAtomicSideEffect());
   results.push(await checkLeaveRequestAtomicSideEffect());
+  results.push(await checkExplicitEventType055("assignment.update", "assignment.rescheduled"));
+  results.push(await checkExplicitEventType055("assignment.cancel", "assignment.cancelled"));
   results.push(await checkLegacyFunctionsRemoved());
   results.push(await checkDriveAttachmentSchema023());
 

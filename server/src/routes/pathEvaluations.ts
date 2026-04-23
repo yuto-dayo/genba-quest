@@ -7,12 +7,16 @@ import {
   normalizeMonthlyEvaluationAiReviewInput,
   PathEvaluationService,
 } from "../services/PathEvaluationService";
+import { assertV22WriteAllowed } from "../lib/pathV31Config";
 
 const router = Router();
-const DEFAULT_ORG_ID = process.env.DEFAULT_ORG_ID || "00000000-0000-0000-0000-000000000001";
 
 function getOrgId(req: AuthenticatedRequest): string {
-  return req.orgId || DEFAULT_ORG_ID;
+  if (!req.orgId) {
+    throw new Error("ORG_CONTEXT_REQUIRED");
+  }
+
+  return req.orgId;
 }
 
 function getService(req: AuthenticatedRequest): PathEvaluationService {
@@ -186,6 +190,16 @@ function handleError(res: Response, error: unknown): void {
     return;
   }
 
+  if (code === "ORG_CONTEXT_REQUIRED") {
+    res.status(403).json({ error: code });
+    return;
+  }
+
+  if (code === "PATH_V31_CUTOVER_ENFORCED") {
+    res.status(409).json({ error: code });
+    return;
+  }
+
   if (code === "AI_PROVIDER_NOT_CONFIGURED") {
     res.status(503).json({ error: code });
     return;
@@ -210,6 +224,9 @@ router.get("/forms", async (req: AuthenticatedRequest, res: Response) => {
 
 router.post("/forms", async (req: AuthenticatedRequest, res: Response) => {
   try {
+    if (typeof req.body?.month === "string") {
+      assertV22WriteAllowed({ month: req.body.month });
+    }
     const form = await getService(req).upsertMonthlyForm(req.body);
     res.status(201).json({ form });
   } catch (error) {
@@ -233,6 +250,9 @@ router.get("/ai-reviews", async (req: AuthenticatedRequest, res: Response) => {
 
 router.post("/ai-reviews", async (req: AuthenticatedRequest, res: Response) => {
   try {
+    if (typeof req.body?.month === "string") {
+      assertV22WriteAllowed({ month: req.body.month });
+    }
     const review = await getService(req).upsertAiReview(req.body, buildHumanActor(req));
     res.status(201).json({ review });
   } catch (error) {
@@ -243,6 +263,7 @@ router.post("/ai-reviews", async (req: AuthenticatedRequest, res: Response) => {
 router.post("/ai-reviews/generate", async (req: AuthenticatedRequest, res: Response) => {
   try {
     const month = typeof req.body?.month === "string" ? req.body.month : "";
+    assertV22WriteAllowed({ month });
     const memberId = typeof req.body?.member_id === "string" ? req.body.member_id : "";
     const providerName = parseAiProvider(req.body?.provider);
     const service = getService(req);
@@ -342,6 +363,9 @@ router.get("/confirmations", async (req: AuthenticatedRequest, res: Response) =>
 
 router.post("/confirmations", async (req: AuthenticatedRequest, res: Response) => {
   try {
+    if (typeof req.body?.month === "string") {
+      assertV22WriteAllowed({ month: req.body.month });
+    }
     const confirmation = await getService(req).upsertConfirmation(req.body, buildHumanActor(req));
     res.status(201).json({ confirmation });
   } catch (error) {
@@ -400,6 +424,9 @@ router.post("/finalize-proposals", async (req: AuthenticatedRequest, res: Respon
   try {
     const service = getService(req);
     const payload = service.buildFinalizeProposalPayload(req.body);
+    if (typeof payload.month === "string") {
+      assertV22WriteAllowed({ month: payload.month });
+    }
     const month = typeof payload.month === "string" ? payload.month : "unknown";
     const description =
       typeof req.body?.description === "string" && req.body.description.trim().length > 0
@@ -426,6 +453,9 @@ router.post("/finalize-proposals", async (req: AuthenticatedRequest, res: Respon
 
 router.post("/skill-proposals", async (req: AuthenticatedRequest, res: Response) => {
   try {
+    if (typeof req.body?.month === "string") {
+      assertV22WriteAllowed({ month: req.body.month });
+    }
     const action = parseSkillProposalAction(req.body?.action);
     const service = getService(req);
     const payload = service.buildSkillCertificationProposalPayload({

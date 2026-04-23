@@ -12,6 +12,59 @@ import { ActorRef, ProposalType, ProposalStatus } from "../services/PolicyEngine
 
 const router = Router();
 const DEFAULT_ORG_ID = process.env.DEFAULT_ORG_ID || '00000000-0000-0000-0000-000000000001';
+type ProposalErrorMap = Record<string, { status: number; message: string }>;
+
+const HUMAN_PROPOSAL_ERROR_MAP: ProposalErrorMap = {
+  ORG_CONTEXT_REQUIRED: { status: 403, message: "ORG_CONTEXT_REQUIRED" },
+  INVALID_MEMBER_ID: { status: 400, message: "INVALID_MEMBER_ID" },
+  INVALID_MEMBER_NAME: { status: 400, message: "INVALID_MEMBER_NAME" },
+  MEMBERS_REQUIRED: { status: 400, message: "MEMBERS_REQUIRED" },
+  DUPLICATE_MEMBER_ID: { status: 400, message: "DUPLICATE_MEMBER_ID" },
+  UNKNOWN_MEMBER_IN_ORG: { status: 400, message: "UNKNOWN_MEMBER_IN_ORG" },
+};
+
+const CANONICAL_REWARD_GUARD_ERROR_MAP: ProposalErrorMap = {
+  REWARD_CALCULATE_MONTH_CLOSE_REQUIRED: {
+    status: 400,
+    message: "REWARD_CALCULATE_MONTH_CLOSE_REQUIRED",
+  },
+  REWARD_ADJUST_MONTH_CLOSE_REQUIRED: {
+    status: 400,
+    message: "REWARD_ADJUST_MONTH_CLOSE_REQUIRED",
+  },
+  REWARD_ADJUST_REVENUE_BASIS_REQUIRED: {
+    status: 400,
+    message: "REWARD_ADJUST_REVENUE_BASIS_REQUIRED",
+  },
+  MONTH_CLOSE_NOT_FOUND: { status: 404, message: "MONTH_CLOSE_NOT_FOUND" },
+  REVENUE_BASIS_NOT_FOUND: { status: 404, message: "REVENUE_BASIS_NOT_FOUND" },
+  REWARD_CALCULATE_PATH_V22_REQUIRED: {
+    status: 409,
+    message: "REWARD_CALCULATE_PATH_V22_REQUIRED",
+  },
+  REWARD_ADJUST_PATH_V22_REQUIRED: {
+    status: 409,
+    message: "REWARD_ADJUST_PATH_V22_REQUIRED",
+  },
+  REWARD_CALCULATE_REQUIRES_FIXED_MONTH_CLOSE: {
+    status: 409,
+    message: "REWARD_CALCULATE_REQUIRES_FIXED_MONTH_CLOSE",
+  },
+  REWARD_ADJUST_REQUIRES_FIXED_MONTH_CLOSE: {
+    status: 409,
+    message: "REWARD_ADJUST_REQUIRES_FIXED_MONTH_CLOSE",
+  },
+  FIXED_MONTH_CLOSE_IMMUTABLE: { status: 409, message: "FIXED_MONTH_CLOSE_IMMUTABLE" },
+  FIXED_MONTH_CLOSE_LINES_IMMUTABLE: {
+    status: 409,
+    message: "FIXED_MONTH_CLOSE_LINES_IMMUTABLE",
+  },
+  FIXED_REWARD_RUN_IMMUTABLE: { status: 409, message: "FIXED_REWARD_RUN_IMMUTABLE" },
+  FIXED_REWARD_RUN_LINES_IMMUTABLE: {
+    status: 409,
+    message: "FIXED_REWARD_RUN_LINES_IMMUTABLE",
+  },
+};
 
 const VALID_PROPOSAL_TYPES: ReadonlySet<string> = new Set<ProposalType>([
   'expense.create', 'expense.update', 'expense.void',
@@ -32,9 +85,23 @@ const DISALLOWED_INTEGRATION_TYPES: ReadonlySet<ProposalType> = new Set<Proposal
   'policy.update',
   'task.revision.request',
 ]);
+const CANONICAL_ROUTE_REQUIRED_ERROR_MAP: ProposalErrorMap = {
+  SITE_COMPLETE_CANONICAL_RPC_REQUIRED: {
+    status: 409,
+    message: "SITE_COMPLETE_CANONICAL_RPC_REQUIRED",
+  },
+};
 
 function getProposalService(req: AuthenticatedRequest): ProposalService {
   return new ProposalService(req.orgId || DEFAULT_ORG_ID);
+}
+
+function requireHumanProposalOrgId(req: AuthenticatedRequest): string {
+  if (!req.orgId) {
+    throw new Error("ORG_CONTEXT_REQUIRED");
+  }
+
+  return req.orgId;
 }
 
 function isValidProposalType(type: string): type is ProposalType {
@@ -43,6 +110,16 @@ function isValidProposalType(type: string): type is ProposalType {
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isCanonicalRouteRequiredProposalType(type: ProposalType): boolean {
+  return type === "site.complete";
+}
+
+function assertProposalTypeAllowedOnGenericRoutes(type: ProposalType): void {
+  if (isCanonicalRouteRequiredProposalType(type)) {
+    throw new Error("SITE_COMPLETE_CANONICAL_RPC_REQUIRED");
+  }
 }
 
 function normalizeString(value: unknown): string | null {
@@ -84,19 +161,27 @@ function buildActorRef(req: AuthenticatedRequest): ActorRef {
   };
 }
 
-type ProposalErrorMap = Record<string, { status: number; message: string }>;
+function findMappedProposalErrorCode(err: unknown, errorMap: ProposalErrorMap): string | null {
+  const errorCode = err instanceof Error ? err.message : '';
+
+  if (errorCode in errorMap) {
+    return errorCode;
+  }
+
+  return Object.keys(errorMap).find((candidate) => errorCode.includes(candidate)) ?? null;
+}
 
 function respondMappedError(res: Response, err: unknown, errorMap: ProposalErrorMap): boolean {
-  const errorCode = err instanceof Error ? err.message : '';
-  const mapped = errorMap[errorCode];
+  const mappedCode = findMappedProposalErrorCode(err, errorMap);
 
-  if (!mapped) {
+  if (!mappedCode) {
     return false;
   }
 
+  const mapped = errorMap[mappedCode];
   res.status(mapped.status).json({
     error: mapped.message,
-    code: errorCode,
+    code: mappedCode,
   });
 
   return true;
@@ -129,7 +214,9 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
       return;
     }
 
-    const proposal = await getProposalService(req).create({
+    assertProposalTypeAllowedOnGenericRoutes(type);
+
+    const proposal = await new ProposalService(requireHumanProposalOrgId(req)).create({
       type,
       payload,
       description,
@@ -140,6 +227,15 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
 
     res.status(201).json(proposal);
   } catch (err: any) {
+    if (
+      respondMappedError(res, err, {
+        ...HUMAN_PROPOSAL_ERROR_MAP,
+        ...CANONICAL_ROUTE_REQUIRED_ERROR_MAP,
+      })
+    ) {
+      return;
+    }
+
     console.error("Create proposal error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
@@ -184,6 +280,8 @@ router.post("/integration", async (req: AuthenticatedRequest, res: Response) => 
       res.status(400).json({ error: `proposal type is not allowed for integration: ${type}` });
       return;
     }
+
+    assertProposalTypeAllowedOnGenericRoutes(type);
 
     const normalizedDescription = normalizeString(description);
     const normalizedSource = normalizeString(source);
@@ -270,6 +368,16 @@ router.post("/integration", async (req: AuthenticatedRequest, res: Response) => 
         });
         return;
       }
+    }
+
+    if (
+      respondMappedError(res, err, {
+        ...HUMAN_PROPOSAL_ERROR_MAP,
+        ...CANONICAL_REWARD_GUARD_ERROR_MAP,
+        ...CANONICAL_ROUTE_REQUIRED_ERROR_MAP,
+      })
+    ) {
+      return;
     }
 
     console.error("Create integration proposal error:", err);
@@ -385,6 +493,7 @@ router.post("/:id/submit", async (req: AuthenticatedRequest, res: Response) => {
     const errorMap: ProposalErrorMap = {
       'PROPOSAL_NOT_FOUND': { status: 404, message: "Proposal not found" },
       'PROPOSAL_ALREADY_SUBMITTED': { status: 400, message: "Proposal already submitted" },
+      ...CANONICAL_REWARD_GUARD_ERROR_MAP,
     };
 
     if (respondMappedError(res, err, errorMap)) {
@@ -475,6 +584,7 @@ router.post("/:id/approve", async (req: AuthenticatedRequest, res: Response) => 
       'APPROVER_NOT_ALLOWED_BY_POLICY': { status: 403, message: "Approver is not allowed by policy" },
       'ALREADY_APPROVED_BY_THIS_ACTOR': { status: 400, message: "Already approved by this actor" },
       'APPROVAL_COUNT_ALREADY_MET': { status: 400, message: "Required approval count already met" },
+      ...CANONICAL_REWARD_GUARD_ERROR_MAP,
     };
 
     if (respondMappedError(res, err, errorMap)) {
@@ -649,6 +759,7 @@ router.post("/:id/execute", async (req: AuthenticatedRequest, res: Response) => 
       'INSUFFICIENT_APPROVALS': { status: 400, message: "Insufficient approvals for execution" },
       'POLICY_APPROVER_REQUIREMENTS_NOT_MET': { status: 400, message: "Policy approver requirements not met" },
       'ATOMIC_RPC_REQUIRED': { status: 503, message: "Atomic proposal RPC is required but unavailable" },
+      ...CANONICAL_REWARD_GUARD_ERROR_MAP,
     };
 
     if (respondMappedError(res, err, errorMap)) {
@@ -686,7 +797,9 @@ router.post("/create-and-submit", async (req: AuthenticatedRequest, res: Respons
       return;
     }
 
-    const result = await getProposalService(req).createAndSubmit({
+    assertProposalTypeAllowedOnGenericRoutes(type);
+
+    const result = await new ProposalService(requireHumanProposalOrgId(req)).createAndSubmit({
       type,
       payload,
       description,
@@ -699,6 +812,16 @@ router.post("/create-and-submit", async (req: AuthenticatedRequest, res: Respons
       auto_executed: result.autoExecuted,
     });
   } catch (err: any) {
+    if (
+      respondMappedError(res, err, {
+        ...HUMAN_PROPOSAL_ERROR_MAP,
+        ...CANONICAL_REWARD_GUARD_ERROR_MAP,
+        ...CANONICAL_ROUTE_REQUIRED_ERROR_MAP,
+      })
+    ) {
+      return;
+    }
+
     console.error("Create and submit proposal error:", err);
     res.status(500).json({ error: "Internal server error" });
   }

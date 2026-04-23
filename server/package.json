@@ -4,12 +4,13 @@
     "description": "GENBA QUEST Backend Server",
     "main": "dist/index.js",
     "scripts": {
-        "dev": "nodemon --watch src --ext ts --exec \"ts-node src/index.ts\"",
+        "dev": "NODE_ENV=development nodemon --watch src --ext ts --exec \"ts-node src/index.ts\"",
         "build": "tsc",
         "start": "node dist/index.js",
         "test": "jest",
         "test:watch": "jest --watch",
         "test:integration": "RUN_DB_INTEGRATION_TESTS=1 jest --runInBand --testPathPatterns=src/__tests__/integration/",
+        "test:integration:path-module": "RUN_DB_INTEGRATION_TESTS=1 jest --runInBand --runTestsByPath src/__tests__/integration/pathModuleRoute.integration.test.ts",
         "test:integration:proposal-core": "RUN_DB_INTEGRATION_TESTS=1 jest --runInBand --runTestsByPath src/__tests__/integration/executeProposalAtomic.integration.test.ts src/__tests__/integration/executeProposalAtomicAssignment.integration.test.ts src/__tests__/integration/executeProposalAtomicLeaveRequest.integration.test.ts src/__tests__/integration/webhookIntegrationProposalPath.integration.test.ts",
         "cleanup:demo-data": "ts-node src/scripts/cleanup-demo-data.ts",
         "cleanup:invalid-void-chains": "ts-node src/scripts/cleanup-invalid-void-chains.ts",
@@ -17,7 +18,8 @@
         "drive:refresh-token": "ts-node src/scripts/generate-drive-refresh-token.ts",
         "verify:a1-migration": "ts-node src/scripts/verify-a1-migration.ts",
         "verify:a1-health": "ts-node src/scripts/verify-a1-health.ts",
-        "verify:gmail-manual-e2e": "ts-node src/scripts/verify-gmail-manual-e2e.ts"
+        "verify:gmail-manual-e2e": "ts-node src/scripts/verify-gmail-manual-e2e.ts",
+        "seed:path-vertical-slice": "ts-node src/scripts/seed-path-vertical-slice.ts"
     },
     "type": "commonjs",
     "dependencies": {

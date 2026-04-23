@@ -115,16 +115,104 @@ describeIntegration('execute_proposal_atomic integration', () => {
     expect(proposal.result_event_id).toBeNull();
   });
 
+  it.each([
+    {
+      proposalType: 'skill.achieve',
+      expectedEventType: 'skill_achieved',
+      payload: { member_id: randomUUID(), skill_key: 'carpentry' },
+    },
+    {
+      proposalType: 'skill.revoke',
+      expectedEventType: 'skill_revoked',
+      payload: { member_id: randomUUID(), skill_key: 'carpentry' },
+    },
+    {
+      proposalType: 'evaluation.finalize',
+      expectedEventType: 'evaluation_finalized',
+      payload: { member_id: randomUUID(), month: '2099-12' },
+    },
+    {
+      proposalType: 'assignment.update',
+      expectedEventType: 'assignment.rescheduled',
+      payload: {
+        assignment_id: randomUUID(),
+        user_id: randomUUID(),
+        site_id: randomUUID(),
+        date: '2099-12-01',
+        previous_site_id: randomUUID(),
+        previous_date: '2099-11-28',
+        reason: 'integration test reschedule',
+      },
+    },
+    {
+      proposalType: 'assignment.cancel',
+      expectedEventType: 'assignment.cancelled',
+      payload: {
+        assignment_id: randomUUID(),
+        user_id: randomUUID(),
+        site_id: randomUUID(),
+        date: '2099-12-01',
+        reason: 'integration test cancel',
+      },
+    },
+    {
+      proposalType: 'communication.review',
+      expectedEventType: 'communication.review_recorded',
+      payload: { conversation_id: randomUUID(), summary: 'integration test review' },
+    },
+    {
+      proposalType: 'communication.task',
+      expectedEventType: 'communication.task_recorded',
+      payload: { title: 'integration task', description: 'created from test' },
+    },
+    {
+      proposalType: 'task.revision.request',
+      expectedEventType: 'task.revision_requested',
+      payload: { target_proposal_id: randomUUID(), instruction: 'please revise' },
+    },
+    {
+      proposalType: 'site.create',
+      expectedEventType: 'site.created',
+      payload: { name: 'integration site create' },
+    },
+  ])(
+    'records $proposalType as $expectedEventType without creating ledger journal when amount is absent',
+    async ({ proposalType, expectedEventType, payload }) => {
+      const proposalId = await insertApprovedProposal({
+        orgId,
+        type: proposalType,
+        payload,
+      });
+
+      const result = await executeProposalAtomic(orgId, proposalId);
+      expect(result.error).toBeNull();
+
+      const executedProposal = normalizeRpcProposal(result.data);
+      expect(executedProposal?.status).toBe('executed');
+      expect(executedProposal?.result_event_id).toBeTruthy();
+
+      const eventType = await fetchLedgerEventType(orgId, proposalId);
+      expect(eventType).toBe(expectedEventType);
+
+      const transactionCount = await countLedgerTransactions(orgId);
+      expect(transactionCount).toBe(0);
+    }
+  );
+
   async function insertApprovedProposal(params: {
     orgId: string;
-    amount: string;
-    requiredApprovals: number;
-    approvalCount: number;
-    category: string;
+    type?: string;
+    payload?: Record<string, unknown>;
+    amount?: string;
+    requiredApprovals?: number;
+    approvalCount?: number;
+    category?: string;
   }): Promise<string> {
     const proposalId = randomUUID();
     const now = new Date().toISOString();
-    const approvals = Array.from({ length: params.approvalCount }, (_, index) => ({
+    const requiredApprovals = params.requiredApprovals ?? 1;
+    const approvalCount = params.approvalCount ?? requiredApprovals;
+    const approvals = Array.from({ length: approvalCount }, (_, index) => ({
       actor: {
         type: 'human',
         id: randomUUID(),
@@ -135,10 +223,19 @@ describeIntegration('execute_proposal_atomic integration', () => {
       at: now,
     }));
 
+    const defaultPayload =
+      params.amount === undefined
+        ? {}
+        : {
+            amount: params.amount,
+            category: params.category ?? 'material',
+            description: 'execute_proposal_atomic integration test',
+          };
+
     const { error } = await supabase.from('proposals').insert({
       id: proposalId,
       org_id: params.orgId,
-      type: 'expense.create',
+      type: params.type ?? 'expense.create',
       status: 'approved',
       created_by: {
         type: 'human',
@@ -146,12 +243,11 @@ describeIntegration('execute_proposal_atomic integration', () => {
         name: 'Integration Test Creator',
       },
       payload: {
-        amount: params.amount,
-        category: params.category,
-        description: 'execute_proposal_atomic integration test',
+        ...defaultPayload,
+        ...(params.payload ?? {}),
       },
       description: 'execute_proposal_atomic integration test',
-      required_approvals: params.requiredApprovals,
+      required_approvals: requiredApprovals,
       approvals,
     });
 
@@ -186,6 +282,21 @@ describeIntegration('execute_proposal_atomic integration', () => {
     }
 
     return count ?? 0;
+  }
+
+  async function fetchLedgerEventType(testOrgId: string, proposalId: string): Promise<string> {
+    const { data, error } = await supabase
+      .from('ledger_events')
+      .select('event_type')
+      .eq('org_id', testOrgId)
+      .eq('proposal_id', proposalId)
+      .single();
+
+    if (error || !data?.event_type) {
+      throw new Error(`Failed to fetch ledger event: ${error?.message ?? 'not found'}`);
+    }
+
+    return data.event_type;
   }
 
   async function countLedgerTransactions(testOrgId: string): Promise<number> {

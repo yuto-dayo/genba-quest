@@ -27,6 +27,10 @@ export const TEST_PROPOSAL_ID = 'pppp0000-0000-0000-0000-000000000001';
 export const TEST_EVENT_ID = 'eeee0000-0000-0000-0000-000000000001';
 export const TEST_TRANSACTION_ID = 'tttt0000-0000-0000-0000-000000000001';
 export const TEST_SITE_ID = 'ssss0000-0000-0000-0000-000000000001';
+export const TEST_ASSIGNMENT_ID = 'aaaa0000-0000-4000-8000-000000000001';
+export const TEST_WORKER_ID = '11111111-1111-4111-8111-111111111111';
+export const TEST_TARGET_SITE_ID = '22222222-2222-4222-8222-222222222222';
+export const TEST_PREVIOUS_SITE_ID = '33333333-3333-4333-8333-333333333333';
 
 // ============================================================
 // Proposal fixtures
@@ -71,6 +75,33 @@ export const proposals = {
     created_by: actors.ai,
   }),
 };
+
+// ============================================================
+// Proposal payload fixtures
+// ============================================================
+
+export const proposalPayloads = {
+  assignmentUpdate: {
+    assignment_id: TEST_ASSIGNMENT_ID,
+    user_id: TEST_WORKER_ID,
+    site_id: TEST_TARGET_SITE_ID,
+    date: '2026-04-21',
+    previous_site_id: TEST_PREVIOUS_SITE_ID,
+    previous_date: '2026-04-18',
+    reason: 'Rain delay reassign',
+  },
+  assignmentCancel: {
+    assignment_id: TEST_ASSIGNMENT_ID,
+    user_id: TEST_WORKER_ID,
+    site_id: TEST_TARGET_SITE_ID,
+    date: '2026-04-18',
+    reason: 'Site closed due to inspection',
+  },
+  siteComplete: {
+    site_id: TEST_TARGET_SITE_ID,
+    effective_completed_at: '2026-04-18T09:30:00Z',
+  },
+} as const;
 
 // ============================================================
 // Policy fixtures

@@ -21,10 +21,59 @@ export interface SiteDraftFromTextResult {
   confidence: number;
 }
 
+interface LabeledSegment {
+  label: string;
+  value: string;
+  lineIndex: number;
+}
+
 const orderParser = new OrderParser();
 
 const FULL_DATE_PATTERN =
   /(\d{4})\s*(?:年|\/|-)\s*(\d{1,2})\s*(?:月|\/|-)\s*(\d{1,2})\s*日?/g;
+const PARTIAL_DATE_PATTERN =
+  /(^|[^\d])(\d{1,2})\s*(?:月|\/|-)\s*(\d{1,2})\s*日?(?!\s*(?:\/|-)\s*\d)(?=[^\d]|$)/g;
+const INLINE_FIELD_LABELS = [
+  "現場名",
+  "工事名",
+  "案件名",
+  "物件名",
+  "件名",
+  "プロジェクト名",
+  "住所",
+  "所在地",
+  "現場住所",
+  "工事場所",
+  "取引先",
+  "元請",
+  "発注者",
+  "施主",
+  "依頼主",
+  "依頼者",
+  "お客様",
+  "クライアント",
+  "工期",
+  "期間",
+  "開始",
+  "完了",
+  "終了",
+  "予定",
+  "注意事項",
+  "注意",
+  "留意事項",
+  "留意",
+  "要確認",
+  "作業内容",
+  "工事項目",
+  "内容",
+] as const;
+const CAUTION_LABELS = ["注意事項", "注意", "留意事項", "留意", "要確認"] as const;
+const CAUTION_KEYWORDS = /(注意|留意|要確認|安全|搬入|駐車|近隣|騒音|連絡先|夜間|立入|ヘルメット|在宅|荷物)/;
+const LINE_ITEM_LABELS = ["作業内容", "工事項目", "内容"] as const;
+const SEGMENT_LABEL_PATTERN = new RegExp(
+  `(${[...INLINE_FIELD_LABELS].sort((a, b) => b.length - a.length).join("|")})\\s*[：:]\\s*`,
+  "g"
+);
 const WEEKDAY_MAP: Array<{ label: string; value: number }> = [
   { label: "日", value: 0 },
   { label: "月", value: 1 },
@@ -46,6 +95,44 @@ function splitLines(text: string): string[] {
     .filter((line) => line.length > 0);
 }
 
+function splitIntoFragments(lines: string[]): string[] {
+  return lines
+    .flatMap((line) => line.split(/[。\n]/))
+    .map((fragment) => fragment.trim())
+    .filter((fragment) => fragment.length > 0);
+}
+
+function extractLabeledSegments(lines: string[]): LabeledSegment[] {
+  const segments: LabeledSegment[] = [];
+
+  lines.forEach((line, lineIndex) => {
+    const matches = Array.from(line.matchAll(SEGMENT_LABEL_PATTERN));
+    if (matches.length === 0) {
+      return;
+    }
+
+    matches.forEach((match, index) => {
+      const label = match[1];
+      const nextIndex = matches[index + 1]?.index ?? line.length;
+      const valueStart = (match.index ?? 0) + match[0].length;
+      const rawValue = line.slice(valueStart, nextIndex);
+      const value = sanitizeInlineValue(rawValue);
+
+      if (!value) {
+        return;
+      }
+
+      segments.push({
+        label,
+        value,
+        lineIndex,
+      });
+    });
+  });
+
+  return segments;
+}
+
 function toIsoDate(year: number, month: number, day: number): string | null {
   const candidate = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   const parsed = new Date(`${candidate}T00:00:00Z`);
@@ -54,12 +141,104 @@ function toIsoDate(year: number, month: number, day: number): string | null {
     : candidate;
 }
 
-function extractLabeledValue(lines: string[], labels: string[]): string | null {
+function toUtcDateParts(date: Date): { year: number; month: number; day: number } {
+  return {
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate(),
+  };
+}
+
+function parseIsoDate(value: string): Date {
+  return new Date(`${value}T00:00:00Z`);
+}
+
+function inferFirstPartialDateYear(
+  month: number,
+  day: number,
+  referenceDate: Date
+): number {
+  const { year: referenceYear } = toUtcDateParts(referenceDate);
+  const currentYearDate = toIsoDate(referenceYear, month, day);
+
+  if (!currentYearDate) {
+    return referenceYear;
+  }
+
+  const candidate = parseIsoDate(currentYearDate);
+  const differenceMs = candidate.getTime() - Date.UTC(
+    referenceYear,
+    referenceDate.getUTCMonth(),
+    referenceDate.getUTCDate()
+  );
+  const oneDayMs = 24 * 60 * 60 * 1000;
+
+  // 新規現場作成では近い未来日付のほうが自然なので、半年以上過去なら翌年へ寄せる。
+  return differenceMs < -183 * oneDayMs ? referenceYear + 1 : referenceYear;
+}
+
+function inferPartialDates(lines: string[], referenceDate: Date): string[] {
+  const dates: string[] = [];
+  let currentYear: number | null = null;
+  let previousDate: Date | null = null;
+
+  for (const line of lines) {
+    const matches = Array.from(line.matchAll(PARTIAL_DATE_PATTERN));
+    if (matches.length === 0) {
+      continue;
+    }
+
+    const hasDateContext = /(工期|期間|日程|開始|着工|完了|終了|予定|から|まで|〜|~)/.test(line);
+    if (!hasDateContext && matches.length < 2) {
+      continue;
+    }
+
+    for (const match of matches) {
+      const month = Number(match[2]);
+      const day = Number(match[3]);
+
+      if (!currentYear) {
+        currentYear = inferFirstPartialDateYear(month, day, referenceDate);
+      }
+
+      let candidate = toIsoDate(currentYear, month, day);
+      if (!candidate) {
+        continue;
+      }
+
+      let candidateDate = parseIsoDate(candidate);
+      while (previousDate && candidateDate < previousDate) {
+        currentYear += 1;
+        candidate = toIsoDate(currentYear, month, day);
+        if (!candidate) {
+          break;
+        }
+        candidateDate = parseIsoDate(candidate);
+      }
+
+      if (!candidate) {
+        continue;
+      }
+
+      dates.push(candidate);
+      previousDate = candidateDate;
+    }
+  }
+
+  return dates;
+}
+
+function extractLabeledValue(lines: string[], labels: readonly string[], segments: LabeledSegment[]): string | null {
+  const fromSegments = segments.find((segment) => labels.includes(segment.label));
+  if (fromSegments) {
+    return fromSegments.value;
+  }
+
   for (const line of lines) {
     for (const label of labels) {
       const match = line.match(new RegExp(`(?:^|\\s)${label}\\s*[：:]\\s*(.+)$`));
       if (match?.[1]) {
-        const value = sanitizeInlineValue(match[1]);
+        const value = sanitizeInlineValue(trimAtNextInlineLabel(match[1]));
         if (value) {
           return value;
         }
@@ -78,7 +257,21 @@ function sanitizeInlineValue(value: string): string | null {
   return sanitized || null;
 }
 
-function extractSiteName(lines: string[], fallback: string | null): string | null {
+function trimAtNextInlineLabel(value: string): string {
+  let endIndex = value.length;
+
+  for (const label of INLINE_FIELD_LABELS) {
+    const pattern = new RegExp(`\\s+(?=${label}\\s*[：:])`);
+    const match = pattern.exec(value);
+    if (match && match.index < endIndex) {
+      endIndex = match.index;
+    }
+  }
+
+  return value.slice(0, endIndex).trim();
+}
+
+function extractSiteName(lines: string[], segments: LabeledSegment[], fallback: string | null): string | null {
   const labeled = extractLabeledValue(lines, [
     "現場名",
     "工事名",
@@ -86,13 +279,20 @@ function extractSiteName(lines: string[], fallback: string | null): string | nul
     "物件名",
     "件名",
     "プロジェクト名",
-  ]);
+  ], segments);
   if (labeled) {
     return labeled;
   }
 
   if (fallback) {
     return fallback;
+  }
+
+  for (const line of lines) {
+    const residenceMatch = line.match(/([^\d\s、。\-－−]{1,20}邸)/u);
+    if (residenceMatch?.[1]) {
+      return residenceMatch[1];
+    }
   }
 
   for (const line of lines) {
@@ -108,8 +308,8 @@ function extractSiteName(lines: string[], fallback: string | null): string | nul
   return null;
 }
 
-function extractAddress(lines: string[], fallback: string | null): string | null {
-  const labeled = extractLabeledValue(lines, ["住所", "所在地", "現場住所", "工事場所"]);
+function extractAddress(lines: string[], segments: LabeledSegment[], fallback: string | null): string | null {
+  const labeled = extractLabeledValue(lines, ["住所", "所在地", "現場住所", "工事場所"], segments);
   if (labeled) {
     return labeled;
   }
@@ -126,10 +326,18 @@ function extractAddress(lines: string[], fallback: string | null): string | null
     }
   }
 
+  const localAddressPattern = /([^\s、。]*?(?:町|市|区|村)\d+(?:[-－−]\d+){1,3})/u;
+  for (const line of lines) {
+    const match = line.match(localAddressPattern);
+    if (match?.[1]) {
+      return sanitizeInlineValue(match[1]);
+    }
+  }
+
   return null;
 }
 
-function extractClientName(lines: string[], fallback: string | null): string | null {
+function extractClientName(lines: string[], segments: LabeledSegment[], fallback: string | null): string | null {
   const labeled = extractLabeledValue(lines, [
     "取引先",
     "元請",
@@ -139,7 +347,7 @@ function extractClientName(lines: string[], fallback: string | null): string | n
     "依頼者",
     "お客様",
     "クライアント",
-  ]);
+  ], segments);
   if (labeled) {
     return labeled.replace(/(御中|様)$/u, "").trim();
   }
@@ -183,6 +391,16 @@ function extractDates(text: string, fallback: { startDate: Date; endDate: Date }
     };
   }
 
+  const partialDates = Array.from(new Set(inferPartialDates(splitLines(text), new Date()))).sort((a, b) =>
+    a.localeCompare(b)
+  );
+  if (partialDates.length >= 2) {
+    return {
+      startedAt: partialDates[0],
+      expectedCompletionAt: partialDates[partialDates.length - 1],
+    };
+  }
+
   if (fallback) {
     return {
       startedAt: toIsoDate(
@@ -216,33 +434,70 @@ function inferWorkingWeekdays(text: string): number[] {
   return Array.from(new Set(found)).sort((a, b) => a - b);
 }
 
-function extractCautions(lines: string[]): string | null {
-  const cautionLines = lines.filter((line) =>
-    /(注意|留意|要確認|安全|搬入|駐車|近隣|騒音|連絡先|夜間|立入|ヘルメット)/.test(line)
-  );
+function extractCautions(lines: string[], segments: LabeledSegment[]): string | null {
+  const segmentedCautions = segments
+    .filter((segment) => CAUTION_LABELS.includes(segment.label as typeof CAUTION_LABELS[number]))
+    .map((segment) => segment.value);
 
-  if (cautionLines.length === 0) {
+  const cautionLines = [
+    ...segmentedCautions,
+    ...splitIntoFragments(lines)
+    .map((line) => {
+      for (const label of CAUTION_LABELS) {
+        const match = line.match(new RegExp(`(?:^|\\s)${label}\\s*[：:]\\s*(.+)$`));
+        if (match?.[1]) {
+          return sanitizeInlineValue(trimAtNextInlineLabel(match[1]));
+        }
+      }
+
+      const keywordMatch = line.match(CAUTION_KEYWORDS);
+      if (!keywordMatch || keywordMatch.index === undefined) {
+        return null;
+      }
+
+      return sanitizeInlineValue(trimAtNextInlineLabel(line.slice(keywordMatch.index)));
+    })
+    .filter((line): line is string => Boolean(line)),
+  ];
+
+  const uniqueCautionLines = Array.from(new Set(cautionLines));
+
+  if (uniqueCautionLines.length === 0) {
     return null;
   }
 
-  return cautionLines.map((line) => sanitizeInlineValue(line)).filter(Boolean).join("\n");
+  return uniqueCautionLines.map((line) => sanitizeInlineValue(line)).filter(Boolean).join("\n");
 }
 
-function extractLineItems(lines: string[]): SiteDraftLineItem[] {
+function extractLineItems(lines: string[], segments: LabeledSegment[]): SiteDraftLineItem[] {
   const items: SiteDraftLineItem[] = [];
-
-  for (const line of lines) {
-    const startsAsLineItem = /^[・\-●■]/.test(line) || /^(作業内容|工事項目|内容)\s*[：:]/.test(line);
-    const candidate = line
+  const segmentCandidates = segments
+    .filter((segment) => LINE_ITEM_LABELS.includes(segment.label as typeof LINE_ITEM_LABELS[number]))
+    .map((segment) => ({
+      candidate: segment.value,
+      startsAsLineItem: true,
+    }));
+  const lineCandidates = splitIntoFragments(lines).map((line) => ({
+    candidate: line
       .replace(/^[・\-●■]+/, "")
       .replace(/^(作業内容|工事項目|内容)\s*[：:]/, "")
+      .trim(),
+    startsAsLineItem: /^[・\-●■]/.test(line) || /^(作業内容|工事項目|内容)\s*[：:]/.test(line),
+  }));
+
+  for (const { candidate, startsAsLineItem } of [...segmentCandidates, ...lineCandidates]) {
+    const normalizedCandidate = candidate
+      .replace(/^\d+(?:[.・、,]\d+)+日?に/u, "")
+      .replace(/お願いします.*$/u, "")
+      .replace(/です.*$/u, "")
       .trim();
 
-    if (!candidate || candidate.length > 80) {
+    if (!normalizedCandidate || normalizedCandidate.length > 80) {
       continue;
     }
 
-    const itemName = candidate
+    const itemName = normalizedCandidate
+      .replace(/^約/u, "約")
       .replace(/数量\s*[:：]?\s*[\d.,]+.*/u, "")
       .replace(/単価\s*[:：]?\s*[\d,]+円?.*/u, "")
       .replace(/@\s*[\d,]+円?/u, "")
@@ -253,8 +508,8 @@ function extractLineItems(lines: string[]): SiteDraftLineItem[] {
     }
 
     const hasStructuredMetrics =
-      /(\d+(?:\.\d+)?)\s*(人工|日|式|台|本|枚|m2|m²|㎡|m|箇所|か所|ヶ所|セット|件|回)/u.test(candidate) ||
-      /(?:単価|@)\s*[:：]?\s*([\d,]+)\s*円?/u.test(candidate);
+      /(\d+(?:\.\d+)?)\s*(人工|日|式|台|本|枚|m2|m²|㎡|平米|m|箇所|か所|ヶ所|セット|件|回)/u.test(normalizedCandidate) ||
+      /(?:単価|@)\s*[:：]?\s*([\d,]+)\s*円?/u.test(normalizedCandidate);
 
     if (!startsAsLineItem && !hasStructuredMetrics) {
       continue;
@@ -264,8 +519,8 @@ function extractLineItems(lines: string[]): SiteDraftLineItem[] {
       continue;
     }
 
-    const quantityMatch = candidate.match(/(\d+(?:\.\d+)?)\s*(人工|日|式|台|本|枚|m2|m²|㎡|m|箇所|か所|ヶ所|セット|件|回)/u);
-    const unitPriceMatch = candidate.match(/(?:単価|@)\s*[:：]?\s*([\d,]+)\s*円?/u);
+    const quantityMatch = normalizedCandidate.match(/(\d+(?:\.\d+)?)\s*(人工|日|式|台|本|枚|m2|m²|㎡|平米|m|箇所|か所|ヶ所|セット|件|回)/u);
+    const unitPriceMatch = normalizedCandidate.match(/(?:単価|@)\s*[:：]?\s*([\d,]+)\s*円?/u);
 
     items.push({
       item_name: itemName,
@@ -284,18 +539,21 @@ function extractLineItems(lines: string[]): SiteDraftLineItem[] {
 export function extractSiteDraftFromText(text: string): SiteDraftFromTextResult {
   const normalizedText = normalizeInput(text);
   const lines = splitLines(normalizedText);
-  const parsedOrder = orderParser.parseOcrText(normalizedText);
+  const segments = extractLabeledSegments(lines);
+  const parsedOrder = orderParser.parseOcrText(normalizedText, {
+    suppressIncompleteWarning: true,
+  });
 
-  const name = extractSiteName(lines, parsedOrder?.siteName || null);
-  const address = extractAddress(lines, parsedOrder?.address || null);
-  const clientName = extractClientName(lines, parsedOrder?.clientName || null);
+  const name = extractSiteName(lines, segments, parsedOrder?.siteName || null);
+  const address = extractAddress(lines, segments, parsedOrder?.address || null);
+  const clientName = extractClientName(lines, segments, parsedOrder?.clientName || null);
   const { startedAt, expectedCompletionAt } = extractDates(normalizedText, parsedOrder
     ? { startDate: parsedOrder.startDate, endDate: parsedOrder.endDate }
     : null);
   const workingWeekdays = inferWorkingWeekdays(normalizedText);
   const scheduleMode = workingWeekdays.length > 0 ? "weekdays" : null;
-  const cautions = extractCautions(lines);
-  const lineItems = extractLineItems(lines);
+  const cautions = extractCautions(lines, segments);
+  const lineItems = extractLineItems(lines, segments);
 
   const detectedFields = [
     name,

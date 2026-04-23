@@ -1,3 +1,5 @@
+import { proposalPayloads } from "../helpers/fixtures";
+
 const mockCreate = jest.fn();
 const mockCreateAndSubmit = jest.fn();
 
@@ -175,6 +177,74 @@ describe("sherpa proposal route", () => {
       auto_approved: false,
       auto_executed: false,
       submitted: false,
+    });
+  });
+
+  it.each([
+    {
+      type: "assignment.update",
+      payload: proposalPayloads.assignmentUpdate,
+      description: "既存アサインを移動",
+    },
+    {
+      type: "assignment.cancel",
+      payload: proposalPayloads.assignmentCancel,
+      description: "既存アサインを取り消し",
+    },
+  ])("accepts $type payload contract for sherpa proposal creation", async ({ type, payload, description }) => {
+    mockCreateAndSubmit.mockResolvedValue({
+      proposal: { id: "proposal-contract", type, status: "pending" },
+      autoApproved: false,
+      autoExecuted: false,
+    });
+
+    const req = {
+      body: {
+        type,
+        payload,
+        description,
+      },
+      orgId: "11111111-1111-4111-8111-111111111111",
+    } as any;
+    const res = createMockRes();
+
+    await createProposalHandler(req, res);
+
+    expect(mockCreateAndSubmit).toHaveBeenCalledWith({
+      type,
+      payload,
+      description,
+      created_by: { type: "ai", id: "sherpa", name: "Sherpa" },
+      org_id: "11111111-1111-4111-8111-111111111111",
+    });
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({
+      proposal: { id: "proposal-contract", type, status: "pending" },
+      auto_approved: false,
+      auto_executed: false,
+      submitted: true,
+    });
+  });
+
+  it("rejects site.complete because canonical RPC is required", async () => {
+    const req = {
+      body: {
+        type: "site.complete",
+        payload: proposalPayloads.siteComplete,
+        description: "現場完了を提案",
+      },
+      orgId: "11111111-1111-4111-8111-111111111111",
+    } as any;
+    const res = createMockRes();
+
+    await createProposalHandler(req, res);
+
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(mockCreateAndSubmit).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({
+      error: "SITE_COMPLETE_CANONICAL_RPC_REQUIRED",
+      code: "SITE_COMPLETE_CANONICAL_RPC_REQUIRED",
     });
   });
 });

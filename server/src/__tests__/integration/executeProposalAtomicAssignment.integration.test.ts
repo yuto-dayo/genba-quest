@@ -105,6 +105,18 @@ describeIntegration('execute_proposal_atomic assignment side effects integration
     const executed = normalizeRpcProposal(result.data);
     expect(executed?.status).toBe('executed');
 
+    const { data: eventAfter, error: eventFetchError } = await supabase
+      .from('ledger_events')
+      .select('event_type')
+      .eq('org_id', orgId)
+      .eq('proposal_id', proposalId)
+      .single();
+    if (eventFetchError) {
+      throw new Error(`Failed to fetch ledger event: ${eventFetchError.message}`);
+    }
+
+    expect(eventAfter.event_type).toBe('assignment.scheduled');
+
     const { data: siteAfter, error: siteFetchError } = await supabase
       .from('sites')
       .select('assigned_users')

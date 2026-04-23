@@ -5,10 +5,45 @@ import { ActorRef } from "../services/PolicyEngine";
 import { PathRewardService } from "../services/PathRewardService";
 
 const router = Router();
-const DEFAULT_ORG_ID = process.env.DEFAULT_ORG_ID || "00000000-0000-0000-0000-000000000001";
+
+const PATH_REWARD_ERROR_STATUS_MAP: Record<string, number> = {
+  INVALID_MONTH_FORMAT: 400,
+  MEMBERS_REQUIRED: 400,
+  NON_POSITIVE_PROFIT_AMOUNT: 400,
+  INVALID_MEMBER_ID: 400,
+  INVALID_MEMBER_NAME: 400,
+  INVALID_WORK_DAYS: 400,
+  INVALID_LEVEL: 400,
+  INVALID_A_SCORE: 400,
+  INVALID_R_SCORE: 400,
+  INVALID_Q_SCORE: 400,
+  BASE_WEIGHT_REQUIRED: 400,
+  INVALID_WEIGHT_TOTAL: 400,
+  INVALID_MONTHLY_POINT_TOTAL: 400,
+  INVALID_MONEY_VALUE: 400,
+  REWARD_CALCULATE_MONTH_CLOSE_REQUIRED: 400,
+  REWARD_ADJUST_MONTH_CLOSE_REQUIRED: 400,
+  REWARD_ADJUST_REVENUE_BASIS_REQUIRED: 400,
+  ORG_CONTEXT_REQUIRED: 403,
+  MONTH_CLOSE_NOT_FOUND: 404,
+  REVENUE_BASIS_NOT_FOUND: 404,
+  REWARD_CALCULATE_PATH_V22_REQUIRED: 409,
+  REWARD_ADJUST_PATH_V22_REQUIRED: 409,
+  REWARD_CALCULATE_REQUIRES_FIXED_MONTH_CLOSE: 409,
+  REWARD_ADJUST_REQUIRES_FIXED_MONTH_CLOSE: 409,
+  FIXED_MONTH_CLOSE_IMMUTABLE: 409,
+  FIXED_MONTH_CLOSE_LINES_IMMUTABLE: 409,
+  FIXED_REWARD_RUN_IMMUTABLE: 409,
+  FIXED_REWARD_RUN_LINES_IMMUTABLE: 409,
+  LEGACY_WRITE_FROZEN: 409,
+};
 
 function getOrgId(req: AuthenticatedRequest): string {
-  return req.orgId || DEFAULT_ORG_ID;
+  if (!req.orgId) {
+    throw new Error("ORG_CONTEXT_REQUIRED");
+  }
+
+  return req.orgId;
 }
 
 function buildActorRef(req: AuthenticatedRequest): ActorRef {
@@ -40,27 +75,20 @@ function normalizeLimit(value: unknown): number | undefined {
   return Math.min(Math.floor(parsed), 200);
 }
 
+function findMappedErrorCode(message: string): string | null {
+  if (message in PATH_REWARD_ERROR_STATUS_MAP) {
+    return message;
+  }
+
+  return Object.keys(PATH_REWARD_ERROR_STATUS_MAP).find((code) => message.includes(code)) ?? null;
+}
+
 function handlePathRewardError(res: Response, error: unknown): void {
   const code = error instanceof Error ? error.message : "UNKNOWN_ERROR";
-  const badRequestCodes = new Set([
-    "INVALID_MONTH_FORMAT",
-    "MEMBERS_REQUIRED",
-    "NON_POSITIVE_PROFIT_AMOUNT",
-    "INVALID_MEMBER_ID",
-    "INVALID_MEMBER_NAME",
-    "INVALID_WORK_DAYS",
-    "INVALID_LEVEL",
-    "INVALID_A_SCORE",
-    "INVALID_R_SCORE",
-    "INVALID_Q_SCORE",
-    "BASE_WEIGHT_REQUIRED",
-    "INVALID_WEIGHT_TOTAL",
-    "INVALID_MONTHLY_POINT_TOTAL",
-    "INVALID_MONEY_VALUE",
-  ]);
+  const mappedCode = findMappedErrorCode(code);
 
-  if (badRequestCodes.has(code)) {
-    res.status(400).json({ error: code });
+  if (mappedCode) {
+    res.status(PATH_REWARD_ERROR_STATUS_MAP[mappedCode]).json({ error: mappedCode });
     return;
   }
 
@@ -79,26 +107,8 @@ router.post("/preview", async (req: AuthenticatedRequest, res: Response) => {
 
 router.post("/proposals", async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const rewardService = createPathRewardService(req);
-    const preview = rewardService.calculatePreview(req.body);
-    const proposalService = createProposalService(req);
-    const description =
-      typeof req.body?.description === "string" && req.body.description.trim().length > 0
-        ? req.body.description.trim()
-        : `${preview.month} PATH報酬計算`;
-
-    const result = await proposalService.createAndSubmit({
-      type: "reward.calculate",
-      payload: rewardService.buildProposalPayload(preview),
-      description,
-      created_by: buildActorRef(req),
-    });
-
-    res.status(201).json({
-      proposal: result.proposal,
-      auto_approved: result.autoApproved,
-      auto_executed: result.autoExecuted,
-      preview,
+    res.status(409).json({
+      error: "LEGACY_WRITE_FROZEN",
     });
   } catch (error) {
     handlePathRewardError(res, error);

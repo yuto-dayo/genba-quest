@@ -14,9 +14,13 @@ import proposalsRouter from "./routes/proposals";
 import notificationsRouter from "./routes/notifications";
 import principlesRouter from "./routes/principles";
 import communicationsRouter from "./routes/communications";
+import appEntryRouter from "./routes/appEntry";
+import orgRouter from "./routes/org";
+import systemRouter from "./routes/system";
 import luqoRouter from "./routes/luqo";
 import pathEvaluationsRouter from "./routes/pathEvaluations";
 import pathRewardsRouter from "./routes/pathRewards";
+import pathModuleRouter from "./routes/pathModule";
 import focusItemsRouter from "./routes/focusItems";
 import devPreviewRouter from "./routes/devPreview";
 
@@ -54,7 +58,7 @@ app.use(cors({
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "Authorization", "x-org-id"],
 }));
 
 app.use(express.json({ limit: "10mb" }));
@@ -95,10 +99,14 @@ app.use("/api/v1/monsters", monstersRouter);
 app.use("/api/v1/proposals", proposalsRouter);
 app.use("/api/v1/notifications", notificationsRouter);
 app.use("/api/v1/principles", principlesRouter);
+app.use("/api/v1/app-entry-state", appEntryRouter);
+app.use("/api/v1/org", orgRouter);
+app.use("/api/v1/system", systemRouter);
 app.use("/api/v1/communications", communicationsRouter);
 app.use("/api/v1/luqo", luqoRouter);
 app.use("/api/v1/path/evaluations", pathEvaluationsRouter);
 app.use("/api/v1/path/rewards", pathRewardsRouter);
+app.use("/api/v1/path/module", pathModuleRouter);
 app.use("/api/v1/focus-items", focusItemsRouter);
 
 app.listen(PORT, "0.0.0.0", () => {

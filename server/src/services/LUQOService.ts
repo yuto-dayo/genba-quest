@@ -6,7 +6,15 @@
 
 import { supabaseAdmin } from '../lib/supabaseAdmin';
 
-const DEFAULT_ORG_ID = process.env.DEFAULT_ORG_ID || '00000000-0000-0000-0000-000000000001';
+const MONTH_PATTERN = /^\d{4}-\d{2}$/;
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function assert(condition: unknown, code: string): void {
+  if (!condition) {
+    throw new Error(code);
+  }
+}
 
 // ============================================================
 // Types
@@ -92,6 +100,8 @@ export interface RewardPreview {
   total_check: number; // 合計確認用（distributalbeに一致するはず）
 }
 
+type RewardMemberIdentity = Pick<RewardMember, 'member_id' | 'name'>;
+
 // ============================================================
 // LUQOService
 // ============================================================
@@ -99,8 +109,76 @@ export interface RewardPreview {
 export class LUQOService {
   private orgId: string;
 
-  constructor(orgId: string = DEFAULT_ORG_ID) {
+  constructor(orgId: string) {
     this.orgId = orgId;
+  }
+
+  private normalizeLegacyRewardMembers(members: RewardMemberIdentity[]): string[] {
+    assert(Array.isArray(members) && members.length > 0, 'MEMBERS_REQUIRED');
+
+    const seen = new Set<string>();
+
+    return members.map((member) => {
+      assert(typeof member.member_id === 'string' && UUID_PATTERN.test(member.member_id), 'INVALID_MEMBER_ID');
+      assert(typeof member.name === 'string' && member.name.trim().length > 0, 'INVALID_MEMBER_NAME');
+      assert(!seen.has(member.member_id), 'DUPLICATE_MEMBER_ID');
+      seen.add(member.member_id);
+      return member.member_id;
+    });
+  }
+
+  private async assertMembersBelongToOrg(memberIds: string[]): Promise<void> {
+    const uniqueIds = Array.from(new Set(memberIds));
+
+    const queries = await Promise.all([
+      supabaseAdmin
+        .from('member_skill_profiles')
+        .select('member_id')
+        .eq('org_id', this.orgId)
+        .in('member_id', uniqueIds),
+      supabaseAdmin
+        .from('monthly_evaluation_forms')
+        .select('member_id')
+        .eq('org_id', this.orgId)
+        .in('member_id', uniqueIds),
+      supabaseAdmin
+        .from('monthly_evaluation_finalizations')
+        .select('member_id')
+        .eq('org_id', this.orgId)
+        .in('member_id', uniqueIds),
+      supabaseAdmin
+        .from('luqo_period_scores')
+        .select('member_id')
+        .eq('org_id', this.orgId)
+        .in('member_id', uniqueIds),
+      supabaseAdmin
+        .from('luqo_star_achievements')
+        .select('member_id')
+        .eq('org_id', this.orgId)
+        .in('member_id', uniqueIds),
+    ]);
+
+    const foundIds = new Set<string>();
+    for (const { data, error } of queries) {
+      if (error) {
+        throw new Error(`Failed to validate LUQO members: ${error.message}`);
+      }
+
+      for (const row of data ?? []) {
+        if (typeof row.member_id === 'string') {
+          foundIds.add(row.member_id);
+        }
+      }
+    }
+
+    for (const memberId of uniqueIds) {
+      assert(foundIds.has(memberId), 'UNKNOWN_MEMBER_IN_ORG');
+    }
+  }
+
+  async assertLegacyRewardMembers(members: RewardMemberIdentity[]): Promise<void> {
+    const memberIds = this.normalizeLegacyRewardMembers(members);
+    await this.assertMembersBelongToOrg(memberIds);
   }
 
   // ============================================================
@@ -246,6 +324,10 @@ export class LUQOService {
     companyRate: number,
     members: RewardMember[]
   ): Promise<RewardPreview> {
+    assert(MONTH_PATTERN.test(period), 'INVALID_MONTH_FORMAT');
+    assert(Number.isFinite(profit) && profit > 0, 'INVALID_PROFIT_AMOUNT');
+    await this.assertLegacyRewardMembers(members);
+
     const { techMax, speedMax } = await this.getCatalogMaxPoints();
     const distributable = Math.round(profit * (1 - companyRate / 100));
 

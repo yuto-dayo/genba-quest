@@ -1,88 +1,104 @@
 /**
  * LUQO API Router
- * カタログ・スコア・報酬計算のREAD系API
- * 状態変更は全てProposal経由（POST /api/v1/proposals）
+ * legacy LUQO は read-only / compatibility layer を前提に扱う
  */
 
-import { Router } from 'express';
+import { Router, Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/authMiddleware';
 import { LUQOService } from '../services/LUQOService';
 
 const router = Router();
 
-const getOrgId = (req: AuthenticatedRequest): string =>
-  process.env.DEFAULT_ORG_ID || '00000000-0000-0000-0000-000000000001';
+function requireOrgId(req: AuthenticatedRequest): string {
+  if (!req.orgId) {
+    throw new Error('ORG_CONTEXT_REQUIRED');
+  }
 
-// ============================================================
-// GET /api/v1/luqo/categories — カテゴリ一覧
-// ============================================================
+  return req.orgId;
+}
+
+function createService(req: AuthenticatedRequest): LUQOService {
+  return new LUQOService(requireOrgId(req));
+}
+
+function handleLuqoError(res: Response, error: unknown): void {
+  const code = error instanceof Error ? error.message : 'UNKNOWN_ERROR';
+  const badRequestCodes = new Set([
+    'INVALID_MONTH_FORMAT',
+    'INVALID_MEMBER_ID',
+    'INVALID_MEMBER_NAME',
+    'INVALID_PROFIT_AMOUNT',
+    'MEMBERS_REQUIRED',
+    'DUPLICATE_MEMBER_ID',
+    'UNKNOWN_MEMBER_IN_ORG',
+  ]);
+
+  if (code === 'ORG_CONTEXT_REQUIRED') {
+    res.status(403).json({ error: code });
+    return;
+  }
+
+  if (badRequestCodes.has(code)) {
+    res.status(400).json({ error: code });
+    return;
+  }
+
+  console.error('[LUQO] route error:', error);
+  res.status(500).json({ error: 'Internal server error' });
+}
+
 router.get('/categories', async (req: AuthenticatedRequest, res) => {
   try {
-    const service = new LUQOService(getOrgId(req));
-    const categories = await service.getCategories();
+    const categories = await createService(req).getCategories();
     res.json({ categories });
-  } catch (err) {
-    console.error('[LUQO] GET /categories error:', err);
-    res.status(500).json({ error: 'Failed to fetch categories' });
+  } catch (error) {
+    handleLuqoError(res, error);
   }
 });
 
-// ============================================================
-// GET /api/v1/luqo/catalog — スキルカタログ一覧
-// Query: ?category_id=<uuid>
-// ============================================================
 router.get('/catalog', async (req: AuthenticatedRequest, res) => {
   try {
-    const service = new LUQOService(getOrgId(req));
     const categoryId = req.query.category_id as string | undefined;
+    const service = createService(req);
     const [catalog, { techMax, speedMax }] = await Promise.all([
       service.getCatalog(categoryId),
       service.getCatalogMaxPoints(),
     ]);
+
     res.json({ catalog, tech_max: techMax, speed_max: speedMax });
-  } catch (err) {
-    console.error('[LUQO] GET /catalog error:', err);
-    res.status(500).json({ error: 'Failed to fetch catalog' });
+  } catch (error) {
+    handleLuqoError(res, error);
   }
 });
 
-// ============================================================
-// GET /api/v1/luqo/members/:memberId/achievements — スター取得一覧
-// ============================================================
 router.get('/members/:memberId/achievements', async (req: AuthenticatedRequest, res) => {
   try {
-    const service = new LUQOService(getOrgId(req));
     const memberId = Array.isArray(req.params.memberId) ? req.params.memberId[0] : req.params.memberId;
-    const achievements = await service.getMemberAchievements(memberId);
-    const totals = await service.getMemberStarTotals(memberId);
+    const service = createService(req);
+    const [achievements, totals] = await Promise.all([
+      service.getMemberAchievements(memberId),
+      service.getMemberStarTotals(memberId),
+    ]);
+
     res.json({ achievements, ...totals });
-  } catch (err) {
-    console.error('[LUQO] GET /members/:id/achievements error:', err);
-    res.status(500).json({ error: 'Failed to fetch achievements' });
+  } catch (error) {
+    handleLuqoError(res, error);
   }
 });
 
-// ============================================================
-// GET /api/v1/luqo/scores — 月次スコア一覧
-// Query: ?period=2026-02&member_id=<uuid>
-// ============================================================
 router.get('/scores', async (req: AuthenticatedRequest, res) => {
   try {
-    const service = new LUQOService(getOrgId(req));
     const period = (Array.isArray(req.query.period) ? req.query.period[0] : req.query.period) as string | undefined;
-    const memberId = (Array.isArray(req.query.member_id) ? req.query.member_id[0] : req.query.member_id) as string | undefined;
-    const scores = await service.getPeriodScores(period, memberId);
+    const memberId = (Array.isArray(req.query.member_id) ? req.query.member_id[0] : req.query.member_id) as
+      | string
+      | undefined;
+    const scores = await createService(req).getPeriodScores(period, memberId);
     res.json({ scores });
-  } catch (err) {
-    console.error('[LUQO] GET /scores error:', err);
-    res.status(500).json({ error: 'Failed to fetch scores' });
+  } catch (error) {
+    handleLuqoError(res, error);
   }
 });
 
-// ============================================================
-// POST /api/v1/luqo/reward/preview — 報酬計算プレビュー（未確定）
-// Body: { period, profit, company_rate, members: [{member_id, name, days, tech_stars, speed_stars}] }
-// ============================================================
 router.post('/reward/preview', async (req: AuthenticatedRequest, res) => {
   try {
     const { period, profit, company_rate = 0, members } = req.body as {
@@ -98,32 +114,25 @@ router.post('/reward/preview', async (req: AuthenticatedRequest, res) => {
       }>;
     };
 
-    if (!period || !profit || !Array.isArray(members) || members.length === 0) {
-      return res.status(400).json({ error: 'period, profit, members are required' });
+    if (!period || !Array.isArray(members) || members.length === 0) {
+      res.status(400).json({ error: 'period, members are required' });
+      return;
     }
 
-    const service = new LUQOService(getOrgId(req));
-    const preview = await service.calcRewardPreview(period, profit, company_rate, members);
+    const preview = await createService(req).calcRewardPreview(period, profit, company_rate, members);
     res.json(preview);
-  } catch (err) {
-    console.error('[LUQO] POST /reward/preview error:', err);
-    res.status(500).json({ error: 'Failed to calculate reward preview' });
+  } catch (error) {
+    handleLuqoError(res, error);
   }
 });
 
-// ============================================================
-// GET /api/v1/luqo/reward/calculations — 確定済み報酬計算履歴
-// Query: ?period=2026-02
-// ============================================================
 router.get('/reward/calculations', async (req: AuthenticatedRequest, res) => {
   try {
-    const service = new LUQOService(getOrgId(req));
-    const period = req.query.period as string | undefined;
-    const calculations = await service.getRewardCalculations(period);
+    const period = typeof req.query.period === 'string' ? req.query.period : undefined;
+    const calculations = await createService(req).getRewardCalculations(period);
     res.json({ calculations });
-  } catch (err) {
-    console.error('[LUQO] GET /reward/calculations error:', err);
-    res.status(500).json({ error: 'Failed to fetch reward calculations' });
+  } catch (error) {
+    handleLuqoError(res, error);
   }
 });
 

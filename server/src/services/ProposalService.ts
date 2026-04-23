@@ -19,6 +19,9 @@ import {
   PATH_LEVEL_OPTIONS,
   PROFILE_CERTIFICATION_STATUS_OPTIONS,
 } from "./PathEvaluationService";
+import { PathGovernedModuleService } from "./PathGovernedModuleService";
+import { PathV31Service } from "./PathV31Service";
+import { LUQOService } from "./LUQOService";
 
 // ============================================================
 // Types
@@ -33,6 +36,7 @@ export interface CreateProposalInput {
   org_id?: string;
   document_id?: string | null;
   site_id?: string | null;
+  idempotency_key?: string | null;
 }
 
 export interface SubmitResult {
@@ -110,6 +114,28 @@ const ACCOUNT_CODES = {
 const PERSONAL_SCHEDULE_TYPES = ['vacation', 'sick_leave', 'business_trip', 'training'] as const;
 type PersonalScheduleType = typeof PERSONAL_SCHEDULE_TYPES[number];
 
+function readUuidLike(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+}
+
+function resolveProposalAnchorFields(
+  payload: Record<string, unknown>,
+): Pick<
+  Record<string, unknown>,
+  'month_close_id' | 'revenue_basis_id' | 'adjusts_reward_run_id' | 'reward_rule_version_id' | 'calculation_system'
+> {
+  return {
+    month_close_id: readUuidLike(payload.month_close_id),
+    revenue_basis_id: readUuidLike(payload.revenue_basis_id),
+    adjusts_reward_run_id: readUuidLike(payload.adjusts_reward_run_id ?? payload.reward_run_id),
+    reward_rule_version_id: readUuidLike(payload.reward_rule_version_id),
+    calculation_system:
+      typeof payload.calculation_system === 'string' && payload.calculation_system.trim().length > 0
+        ? payload.calculation_system.trim()
+        : null,
+  };
+}
+
 // ============================================================
 // Proposal Service
 // ============================================================
@@ -118,10 +144,14 @@ export class ProposalService {
   private engine: PolicyEngine;
   private orgId: string;
   private disableRpcFallback: boolean;
+  private pathGovernedModuleService: PathGovernedModuleService;
+  private pathV31Service: PathV31Service;
 
   constructor(orgId: string = '00000000-0000-0000-0000-000000000001') {
     this.orgId = orgId;
     this.engine = new PolicyEngine(orgId);
+    this.pathGovernedModuleService = new PathGovernedModuleService(orgId);
+    this.pathV31Service = new PathV31Service(orgId);
     const fallbackMode = (process.env.PROPOSAL_RPC_FALLBACK_MODE || 'allow').toLowerCase();
     this.disableRpcFallback = ['disabled', 'deny', 'off'].includes(fallbackMode);
   }
@@ -137,6 +167,15 @@ export class ProposalService {
    * Proposal作成（draft状態）
    */
   async create(input: CreateProposalInput): Promise<Proposal> {
+    if (input.type === 'luqo.reward.calculate') {
+      const breakdown = Array.isArray(input.payload.breakdown)
+        ? input.payload.breakdown
+        : [];
+      await new LUQOService(input.org_id || this.orgId).assertLegacyRewardMembers(
+        breakdown as Array<{ member_id: string; name: string }>,
+      );
+    }
+
     const evaluation = await this.engine.evaluateProposal({
       type: input.type,
       payload: input.payload,
@@ -155,6 +194,8 @@ export class ProposalService {
       policy_ref: evaluation.policy.name,
       required_approvals: evaluation.requiredApprovals,
       approvals: [],
+      idempotency_key: input.idempotency_key ?? null,
+      ...resolveProposalAnchorFields(input.payload),
     };
     if (input.id) {
       insertPayload.id = input.id;
@@ -170,7 +211,12 @@ export class ProposalService {
       throw new Error(`Failed to create proposal: ${error.message}`);
     }
 
-    return data as Proposal;
+    const createdProposal = data as Proposal;
+    await this.recordGovernanceEvent(createdProposal, 'governance.proposal.created', input.created_by, {
+      lifecycle_status: createdProposal.status,
+    });
+
+    return createdProposal;
   }
 
   /**
@@ -364,6 +410,19 @@ export class ProposalService {
       throw new Error('Failed to approve proposal atomically: empty result');
     }
 
+    if (result.isFullyApproved) {
+      await this.recordGovernanceEvent(
+        result.proposal,
+        'governance.proposal.approved',
+        approver,
+        { auto_executed: result.autoExecuted },
+      );
+    }
+
+    if (result.autoExecuted) {
+      await this.handleExecutedProposalSideEffects(result.proposal, approver);
+    }
+
     // 通知を送信（DB関数はアプリ層通知を行わないため）
     await this.sendApprovalNotifications(result.proposal, result.isFullyApproved, result.autoExecuted);
 
@@ -450,6 +509,10 @@ export class ProposalService {
         // 承認自体は成功済み。executeは冪等なのでクライアントがリトライ可能
         console.error(`[ProposalService] Auto-execute after approval failed:`, executeError);
       }
+
+      await this.recordGovernanceEvent(finalProposal, 'governance.proposal.approved', approver, {
+        auto_executed: autoExecuted,
+      });
     }
 
     await this.sendApprovalNotifications(finalProposal, isFullyApproved, autoExecuted);
@@ -573,6 +636,10 @@ export class ProposalService {
       throw new Error('Failed to reject proposal atomically: empty result');
     }
 
+    await this.recordGovernanceEvent(proposal, 'governance.proposal.rejected', rejector, {
+      rejection_reason: reason,
+    });
+
     return proposal;
   }
 
@@ -611,6 +678,9 @@ export class ProposalService {
     }
 
     const rejectedProposal = data as Proposal;
+    await this.recordGovernanceEvent(rejectedProposal, 'governance.proposal.rejected', rejector, {
+      rejection_reason: reason,
+    });
     await this.notifyProposalStatusChange(rejectedProposal, {
       title: 'Proposal が却下されました',
       message: `${rejectedProposal.description} は却下されました。理由: ${reason}`,
@@ -729,6 +799,7 @@ export class ProposalService {
     // Phase A-1: DB関数での原子実行を優先
     const atomicallyExecuted = await this.tryExecuteAtomicRpc(proposalId, executor);
     if (atomicallyExecuted) {
+      await this.handleExecutedProposalSideEffects(atomicallyExecuted, executor);
       await this.notifyProposalStatusChange(atomicallyExecuted, {
         title: 'Proposal 実行完了',
         message: `${atomicallyExecuted.description} が実行されました。`,
@@ -766,6 +837,7 @@ export class ProposalService {
     }
 
     const executedProposal = data as Proposal;
+    await this.handleExecutedProposalSideEffects(executedProposal, executor);
     await this.notifyProposalStatusChange(executedProposal, {
       title: 'Proposal 実行完了',
       message: `${executedProposal.description} が実行されました。`,
@@ -804,7 +876,13 @@ export class ProposalService {
       const functionMissing =
         message.includes('execute_proposal_atomic') &&
         (message.includes('does not exist') || message.includes('Could not find the function'));
+      const unsupportedByAtomicRpc =
+        message.includes('REWARD_CALCULATE_PATH_V22_REQUIRED') ||
+        message.includes('REWARD_ADJUST_PATH_V22_REQUIRED');
       if (functionMissing) {
+        return this.fallbackToLegacyFlowOrThrow();
+      }
+      if (unsupportedByAtomicRpc) {
         return this.fallbackToLegacyFlowOrThrow();
       }
       if (message.includes('PROPOSAL_NOT_FOUND')) {
@@ -857,6 +935,16 @@ export class ProposalService {
       'skill.achieve': 'skill_achieved',
       'skill.revoke': 'skill_revoked',
       'evaluation.finalize': 'evaluation_finalized',
+      'assignment.create': 'assignment.scheduled',
+      'assignment.update': 'assignment.rescheduled',
+      'assignment.cancel': 'assignment.cancelled',
+      'leave.request': 'leave.recorded',
+      'communication.review': 'communication.review_recorded',
+      'communication.task': 'communication.task_recorded',
+      'task.revision.request': 'task.revision_requested',
+      'site.create': 'site.created',
+      'site.close.finalize': 'site.close.finalized',
+      'site.close.reopen': 'site.close.reopened',
     };
     return mapping[type] || 'internal_transfer';
   }
@@ -885,8 +973,11 @@ export class ProposalService {
       case 'skill.revoke':
         await this.applySkillCertification(proposal.payload, event.actor, 'revoked');
         break;
+      case 'site.close.finalize':
+      case 'site.close.reopen':
       default:
-        // Proposal/Eventが正本のため、他タイプは現時点で追加副作用なし
+        // A-1 boundary: assignment.update / assignment.cancel は event log のみ、
+        // site.complete は completion fact/RPC を正系とするため、ここでは副作用を持たせない。
         break;
     }
 
@@ -1762,6 +1853,165 @@ export class ProposalService {
     if (error) {
       throw new Error(`Failed to delete proposal: ${error.message}`);
     }
+  }
+
+  private async handleExecutedProposalSideEffects(
+    proposal: Proposal,
+    actor: ActorRef,
+  ): Promise<void> {
+    const eventType = this.mapExecutedProposalToGovernanceEvent(proposal);
+    await this.recordGovernanceEvent(proposal, eventType, actor, {
+      result_event_id: proposal.result_event_id ?? null,
+    });
+
+    if (
+      proposal.type === 'evaluation.finalize' ||
+      proposal.type === 'skill.achieve' ||
+      proposal.type === 'skill.revoke' ||
+      proposal.type === 'policy.update' ||
+      (proposal.type === 'reward.calculate' && proposal.payload?.calculation_system === 'path_v22') ||
+      (proposal.type === 'reward.adjust' && proposal.payload?.calculation_system === 'path_v22')
+    ) {
+      await this.pathGovernedModuleService.syncProjectionFromExecutedProposal(proposal);
+    }
+
+    if (proposal.type === 'site.close.finalize' && proposal.payload?.path_module_version === 'v3.1') {
+      await this.pathV31Service.syncSiteCloseFromExecutedProposal(proposal);
+    }
+
+    if (proposal.type === 'site.close.reopen' && proposal.payload?.path_module_version === 'v3.1') {
+      await this.pathV31Service.syncSiteCloseReopenFromExecutedProposal(proposal);
+    }
+
+    if (proposal.type === 'reward.calculate' && proposal.payload?.calculation_system === 'path_v31') {
+      await this.pathV31Service.syncMonthlyDistributionFromExecutedProposal(proposal);
+    }
+  }
+
+  private mapExecutedProposalToGovernanceEvent(proposal: Proposal): string {
+    if (proposal.type === 'policy.update' && proposal.payload?.module === 'path') {
+      return 'governance.policy.published';
+    }
+
+    if (proposal.type === 'site.close.finalize' && proposal.payload?.path_module_version === 'v3.1') {
+      return 'path.site_close.finalized';
+    }
+
+    if (proposal.type === 'site.close.reopen' && proposal.payload?.path_module_version === 'v3.1') {
+      return 'path.site_close.reopened';
+    }
+
+    if (proposal.type === 'evaluation.finalize' && proposal.payload?.path_module_version === 'v2.2') {
+      return 'finance.month.closed';
+    }
+
+    if (
+      (proposal.type === 'skill.achieve' || proposal.type === 'skill.revoke') &&
+      proposal.payload?.path_module_version === 'v2.2'
+    ) {
+      return 'path.skill_certification.decided';
+    }
+
+    if (proposal.type === 'reward.calculate' && proposal.payload?.calculation_system === 'path_v22') {
+      return 'path.reward_run.approved';
+    }
+
+    if (proposal.type === 'reward.calculate' && proposal.payload?.calculation_system === 'path_v31') {
+      return 'path.monthly_distribution.finalized';
+    }
+
+    if (
+      proposal.type === 'reward.adjust' &&
+      proposal.payload?.calculation_system === 'path_v22'
+    ) {
+      return proposal.payload?.run_type === 'reversal'
+        ? 'finance.journal.entry_reversed'
+        : 'finance.journal.adjustment_posted';
+    }
+
+    return 'governance.proposal.executed';
+  }
+
+  private async recordGovernanceEvent(
+    proposal: Proposal,
+    eventType: string,
+    actor: ActorRef,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    if (!this.shouldRecordGovernanceEvent(proposal)) {
+      return;
+    }
+
+    const dedupeKey = `${proposal.id}:${eventType}`;
+    const aggregateType =
+      proposal.type === 'policy.update'
+        ? 'policy_bundle'
+        : proposal.type.startsWith('reward.')
+          ? 'reward_run'
+          : proposal.type.startsWith('skill.')
+            ? 'trade_endorsement'
+            : proposal.type === 'evaluation.finalize'
+              ? 'month_close'
+              : 'proposal';
+
+    const aggregateId =
+      typeof proposal.payload?.member_id === 'string'
+        ? proposal.payload.member_id
+        : proposal.id;
+
+    const policyContext =
+      typeof proposal.payload?.policy_context === 'object' && proposal.payload.policy_context !== null
+        ? (proposal.payload.policy_context as Record<string, unknown>)
+        : {
+            policy_ref: proposal.policy_ref ?? null,
+            required_approvals: proposal.required_approvals,
+          };
+
+    const { error } = await supabaseAdmin
+      .from('governance_events')
+      .upsert(
+        {
+          org_id: this.orgId,
+          proposal_id: proposal.id,
+          aggregate_type: aggregateType,
+          aggregate_id: aggregateId,
+          event_type: eventType,
+          dedupe_key: dedupeKey,
+          payload,
+          policy_context: policyContext,
+          actor,
+        },
+        { onConflict: 'org_id,dedupe_key' },
+      );
+
+    if (error) {
+      throw new Error(`Failed to record governance event: ${error.message}`);
+    }
+  }
+
+  private shouldRecordGovernanceEvent(proposal: Proposal): boolean {
+    if (proposal.type === 'policy.update') {
+      return true;
+    }
+
+    if (proposal.type === 'evaluation.finalize') {
+      return proposal.payload?.path_module_version === 'v2.2';
+    }
+
+    if (proposal.type === 'site.close.finalize' || proposal.type === 'site.close.reopen') {
+      return proposal.payload?.path_module_version === 'v3.1';
+    }
+
+    if (proposal.type === 'skill.achieve' || proposal.type === 'skill.revoke') {
+      return proposal.payload?.path_module_version === 'v2.2';
+    }
+
+    if (proposal.type === 'reward.calculate' || proposal.type === 'reward.adjust') {
+      const calculationSystem = proposal.payload?.calculation_system;
+      return calculationSystem === 'path_v22' || calculationSystem === 'path_v31';
+    }
+
+    return false;
   }
 }
 

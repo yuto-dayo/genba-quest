@@ -2,6 +2,14 @@ import { Router, Response } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import { supabaseAdmin } from "../lib/supabaseAdmin";
 import { resolveOrgId } from "../lib/org";
+import {
+  getCommunicationContactDetail,
+  getCommunicationInsightsSummary,
+  listCommunicationContacts,
+  type CommunicationContactRiskFlag,
+  type CommunicationContactSort,
+  type CommunicationContactStatus,
+} from "../services/communication-contact-read-model";
 
 const router = Router();
 const COMMUNICATIONS_MIGRATION_ERROR =
@@ -31,6 +39,21 @@ const VALID_LOG_KINDS = new Set([
   "summary_update",
   "proposal_link",
 ]);
+const VALID_CONTACT_STATUSES = new Set([
+  "overdue",
+  "waiting_internal",
+  "waiting_client",
+  "resolved",
+  "needs_review",
+]);
+const VALID_CONTACT_RISKS = new Set([
+  "overdue_next_action",
+  "no_next_action",
+  "stale_7d",
+  "pending_proposal_stale",
+  "no_owner",
+]);
+const VALID_CONTACT_SORTS = new Set(["attention", "latest_activity"]);
 
 type CommunicationConversationStatus = "active" | "waiting_internal" | "waiting_client" | "resolved";
 type CommunicationChannel = "gmail" | "phone" | "line" | "in_person" | "sms" | "manual" | "system";
@@ -252,6 +275,80 @@ function normalizeOffset(raw: unknown): number {
     return 0;
   }
   return Math.floor(parsed);
+}
+
+function normalizePage(raw: unknown): number {
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return 1;
+  }
+  return Math.floor(parsed);
+}
+
+function normalizePageSize(raw: unknown): number {
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return 50;
+  }
+  return Math.min(Math.floor(parsed), 200);
+}
+
+function normalizeBoolean(raw: unknown, fallback = false): boolean {
+  if (typeof raw === "boolean") {
+    return raw;
+  }
+  if (typeof raw !== "string") {
+    return fallback;
+  }
+
+  if (raw === "true" || raw === "1") {
+    return true;
+  }
+  if (raw === "false" || raw === "0") {
+    return false;
+  }
+  return fallback;
+}
+
+function normalizeStringArray(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return raw.flatMap((value) => normalizeStringArray(value));
+  }
+  const value = normalizeString(raw);
+  return value ? [value] : [];
+}
+
+function normalizeContactStatuses(raw: unknown): CommunicationContactStatus[] | null {
+  const values = normalizeStringArray(raw);
+  if (values.length === 0) {
+    return [];
+  }
+  if (values.some((value) => !VALID_CONTACT_STATUSES.has(value))) {
+    return null;
+  }
+  return values as CommunicationContactStatus[];
+}
+
+function normalizeContactRiskFlags(raw: unknown): CommunicationContactRiskFlag[] | null {
+  const values = normalizeStringArray(raw);
+  if (values.length === 0) {
+    return [];
+  }
+  if (values.some((value) => !VALID_CONTACT_RISKS.has(value))) {
+    return null;
+  }
+  return values as CommunicationContactRiskFlag[];
+}
+
+function normalizeContactSort(raw: unknown): CommunicationContactSort | null {
+  const value = normalizeString(raw);
+  if (!value) {
+    return "attention";
+  }
+  if (!VALID_CONTACT_SORTS.has(value)) {
+    return null;
+  }
+  return value as CommunicationContactSort;
 }
 
 function normalizeConversationStatus(raw: unknown): CommunicationConversationStatus | null {
@@ -811,6 +908,91 @@ async function insertLog(input: {
 
   return data;
 }
+
+router.get("/contacts", async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const orgId = resolveOrgId(req.orgId);
+    const statuses = normalizeContactStatuses(req.query.status);
+    const riskFlags = normalizeContactRiskFlags(req.query.risk);
+    const sort = normalizeContactSort(req.query.sort);
+
+    if (statuses === null) {
+      res.status(400).json({ error: "status must be overdue, waiting_internal, waiting_client, resolved, or needs_review" });
+      return;
+    }
+    if (riskFlags === null) {
+      res.status(400).json({ error: "risk must be overdue_next_action, no_next_action, stale_7d, pending_proposal_stale, or no_owner" });
+      return;
+    }
+    if (!sort) {
+      res.status(400).json({ error: "sort must be attention or latest_activity" });
+      return;
+    }
+
+    const response = await listCommunicationContacts({
+      orgId,
+      q: normalizeString(req.query.q),
+      statuses,
+      ownerUserIds: normalizeStringArray(req.query.ownerUserId),
+      riskFlags,
+      includeResolved: normalizeBoolean(req.query.includeResolved, false),
+      sort,
+      page: normalizePage(req.query.page),
+      pageSize: normalizePageSize(req.query.pageSize),
+    });
+
+    res.json(response);
+  } catch (err) {
+    console.error("[COMMUNICATIONS] contacts list failed:", err);
+    if (isMissingCommunicationSchemaError(err)) {
+      respondMissingSchema(res);
+      return;
+    }
+    res.status(500).json({ error: "連絡ボードの取得に失敗しました" });
+  }
+});
+
+router.get("/contacts/:contactKey", async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const orgId = resolveOrgId(req.orgId);
+    const contactKey = normalizeString(req.params.contactKey);
+
+    if (!contactKey) {
+      res.status(400).json({ error: "Invalid contactKey" });
+      return;
+    }
+
+    const detail = await getCommunicationContactDetail(orgId, contactKey);
+    if (!detail) {
+      res.status(404).json({ error: "Contact not found" });
+      return;
+    }
+
+    res.json(detail);
+  } catch (err) {
+    console.error("[COMMUNICATIONS] contact detail failed:", err);
+    if (isMissingCommunicationSchemaError(err)) {
+      respondMissingSchema(res);
+      return;
+    }
+    res.status(500).json({ error: "連絡詳細の取得に失敗しました" });
+  }
+});
+
+router.get("/insights/summary", async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const orgId = resolveOrgId(req.orgId);
+    const summary = await getCommunicationInsightsSummary(orgId);
+    res.json(summary);
+  } catch (err) {
+    console.error("[COMMUNICATIONS] insights failed:", err);
+    if (isMissingCommunicationSchemaError(err)) {
+      respondMissingSchema(res);
+      return;
+    }
+    res.status(500).json({ error: "連絡分析の取得に失敗しました" });
+  }
+});
 
 router.get("/", async (req: AuthenticatedRequest, res: Response) => {
   try {

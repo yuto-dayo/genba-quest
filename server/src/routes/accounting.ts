@@ -236,6 +236,28 @@ function isDuplicateKeyError(error: unknown): boolean {
     return code === "23505" || message.includes("duplicate key value") || message.includes("23505");
 }
 
+async function assertSiteSalesMutable(siteId: string, orgId: string): Promise<void> {
+    const { data, error } = await supabaseAdmin
+        .from("sites")
+        .select("id, status")
+        .eq("org_id", orgId)
+        .eq("id", siteId)
+        .is("deleted_at", null)
+        .maybeSingle();
+
+    if (error) {
+        throw error;
+    }
+
+    if (!data) {
+        throw new Error("SITE_NOT_FOUND");
+    }
+
+    if (String(data.status ?? "") === "completed") {
+        throw new Error("SITE_COMPLETED_SALES_IMMUTABLE");
+    }
+}
+
 async function insertExpenseTransaction(payload: ExpenseInsertPayload) {
     let insertPayload: Record<string, unknown> = { ...payload };
 
@@ -1206,6 +1228,8 @@ router.post("/sales", async (req: AuthenticatedRequest, res: Response) => {
             return;
         }
 
+        await assertSiteSalesMutable(site_id, orgId);
+
         if (client_id) {
             try {
                 await assertActiveClientForOrg(client_id, orgId);
@@ -1315,6 +1339,14 @@ router.post("/sales", async (req: AuthenticatedRequest, res: Response) => {
 
         res.status(201).json(data);
     } catch (err: any) {
+        if (err instanceof Error && err.message === "SITE_COMPLETED_SALES_IMMUTABLE") {
+            res.status(409).json({ error: "SITE_COMPLETED_SALES_IMMUTABLE" });
+            return;
+        }
+        if (err instanceof Error && err.message === "SITE_NOT_FOUND") {
+            res.status(404).json({ error: "SITE_NOT_FOUND" });
+            return;
+        }
         console.error("Sale create error:", err);
         res.status(500).json({ error: "Internal server error" });
     }
@@ -2474,7 +2506,7 @@ router.get("/transactions/search", async (req: AuthenticatedRequest, res: Respon
 
 router.get("/transactions", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const { kind, status, limit = 50, offset = 0 } = req.query;
+        const { kind, status, created_by, date_from, date_to, limit = 50, offset = 0 } = req.query;
 
         let query = supabaseAdmin
             .from("accounting_transactions")
@@ -2493,6 +2525,15 @@ router.get("/transactions", async (req: AuthenticatedRequest, res: Response) => 
         }
         if (status) {
             query = query.eq("status", status);
+        }
+        if (typeof created_by === "string" && created_by.trim()) {
+            query = query.eq("created_by", created_by.trim());
+        }
+        if (typeof date_from === "string" && date_from.trim()) {
+            query = query.gte("recorded_date", date_from.trim());
+        }
+        if (typeof date_to === "string" && date_to.trim()) {
+            query = query.lte("recorded_date", date_to.trim());
         }
 
         const { data, error } = await query;

@@ -3,6 +3,7 @@ import {
   actors,
   proposals,
   policies,
+  proposalPayloads,
   ledgerEvent,
   makeProposal,
   TEST_ORG_ID,
@@ -901,6 +902,83 @@ describe('ProposalService', () => {
       await expect(
         strictService.execute(TEST_PROPOSAL_ID, actors.system)
       ).rejects.toThrow('ATOMIC_RPC_REQUIRED');
+    });
+  });
+
+  describe('mapProposalTypeToEventType', () => {
+    const mapEventType = (type: string) =>
+      (service as unknown as {
+        mapProposalTypeToEventType: (proposalType: string) => string;
+      }).mapProposalTypeToEventType(type);
+
+    it('evidence-backed internal_transfer bucket を explicit event type へ分解する', () => {
+      expect(mapEventType('assignment.create')).toBe('assignment.scheduled');
+      expect(mapEventType('assignment.update')).toBe('assignment.rescheduled');
+      expect(mapEventType('assignment.cancel')).toBe('assignment.cancelled');
+      expect(mapEventType('leave.request')).toBe('leave.recorded');
+      expect(mapEventType('communication.review')).toBe('communication.review_recorded');
+      expect(mapEventType('communication.task')).toBe('communication.task_recorded');
+      expect(mapEventType('task.revision.request')).toBe('task.revision_requested');
+      expect(mapEventType('site.create')).toBe('site.created');
+    });
+
+    it('site.complete は canonical fact path 優先のため internal_transfer に残す', () => {
+      expect(mapEventType('site.complete')).toBe('internal_transfer');
+    });
+  });
+
+  describe('applyStateChange', () => {
+    const applyStateChange = (proposal: any) =>
+      (service as any).applyStateChange(proposal, ledgerEvent);
+
+    it.each([
+      { type: 'assignment.update', payload: proposalPayloads.assignmentUpdate },
+      { type: 'assignment.cancel', payload: proposalPayloads.assignmentCancel },
+      { type: 'site.complete', payload: proposalPayloads.siteComplete },
+    ])('$type は A-1 boundary として追加副作用を持たない', async ({ type, payload }) => {
+      const ensureLedgerJournalSpy = jest
+        .spyOn(service as any, 'ensureLedgerJournal')
+        .mockResolvedValue(undefined);
+      const assignmentCreateSpy = jest
+        .spyOn(service as any, 'applyAssignmentCreate')
+        .mockResolvedValue(undefined);
+      const leaveRequestSpy = jest
+        .spyOn(service as any, 'applyLeaveRequest')
+        .mockResolvedValue(undefined);
+      const evaluationFinalizeSpy = jest
+        .spyOn(service as any, 'applyEvaluationFinalize')
+        .mockResolvedValue(undefined);
+      const skillCertificationSpy = jest
+        .spyOn(service as any, 'applySkillCertification')
+        .mockResolvedValue(undefined);
+      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => undefined);
+
+      try {
+        await expect(
+          applyStateChange(
+            makeProposal({
+              type: type as any,
+              payload,
+            })
+          )
+        ).resolves.toBeUndefined();
+
+        expect(ensureLedgerJournalSpy).toHaveBeenCalledWith(
+          expect.objectContaining({ type, payload }),
+          ledgerEvent
+        );
+        expect(assignmentCreateSpy).not.toHaveBeenCalled();
+        expect(leaveRequestSpy).not.toHaveBeenCalled();
+        expect(evaluationFinalizeSpy).not.toHaveBeenCalled();
+        expect(skillCertificationSpy).not.toHaveBeenCalled();
+      } finally {
+        consoleLogSpy.mockRestore();
+        skillCertificationSpy.mockRestore();
+        evaluationFinalizeSpy.mockRestore();
+        leaveRequestSpy.mockRestore();
+        assignmentCreateSpy.mockRestore();
+        ensureLedgerJournalSpy.mockRestore();
+      }
     });
   });
 

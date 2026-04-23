@@ -1,13 +1,20 @@
 import { Router, Response } from "express";
+import { resolveActiveOrgMembership } from "../lib/orgAccess";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import { supabaseAdmin } from "../lib/supabaseClient";
 import { resolveOrgId } from "../lib/org";
+import { listOrgMembers } from "../services/OrgMemberDirectoryService";
 import {
     assertActiveClientForOrg,
     assertRestorableClientForOrg,
     listClientsForOrg,
 } from "../services/ClientDirectoryService";
 import { extractClientFromBusinessCard, getBusinessCardDefaultProvider } from "../services/BusinessCardOcrService";
+import {
+    SiteCompleteWithCloseService,
+    type CompleteSiteWithCloseHttpResponse,
+} from "../services/SiteCompleteWithCloseService";
+import { SiteCompletionService } from "../services/SiteCompletionService";
 import { composeStructuredAddress, normalizePostalCode } from "../services/clientAddress";
 import { extractSiteDraftFromText } from "../services/SiteDraftTextService";
 
@@ -17,6 +24,33 @@ const SITE_SELECT = `
     client:clients(id, name)
 `;
 const SITE_SCHEDULE_MODES = ["continuous", "weekdays", "custom"] as const;
+const SITE_COMPLETION_ERROR_STATUS_MAP: Record<string, number> = {
+    USER_CONTEXT_REQUIRED: 403,
+    ORG_MEMBERSHIP_REQUIRED: 403,
+    ORG_ONBOARDING_REQUIRED: 403,
+    ORG_SELECTION_REQUIRED: 403,
+    ORG_ROLE_REQUIRED: 403,
+    INVALID_EFFECTIVE_COMPLETED_AT: 400,
+    INVALID_EFFECTIVE_REVERSED_AT: 400,
+    INVALID_EXPECTED_SITE_UPDATED_AT: 400,
+    CLIENT_REQUEST_ID_REQUIRED: 400,
+    INVALID_RECOGNIZED_REVENUE: 400,
+    INVALID_COMPLETE_WITH_CLOSE_REQUEST: 400,
+    COMPLETE_WITH_CLOSE_REQUEST_SITE_MISMATCH: 400,
+    DAY_LOGS_REQUIRED: 400,
+    SITE_NOT_FOUND: 404,
+    DAY_LOGS_NOT_FOUND: 404,
+    SITE_REVENUE_REQUIRED_FOR_AUTO_INCOME: 409,
+    SITE_COMPLETION_ALREADY_ACTIVE: 409,
+    SITE_COMPLETION_NOT_ACTIVE: 409,
+    SITE_CLOSE_ACTIVE_PROPOSAL_EXISTS: 409,
+    SITE_COMPLETE_WITH_CLOSE_PAYLOAD_CONFLICT: 409,
+    SITE_EXPECTED_VERSION_CONFLICT: 409,
+    SITE_DAY_LOGS_CONFLICT: 409,
+    SITE_COMPLETION_RPC_NOT_AVAILABLE: 503,
+    SITE_COMPLETION_REVERSAL_RPC_NOT_AVAILABLE: 503,
+    SITE_COMPLETE_WITH_CLOSE_RECOVERY_REQUIRED: 500,
+};
 
 type SiteScheduleMode = typeof SITE_SCHEDULE_MODES[number];
 
@@ -88,6 +122,23 @@ function readParamId(value: string | string[] | undefined): string | null {
     }
 
     return value;
+}
+
+function normalizeOptionalTimestamp(value: unknown, errorCode: string): string | undefined {
+    if (value === undefined || value === null || value === "") {
+        return undefined;
+    }
+
+    if (typeof value !== "string") {
+        throw new Error(errorCode);
+    }
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+        throw new Error(errorCode);
+    }
+
+    return parsed.toISOString();
 }
 
 function buildClientPayload(body: Record<string, unknown>) {
@@ -282,6 +333,173 @@ async function assertActiveSiteForOrg(siteId: string, orgId: string) {
     return data;
 }
 
+type SiteClosePhase =
+    | "active"
+    | "completed_unclosed"
+    | "completed_close_pending"
+    | "completed_close_rejected"
+    | "completed_close_executed";
+
+type SiteCloseProposalSummary = {
+    id: string;
+    status: string;
+    required_approvals: number;
+    created_at: string;
+    executed_at?: string | null;
+};
+
+async function enrichSitesWithCloseState<T extends Record<string, unknown>>(
+    orgId: string,
+    rows: T[],
+): Promise<Array<T & { close_phase: SiteClosePhase; active_close_proposal?: SiteCloseProposalSummary | null }>> {
+    const siteIds = rows
+        .map((row) => (typeof row.id === "string" ? row.id : ""))
+        .filter((value) => value.length > 0);
+
+    if (siteIds.length === 0) {
+        return rows.map((row) => ({
+            ...row,
+            close_phase: (row.status === "completed" ? "completed_unclosed" : "active") as SiteClosePhase,
+            active_close_proposal: null,
+        }));
+    }
+
+    const [proposalResult, siteCloseResult] = await Promise.all([
+        supabaseAdmin
+            .from("proposals")
+            .select("id, site_id, status, required_approvals, created_at, executed_at")
+            .eq("org_id", orgId)
+            .eq("type", "site.close.finalize")
+            .in("site_id", siteIds)
+            .in("status", ["draft", "pending", "approved", "rejected"])
+            .order("created_at", { ascending: false }),
+        supabaseAdmin
+            .from("site_closes")
+            .select("id, site_id, status, closed_at")
+            .eq("org_id", orgId)
+            .in("site_id", siteIds)
+            .order("closed_at", { ascending: false }),
+    ]);
+
+    if (proposalResult.error) {
+        throw proposalResult.error;
+    }
+    if (siteCloseResult.error) {
+        throw siteCloseResult.error;
+    }
+
+    const activeProposalBySite = new Map<string, SiteCloseProposalSummary>();
+    const rejectedProposalSites = new Set<string>();
+    for (const row of proposalResult.data || []) {
+        const siteId = typeof row.site_id === "string" ? row.site_id : "";
+        if (!siteId) {
+            continue;
+        }
+        if ((row.status === "draft" || row.status === "pending" || row.status === "approved") && !activeProposalBySite.has(siteId)) {
+            activeProposalBySite.set(siteId, {
+                id: String(row.id),
+                status: String(row.status),
+                required_approvals: Number(row.required_approvals ?? 0),
+                created_at: String(row.created_at),
+                executed_at: typeof row.executed_at === "string" ? row.executed_at : null,
+            });
+        }
+        if (row.status === "rejected" && !activeProposalBySite.has(siteId)) {
+            rejectedProposalSites.add(siteId);
+        }
+    }
+
+    const finalizedCloseSites = new Set<string>();
+    for (const row of siteCloseResult.data || []) {
+        const siteId = typeof row.site_id === "string" ? row.site_id : "";
+        if (!siteId || finalizedCloseSites.has(siteId)) {
+            continue;
+        }
+        if (row.status === "finalized") {
+            finalizedCloseSites.add(siteId);
+        }
+    }
+
+    return rows.map((row) => {
+        const siteId = typeof row.id === "string" ? row.id : "";
+        const basePhase: SiteClosePhase = row.status === "completed" ? "completed_unclosed" : "active";
+        if (basePhase === "active") {
+            return {
+                ...row,
+                close_phase: "active" as const,
+                active_close_proposal: null,
+            };
+        }
+
+        const activeProposal = activeProposalBySite.get(siteId) ?? null;
+        if (activeProposal) {
+            return {
+                ...row,
+                close_phase: "completed_close_pending" as const,
+                active_close_proposal: activeProposal,
+            };
+        }
+
+        if (finalizedCloseSites.has(siteId)) {
+            return {
+                ...row,
+                close_phase: "completed_close_executed" as const,
+                active_close_proposal: null,
+            };
+        }
+
+        if (rejectedProposalSites.has(siteId)) {
+            return {
+                ...row,
+                close_phase: "completed_close_rejected" as const,
+                active_close_proposal: null,
+            };
+        }
+
+        return {
+            ...row,
+            close_phase: "completed_unclosed" as const,
+            active_close_proposal: null,
+        };
+    });
+}
+
+async function resolveSiteRouteMembership(req: AuthenticatedRequest, minRole?: "admin" | "member") {
+    return resolveActiveOrgMembership(req, minRole);
+}
+
+function createSiteCompleteWithCloseService(orgId: string): SiteCompleteWithCloseService {
+    return new SiteCompleteWithCloseService(orgId);
+}
+
+function getActorUserId(req: AuthenticatedRequest): string {
+    if (!req.userId) {
+        throw new Error("USER_CONTEXT_REQUIRED");
+    }
+
+    return req.userId;
+}
+
+function buildHumanActor(req: AuthenticatedRequest) {
+    return {
+        type: "human" as const,
+        id: getActorUserId(req),
+        name: req.userName || "Unknown User",
+    };
+}
+
+function handleSiteCompletionError(res: Response, error: unknown) {
+    const code = error instanceof Error ? error.message : "UNKNOWN_ERROR";
+
+    if (code in SITE_COMPLETION_ERROR_STATUS_MAP) {
+        res.status(SITE_COMPLETION_ERROR_STATUS_MAP[code]).json({ error: code });
+        return;
+    }
+
+    console.error("[SITE_COMPLETION] error:", error);
+    res.status(500).json({ error: "Internal server error" });
+}
+
 // 現場一覧取得
 router.get("/", async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -294,23 +512,42 @@ router.get("/", async (req: AuthenticatedRequest, res: Response) => {
             .order("created_at", { ascending: false });
 
         if (error) throw error;
-        res.json(data);
+        const enriched = await enrichSitesWithCloseState(orgId, (data || []) as Record<string, unknown>[]);
+        res.json(enriched);
     } catch (err: any) {
         res.status(500).json({ error: "Internal server error" });
     }
 });
 
 // メンバー一覧取得（担当者選択用）
-router.get("/members", async (_req: AuthenticatedRequest, res: Response) => {
+router.get("/members", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const { data, error } = await supabaseAdmin
-            .from("profiles")
-            .select("id, full_name, username, avatar_url")
-            .order("full_name");
-
-        if (error) throw error;
-        res.json(data || []);
+        const membership = await resolveActiveOrgMembership(req, "member");
+        const members = await listOrgMembers(membership.org_id);
+        res.json(members);
     } catch (err: any) {
+        const code = err instanceof Error ? err.message : "UNKNOWN_ERROR";
+
+        if (code === "INVALID_ORG_ID") {
+            res.status(400).json({ error: code });
+            return;
+        }
+
+        if (code === "ORG_SELECTION_REQUIRED") {
+            res.status(409).json({ error: code });
+            return;
+        }
+
+        if (
+            code === "USER_CONTEXT_REQUIRED" ||
+            code === "ORG_ONBOARDING_REQUIRED" ||
+            code === "ORG_MEMBERSHIP_REQUIRED" ||
+            code === "ORG_ROLE_REQUIRED"
+        ) {
+            res.status(403).json({ error: code });
+            return;
+        }
+
         res.status(500).json({ error: "Internal server error" });
     }
 });
@@ -515,7 +752,8 @@ router.get("/:id", async (req: AuthenticatedRequest, res: Response) => {
             res.status(404).json({ error: "Site not found" });
             return;
         }
-        res.json(data);
+        const [enriched] = await enrichSitesWithCloseState(orgId, [data as Record<string, unknown>]);
+        res.json(enriched);
     } catch (err: any) {
         res.status(500).json({ error: "Internal server error" });
     }
@@ -1004,29 +1242,99 @@ router.put("/:id/line-items", async (req: AuthenticatedRequest, res: Response) =
 });
 
 // 現場完了処理
-router.post("/:id/complete", async (req: AuthenticatedRequest, res: Response) => {
+router.post("/:id/complete-with-close", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = resolveOrgId(req.orgId);
-        const { data, error } = await supabaseAdmin
-            .from("sites")
-            .update({
-                status: "completed",
-                completed_at: new Date().toISOString(),
-            })
-            .eq("id", req.params.id)
-            .eq("org_id", orgId)
-            .is("deleted_at", null)
-            .select()
-            .maybeSingle();
-
-        if (error) throw error;
-        if (!data) {
-            res.status(404).json({ error: "Site not found" });
+        const membership = await resolveSiteRouteMembership(req, "member");
+        const siteId = readParamId(req.params.id);
+        if (!siteId) {
+            res.status(400).json({ error: "site id is required" });
             return;
         }
-        res.json(data);
-    } catch (err: any) {
-        res.status(500).json({ error: "Internal server error" });
+
+        const response: CompleteSiteWithCloseHttpResponse = await createSiteCompleteWithCloseService(
+            membership.org_id,
+        ).execute(siteId, ((req.body as Record<string, unknown> | undefined) || {}), buildHumanActor(req));
+
+        const maybeSite = response.body.site;
+        if (
+            maybeSite &&
+            typeof maybeSite === "object" &&
+            !Array.isArray(maybeSite) &&
+            typeof (maybeSite as Record<string, unknown>).id === "string"
+        ) {
+            const [enriched] = await enrichSitesWithCloseState(membership.org_id, [
+                maybeSite as Record<string, unknown>,
+            ]);
+            response.body.site = enriched;
+        }
+
+        res.status(response.statusCode).json(response.body);
+    } catch (error) {
+        handleSiteCompletionError(res, error);
+    }
+});
+
+router.post("/:id/complete", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const membership = await resolveSiteRouteMembership(req, "admin");
+        const siteId = readParamId(req.params.id);
+        if (!siteId) {
+            res.status(400).json({ error: "site id is required" });
+            return;
+        }
+
+        const result = await new SiteCompletionService(membership.org_id).completeSite({
+            siteId,
+            actorUserId: getActorUserId(req),
+            effectiveCompletedAt: normalizeOptionalTimestamp(
+                (req.body as Record<string, unknown> | undefined)?.effective_completed_at,
+                "INVALID_EFFECTIVE_COMPLETED_AT"
+            ),
+        });
+
+        const [enrichedSite] = await enrichSitesWithCloseState(membership.org_id, [
+            result.site as Record<string, unknown>,
+        ]);
+
+        res.json({
+            ...result,
+            site: enrichedSite,
+        });
+    } catch (error) {
+        handleSiteCompletionError(res, error);
+    }
+});
+
+router.post("/:id/complete/reverse", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const membership = await resolveSiteRouteMembership(req, "admin");
+        const siteId = readParamId(req.params.id);
+        if (!siteId) {
+            res.status(400).json({ error: "site id is required" });
+            return;
+        }
+
+        const body = (req.body as Record<string, unknown> | undefined) || {};
+        const result = await new SiteCompletionService(membership.org_id).reverseSiteCompletion({
+            siteId,
+            actorUserId: getActorUserId(req),
+            effectiveReversedAt: normalizeOptionalTimestamp(
+                body.effective_reversed_at,
+                "INVALID_EFFECTIVE_REVERSED_AT"
+            ),
+            reason: normalizeText(body.reason),
+        });
+
+        const [enrichedSite] = await enrichSitesWithCloseState(membership.org_id, [
+            result.site as Record<string, unknown>,
+        ]);
+
+        res.json({
+            ...result,
+            site: enrichedSite,
+        });
+    } catch (error) {
+        handleSiteCompletionError(res, error);
     }
 });
 

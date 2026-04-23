@@ -45,6 +45,11 @@ export interface MonthlyEvaluationFormInput {
   month: string;
   member_id: string;
   selected_big_skill_states: Partial<Record<BigSkillKey, BigSkillState>>;
+  work_days?: number;
+  A?: number;
+  R?: number;
+  Q?: number;
+  current_level?: PathLevel | null;
   selected_roles?: string[];
   site_ids?: string[];
   photo_flag?: boolean;
@@ -55,6 +60,11 @@ export interface MonthlyEvaluationFormInput {
 export interface MonthlyEvaluationFormRow extends MonthlyEvaluationFormInput {
   id: string;
   org_id: string;
+  work_days: number;
+  A: number;
+  R: number;
+  Q: number;
+  current_level: PathLevel | null;
   selected_roles: string[];
   site_ids: string[];
   photo_flag: boolean;
@@ -171,6 +181,14 @@ export interface MonthlyEvaluationFinalizationRow {
   finalized_at: string;
   updated_at: string;
 }
+
+const BIG_SKILL_STATE_SCORE: Record<BigSkillState, number> = {
+  unverified: 0,
+  assist_required: 1,
+  conditional: 2,
+  near_independent: 3,
+  stable_independent: 4,
+};
 
 export interface SkillCertificationProposalInput {
   member_id: string;
@@ -326,6 +344,28 @@ function normalizeOptionalPathLevel(value: unknown): PathLevel | null {
 
   assert(PATH_LEVEL_OPTIONS.includes(value as PathLevel), "INVALID_LEVEL");
   return value as PathLevel;
+}
+
+function derivePathLevelFromStates(
+  states: Partial<Record<BigSkillKey, BigSkillState>>,
+): PathLevel {
+  const scores = Object.values(states).map((value) => BIG_SKILL_STATE_SCORE[value] ?? 0);
+  const stableCount = scores.filter((value) => value >= 4).length;
+  const nearOrBetterCount = scores.filter((value) => value >= 3).length;
+  const conditionalOrBetterCount = scores.filter((value) => value >= 2).length;
+  const assistOrBetterCount = scores.filter((value) => value >= 1).length;
+
+  // Conservative promotion rule until a stricter policy bundle is codified.
+  if (stableCount >= 4 && nearOrBetterCount >= 6) {
+    return "L4";
+  }
+  if (nearOrBetterCount >= 4 && conditionalOrBetterCount >= 6) {
+    return "L3";
+  }
+  if (conditionalOrBetterCount >= 3 || assistOrBetterCount >= 5) {
+    return "L2";
+  }
+  return "L1";
 }
 
 function normalizeEvidenceCount(value: unknown): number {
@@ -512,11 +552,17 @@ export function normalizeMonthlyEvaluationFormInput(
 ): MonthlyEvaluationFormInput {
   const reworkFlag = input.rework_flag ?? "none";
   assert(REWORK_FLAG_OPTIONS.includes(reworkFlag), "INVALID_REWORK_FLAG");
+  const selectedBigSkillStates = normalizeBigSkillStates(input.selected_big_skill_states);
 
   const normalized: MonthlyEvaluationFormInput = {
     month: ensureMonth(input.month),
     member_id: ensureUuid(input.member_id, "INVALID_MEMBER_ID"),
-    selected_big_skill_states: normalizeBigSkillStates(input.selected_big_skill_states),
+    selected_big_skill_states: selectedBigSkillStates,
+    work_days: normalizeWorkDays(input.work_days),
+    A: normalizeMonthlyRating(input.A, "INVALID_A_SCORE"),
+    R: normalizeMonthlyRating(input.R, "INVALID_R_SCORE"),
+    Q: normalizeMonthlyRating(input.Q, "INVALID_Q_SCORE"),
+    current_level: derivePathLevelFromStates(selectedBigSkillStates),
     selected_roles: dedupeStrings(input.selected_roles),
     site_ids: dedupeStrings(input.site_ids),
     photo_flag: Boolean(input.photo_flag),
@@ -554,6 +600,32 @@ export function normalizeMonthlyEvaluationAiReviewInput(
 
 export class PathEvaluationService {
   constructor(private readonly orgId: string) {}
+
+  private mapMonthlyFormRow(row: Record<string, unknown>): MonthlyEvaluationFormRow {
+    return {
+      id: String(row.id ?? ""),
+      org_id: String(row.org_id ?? ""),
+      month: String(row.month ?? ""),
+      member_id: String(row.member_id ?? ""),
+      selected_big_skill_states: normalizeFallbackBigSkillStates(row.selected_big_skill_states),
+      work_days: coerceNonNegativeInteger(row.work_days, 0),
+      A: coerceMonthlyRating(row.a_score ?? row.A ?? row.a, 1),
+      R: coerceMonthlyRating(row.r_score ?? row.R ?? row.r, 1),
+      Q: coerceMonthlyRating(row.q_score ?? row.Q ?? row.q, 1),
+      current_level: PATH_LEVEL_OPTIONS.includes(row.current_level as PathLevel)
+        ? (row.current_level as PathLevel)
+        : null,
+      selected_roles: Array.isArray(row.selected_roles) ? dedupeStrings(row.selected_roles as string[]) : [],
+      site_ids: Array.isArray(row.site_ids) ? dedupeStrings(row.site_ids as string[]) : [],
+      photo_flag: Boolean(row.photo_flag),
+      rework_flag: REWORK_FLAG_OPTIONS.includes(row.rework_flag as ReworkFlag)
+        ? (row.rework_flag as ReworkFlag)
+        : "none",
+      comment: coerceTrimmedString(row.comment),
+      submitted_at: String(row.submitted_at ?? ""),
+      updated_at: String(row.updated_at ?? ""),
+    };
+  }
 
   private mapExecutedFinalizeProposalToRow(
     proposal: {
@@ -678,6 +750,11 @@ export class PathEvaluationService {
           month: normalized.month,
           member_id: normalized.member_id,
           selected_big_skill_states: normalized.selected_big_skill_states,
+          work_days: normalized.work_days,
+          a_score: normalized.A,
+          r_score: normalized.R,
+          q_score: normalized.Q,
+          current_level: normalized.current_level,
           selected_roles: normalized.selected_roles,
           site_ids: normalized.site_ids,
           photo_flag: normalized.photo_flag,
@@ -695,7 +772,7 @@ export class PathEvaluationService {
       throw new Error(`Failed to save monthly evaluation form: ${error.message}`);
     }
 
-    return data as MonthlyEvaluationFormRow;
+    return this.mapMonthlyFormRow(data as Record<string, unknown>);
   }
 
   async listMonthlyForms(params?: {
@@ -724,7 +801,7 @@ export class PathEvaluationService {
       throw new Error(`Failed to fetch monthly evaluation forms: ${error.message}`);
     }
 
-    return (data ?? []) as MonthlyEvaluationFormRow[];
+    return ((data ?? []) as Array<Record<string, unknown>>).map((row) => this.mapMonthlyFormRow(row));
   }
 
   async upsertAiReview(
