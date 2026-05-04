@@ -136,6 +136,7 @@ interface MailboxAttachment {
 
 interface StoredDocumentRecord {
   id: string;
+  org_id?: string | null;
   site_id: string | null;
   drive_file_id: string | null;
   drive_file_url: string | null;
@@ -147,6 +148,7 @@ interface StoredDocumentRecord {
 
 interface SiteLookupRecord {
   id: string;
+  org_id?: string | null;
   name: string | null;
   status: string | null;
 }
@@ -623,7 +625,7 @@ async function inferSiteIdForAttachment(
 
   const { data, error } = await supabaseAdmin
     .from("sites")
-    .select("id,name,status")
+    .select("id,org_id,name,status")
     .limit(200);
 
   if (error) {
@@ -756,15 +758,22 @@ async function applyInferredSiteToDocument(
     }
   }
 
+  const { data: inferredSite } = await supabaseAdmin
+    .from("sites")
+    .select("org_id")
+    .eq("id", inferredSiteId)
+    .maybeSingle();
+
   const { data, error } = await supabaseAdmin
     .from("documents")
     .update({
+      org_id: inferredSite?.org_id || storedDocument.org_id,
       site_id: inferredSiteId,
       drive_folder_id: nextDriveFolderId,
       updated_at: new Date().toISOString(),
     })
     .eq("id", storedDocument.id)
-    .select("id, site_id, drive_file_id, drive_file_url, drive_folder_id, mime_type, original_filename, sha256")
+    .select("id, org_id, site_id, drive_file_id, drive_file_url, drive_folder_id, mime_type, original_filename, sha256")
     .single();
 
   if (error || !data) {
@@ -831,7 +840,7 @@ async function upsertAttachmentDocument(input: {
       },
       { onConflict: "gmail_message_id,gmail_attachment_id" },
     )
-    .select("id, site_id, drive_file_id, drive_file_url, drive_folder_id, mime_type, original_filename, sha256")
+    .select("id, org_id, site_id, drive_file_id, drive_file_url, drive_folder_id, mime_type, original_filename, sha256")
     .single();
 
   if (error || !data) {

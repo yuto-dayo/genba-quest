@@ -841,6 +841,7 @@ router.post("/:id/documents", async (req: AuthenticatedRequest, res: Response) =
         const { data, error } = await supabaseAdmin
             .from("documents")
             .insert({
+                org_id: orgId,
                 doc_type: "other",
                 storage_path: storagePath,
                 original_filename,

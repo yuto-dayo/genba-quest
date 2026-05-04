@@ -170,6 +170,7 @@ function roundMoney(value: number): number {
 }
 
 type ExpenseInsertPayload = {
+    org_id: string;
     kind: "expense";
     cost_center: string;
     site_id: string | null;
@@ -786,6 +787,7 @@ router.post("/documents", async (req: AuthenticatedRequest, res: Response) => {
         const { data, error } = await supabaseAdmin
             .from("documents")
             .insert({
+                org_id: orgId,
                 doc_type,
                 storage_path: storagePath,
                 original_filename,
@@ -904,6 +906,7 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
             source_document_id,
             input_sources,
         } = req.body;
+        const orgId = req.orgId || DEFAULT_ORG_ID;
         const normalizedCategory = normalizeExpenseCategory(category);
         const normalizedTaxCategory = normalizeExpenseTaxCategory(tax_category) || "10_STANDARD";
         const normalizedExpenseItemCode = normalizeText(expense_item_code);
@@ -971,6 +974,7 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
         const requiresReview = risk_level === "HIGH";
 
         const data = await insertExpenseTransaction({
+            org_id: orgId,
             kind: "expense",
             cost_center: cost_center || "SITE",
             site_id: cost_center === "HQ" ? null : site_id,
@@ -1298,6 +1302,7 @@ router.post("/sales", async (req: AuthenticatedRequest, res: Response) => {
         const { data, error } = await supabaseAdmin
             .from("accounting_transactions")
             .insert({
+                org_id: orgId,
                 kind: "sale",
                 cost_center: "SITE",
                 site_id,
@@ -2337,6 +2342,7 @@ router.post("/void/:id", async (req: AuthenticatedRequest, res: Response) => {
         const { data: reversal, error: reversalError } = await supabaseAdmin
             .from("accounting_transactions")
             .insert({
+                org_id: voidedOriginal.org_id || orgId,
                 kind: voidedOriginal.kind,
                 cost_center: voidedOriginal.cost_center,
                 site_id: voidedOriginal.site_id,
