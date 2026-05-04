@@ -31,8 +31,8 @@ GENBA QUEST の DB SQL 棚卸し。初回 baseline は remote 現物を正本に
 | --- | ---: |
 | CANONICAL_LOCAL_MIGRATION | 8 |
 | CANONICAL_LOCAL_SEED | 1 |
-| IN_BASELINE | 88 |
-| MISSING_FROM_BASELINE | 4 |
+| IN_BASELINE | 90 |
+| MISSING_FROM_BASELINE | 2 |
 | LEGACY_ONLY | 2 |
 | DANGEROUS_LEGACY_ONLY | 0 |
 | PENDING_HISTORY_ADOPTION | 0 |
@@ -69,12 +69,31 @@ Classification and baseline status are separate decisions. For example, a `QUARA
 - RLS hardening is separate and currently represented by `20260504075200`, `20260504082000`, and `20260504083000`; do not fold later RLS changes into the baseline dump.
 - Legacy `server/sql` remains reference/quarantine material. Do not copy those files verbatim into `supabase/migrations`; rewrite only currently needed deltas as small forward migrations.
 
+## Cleanup Decision Summary
+
+This section is the cleanup-facing view. The row-by-row inventory below is raw evidence from the baseline adoption review and keeps its original classification labels for traceability.
+
+| Bucket | Files | Decision |
+| --- | ---: | --- |
+| Canonical executable SQL | 8 migrations + `supabase/seed.sql` | Use only `supabase/migrations/*.sql` and `supabase/seed.sql` for reset/push workflows. |
+| Legacy archive, baseline-covered | 90 `server/sql` entries | Do not execute. Keep temporarily as history/reference until an archive/delete pass. |
+| Needs forward migration rewrite | 2 `server/sql` files | Runtime-referenced objects are missing from current DB; rewrite safely as new Supabase migrations, never copy verbatim. |
+| Delete candidates | 12 `server/sql` files | No runtime object reference in static scan; delete/archive only after explicit cleanup approval. |
+| Quarantine dangerous | 36 `server/sql` files | Do not execute or copy; contains unsafe history such as direct Proposal/Ledger mutation, broad/deprecated RLS, cascade-heavy DDL, or stale security patterns. |
+
+Current verdict for the previously `MISSING_FROM_BASELINE` files:
+
+| File | Verdict | Evidence |
+| --- | --- | --- |
+| `server/sql/005_accounting_functions.sql` | Baseline-covered / no forward migration now | `get_jp_fiscal_year`, `rpc_next_invoice_no`, `accounting_auto_assign_reviewer`, and trigger exist in local canonical DB; missing `rpc_assign_random_reviewer` is legacy-only and not runtime-referenced outside verification scripts. |
+| `server/sql/009_gmail_watch_system.sql` | Baseline-covered with legacy function cleanup | Runtime tables/columns (`personal_schedules`, `notifications`, `system_config`, `feature_flags`, `sites.start_date/end_date`) exist; legacy `check_schedule_conflict` / `is_feature_enabled` are absent and not runtime-required. Keep quarantined as history because the file contains stale SECURITY DEFINER/RLS patterns. |
+| `server/sql/059_path_canonical_reward_writer_cutover.sql` | Needs forward migration rewrite | Runtime references exist for `reward_basis_snapshots`, `reward_basis_member_snapshots`, `reward_basis_package_snapshots`, `reward_preview_snapshots`, and `reward_run_receipts`; those tables are absent from current canonical DB. |
+| `server/sql/064_site_complete_with_close_attempts.sql` | Needs forward migration rewrite | `SiteCompleteWithCloseService` reads/writes `site_complete_with_close_attempts`; the table is absent from current canonical DB. |
+
 ## Migration Needed After Baseline
 
-These files still have object(s) not detected in the baseline by the offline inventory generator. Review each object manually and rewrite only missing/currently-needed changes into new `supabase/migrations/*.sql` files. Do not copy legacy SQL verbatim.
+These files still have runtime-needed object(s) absent from the current canonical DB. Rewrite only the missing/currently-needed changes into new `supabase/migrations/*.sql` files. Do not copy legacy SQL verbatim.
 
-- `server/sql/005_accounting_functions.sql`
-- `server/sql/009_gmail_watch_system.sql`
 - `server/sql/059_path_canonical_reward_writer_cutover.sql`
 - `server/sql/064_site_complete_with_close_attempts.sql`
 
@@ -82,7 +101,17 @@ These files still have object(s) not detected in the baseline by the offline inv
 
 No files are deleted in this migration. These are only candidates for later cleanup after manual evidence review.
 
+- `server/sql/006_audit_system.sql`
 - `server/sql/021_cleanup_unused_legacy_functions.sql`
+- `server/sql/022_add_webhook_ocr_cache_and_processing_log.sql`
+- `server/sql/066_trade_families_rls.sql`
+- `server/sql/068_proposal_executions_rls_membership.sql`
+- `server/sql/069_posting_groups_rls_membership.sql`
+- `server/sql/072_month_close_line_sources_rls_membership.sql`
+- `server/sql/074_focus_items_rls_membership.sql`
+- `server/sql/076_reward_write_controls_rls_membership.sql`
+- `server/sql/077_site_completion_events_rls_membership.sql`
+- `server/sql/078_revenue_basis_rls_membership.sql`
 - `server/sql/079_reward_write_guard_status_security_invoker.sql`
 
 ## Dangerous SQL Quarantine
@@ -136,11 +165,11 @@ Do not execute or copy these files as migrations. Review and rewrite the needed 
 | `server/sql/002_badge_system.sql` | MIGRATE_TO_SUPABASE_MIGRATIONS | table:public.badge_states, table:public.badge_applications, table:public.badge_application_votes, table:badge_states, table:badge_applications, table:badge_application_votes, policy:Read Badge States, policy:Upsert Badge States, policy:Update Badge States, policy:Read Badge Applications, policy:Insert Badge Applications, policy:Update Badge Applications, policy:Read Badge Votes, policy:Insert Badge Votes, rls:badge_states, rls:badge_applications | runtime objects: badge_states, badge_applications, badge_application_votes | IN_BASELINE | cascade | After remote baseline, rewrite needed objects as new Supabase migration; do not copy file verbatim. | Runtime-referenced object present; baseline comparison required. |
 | `server/sql/003_accounting_tables.sql` | QUARANTINE_DANGEROUS | table:public.documents, table:public.accounting_transactions, table:public.accounting_transaction_items, table:public.accounting_journal_entries, table:public.accounting_journal_lines, table:public.accounting_invoices, table:public.invoice_number_sequences, index:documents_doc_type_idx, index:documents_site_idx, index:documents_client_idx, index:documents_created_at_idx, index:accounting_transactions_kind_idx, index:accounting_transactions_recorded_date_idx, index:accounting_transactions_site_idx, index:accounting_transactions_status_idx, index:accounting_transaction_items_tx_idx | runtime objects: documents, accounting_transactions, accounting_transaction_items, accounting_journal_entries, accounting_journal_lines, accounting_invoices; file refs: `docs/tasks/2026-03-18_qualified_invoice_implementation_spec.md` | IN_BASELINE | cascade; function without fixed search_path; new public table without same-file RLS: documents; new public table without same-file RLS: accounting_transactions; new public table without same-file RLS: accounting_transaction_items; new public table without same-file RLS: accounting_journal_entries; new public table without same-file RLS: accounting_journal_lines; new public table without same-file RLS: accounting_invoices; new public table without same-file RLS: invoice_number_sequences | Quarantine for review; do not execute or copy until rewritten and approved. | Runtime-referenced object present; baseline comparison required. |
 | `server/sql/004_accounting_rls.sql` | MIGRATE_TO_SUPABASE_MIGRATIONS | table:documents, table:accounting_transactions, table:accounting_transaction_items, table:accounting_journal_entries, table:accounting_journal_lines, table:accounting_invoices, table:invoice_number_sequences, policy:Read Documents, policy:Insert Documents, policy:Update Documents, policy:Read Accounting Transactions, policy:Insert Accounting Transactions, policy:Update Accounting Transactions, policy:Read Accounting Transaction Items, policy:Insert Accounting Transaction Items, policy:Update Accounting Transaction Items | runtime objects: documents, accounting_transactions, accounting_transaction_items, accounting_journal_entries, accounting_journal_lines, accounting_invoices | IN_BASELINE | none detected | After remote baseline, rewrite needed objects as new Supabase migration; do not copy file verbatim. | Runtime-referenced object present; baseline comparison required. |
-| `server/sql/005_accounting_functions.sql` | MIGRATE_TO_SUPABASE_MIGRATIONS | function:public.get_jp_fiscal_year, function:public.rpc_next_invoice_no, function:public.accounting_auto_assign_reviewer, function:public.rpc_assign_random_reviewer, trigger:accounting_transactions_auto_assign_reviewer, seed:public.invoice_number_sequences | runtime objects: rpc_next_invoice_no | MISSING_FROM_BASELINE | none detected | After remote baseline, rewrite needed objects as new Supabase migration; do not copy file verbatim. | Runtime-referenced object present; baseline comparison required. |
+| `server/sql/005_accounting_functions.sql` | MIGRATE_TO_SUPABASE_MIGRATIONS | function:public.get_jp_fiscal_year, function:public.rpc_next_invoice_no, function:public.accounting_auto_assign_reviewer, function:public.rpc_assign_random_reviewer, trigger:accounting_transactions_auto_assign_reviewer, seed:public.invoice_number_sequences | runtime objects: rpc_next_invoice_no | IN_BASELINE | none detected | No forward migration now; keep as legacy evidence only. | Runtime-needed objects are present in canonical DB; absent `rpc_assign_random_reviewer` is legacy-only. |
 | `server/sql/006_audit_system.sql` | DELETE_CANDIDATE | table:public.accounting_audit_log, table:accounting_audit_log, index:audit_log_record_idx, index:audit_log_changed_at_idx, function:public.accounting_audit_trigger, trigger:accounting_transactions_audit, trigger:accounting_journal_entries_audit, trigger:accounting_invoices_audit, policy:Read Audit Log, rls:accounting_audit_log, seed:public.accounting_audit_log | none detected | IN_BASELINE | none detected | Do not delete now; review after baseline proves unused. | No runtime object reference found in static scan. |
 | `server/sql/007_master_data.sql` | MIGRATE_TO_SUPABASE_MIGRATIONS | table:public.tax_categories, table:public.account_master, table:tax_categories, table:account_master, table:accounting_transactions, policy:Read Tax Categories, policy:Read Account Master, rls:tax_categories, rls:account_master, seed:tax_categories, seed:account_master | runtime objects: accounting_transactions | IN_BASELINE | none detected | After remote baseline, rewrite needed objects as new Supabase migration; do not copy file verbatim. | Runtime-referenced object present; baseline comparison required. |
 | `server/sql/008_monster_system.sql` | MIGRATE_TO_SUPABASE_MIGRATIONS | table:public.monster_archetypes, table:public.monster_images, table:public.battle_log, table:public.sites, index:sites_monster_archetype_idx, index:monster_images_site_idx, index:battle_log_site_idx, index:battle_log_user_idx, index:battle_log_created_idx, policy:monster_archetypes_select, policy:monster_images_select, policy:monster_images_insert, policy:monster_images_update, policy:battle_log_select, policy:battle_log_insert, rls:public.monster_archetypes | runtime objects: monster_archetypes, monster_images, battle_log, sites | IN_BASELINE | cascade | After remote baseline, rewrite needed objects as new Supabase migration; do not copy file verbatim. | Runtime-referenced object present; baseline comparison required. |
-| `server/sql/009_gmail_watch_system.sql` | QUARANTINE_DANGEROUS | table:public.personal_schedules, table:public.notifications, table:public.system_config, table:public.feature_flags, table:personal_schedules, table:notifications, table:system_config, table:feature_flags, table:sites, index:personal_schedules_user_date_idx, index:notifications_user_read_idx, index:sites_date_range_idx, function:check_schedule_conflict, function:is_feature_enabled, policy:Read Own Schedules, policy:Insert Own Schedules | runtime objects: personal_schedules, notifications, system_config, feature_flags, sites | MISSING_FROM_BASELINE | cascade; security definer without fixed search_path; function without fixed search_path | Quarantine for review; do not execute or copy until rewritten and approved. | Runtime-referenced object present; baseline comparison required. |
+| `server/sql/009_gmail_watch_system.sql` | QUARANTINE_DANGEROUS | table:public.personal_schedules, table:public.notifications, table:public.system_config, table:public.feature_flags, table:personal_schedules, table:notifications, table:system_config, table:feature_flags, table:sites, index:personal_schedules_user_date_idx, index:notifications_user_read_idx, index:sites_date_range_idx, function:check_schedule_conflict, function:is_feature_enabled, policy:Read Own Schedules, policy:Insert Own Schedules | runtime objects: personal_schedules, notifications, system_config, feature_flags, sites | IN_BASELINE | cascade; security definer without fixed search_path; function without fixed search_path | Keep quarantined as legacy evidence; do not execute or copy. | Runtime-needed tables/columns are present in canonical DB; absent helper functions are legacy-only. |
 | `server/sql/010_ai_proposals.sql` | DEPRECATE_DOC_ONLY | table:public.ai_proposals, table:ai_proposals, index:ai_proposals_type_status_idx, index:ai_proposals_expires_idx, trigger:ai_proposals_set_updated_at, policy:Read AI Proposals, policy:Admins Manage AI Proposals, rls:ai_proposals | file refs: `docs/EXECUTION_PLAN.md` | IN_BASELINE | none detected | Keep doc evidence only; update docs away from execution instructions. | No runtime object reference found in static scan. |
 | `server/sql/011_proposals.sql` | QUARANTINE_DANGEROUS | table:public.proposals, table:public.ledger_events, table:public.ledger_transactions, table:public.ledger_entries, table:proposals, table:ledger_events, table:ledger_transactions, table:ledger_entries, index:proposals_org_status_idx, index:proposals_type_status_idx, index:proposals_created_by_idx, index:ledger_events_org_type_idx, index:ledger_events_proposal_idx, index:ledger_transactions_event_idx, index:ledger_transactions_date_idx, index:ledger_entries_transaction_idx | runtime objects: proposals, ledger_events, ledger_transactions, ledger_entries; file refs: `docs/EXECUTION_PLAN.md` | IN_BASELINE | cascade; function without fixed search_path; direct mutation of proposal/ledger/closed-period data | Quarantine for review; do not execute or copy until rewritten and approved. | Runtime-referenced object present; baseline comparison required. |
 | `server/sql/012_policies.sql` | QUARANTINE_DANGEROUS | table:public.policies, table:policies, index:policies_org_type_idx, index:policies_active_idx, trigger:policies_set_updated_at, policy:Read Policies, policy:Manage Policies, rls:policies, seed:policies | runtime objects: policies; file refs: `docs/EXECUTION_PLAN.md` | IN_BASELINE | delete from | Quarantine for review; do not execute or copy until rewritten and approved. | Runtime-referenced object present; baseline comparison required. |

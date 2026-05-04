@@ -1,52 +1,31 @@
-# GENBA QUEST - データベーススキーマ
+# Legacy SQL Archive
 
-## ファイル構成
+`server/sql` is no longer the executable migration path.
 
-| ファイル | 内容 | 行数目安 |
-|---------|------|---------|
-| `001_core_tables.sql` | コアテーブル（clients, sites, profiles）+ RLS | ~85 |
-| `002_badge_system.sql` | バッジシステム + RLS | ~65 |
-| `003_accounting_tables.sql` | 経理テーブル + トリガー | ~200 |
-| `004_accounting_rls.sql` | 経理RLSポリシー | ~110 |
-| `005_accounting_functions.sql` | 請求書採番・承認者割当関数 | ~165 |
-| `006_audit_system.sql` | 監査ログ + トリガー | ~90 |
-| `007_master_data.sql` | 税区分・勘定科目マスタ + 初期データ | ~90 |
+Canonical DB history now lives in:
 
-## 実行順序
+- `supabase/migrations/*.sql`
+- `supabase/seed.sql`
 
-**必ず番号順に実行してください。** 依存関係があります。
+Do not run files in this directory against local, staging, or production databases. These files are retained only as historical reference while the legacy archive is being cleaned up.
 
-```bash
-# Supabase SQL Editor または psql で実行
-psql -d your_database -f 001_core_tables.sql
-psql -d your_database -f 002_badge_system.sql
-psql -d your_database -f 003_accounting_tables.sql
-psql -d your_database -f 004_accounting_rls.sql
-psql -d your_database -f 005_accounting_functions.sql
-psql -d your_database -f 006_audit_system.sql
-psql -d your_database -f 007_master_data.sql
-```
+## Cleanup Buckets
 
-## 依存関係
+Use `docs/SQL_INVENTORY.md` as the current decision record.
 
-```
-001_core_tables
-    ↓
-002_badge_system (auth.users 参照)
-    ↓
-003_accounting_tables (sites, clients, auth.users 参照)
-    ↓
-004_accounting_rls (003 のテーブル参照)
-    ↓
-005_accounting_functions (profiles, accounting_transactions 参照)
-    ↓
-006_audit_system (accounting_* テーブル参照)
-    ↓
-007_master_data (accounting_transactions への FK 追加)
-```
+| Bucket | Meaning |
+| --- | --- |
+| `IN_BASELINE` | Required behavior is already represented in canonical Supabase migrations. Do not re-run this file. |
+| `MISSING_FROM_BASELINE` | Runtime-needed behavior is absent and must be rewritten as a new forward migration. Do not copy the legacy file verbatim. |
+| `DELETE_CANDIDATE` | No runtime reference was found; eligible for archive/delete after explicit approval. |
+| `QUARANTINE_DANGEROUS` | Contains unsafe legacy patterns such as stale RLS, direct Proposal/Ledger mutation, broad DDL, or cascade-heavy changes. Do not execute. |
+| `LEGACY_ONLY` | Historical evidence only. |
 
-## 注意事項
+## Current Rewrite Candidates
 
-- すべてのファイルは冪等性を持つ設計（`IF NOT EXISTS`、`DROP ... IF EXISTS`）
-- Supabase 環境では `auth.users` が事前に存在する前提
-- 本番環境への適用前にステージング環境でテスト推奨
+As of 2026-05-04, only these legacy files are known to contain runtime-needed objects missing from the canonical DB:
+
+- `server/sql/059_path_canonical_reward_writer_cutover.sql`
+- `server/sql/064_site_complete_with_close_attempts.sql`
+
+Any required behavior from those files must be implemented as small new files under `supabase/migrations`, using current RLS helpers such as `private.is_active_member(org_id)`.
