@@ -17,6 +17,7 @@ Canonical local migrations:
 4. `supabase/migrations/20260504070358_fix_security_definer_search_path_after_baseline_adoption.sql`
 5. `supabase/migrations/20260504071238_harden_remaining_security_definer_search_path.sql`
 6. `supabase/migrations/20260504075200_harden_proposal_ledger_accounting_rls.sql`
+7. `supabase/migrations/20260504082000_harden_org_scoped_broad_rls.sql`
 
 Remote adoption state:
 
@@ -24,7 +25,7 @@ Remote adoption state:
 | --- | --- | --- |
 | Baseline history adoption | Complete | `supabase migration repair 20260501130150 --status applied --linked` passed during adoption session |
 | Follow-up migrations through search-path hardening | Complete | `20260504000000`, `20260504054000`, `20260504070358`, `20260504071238` pushed during adoption session |
-| RLS hardening migration `20260504075200` | Local only | `supabase db reset` and local lint passed; remote push not attempted in this session |
+| RLS hardening migrations `20260504075200` / `20260504082000` | Local only | `supabase db reset` and local lint passed; remote push not attempted in this session |
 | Final linked verification | Partial | `supabase migration list` passed after relinking; linked lint failed because this shell has no valid `SUPABASE_DB_PASSWORD` and Supabase pooler entered temporary auth circuit breaker |
 
 ## Verification Log
@@ -65,12 +66,23 @@ Historical baseline adoption verification:
 | target broad policy query | PASS | Proposal / Ledger / Accounting priority tables have 0 `qual = true` / `with_check = true` policies |
 | targeted server tests | PASS | `webhooksRoute`, `accountingRoute`, `sitesRoute`: 53/53 |
 
+2026-05-04 org-scoped RLS follow-up verification:
+
+| Check | Result | Notes |
+| --- | --- | --- |
+| migration guard | PASS | `check-migration-guards.sh supabase/migrations/20260504082000_harden_org_scoped_broad_rls.sql` |
+| `supabase db reset` | PASS | all 7 local migrations applied |
+| `supabase db lint --local --schema public,private --fail-on error` | PASS | no schema errors |
+| broad policy count | PASS | remaining broad policies reduced from 125 to 25 |
+| target org-scoped broad query | PASS | 38 direct `org_id` tables hardened; target set has 0 broad policies |
+| targeted server tests | PASS | Path / LUQO / Sites tests: 51/51 |
+
 ## Findings
 
 | ID | Status | Finding | Resolution / next action |
 | --- | --- | --- | --- |
 | `DB-BL-001` | Resolved | Baseline had `SECURITY DEFINER` functions without fixed `search_path`. | Resolved by `20260504070358` and `20260504071238`; do not edit the baseline dump. |
-| `DB-BL-002` | Partially resolved | Baseline had broad `USING (true)` / `WITH CHECK (true)` policies. | Proposal / Ledger / Accounting priority policies hardened by `20260504075200`; remaining broad policies are follow-up work. |
+| `DB-BL-002` | Partially resolved | Baseline had broad `USING (true)` / `WITH CHECK (true)` policies. | Proposal / Ledger / Accounting priority policies hardened by `20260504075200`; direct `org_id` Path / LUQO / Site / evaluation tables hardened by `20260504082000`; 25 broad policies remain. |
 | `DB-BL-003` | Tracked risk | Existing RPCs contain proposal/ledger direct mutation as part of current remote behavior. | Treat as current canonical behavior; future changes must use safe forward migrations and preserve Proposal/Ledger invariants. |
 | `DB-BL-004` | Resolved | Initial local lint failed on plpgsql warnings. | Resolved by `20260504000000_fix_baseline_function_lint.sql`. |
 | `DB-BL-005` | Resolved | Remote migration history was empty while local baseline files existed. | Resolved by repair + follow-up pushes through `20260504071238`. |
@@ -89,8 +101,8 @@ Run the linked lint again only from a shell with the correct `SUPABASE_DB_PASSWO
 
 P1 RLS hardening follow-up:
 
-- Continue replacing remaining broad policies outside Proposal / Ledger / Accounting.
-- Prioritize org-scoped direct tables, then parent-derived child tables, then shared master/reference tables.
+- Continue replacing the remaining 25 broad policies outside Proposal / Ledger / Accounting and direct `org_id` tables.
+- Prioritize Badge / Perk / Profiles ownership checks, then parent-derived AI / monster / battle artifacts, then document intentionally shared master/reference reads.
 - Keep write policies server/RPC-only unless a browser-direct Supabase path is explicitly required.
 
 P2 documentation cleanup:
