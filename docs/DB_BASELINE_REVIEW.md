@@ -25,7 +25,7 @@ Remote adoption state:
 | Baseline history adoption | Complete | `supabase migration repair 20260501130150 --status applied --linked` passed during adoption session |
 | Follow-up migrations through search-path hardening | Complete | `20260504000000`, `20260504054000`, `20260504070358`, `20260504071238` pushed during adoption session |
 | RLS hardening migration `20260504075200` | Local only | `supabase db reset` and local lint passed; remote push not attempted in this session |
-| Final linked verification | Blocked in current Codex shell | `SUPABASE_DB_PASSWORD` unset and ignored link state under `supabase/.temp/` unavailable |
+| Final linked verification | Partial | `supabase migration list` passed after relinking; linked lint failed because this shell has no valid `SUPABASE_DB_PASSWORD` and Supabase pooler entered temporary auth circuit breaker |
 
 ## Verification Log
 
@@ -47,6 +47,14 @@ Historical baseline adoption verification:
 | `find supabase/migrations -maxdepth 1 -type f -name '*.sql'` | PASS | 6 local migrations after RLS hardening |
 | `supabase migration list` | BLOCKED | current shell has no project link state |
 | `supabase db lint --linked --schema public,private --fail-on error` | BLOCKED | current shell has no project link state and no inherited `SUPABASE_DB_PASSWORD` |
+
+2026-05-04 linked verification retry:
+
+| Check | Result | Notes |
+| --- | --- | --- |
+| `supabase link --project-ref ggnxplgngmcelkdqhgfx` | PASS | link state restored from repo root |
+| `supabase migration list` | PASS | remote contains adoption versions through `20260504071238`; local `20260504075200` has no remote version |
+| `supabase db lint --linked --schema public,private --fail-on error` | FAIL | `SUPABASE_DB_PASSWORD` was unset in this shell; temp role authentication failed and pooler returned `ECIRCUITBREAKER` after repeated failures |
 
 2026-05-04 RLS hardening verification:
 
@@ -77,7 +85,7 @@ SUPABASE_DB_PASSWORD=... supabase migration list
 SUPABASE_DB_PASSWORD=... supabase db lint --linked --schema public,private --fail-on error
 ```
 
-Record exact results here after running from a linked, password-backed shell. Do not paste the password into docs, shell history, or chat.
+Run the linked lint again only from a shell with the correct `SUPABASE_DB_PASSWORD`, and wait for the Supabase pooler auth circuit breaker to clear before retrying. Do not paste the password into docs, shell history, or chat.
 
 P1 RLS hardening follow-up:
 
