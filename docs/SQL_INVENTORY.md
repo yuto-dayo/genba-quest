@@ -9,23 +9,25 @@ GENBA QUEST の DB SQL 棚卸し。初回 baseline は remote 現物を正本に
 ## Snapshot
 
 - Supabase config: `supabase/config.toml` exists; project_id is `genba-quest`; DB major version is 17.
-- Supabase migrations: 5 SQL files:
+- Supabase migrations: 6 SQL files:
   - `supabase/migrations/20260501130150_remote_baseline_20260430.sql`
   - `supabase/migrations/20260504000000_fix_baseline_function_lint.sql`
   - `supabase/migrations/20260504054000_add_reward_runs_canonical_output_columns.sql`
   - `supabase/migrations/20260504070358_fix_security_definer_search_path_after_baseline_adoption.sql`
   - `supabase/migrations/20260504071238_harden_remaining_security_definer_search_path.sql`
+  - `supabase/migrations/20260504075200_harden_proposal_ledger_accounting_rls.sql`
 - Supabase seed: `supabase/seed.sql` exists and is canonical seed entrypoint.
-- Legacy SQL archive: 94 SQL files under `server/sql`.
-- Remote baseline: pulled from project `ggnxplgngmcelkdqhgfx` via pooler connection. `supabase_migrations.schema_migrations` now contains all 5 local versions.
+- Legacy SQL archive: 82 tracked entries under `server/sql`.
+- Remote baseline: pulled from project `ggnxplgngmcelkdqhgfx` via pooler connection. `supabase_migrations.schema_migrations` contains the 5 baseline-adoption versions through `20260504071238`; `20260504075200` is local RLS hardening and is not yet recorded as pushed remotely from this workspace.
 - 2026-05-04 adoption execution repaired baseline history for `20260501130150`, then pushed `20260504000000`, `20260504054000`, `20260504070358`, and `20260504071238`.
+- 2026-05-04 RLS hardening added `20260504075200`; local `supabase db reset` and `supabase db lint --local --schema public,private --fail-on error` pass.
 - Runtime DB references: 102 unique Supabase table/RPC names extracted from `server/src` and `frontend/src`.
 
 ## Baseline Status Counts
 
 | Baseline status | Count |
 | --- | ---: |
-| CANONICAL_LOCAL_MIGRATION | 5 |
+| CANONICAL_LOCAL_MIGRATION | 6 |
 | CANONICAL_LOCAL_SEED | 1 |
 | IN_BASELINE | 88 |
 | MISSING_FROM_BASELINE | 4 |
@@ -33,7 +35,7 @@ GENBA QUEST の DB SQL 棚卸し。初回 baseline は remote 現物を正本に
 | DANGEROUS_LEGACY_ONLY | 0 |
 | PENDING_HISTORY_ADOPTION | 0 |
 
-`PENDING_HISTORY_ADOPTION` is now 0. Remote `supabase_migrations.schema_migrations` contains all 5 local versions as of 2026-05-04.
+`PENDING_HISTORY_ADOPTION` is now 0 for baseline adoption. Remote `supabase_migrations.schema_migrations` contains the 5 adoption versions as of 2026-05-04; the sixth local migration is the RLS hardening follow-up and needs a password-backed linked push/check.
 
 ## Classification Counts
 
@@ -48,35 +50,22 @@ GENBA QUEST の DB SQL 棚卸し。初回 baseline は remote 現物を正本に
 
 ## Baseline Status Definitions
 
-Current placeholder:
-
-- `UNKNOWN_REMOTE_NOT_LINKED`: Historical/pre-baseline status. No inventory row should keep this status after the 2026-05-01 baseline comparison.
-
-Statuses to use after remote baseline is pulled:
+These statuses describe whether legacy `server/sql` content is already covered by the canonical remote-derived baseline or needs safe forward work. `UNKNOWN_REMOTE_NOT_LINKED` is historical only and should not appear in active inventory rows after the 2026-05-04 adoption.
 
 - `IN_BASELINE`: Every relevant object or behavior from the legacy file already exists in the pulled remote baseline. Do not create a migration for the already-present baseline content.
 - `MISSING_FROM_BASELINE`: The file contains runtime-needed object(s) or behavior not present in the pulled remote baseline. Rewrite only the missing/currently-needed delta into a new Supabase migration.
 - `LEGACY_ONLY`: The file describes old local history, doc evidence, or unused objects that are absent from the baseline and not referenced by runtime code. Keep as reference until cleanup is approved; do not migrate.
 - `DANGEROUS_LEGACY_ONLY`: The file is absent from baseline and not currently needed, and also contains destructive or unsafe patterns such as `drop`, `truncate`, broad `delete from`, unsafe `security definer`, user-metadata RLS, cascade-heavy rewrites, or direct proposal/ledger/closed-period mutation. Keep quarantined; do not copy or execute.
 - `OUT_OF_SCOPE_MANAGED_SCHEMA`: The object belongs to a managed schema or extension-owned surface that should not be adopted into application migrations, even if visible in a database dump.
-- `PENDING_HISTORY_ADOPTION`: A needed object exists in remote but migration history has not yet been normalized locally. Use only while deciding whether to adopt it into a baseline migration, mark it as baseline-owned, or leave it as remote-managed history.
+- `PENDING_HISTORY_ADOPTION`: A needed object exists in remote but migration history has not yet been normalized locally. This should remain 0 for baseline adoption.
 
 Classification and baseline status are separate decisions. For example, a `QUARANTINE_DANGEROUS` file can later become `IN_BASELINE` if the remote already contains the required behavior, or `MISSING_FROM_BASELINE` if a safe rewrite is still needed. The classification records local file risk; the baseline status records remote comparison outcome.
 
-## Baseline Adoption TODO
+## Current DB Work Boundaries
 
-After a permitted baseline pull is completed in a linked environment, replace every `UNKNOWN_REMOTE_NOT_LINKED` entry by following this checklist:
-
-- [ ] Record the exact baseline source in this document: project ref, schemas pulled, command used, timestamp, and generated baseline migration filename or dump artifact.
-- [ ] Compare each inventory row object-by-object against the pulled baseline: tables, columns, constraints, indexes, policies, triggers, functions, views, seeds, and schema ownership.
-- [ ] Mark rows whose needed objects are already present as `IN_BASELINE`; keep their existing classification and set action to no migration unless a later delta is required.
-- [ ] Mark runtime-needed gaps as `MISSING_FROM_BASELINE`; create follow-up work to rewrite only the missing delta into new Supabase migrations.
-- [ ] Mark obsolete non-runtime files as `LEGACY_ONLY`, unless their risk profile requires `DANGEROUS_LEGACY_ONLY`.
-- [ ] Mark unsafe obsolete files as `DANGEROUS_LEGACY_ONLY` and keep them in quarantine; do not execute, copy, or repair them directly.
-- [ ] Mark extension-owned, auth/storage/realtime-managed, or otherwise non-application objects as `OUT_OF_SCOPE_MANAGED_SCHEMA`.
-- [ ] Use `PENDING_HISTORY_ADOPTION` only for rows where remote contains needed objects but local migration-history ownership is still undecided.
-- [ ] Recalculate the status counts and add a short note describing any rows whose action changed from migrate/quarantine/delete-candidate to baseline-owned.
-- [ ] Leave this document explicit if baseline pull is still blocked; do not remove `UNKNOWN_REMOTE_NOT_LINKED` until comparison evidence exists.
+- Baseline adoption is complete through `20260504071238`.
+- RLS hardening is separate and currently represented by `20260504075200`; do not fold later RLS changes into the baseline dump.
+- Legacy `server/sql` remains reference/quarantine material. Do not copy those files verbatim into `supabase/migrations`; rewrite only currently needed deltas as small forward migrations.
 
 ## Migration Needed After Baseline
 
@@ -235,21 +224,23 @@ Do not execute or copy these files as migrations. Review and rewrite the needed 
 | `server/sql/091_path_v31_reward_confirmation_os.sql` | QUARANTINE_DANGEROUS | table:public.reward_confirmations, table:public.member_business_profiles, table:public.monthly_distribution_closes, table:public.monthly_distribution_lines, table:public.reward_runs, table:public.finance_payout_postings, index:monthly_distribution_closes_status_idx, index:monthly_distribution_closes_snapshot_hash_idx, index:reward_confirmations_org_close_idx, index:reward_confirmations_org_member_idx, index:reward_runs_monthly_distribution_close_once, index:reward_run_lines_run_recipient_once, index:finance_payout_postings_canonical_reward_run_idx, index:finance_payout_postings_posting_group_idx, index:finance_payout_postings_v31_canonical_member_once, index:posting_groups_v31_reward_run_payout_once | runtime objects: reward_confirmations, monthly_distribution_closes, monthly_distribution_lines, reward_runs, finance_payout_postings | IN_BASELINE | cascade; direct mutation of proposal/ledger/closed-period data | Quarantine for review; do not execute or copy until rewritten and approved. | Runtime-referenced object present; baseline comparison required. |
 | `server/sql/092_path_v31_monthly_distribution_corrections.sql` | MIGRATE_TO_SUPABASE_MIGRATIONS | table:public.monthly_distribution_corrections, index:monthly_distribution_corrections_org_month_idx, index:monthly_distribution_corrections_org_member_idx, index:monthly_distribution_corrections_seed_idempotency_idx, trigger:monthly_distribution_corrections_set_updated_at, policy:Read monthly_distribution_corrections, policy:Manage monthly_distribution_corrections, rls:public.monthly_distribution_corrections | runtime objects: monthly_distribution_corrections | IN_BASELINE | cascade | After remote baseline, rewrite needed objects as new Supabase migration; do not copy file verbatim. | Runtime-referenced object present; baseline comparison required. |
 
-## Commands Executed For This Inventory
+## Historical Commands Executed For Initial Inventory
+
+The comments below describe the initial 2026-05-01 inventory session state before the 2026-05-04 baseline adoption repair and follow-up pushes. Use the Snapshot and Baseline Status Counts sections above for the current state.
 
 ```bash
 find supabase -maxdepth 3 -type f -print
 supabase link --project-ref ggnxplgngmcelkdqhgfx # succeeded from repo root
-supabase migration list # succeeded; remote migration history empty
+supabase migration list # succeeded; remote migration history was empty before 2026-05-04 repair
 supabase db pull remote_baseline_20260430 --schema public,private # failed: direct DB host DNS has no answer
-supabase db pull remote_baseline_20260430 --schema public,private --db-url '<pooler-url-without-password>' # failed: password authentication required
-supabase db pull remote_baseline_20260430 --schema public,private --db-url '<pooler-url-with-encoded-password>' # succeeded; answered n to remote history update prompt
+supabase db pull remote_baseline_20260430 --schema public,private --db-url "[pooler URL without password]" # failed: password authentication required
+supabase db pull remote_baseline_20260430 --schema public,private --db-url "[pooler URL with encoded password]" # succeeded; answered n to remote history update prompt
 npm run db:reset # succeeded after removing managed realtime/storage trigger fragments from baseline
 npm run db:lint # initially failed on existing plpgsql warnings
 npm run db:reset # succeeded after 20260504000000_fix_baseline_function_lint.sql
 npm run db:lint # succeeded after 20260504000000_fix_baseline_function_lint.sql
 npm run db:types # succeeded
-npm run db:push:remote:dry # succeeded; baseline and lint-fix migrations are pending
+npm run db:push:remote:dry # succeeded during initial inventory; later adoption session pushed through 20260504071238
 find server/sql -type f -name '*.sql' | wc -l
 find supabase/migrations -type f -name '*.sql' | wc -l
 rg -o "\.(from|rpc)\([\"'][A-Za-z0-9_]+[\"']" server/src frontend/src
