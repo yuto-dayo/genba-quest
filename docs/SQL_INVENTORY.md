@@ -20,7 +20,7 @@ GENBA QUEST の DB SQL 棚卸し。初回 baseline は remote 現物を正本に
   - `supabase/migrations/20260504083000_harden_remaining_broad_rls.sql`
 - Supabase seed: `supabase/seed.sql` exists and is canonical seed entrypoint.
 - Legacy SQL archive: 82 tracked entries under `server/sql`.
-- Remote baseline: pulled from project `ggnxplgngmcelkdqhgfx` via pooler connection. `supabase_migrations.schema_migrations` contains the 5 baseline-adoption versions through `20260504071238`; `20260504075200`, `20260504082000`, and `20260504083000` are local RLS hardening migrations and are not yet recorded as pushed remotely from this workspace.
+- Remote baseline: pulled from project `ggnxplgngmcelkdqhgfx` via pooler connection. `supabase_migrations.schema_migrations` contains all 8 canonical local versions through `20260504083000`.
 - 2026-05-04 adoption execution repaired baseline history for `20260501130150`, then pushed `20260504000000`, `20260504054000`, `20260504070358`, and `20260504071238`.
 - 2026-05-04 RLS hardening added `20260504075200`, `20260504082000`, and `20260504083000`; local `supabase db reset` and `supabase db lint --local --schema public,private --fail-on error` pass. Local broad `USING (true)` / `WITH CHECK (true)` policy count is 0.
 - Runtime DB references: 102 unique Supabase table/RPC names extracted from `server/src` and `frontend/src`.
@@ -37,7 +37,7 @@ GENBA QUEST の DB SQL 棚卸し。初回 baseline は remote 現物を正本に
 | DANGEROUS_LEGACY_ONLY | 0 |
 | PENDING_HISTORY_ADOPTION | 0 |
 
-`PENDING_HISTORY_ADOPTION` is now 0 for baseline adoption. Remote `supabase_migrations.schema_migrations` contains the 5 adoption versions as of 2026-05-04; the sixth through eighth local migrations are RLS hardening follow-ups and need a password-backed linked push/check.
+`PENDING_HISTORY_ADOPTION` is now 0. Remote `supabase_migrations.schema_migrations` contains all 8 canonical local versions as of 2026-05-04.
 
 ## Classification Counts
 

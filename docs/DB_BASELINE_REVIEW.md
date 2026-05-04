@@ -3,7 +3,7 @@
 Date: 2026-05-04
 Owner: DB expert reviewer
 Target project ref: `ggnxplgngmcelkdqhgfx`
-Current status: baseline adoption complete; RLS hardening in progress
+Current status: baseline adoption complete; RLS hardening pushed remotely
 
 ## Current State
 
@@ -26,8 +26,8 @@ Remote adoption state:
 | --- | --- | --- |
 | Baseline history adoption | Complete | `supabase migration repair 20260501130150 --status applied --linked` passed during adoption session |
 | Follow-up migrations through search-path hardening | Complete | `20260504000000`, `20260504054000`, `20260504070358`, `20260504071238` pushed during adoption session |
-| RLS hardening migrations `20260504075200` / `20260504082000` / `20260504083000` | Local only | `supabase db reset` and local lint passed; remote push not attempted in this session |
-| Final linked verification | Partial | `supabase migration list` passed after relinking; linked lint failed because this shell has no valid `SUPABASE_DB_PASSWORD` and Supabase pooler entered temporary auth circuit breaker |
+| RLS hardening migrations `20260504075200` / `20260504082000` / `20260504083000` | Complete | `supabase db push` applied all 3 migrations remotely on 2026-05-04 |
+| Final linked verification | Partial | remote query probes pass; exact `supabase migration list` and `supabase db lint --linked` commands still require a valid `SUPABASE_DB_PASSWORD` in this shell |
 
 ## Verification Log
 
@@ -88,6 +88,18 @@ Historical baseline adoption verification:
 | broad policy count | PASS | remaining broad policies reduced from 25 to 0 |
 | targeted server tests | PASS | Principles / Org / PolicyEngine / Communications Contacts tests: 50/50 |
 
+2026-05-04 remote RLS push verification:
+
+| Check | Result | Notes |
+| --- | --- | --- |
+| `supabase db push --dry-run` | PASS | pending migrations were exactly `20260504075200`, `20260504082000`, `20260504083000` |
+| `supabase db push` | PASS | applied the 3 local-only RLS hardening migrations remotely |
+| remote migration-history query | PASS | `supabase_migrations.schema_migrations` contains all 8 canonical local versions through `20260504083000` |
+| remote broad policy query | PASS | `pg_policies` returned 0 rows with `qual = true` or `with_check = true` |
+| remote SECURITY DEFINER probe | PASS | insecure public/private SECURITY DEFINER count is 0 |
+| `supabase migration list` | FAIL | exact command now requires `SUPABASE_DB_PASSWORD`; remote history was verified by direct linked SQL query |
+| `supabase db lint --linked --schema public,private --fail-on error` | FAIL | exact command requires `SUPABASE_DB_PASSWORD`; local lint and targeted remote probes pass |
+
 ## Findings
 
 | ID | Status | Finding | Resolution / next action |
@@ -108,12 +120,12 @@ SUPABASE_DB_PASSWORD=... supabase migration list
 SUPABASE_DB_PASSWORD=... supabase db lint --linked --schema public,private --fail-on error
 ```
 
-Run the linked lint again only from a shell with the correct `SUPABASE_DB_PASSWORD`, and wait for the Supabase pooler auth circuit breaker to clear before retrying. Do not paste the password into docs, shell history, or chat.
+Remote migration history and targeted RLS/security probes are complete. If the exact Supabase lint command is required for audit, run it from a shell with the correct `SUPABASE_DB_PASSWORD`. Do not paste the password into docs, shell history, or chat.
 
 P1 RLS hardening follow-up:
 
 - Local broad `USING (true)` / `WITH CHECK (true)` cleanup is complete.
-- Remote still needs password-backed linked lint and an explicit push decision for local-only RLS migrations.
+- Remote push is complete; exact linked lint still needs a password-backed shell if audit requires that specific CLI command.
 - Keep future write policies server/RPC-only unless a browser-direct Supabase path is explicitly required.
 
 P2 documentation cleanup:
