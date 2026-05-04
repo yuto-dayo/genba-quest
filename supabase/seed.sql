@@ -1,0 +1,3 @@
+-- Local Supabase seed entrypoint.
+-- Keep this file safe to re-run. Add local-only seed data here or split larger seeds into
+-- separate files and include them from the documented workflow.
