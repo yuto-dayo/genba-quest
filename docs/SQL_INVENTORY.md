@@ -9,7 +9,7 @@ GENBA QUEST の DB SQL 棚卸し。初回 baseline は remote 現物を正本に
 ## Snapshot
 
 - Supabase config: `supabase/config.toml` exists; project_id is `genba-quest`; DB major version is 17.
-- Supabase migrations: 7 SQL files:
+- Supabase migrations: 8 SQL files:
   - `supabase/migrations/20260501130150_remote_baseline_20260430.sql`
   - `supabase/migrations/20260504000000_fix_baseline_function_lint.sql`
   - `supabase/migrations/20260504054000_add_reward_runs_canonical_output_columns.sql`
@@ -17,18 +17,19 @@ GENBA QUEST の DB SQL 棚卸し。初回 baseline は remote 現物を正本に
   - `supabase/migrations/20260504071238_harden_remaining_security_definer_search_path.sql`
   - `supabase/migrations/20260504075200_harden_proposal_ledger_accounting_rls.sql`
   - `supabase/migrations/20260504082000_harden_org_scoped_broad_rls.sql`
+  - `supabase/migrations/20260504083000_harden_remaining_broad_rls.sql`
 - Supabase seed: `supabase/seed.sql` exists and is canonical seed entrypoint.
 - Legacy SQL archive: 82 tracked entries under `server/sql`.
-- Remote baseline: pulled from project `ggnxplgngmcelkdqhgfx` via pooler connection. `supabase_migrations.schema_migrations` contains the 5 baseline-adoption versions through `20260504071238`; `20260504075200` and `20260504082000` are local RLS hardening migrations and are not yet recorded as pushed remotely from this workspace.
+- Remote baseline: pulled from project `ggnxplgngmcelkdqhgfx` via pooler connection. `supabase_migrations.schema_migrations` contains the 5 baseline-adoption versions through `20260504071238`; `20260504075200`, `20260504082000`, and `20260504083000` are local RLS hardening migrations and are not yet recorded as pushed remotely from this workspace.
 - 2026-05-04 adoption execution repaired baseline history for `20260501130150`, then pushed `20260504000000`, `20260504054000`, `20260504070358`, and `20260504071238`.
-- 2026-05-04 RLS hardening added `20260504075200` and `20260504082000`; local `supabase db reset` and `supabase db lint --local --schema public,private --fail-on error` pass.
+- 2026-05-04 RLS hardening added `20260504075200`, `20260504082000`, and `20260504083000`; local `supabase db reset` and `supabase db lint --local --schema public,private --fail-on error` pass. Local broad `USING (true)` / `WITH CHECK (true)` policy count is 0.
 - Runtime DB references: 102 unique Supabase table/RPC names extracted from `server/src` and `frontend/src`.
 
 ## Baseline Status Counts
 
 | Baseline status | Count |
 | --- | ---: |
-| CANONICAL_LOCAL_MIGRATION | 7 |
+| CANONICAL_LOCAL_MIGRATION | 8 |
 | CANONICAL_LOCAL_SEED | 1 |
 | IN_BASELINE | 88 |
 | MISSING_FROM_BASELINE | 4 |
@@ -36,7 +37,7 @@ GENBA QUEST の DB SQL 棚卸し。初回 baseline は remote 現物を正本に
 | DANGEROUS_LEGACY_ONLY | 0 |
 | PENDING_HISTORY_ADOPTION | 0 |
 
-`PENDING_HISTORY_ADOPTION` is now 0 for baseline adoption. Remote `supabase_migrations.schema_migrations` contains the 5 adoption versions as of 2026-05-04; the sixth and seventh local migrations are RLS hardening follow-ups and need a password-backed linked push/check.
+`PENDING_HISTORY_ADOPTION` is now 0 for baseline adoption. Remote `supabase_migrations.schema_migrations` contains the 5 adoption versions as of 2026-05-04; the sixth through eighth local migrations are RLS hardening follow-ups and need a password-backed linked push/check.
 
 ## Classification Counts
 
@@ -65,7 +66,7 @@ Classification and baseline status are separate decisions. For example, a `QUARA
 ## Current DB Work Boundaries
 
 - Baseline adoption is complete through `20260504071238`.
-- RLS hardening is separate and currently represented by `20260504075200` and `20260504082000`; do not fold later RLS changes into the baseline dump.
+- RLS hardening is separate and currently represented by `20260504075200`, `20260504082000`, and `20260504083000`; do not fold later RLS changes into the baseline dump.
 - Legacy `server/sql` remains reference/quarantine material. Do not copy those files verbatim into `supabase/migrations`; rewrite only currently needed deltas as small forward migrations.
 
 ## Migration Needed After Baseline

@@ -18,6 +18,7 @@ Canonical local migrations:
 5. `supabase/migrations/20260504071238_harden_remaining_security_definer_search_path.sql`
 6. `supabase/migrations/20260504075200_harden_proposal_ledger_accounting_rls.sql`
 7. `supabase/migrations/20260504082000_harden_org_scoped_broad_rls.sql`
+8. `supabase/migrations/20260504083000_harden_remaining_broad_rls.sql`
 
 Remote adoption state:
 
@@ -25,7 +26,7 @@ Remote adoption state:
 | --- | --- | --- |
 | Baseline history adoption | Complete | `supabase migration repair 20260501130150 --status applied --linked` passed during adoption session |
 | Follow-up migrations through search-path hardening | Complete | `20260504000000`, `20260504054000`, `20260504070358`, `20260504071238` pushed during adoption session |
-| RLS hardening migrations `20260504075200` / `20260504082000` | Local only | `supabase db reset` and local lint passed; remote push not attempted in this session |
+| RLS hardening migrations `20260504075200` / `20260504082000` / `20260504083000` | Local only | `supabase db reset` and local lint passed; remote push not attempted in this session |
 | Final linked verification | Partial | `supabase migration list` passed after relinking; linked lint failed because this shell has no valid `SUPABASE_DB_PASSWORD` and Supabase pooler entered temporary auth circuit breaker |
 
 ## Verification Log
@@ -77,12 +78,22 @@ Historical baseline adoption verification:
 | target org-scoped broad query | PASS | 38 direct `org_id` tables hardened; target set has 0 broad policies |
 | targeted server tests | PASS | Path / LUQO / Sites tests: 51/51 |
 
+2026-05-04 final broad RLS cleanup verification:
+
+| Check | Result | Notes |
+| --- | --- | --- |
+| migration guard | PASS | `check-migration-guards.sh supabase/migrations/20260504083000_harden_remaining_broad_rls.sql` |
+| `supabase db reset` | PASS | all 8 local migrations applied |
+| `supabase db lint --local --schema public,private --fail-on error` | PASS | no schema errors |
+| broad policy count | PASS | remaining broad policies reduced from 25 to 0 |
+| targeted server tests | PASS | Principles / Org / PolicyEngine / Communications Contacts tests: 50/50 |
+
 ## Findings
 
 | ID | Status | Finding | Resolution / next action |
 | --- | --- | --- | --- |
 | `DB-BL-001` | Resolved | Baseline had `SECURITY DEFINER` functions without fixed `search_path`. | Resolved by `20260504070358` and `20260504071238`; do not edit the baseline dump. |
-| `DB-BL-002` | Partially resolved | Baseline had broad `USING (true)` / `WITH CHECK (true)` policies. | Proposal / Ledger / Accounting priority policies hardened by `20260504075200`; direct `org_id` Path / LUQO / Site / evaluation tables hardened by `20260504082000`; 25 broad policies remain. |
+| `DB-BL-002` | Resolved locally | Baseline had broad `USING (true)` / `WITH CHECK (true)` policies. | Proposal / Ledger / Accounting priority policies hardened by `20260504075200`; direct `org_id` Path / LUQO / Site / evaluation tables hardened by `20260504082000`; remaining Badge / Perk / Profiles / parent-derived / shared-read / service-only policies hardened by `20260504083000`. Local broad policy count is 0. |
 | `DB-BL-003` | Tracked risk | Existing RPCs contain proposal/ledger direct mutation as part of current remote behavior. | Treat as current canonical behavior; future changes must use safe forward migrations and preserve Proposal/Ledger invariants. |
 | `DB-BL-004` | Resolved | Initial local lint failed on plpgsql warnings. | Resolved by `20260504000000_fix_baseline_function_lint.sql`. |
 | `DB-BL-005` | Resolved | Remote migration history was empty while local baseline files existed. | Resolved by repair + follow-up pushes through `20260504071238`. |
@@ -101,9 +112,9 @@ Run the linked lint again only from a shell with the correct `SUPABASE_DB_PASSWO
 
 P1 RLS hardening follow-up:
 
-- Continue replacing the remaining 25 broad policies outside Proposal / Ledger / Accounting and direct `org_id` tables.
-- Prioritize Badge / Perk / Profiles ownership checks, then parent-derived AI / monster / battle artifacts, then document intentionally shared master/reference reads.
-- Keep write policies server/RPC-only unless a browser-direct Supabase path is explicitly required.
+- Local broad `USING (true)` / `WITH CHECK (true)` cleanup is complete.
+- Remote still needs password-backed linked lint and an explicit push decision for local-only RLS migrations.
+- Keep future write policies server/RPC-only unless a browser-direct Supabase path is explicitly required.
 
 P2 documentation cleanup:
 
