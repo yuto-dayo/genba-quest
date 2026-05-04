@@ -1,13 +1,16 @@
-# Legacy SQL Archive
+# Legacy SQL Boundary
 
-`server/sql` is no longer the executable migration path.
+`server/sql` is no longer the executable migration path, and this directory
+must not contain direct `*.sql` files.
 
 Canonical DB history now lives in:
 
 - `supabase/migrations/*.sql`
 - `supabase/seed.sql`
 
-Do not run files in this directory against local, staging, or production databases. These files are retained only as historical reference while the legacy archive is being cleaned up.
+Former numbered SQL files were moved to `archive/server-sql/*.sql.legacy`.
+Those files are retained only as historical reference and must not be run
+against local, staging, or production databases.
 
 ## Cleanup Buckets
 
@@ -23,9 +26,13 @@ Use `docs/SQL_INVENTORY.md` as the current decision record.
 
 ## Current Rewrite Candidates
 
-As of 2026-05-04, only these legacy files are known to contain runtime-needed objects missing from the canonical DB:
+As of 2026-05-04, the previously missing runtime-needed legacy deltas have
+been forward-migrated:
 
-- `server/sql/059_path_canonical_reward_writer_cutover.sql`
-- `server/sql/064_site_complete_with_close_attempts.sql`
+- `supabase/migrations/20260504085000_add_reward_snapshot_tables.sql`
+- `supabase/migrations/20260504090000_add_site_complete_with_close_attempts.sql`
 
-Any required behavior from those files must be implemented as small new files under `supabase/migrations`, using current RLS helpers such as `private.is_active_member(org_id)`.
+Accounting reference rows from legacy `007_master_data` were adopted into
+`supabase/migrations/20260504084000_seed_accounting_master_data.sql`.
+
+Run `scripts/db/check-sql-boundaries.sh` before committing DB cleanup work.
