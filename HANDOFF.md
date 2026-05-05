@@ -11,7 +11,7 @@
 | db/path-v32-smoke-execution | `handoff/db/path-v32-smoke-execution.md` | 2026-05-05 | active |
 | uiux/calm-cockpit-principles | `handoff/uiux/calm-cockpit-principles.md` | 2026-05-05 | Recommended next implementation target: audit the current... |
 | frontend/header | `handoff/frontend/header.md` | 2026-05-05 | 必要なら実機幅でヘッダーの横スクロール... |
-| repo/sync-to-origin | `handoff/repo/sync-to-origin.md` | 2026-05-05 | active |
+| repo/sync-to-origin | `handoff/repo/sync-to-origin.md` | 2026-05-05 | Money承認後の一時エラー調査、DB smoke、AIチ... |
 
 ## Domain Selection Guide
 

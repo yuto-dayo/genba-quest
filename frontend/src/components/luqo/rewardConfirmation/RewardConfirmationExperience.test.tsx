@@ -145,7 +145,7 @@ describe("RewardConfirmationExperience QA", () => {
 
         await screen.findByText("今月の精算額");
 
-        expect(screen.getByText("対象: 田中 太郎")).toBeInTheDocument();
+        expect(screen.getByText("田中 太郎")).toBeInTheDocument();
         expect(screen.getByText("¥160,000")).toBeInTheDocument();
         expect(screen.getByText("+¥10,000")).toBeInTheDocument();
         expect(screen.queryByText("気になる金額はAIに確認")).not.toBeInTheDocument();

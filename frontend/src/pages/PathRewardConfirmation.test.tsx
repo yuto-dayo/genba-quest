@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import PathRewardConfirmationPage from "./PathRewardConfirmation";
@@ -8,12 +9,14 @@ vi.mock("../components/luqo/rewardConfirmation/RewardConfirmationExperience", ()
         initialPeriod?: string | null;
         focusSiteId?: string | null;
         focusMemberId?: string | null;
+        metaAction?: ReactNode;
     }) => (
         <div data-testid="reward-confirmation">
             REWARD_CONFIRMATION
             <span data-testid="reward-period">{props.initialPeriod ?? "(none)"}</span>
             <span data-testid="reward-site">{props.focusSiteId ?? "(none)"}</span>
             <span data-testid="reward-member">{props.focusMemberId ?? "(none)"}</span>
+            <span data-testid="reward-meta-action">{props.metaAction ?? "(none)"}</span>
         </div>
     ),
 }));

@@ -37,7 +37,7 @@ export default function PathRewardConfirmationPage() {
             className={styles.devAuthSelect}
             value={devUserKey}
             onChange={handleDevUserChange}
-            aria-label="開発用ユーザー"
+            aria-label="開発用ユーザーを選択"
         >
             {DEV_AUTH_USER_OPTIONS.map((option) => (
                 <option key={option.key} value={option.key}>
@@ -53,7 +53,7 @@ export default function PathRewardConfirmationPage() {
                 initialPeriod={period}
                 focusSiteId={siteId}
                 focusMemberId={memberId}
-                headerAction={devUserFilter}
+                metaAction={devUserFilter}
             />
         </div>
     );

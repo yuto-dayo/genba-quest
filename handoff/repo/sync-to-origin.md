@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `必要なら開発用ユーザー切替をヘッダーまたは設定メニューへ移動する。`
+- NEXT_CMD: `Money承認後の一時エラー調査、DB smoke、AIチャットQAは別タスクとして残す。PATH UIは必要なら追加の好み調整のみ。`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/repo/sync-to-origin.md`
@@ -18,8 +18,8 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `b8448dc`
-  - Updated: `2026-05-05T19:18:42+0900`
+  - HEAD: `5f11cf5`
+  - Updated: `2026-05-05T19:39:22+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
@@ -28,6 +28,7 @@
 - 2026-05-05 07:17:07 +0900 — started by claude
 - 2026-05-05 07:24:28 +0900 — ended by claude
 - 2026-05-05 15:25:18 +0900 — started by claude
+- 2026-05-05 19:39:49 +0900 — ended by claude
 <!-- HANDOFF_SESSION_EVENTS_END -->
 
 ---
@@ -35,43 +36,43 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `必要なら開発用ユーザー切替をヘッダーまたは設定メニューへ移動する。`. Source: realtime
-- [H0012] Completed: PATH画面の開発用ユーザーセレクトを小さい透明チップ風に調整し、ブラウザ標準の青フォーカス枠を抑えた。
-- [H0012] Remaining: 必要なら開発用ユーザー切替をヘッダーまたは設定メニューへ移動する。
-- [H0011] Completed: PATH画面の開発用ユーザー表示ラベルとヒーロー説明文を削除。セレクトのaria-labelは維持。
-- [H0011] Remaining: 必要なら開発用ユーザー切替そのものも非表示化する。
+- [focus] NEXT_CMD: `Money承認後の一時エラー調査、DB smoke、AIチャットQAは別タスクとして残す。PATH UIは必要なら追加の好み調整のみ。`. Source: realtime
+- [H0016] Completed: PATH報酬確認UIのメタ列に対象者名を小さく復帰し、開発用ユーザーselect/月/状態と同列に整理。native selectは維持し、aria-labelを精算情報/開発用ユーザー選択へ調整。関連テスト期待値も更新。
+- [H0016] Remaining: Money承認後の一時エラー調査、DB smoke、AIチャットQAは別タスクとして残す。PATH UIは必要なら追加の好み調整のみ。
+- [H0015] Completed: PATH画面の開発用ユーザー選択をヒーロー右側からメタチップ列の先頭へ移動し、月/確認状態と同列のフィルターとして整理。
+- [H0015] Remaining: 必要ならセレクトをネイティブselectからカスタムチップメニューに置き換える。
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0016] Auto-captured decision: PATH報酬確認UIのメタ列に対象者名を小さく復帰し、開発用ユーザーselect/月/状態と同列に整理。native selectは維持し、aria-labelを精算情報/開発用ユーザー選択へ調整。関連テスト期待値も更新。
+- [H0015] Auto-captured decision: PATH画面の開発用ユーザー選択をヒーロー右側からメタチップ列の先頭へ移動し、月/確認状態と同列のフィルターとして整理。
+- [H0014] Auto-captured decision: PATH画面ヒーローの対象メンバーチップを削除し、右上ユーザー選択チップとの重複を解消。
+- [H0013] Auto-captured decision: PATH画面ヒーロー右上のステータスバッジを撤去し、その位置に開発用ユーザー選択チップを移動。ステータスは確認状況カード側に集約。
 - [H0012] Auto-captured decision: PATH画面の開発用ユーザーセレクトを小さい透明チップ風に調整し、ブラウザ標準の青フォーカス枠を抑えた。
-- [H0011] Auto-captured decision: PATH画面の開発用ユーザー表示ラベルとヒーロー説明文を削除。セレクトのaria-labelは維持。
-- [H0010] Auto-captured decision: 報酬確認画面のV3.1フォールバックを撤去し、V3.2で対象が空の場合もV3.2の空表示として扱うように固定。
-- [H0009] Auto-captured decision: PATH報酬確認をV3.2共通ルールに固定。チーム全員分のV3.2確定がない場合はV3.2試算を表示し、旧V3.1確定値へフォールバックしないように修正。V3.2の現場利益を共通原資として現場別内訳に表示。
-- [H0008] Auto-captured decision: PATH報酬確認の月次close選択を修正。個人ごとの最新明細フォールバックをやめ、チーム全員のmonthly_distribution_linesが揃っている最新closeだけを採用するようにした。開発モードではDEV_AUTH_USERS 4人もactive memberとして扱い、V3.2試算/提案作成側も単独runを作りにくくした。
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0012] No new landmines reported in this chunk.
+- [H0016] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0016] Money承認後の一時エラー調査、DB smoke、AIチャットQAは別タスクとして残す。PATH UIは必要なら追加の好み調整のみ。
+- [H0015] 必要ならセレクトをネイティブselectからカスタムチップメニューに置き換える。
+- [H0014] 必要なら月チップや確認中チップも整理して、メタ情報をさらに削る。
+- [H0013] 必要ならユーザー選択チップをアイコン付きフィルターにする。
 - [H0012] 必要なら開発用ユーザー切替をヘッダーまたは設定メニューへ移動する。
-- [H0011] 必要なら開発用ユーザー切替そのものも非表示化する。
-- [H0010] V3.2報酬を試算中から確定済みにする場合は reward.calculate proposal の承認/実行フローを通す。
-- [H0009] 必要ならV3.2確定申請を実行して、試算中から確定済みへの運用フローを確認する。
-- [H0008] 既存DBに残っている2026-05の不完全な3.2.0-simple monthly_distribution_close/reward runは、監査方針を決めて明示的に無効化/隔離する。新規V3.2 proposalを作る場合は4人分previewを確認してから承認する。
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `12`
+- current_l3_entries: `16`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -100,31 +101,35 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] PATH報酬確認UIのメタ列に対象者名を小さく復帰し、開発用ユーザーselect/月/状態と同列に整理。native selectは維持し、aria-labelを精算情報/開発用ユーザー選択へ調整。関連テスト期待値も更新。
+- [x] PATH画面の開発用ユーザー選択をヒーロー右側からメタチップ列の先頭へ移動し、月/確認状態と同列のフィルターとして整理。
+- [x] PATH画面ヒーローの対象メンバーチップを削除し、右上ユーザー選択チップとの重複を解消。
+- [x] PATH画面ヒーロー右上のステータスバッジを撤去し、その位置に開発用ユーザー選択チップを移動。ステータスは確認状況カード側に集約。
 - [x] PATH画面の開発用ユーザーセレクトを小さい透明チップ風に調整し、ブラウザ標準の青フォーカス枠を抑えた。
 - [x] PATH画面の開発用ユーザー表示ラベルとヒーロー説明文を削除。セレクトのaria-labelは維持。
 - [x] 報酬確認画面のV3.1フォールバックを撤去し、V3.2で対象が空の場合もV3.2の空表示として扱うように固定。
 - [x] PATH報酬確認をV3.2共通ルールに固定。チーム全員分のV3.2確定がない場合はV3.2試算を表示し、旧V3.1確定値へフォールバックしないように修正。V3.2の現場利益を共通原資として現場別内訳に表示。
 - [x] PATH報酬確認の月次close選択を修正。個人ごとの最新明細フォールバックをやめ、チーム全員のmonthly_distribution_linesが揃っている最新closeだけを採用するようにした。開発モードではDEV_AUTH_USERS 4人もactive memberとして扱い、V3.2試算/提案作成側も単独runを作りにくくした。
 - [x] /path UIを再調整。淡いグリッド/装飾リング寄りから、濃いPATH PAYOUT金額パネルを主役にした締まった報酬確認画面へ変更。ステータスバー、メタチップ、白い補助カードの構成に整理した。
-- [x] /path の報酬確認UIをCalm Cockpit寄りに更新。heroに対象者/月/操作状態のメタレール、Lucideアイコン付き金額カード、淡いグリッド背景と控えめな奥行きを追加し、開発用ユーザーselectとチャットFABも質感調整した。
-- [x] MoneyのPATH承認後リロードを調整。承認/却下/実行成功後はPATHキューを局所更新し、全体データ再読込はバックグラウンド化して一時失敗でページ全体エラーに倒れないようにした。
-- [x] PATH V3.2報酬のDBスモーク統合テストを追加し、既存fixed month_closeを再利用してpreview/pending reward.calculate Proposal作成まで実DBで確認
-- [x] PATH V3.2報酬同期の冪等性を補強: 既存fixed reward_runを再利用し、reward_run_linesは重複時ignoreで再試行可能に変更
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: 必要なら開発用ユーザー切替をヘッダーまたは設定メニューへ移動する。
-- [ ] **P1**: 必要なら開発用ユーザー切替そのものも非表示化する。
-- [ ] **P1**: V3.2報酬を試算中から確定済みにする場合は reward.calculate proposal の承認/実行フローを通す。
-- [ ] **P1**: 必要ならV3.2確定申請を実行して、試算中から確定済みへの運用フローを確認する。
-- [ ] **P1**: 既存DBに残っている2026-05の不完全な3.2.0-simple monthly_distribution_close/reward runは、監査方針を決めて明示的に無効化/隔離する。新規V3.2 proposalを作る場合は4人分previewを確認してから承認する。
+- [ ] **P0**: Money承認後の一時エラー調査、DB smoke、AIチャットQAは別タスクとして残す。PATH UIは必要なら追加の好み調整のみ。
+- [ ] **P1**: 必要ならセレクトをネイティブselectからカスタムチップメニューに置き換える。
+- [ ] **P1**: 必要なら月チップや確認中チップも整理して、メタ情報をさらに削る。
+- [ ] **P1**: 必要ならユーザー選択チップをアイコン付きフィルターにする。
+- [ ] **P1**: 必要なら開発用ユーザー切替をヘッダーまたは設定メニューへ移動する。
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
+| `frontend/src/pages/PathRewardConfirmation.test.tsx` | metaAction propsをmockに反映 |
+| `frontend/src/components/luqo/rewardConfirmation/RewardConfirmationExperience.test.tsx` | 対象者表示の期待値を新UIへ同期 |
+| `frontend/src/pages/PathRewardConfirmation.tsx` | 開発用ユーザーselectのaria-labelを調整しmetaAction経由を維持 |
+| `frontend/src/components/luqo/rewardConfirmation/RewardConfirmationExperience.tsx` | PATH報酬確認メタ列に対象者チップを復帰しariaを精算情報へ変更 |
 | `(not recorded)` | No file list provided (use --file "path - semantic description") |
 | `frontend/src/lib/pathProposal.test.ts` | fixture型修正 |
 | `frontend/src/lib/api.ts` | ProposalType同期 |
@@ -154,10 +159,10 @@ cd frontend && npx eslint src/
 
 | Check | Result | Notes |
 | ----- | ------ | ----- |
-| server typecheck | PASS | run by session-end (2026-05-05 07:24) |
-| frontend typecheck | PASS | run by session-end (2026-05-05 07:24) |
-| lint | PASS | frontend eslint src/ at 2026-05-05 07:24 |
-| test | PASS | server npm test -- --runInBand at 2026-05-05 07:24 |
+| server typecheck | PASS | run by session-end (2026-05-05 19:39) |
+| frontend typecheck | PASS | run by session-end (2026-05-05 19:39) |
+| lint | PASS | frontend eslint src/ at 2026-05-05 19:39 |
+| test | PASS | server npm test -- --runInBand at 2026-05-05 19:39 |
 
 ---
 
@@ -390,5 +395,72 @@ cd frontend && npx eslint src/
   - Auto-captured decision: PATH画面の開発用ユーザーセレクトを小さい透明チップ風に調整し、ブラウザ標準の青フォーカス枠を抑えた。
 - Validation:
   - `frontend vitest PathRewardConfirmation.test.tsx 4 tests passed; browser /path screenshot verified select blends into page.`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-05 19:22:15 +0900
+
+- Entry-ID: `H0013`
+- Completed:
+  - [x] PATH画面ヒーロー右上のステータスバッジを撤去し、その位置に開発用ユーザー選択チップを移動。ステータスは確認状況カード側に集約。
+- Remaining:
+  - [ ] 必要ならユーザー選択チップをアイコン付きフィルターにする。
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: PATH画面ヒーロー右上のステータスバッジを撤去し、その位置に開発用ユーザー選択チップを移動。ステータスは確認状況カード側に集約。
+- Validation:
+  - `frontend vitest PathRewardConfirmation.test.tsx 4 tests passed; browser /path screenshot verified chip in hero header and top status badge removed.`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-05 19:25:57 +0900
+
+- Entry-ID: `H0014`
+- Completed:
+  - [x] PATH画面ヒーローの対象メンバーチップを削除し、右上ユーザー選択チップとの重複を解消。
+- Remaining:
+  - [ ] 必要なら月チップや確認中チップも整理して、メタ情報をさらに削る。
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: PATH画面ヒーローの対象メンバーチップを削除し、右上ユーザー選択チップとの重複を解消。
+- Validation:
+  - `frontend vitest PathRewardConfirmation.test.tsx 4 tests passed; browser /path DOM confirmed target chip removed.`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-05 19:27:15 +0900
+
+- Entry-ID: `H0015`
+- Completed:
+  - [x] PATH画面の開発用ユーザー選択をヒーロー右側からメタチップ列の先頭へ移動し、月/確認状態と同列のフィルターとして整理。
+- Remaining:
+  - [ ] 必要ならセレクトをネイティブselectからカスタムチップメニューに置き換える。
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: PATH画面の開発用ユーザー選択をヒーロー右側からメタチップ列の先頭へ移動し、月/確認状態と同列のフィルターとして整理。
+- Validation:
+  - `frontend vitest PathRewardConfirmation.test.tsx 4 tests passed; browser /path screenshot verified user filter aligned with meta chips.`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-05 19:39:22 +0900
+
+- Entry-ID: `H0016`
+- Completed:
+  - [x] PATH報酬確認UIのメタ列に対象者名を小さく復帰し、開発用ユーザーselect/月/状態と同列に整理。native selectは維持し、aria-labelを精算情報/開発用ユーザー選択へ調整。関連テスト期待値も更新。
+- Remaining:
+  - [ ] Money承認後の一時エラー調査、DB smoke、AIチャットQAは別タスクとして残す。PATH UIは必要なら追加の好み調整のみ。
+- Changed Files:
+  - `frontend/src/components/luqo/rewardConfirmation/RewardConfirmationExperience.tsx` - PATH報酬確認メタ列に対象者チップを復帰しariaを精算情報へ変更
+  - `frontend/src/pages/PathRewardConfirmation.tsx` - 開発用ユーザーselectのaria-labelを調整しmetaAction経由を維持
+  - `frontend/src/components/luqo/rewardConfirmation/RewardConfirmationExperience.test.tsx` - 対象者表示の期待値を新UIへ同期
+  - `frontend/src/pages/PathRewardConfirmation.test.tsx` - metaAction propsをmockに反映
+- Working Context:
+  - Auto-captured decision: PATH報酬確認UIのメタ列に対象者名を小さく復帰し、開発用ユーザーselect/月/状態と同列に整理。native selectは維持し、aria-labelを精算情報/開発用ユーザー選択へ調整。関連テスト期待値も更新。
+- Validation:
+  - `frontend targeted vitest 2 files/8 tests PASS; frontend targeted lint PASS; git diff --check PASS; Puppeteer mobile/desktop PASS; Agent B browser QA 1440/430/390/360/320 PASS`
 - Landmines:
   - No new landmines reported in this chunk.

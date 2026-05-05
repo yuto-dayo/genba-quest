@@ -311,12 +311,12 @@ export function RewardConfirmationExperience({
     initialPeriod,
     focusSiteId,
     focusMemberId,
-    headerAction,
+    metaAction,
 }: {
     initialPeriod?: string | null;
     focusSiteId?: string | null;
     focusMemberId?: string | null;
-    headerAction?: ReactNode;
+    metaAction?: ReactNode;
 }) {
     const activeOrgId = useActiveOrgStore((state) => state.activeOrgId);
     const orgOptions = useActiveOrgStore((state) => state.options);
@@ -499,12 +499,12 @@ export function RewardConfirmationExperience({
                             <p className={styles.eyebrow}>PATH PAYOUT</p>
                             <h1>今月の精算額</h1>
                         </div>
-                        {headerAction}
                     </div>
-                    <div className={styles.heroMetaRail} aria-label="精算対象">
+                    <div className={styles.heroMetaRail} aria-label="精算情報">
+                        {metaAction}
                         <span>
                             <UserRound size={14} aria-hidden="true" />
-                            対象: {summary.member_name}
+                            {summary.member_name}
                         </span>
                         <span>
                             <CalendarDays size={14} aria-hidden="true" />
