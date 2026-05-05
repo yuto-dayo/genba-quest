@@ -129,6 +129,53 @@
     gap: 8px;
 }
 
+.draftLogList {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.draftLogItem {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 120px 88px;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+    border-radius: var(--md-sys-shape-corner-medium);
+    background: var(--md-sys-color-surface-container-low);
+}
+
+.draftLogName {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.draftLogName span {
+    overflow: hidden;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-body-medium);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.draftLogName small {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-medium);
+}
+
+.unitInput {
+    min-height: 44px;
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: var(--md-sys-shape-corner-medium);
+    border: 1px solid var(--md-sys-color-outline);
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-body-medium);
+}
+
 .logItem {
     display: flex;
     align-items: center;
@@ -233,6 +280,10 @@
     }
 
     .grid {
+        grid-template-columns: 1fr;
+    }
+
+    .draftLogItem {
         grid-template-columns: 1fr;
     }
 

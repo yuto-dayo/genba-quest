@@ -7,7 +7,9 @@
       "WebFetch(domain:docs.cloud.google.com)",
       "Bash(.claude/skills/incremental-handoff/scripts/append-handoff-update.sh:*)",
       "Edit(/.claude/skills/incremental-handoff/**)",
-      "Bash(TS_NODE_PROJECT=tools/ai-memory/tsconfig.json node --require /Users/yutoyoshino/Documents/genba-quest/tools/ai-memory/node_modules/ts-node/register /Users/yutoyoshino/Documents/genba-quest/tools/ai-memory/src/cli.ts resume --no-cache)"
+      "Bash(TS_NODE_PROJECT=tools/ai-memory/tsconfig.json node --require /Users/yutoyoshino/Documents/genba-quest/tools/ai-memory/node_modules/ts-node/register /Users/yutoyoshino/Documents/genba-quest/tools/ai-memory/src/cli.ts resume --no-cache)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ],
     "additionalDirectories": [
       "/Users/yutoyoshino/Documents/genba-quest/.claude/skills",

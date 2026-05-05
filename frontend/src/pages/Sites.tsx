@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Map, RefreshCw, Plus, Building2, AlertTriangle, AlertCircle, Users, Calendar, CheckCircle2, X } from "lucide-react";
+import { Map, RefreshCw, Plus, Building2, AlertTriangle, AlertCircle, Users, Calendar, CheckCircle2, X, Clock3 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { fetchSites, fetchSite, type Site } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
@@ -11,7 +11,7 @@ import { SiteFormModal } from "../components/SiteFormModal";
 import { ClientSettingsModal } from "../components/ClientSettingsModal";
 import styles from "./Sites.module.css";
 
-type FilterStatus = "active" | "completed";
+type FilterStatus = "active" | "tentative" | "completed";
 
 export function Sites() {
     const navigate = useNavigate();
@@ -56,7 +56,7 @@ export function Sites() {
                     return;
                 }
                 setSelectedSite(site);
-                setFilter(site.status === "completed" ? "completed" : "active");
+                setFilter(resolveFilterFromSiteStatus(site.status));
             })
             .catch(() => {
                 if (cancelled) {
@@ -100,7 +100,7 @@ export function Sites() {
         try {
             const full = await fetchSite(siteId);
             setSelectedSite(full);
-            setFilter(full.status === "completed" ? "completed" : "active");
+            setFilter(resolveFilterFromSiteStatus(full.status));
         } catch {
             setError("現場の詳細を開けませんでした");
         }
@@ -145,11 +145,13 @@ export function Sites() {
     };
 
     const filteredSites = sites.filter((site) => {
+        if (filter === "tentative") return site.status === "tentative";
         if (filter === "active") return site.status === "active";
         return site.status === "completed";
     });
 
     const activeCount = sites.filter((s) => s.status === "active").length;
+    const tentativeCount = sites.filter((s) => s.status === "tentative").length;
     const completedCount = sites.filter((s) => s.status === "completed").length;
 
     if (loading) {
@@ -231,6 +233,15 @@ export function Sites() {
                     )}
                 </button>
                 <button
+                    className={`${styles.filterButton} ${filter === "tentative" ? styles.active : ""}`}
+                    onClick={() => setFilter("tentative")}
+                >
+                    仮押さえ
+                    {tentativeCount > 0 && (
+                        <span className={styles.filterCount}>{tentativeCount}</span>
+                    )}
+                </button>
+                <button
                     className={`${styles.filterButton} ${filter === "completed" ? styles.active : ""}`}
                     onClick={() => setFilter("completed")}
                 >
@@ -254,9 +265,11 @@ export function Sites() {
                             <h3>
                                 {filter === "active"
                                     ? "進行中の現場はありません"
-                                    : "完了した現場はありません"}
+                                    : filter === "tentative"
+                                      ? "仮押さえはありません"
+                                      : "完了した現場はありません"}
                             </h3>
-                            {filter === "active" && (
+                            {filter !== "completed" && (
                                 <button
                                     className={styles.emptyAddButton}
                                     onClick={() => setShowCreateModal(true)}
@@ -354,7 +367,7 @@ function buildReturnHref(searchParams: URLSearchParams): string | null {
     }
 
     const query = next.toString();
-    return `/luqo${query ? `?${query}` : ""}`;
+    return `/path${query ? `?${query}` : ""}`;
 }
 
 interface SiteCardProps {
@@ -365,6 +378,7 @@ interface SiteCardProps {
 
 function SiteCard({ site, index, onTap }: SiteCardProps) {
     const isCompleted = site.status === "completed";
+    const isTentative = site.status === "tentative";
     const hasCautions = !!site.cautions;
     const hasAssigned = site.assigned_users && site.assigned_users.length > 0;
     const hasSchedule = site.started_at || site.expected_completion_at;
@@ -373,7 +387,7 @@ function SiteCard({ site, index, onTap }: SiteCardProps) {
 
     return (
         <motion.div
-            className={`${styles.card} ${isCompleted ? styles.cardCompleted : ""}`}
+            className={`${styles.card} ${isCompleted ? styles.cardCompleted : ""} ${isTentative ? styles.cardTentative : ""}`}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95 }}
@@ -395,6 +409,12 @@ function SiteCard({ site, index, onTap }: SiteCardProps) {
                         )}
                         {site.name}
                     </h3>
+                    {isTentative && (
+                        <span className={styles.tentativeBadge}>
+                            <Clock3 size={12} />
+                            仮押さえ
+                        </span>
+                    )}
                     {site.client && (
                         <span className={styles.clientName}>{site.client.name}</span>
                     )}
@@ -436,4 +456,14 @@ function SiteCard({ site, index, onTap }: SiteCardProps) {
             )}
         </motion.div>
     );
+}
+
+function resolveFilterFromSiteStatus(status: string): FilterStatus {
+    if (status === "completed") {
+        return "completed";
+    }
+    if (status === "tentative") {
+        return "tentative";
+    }
+    return "active";
 }

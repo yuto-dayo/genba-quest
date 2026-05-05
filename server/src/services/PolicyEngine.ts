@@ -24,6 +24,8 @@ export type ProposalType =
   // 報酬
   | 'reward.calculate'
   | 'reward.adjust'
+  | 'reward.pool.adjust'
+  | 'path.level.update'
   // スキル・評価
   | 'skill.achieve'
   | 'skill.revoke'

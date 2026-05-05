@@ -3,18 +3,54 @@
 ## UI設計思想：10秒で分かる
 
 > 中身は超DAO/イベントソーシング、UIは「日報＋LINE＋家計簿」くらいの軽さ
+> 見た目は **Calm Cockpit**。派手さではなく、今日の判断速度・信頼・承認のしやすさを最優先する。
 
 **原則:**
 
 - 人間が能動的に開くのは **4画面だけ**
 - 複雑な操作は **Sherpaが吸収**
 - 機能を並べるのではなく、**「今日何する？」「来月の空き？」に即答できる**
+- 画面は「機能紹介」ではなく、**次に判断すべきこと** を最初に出す
+- 色・動き・形の強調は、承認・警告・締め・報酬確定などの判断点に限定する
 
 ### 関連設計書
 
 - **[DESIGN_PHILOSOPHY.md](./DESIGN_PHILOSOPHY.md)** - DAO×AI設計思想、Proposal/Ledger/Policyの詳細
 - **[SHERPA_ARCHITECTURE.md](./SHERPA_ARCHITECTURE.md)** - SherpaのOrchestrator + Sub Agents詳細設計
 - **[REWARD_SYSTEM.md](./REWARD_SYSTEM.md)** - 報酬分配の詳細設計
+
+---
+
+## Calm Cockpit 設計原則
+
+GENBA QUESTのアプリ画面は、LPやゲーム画面ではなく、現場運営の作業コックピットとして設計する。
+ゲーミフィケーションは温度感として残すが、業務判断を邪魔する装飾にはしない。
+
+### 5原則
+
+| 原則 | 意味 | UIでの判断 |
+|------|------|------------|
+| Calm density | 情報量は落とさず、主作業以外を静かにする | ナビ、罫線、装飾、補助情報は控えめにする |
+| Decision-first | 機能ではなく次の判断を先に出す | First viewportに「今日の現場」「未処理」「異常」「主要CTA」を置く |
+| Expressive only for decisions | 強調は意味がある場所だけに使う | 承認、警告、締め、報酬確定、不可逆操作に限定する |
+| Direct + Sherpa split | 頻繁で単純な操作は画面、複雑操作はSherpa | 見えている対象は直接操作、探す/組む/条件付きはSherpa |
+| Transparent automation | AI提案は根拠と影響を見せてから実行する | Proposal、証跡、影響範囲、承認/却下/再提案を必ず表示する |
+
+### 採用する外部思想
+
+- Linear型の静かな高密度UI: 作業対象以外のUIは目立たせない。
+- Material 3 Expressive: 色・形・動きは重要判断を見つけやすくするためだけに使う。
+- WCAG 2.2: focus、target size、drag代替、redundant entryを生産性要件として扱う。
+- Human-centered AI / XAI: Sherpaの出力は説明可能性、上書き可能性、監査性を持つ。
+- Tool consolidation: 分断された機能ではなく、4画面とSherpaに作業を集約する。
+
+### App Screen Anti-Patterns
+
+- 巨大ヒーロー、マーケティング風feature grid、装飾カードでfirst viewportを埋める。
+- すべてのカード・ボタン・バッジを強調し、判断点が埋もれる。
+- 色だけで状態を伝える。
+- ドラッグだけでしか完了できない操作を置く。
+- Sherpaが根拠・影響・Proposalを見せずに実行する。
 
 ---
 
@@ -97,9 +133,21 @@
 |------|------|---------------|-----------|
 | **Today** | 今日やること | 「今日何する？」 | 朝10秒で把握 |
 | **Calendar** | スケジュール全体 | 「来月の空きは？」 | 電話中に即答 |
-| **Sites** | 現場の状況 | 「あの現場どうなってる？」 | 進捗を一覧で確認 |
-| **Money** | お金の流れ | 「今月いくら？」 | 経費登録・承認 |
-| **Sherpa** | 複雑な操作全部 | 「〇〇して」 | 対話で解決 |
+| **Sites** | 現場の状況 | 「次に見る現場は？」 | 進行・締め・注意点のワークキュー |
+| **Money** | お金の流れ | 「今月いくら？根拠は？」 | 経費・報酬・承認の信頼UI |
+| **Sherpa** | 複雑な操作全部 | 「〇〇して」 | Proposal生成・説明・再提案 |
+
+### First Viewport Contract
+
+各画面の最初の表示領域は、装飾ではなく「今すぐ知るべき答え」に使う。
+
+| 画面 | First viewportに必ず入れるもの |
+|------|-------------------------------|
+| Today | 今日の現場、承認待ち件数、異常/遅延、今月のお金・報酬の要注意点 |
+| Calendar | 月/週の空き、日別アサイン、担当者の空き/埋まり状態 |
+| Sites | 進行中、締め待ち、問題あり、次アクション |
+| Money | 今月の利益/支出/報酬、未承認、差分、根拠への導線 |
+| Sherpa | 提案内容、根拠、影響範囲、作成されるProposal、承認/却下 |
 
 ---
 
@@ -122,14 +170,14 @@
 ├─────────────────────────────────────────┤
 │ 今日: 2月10日（月）                     │
 │ ┌─────────────────────────────────────┐ │
-│ │ 🏗️ A現場（渋谷）                    │ │
+│ │ A現場（渋谷）                       │ │
 │ │    田中、佐藤                       │ │
 │ └─────────────────────────────────────┘ │
 │ ┌─────────────────────────────────────┐ │
-│ │ ⏳ 承認待ち: 3件                    │ │
+│ │ 承認待ち: 3件                       │ │
 │ └─────────────────────────────────────┘ │
 │ ┌─────────────────────────────────────┐ │
-│ │ 💰 今月: 売上120万 / 経費40万       │ │
+│ │ 今月: 売上120万 / 経費40万          │ │
 │ └─────────────────────────────────────┘ │
 └─────────────────────────────────────────┘
 ```
@@ -144,8 +192,9 @@
 ### UI方針
 
 - **週カレンダーは常に表示**（電話中でも即確認可能）
-- 情報密度を極限まで下げる
-- **「見る」だけで完結、操作は最小限**
+- 情報密度は落としすぎず、今日の判断に関係ない装飾だけを削る
+- **「見る」だけで主要判断が完結、操作は最小限**
+- 承認・異常・報酬確定などの判断点だけをアクセントカラーで強調する
 
 ---
 
@@ -255,21 +304,27 @@ Calendar画面を開く（1秒）
 | 特定日の詳細確認 | 「最適なアサイン提案して」 |
 | 既存アサインの日時ドラッグ移動 | アサイン新規登録（「田中さん15日A現場」） |
 
+**Accessibility:**
+
+- ドラッグ移動には「日付を変更」「担当を変更」などのメニュー代替を持たせる。
+- 日付セル、アサインチップ、月/週切替はキーボード操作とfocus表示に対応する。
+- 予定の有無は色だけでなく、テキスト・形状・件数でも伝える。
+
 ---
 
 ## 3. Sites（現場）
 
 ### 目的
 
-**現場の「今」を一目で把握**
+**現場の「今」と次アクションを一目で把握**
 
 ### 表示内容
 
 | 要素 | 内容 |
 |------|------|
-| 現場リスト | 進行中のみデフォルト表示 |
-| 各カード | 現場名 + 進捗バー + 利益率 |
-| フィルター | 進行中 / 完了 / 全て |
+| ワークキュー | 進行中 / 締め待ち / 注意あり / 完了間近 |
+| 各行・カード | 現場名 + 進捗 + 期日 + 利益/締め状態 + 次アクション |
+| フィルター | 進行中 / 締め待ち / 注意あり / 完了 / 全て |
 
 ### 操作
 
@@ -278,6 +333,12 @@ Calendar画面を開く（1秒）
 | 現場詳細 | カードタップ |
 | 現場登録 | Sherpa経由（「新しい現場登録して」） |
 | 進捗更新 | 詳細画面から |
+
+### UI方針
+
+- 現場一覧はカードの装飾ではなく、未処理・リスク・締め状態が読めるワークキューにする。
+- 進行中だけでなく「次に処理すべき現場」を上に出す。
+- 利益率や締め状態は根拠にドリルダウンできる表示にする。
 
 ### Siteデータモデル
 
@@ -302,7 +363,7 @@ interface Site {
 
 ### 目的
 
-**お金の流れを直感的に把握**
+**お金・報酬の流れを根拠付きで把握**
 
 ### 表示内容
 
@@ -311,6 +372,7 @@ interface Site {
 | 月別PL | 売上・経費・利益の棒グラフ |
 | 取引リスト | 直近の取引（スクロール） |
 | 承認待ち | 未承認の経費・請求（バッジ付き） |
+| 報酬透明性 | 分配対象利益、weight、差分、証跡 |
 
 ### 操作
 
@@ -319,6 +381,12 @@ interface Site {
 | 経費登録 | カメラボタン → OCR → 確認 → 登録 |
 | 取引検索 | Sherpa経由（「先月のガソリン代探して」） |
 | 承認 | カードスワイプ or タップ |
+
+### UI方針
+
+- 金額表示は「数字」だけでなく、前月差分・承認状態・根拠への導線をセットにする。
+- 報酬分配は「分配対象利益」「自分のweight」「チームweight」「補正」「証跡」を同じ文脈で見せる。
+- 承認カードは、何を承認するか、誰に影響するか、取り消し/再提案の道があるかを表示する。
 
 ### OCRフロー（維持）
 
@@ -370,9 +438,24 @@ interface Site {
 
 ### SherpaUI
 
-- チャット形式（LINE風）
+- チャット形式を基本にするが、実行前はProposal preview panelを必ず表示する
 - 現在のページコンテキストを自動で渡す
 - Proposalが必要な操作は確認ステップを挟む
+
+### Proposal Preview Panel
+
+Sherpaが作る提案は、チャット本文だけで完結させない。
+実行前に次の構造で見せる。
+
+| 要素 | 内容 |
+|------|------|
+| 提案内容 | 何を作る/変える/締めるのか |
+| 根拠 | 参照した現場、取引、稼働日、報酬行、Policy |
+| 影響範囲 | 影響する月、現場、メンバー、金額、状態 |
+| 作成されるProposal | type、対象、承認数、実行後イベント |
+| 操作 | 承認、却下、修正、再提案、詳細を見る |
+
+**禁止:** Sherpaが曖昧なまま直接DB更新・報酬確定・締め処理を行うこと。
 
 ---
 
@@ -386,6 +469,16 @@ interface Site {
 | 頻度 | 毎日使う | たまに使う |
 | 電話対応 | 即答が必要 | 後で対応可能 |
 | データ量 | 一覧性が必要 | 特定の1件を操作 |
+
+### Calm Cockpit 判定
+
+| 問い | 画面に残す | Sherpaへ寄せる |
+|------|-----------|----------------|
+| 朝/電話中/承認時に即答が必要か | はい | いいえ |
+| 対象が画面上に見えているか | はい | いいえ |
+| 1タップ/1ドラッグで完了するか | はい | いいえ |
+| 条件分岐・検索・一括変更があるか | いいえ | はい |
+| 実行前に説明と承認が必要か | decision card | Sherpa Proposal |
 
 ### 具体例
 
@@ -511,7 +604,8 @@ frontend/
 
 ## UIデザインシステム（Material 3 Expressive）
 
-GENBA QUESTは **Material 3 Expressive (M3E)** をデザイン基盤として採用。
+GENBA QUESTは **Calm Cockpit with Material 3 Expressive (M3E)** をデザイン基盤として採用する。
+M3Eは全面的な派手さではなく、重要な判断点を見つけやすくするために使う。
 
 ### M3Eの5つの柱
 
@@ -534,15 +628,16 @@ Extended Roles:
 └── error, success states
 ```
 
-**CSS Design Tokens:**
+**CSS Design Tokens（Calm Cockpit初期値）:**
 
 ```css
---md-sys-color-primary: #6750A4;
+--md-sys-color-primary: #0D9488;
 --md-sys-color-on-primary: #FFFFFF;
---md-sys-color-primary-container: #EADDFF;
---md-sys-color-surface: #FEF7FF;
---md-sys-color-surface-container: #F3EDF7;
---md-sys-color-outline: #79747E;
+--md-sys-color-primary-container: #CCFBF1;
+--md-sys-color-surface: #FFFFFF;
+--md-sys-color-surface-container: #F8FAFC;
+--md-sys-color-outline: #CBD5E1;
+--md-sys-color-warning: #F97316;
 ```
 
 #### 2. Typography（タイポグラフィ）
@@ -551,11 +646,11 @@ Extended Roles:
 
 | Role     | Size | 用途                 |
 | -------- | ---- | -------------------- |
-| Display  | 57px | ヒーローテキスト     |
-| Headline | 32px | セクションヘッダー   |
-| Title    | 22px | カードタイトル       |
-| Body     | 16px | 本文テキスト         |
-| Label    | 14px | ボタン、チップ、ナビ |
+| Headline | 24-28px | 画面タイトル、主要サマリー |
+| Title    | 18-20px | セクション、decision card |
+| Body     | 14-16px | 本文、一覧、説明 |
+| Label    | 12-14px | ボタン、チップ、ナビ、補助情報 |
+| Display  | 原則使用しない | LPや特別な空状態のみ |
 
 **Variable Font対応:**
 
@@ -580,19 +675,18 @@ font-variation-settings:
 --md-sys-shape-corner-full: 9999px;  /* 完全な丸み */
 ```
 
-**Shape Morphing（M3E特有機能）:**
+**Shape Morphing（判断点に限定）:**
 
-ボタン押下時などに角丸が滑らかに変化するインタラクション。
+ボタン押下時などに角丸が滑らかに変化するインタラクション。承認・確定・警告などの重要操作に限定する。
 
 ```css
 .button {
-  border-radius: var(--md-sys-shape-corner-full);
+  border-radius: var(--md-sys-shape-corner-small);
   transition: border-radius 300ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .button:active {
-  border-radius: var(--md-sys-shape-corner-large);
-  transform: scale(0.95);
+  border-radius: var(--md-sys-shape-corner-medium);
 }
 ```
 
@@ -618,15 +712,15 @@ font-variation-settings:
 --md-sys-motion-duration-long2: 500ms;
 ```
 
-**Spring Animations（弾むアニメーション）:**
+**Calm Motion（状態説明のアニメーション）:**
 
 ```css
 .fab {
-  transition: transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform 180ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .fab:hover {
-  transform: scale(1.1);
+  transform: translateY(-1px);
 }
 ```
 
@@ -641,6 +735,8 @@ font-variation-settings:
 | Text         | 40px   | full (20px)   | 12px      |
 | FAB          | 56px   | large (16px)  | 16px      |
 | Extended FAB | 56px   | large (16px)  | 16px/20px |
+
+Operational screens may use `8px` corner radius for dense toolbars, tables, filters, and decision cards. Full pill shapes are reserved for chips, nav active indicators, and compact status labels.
 
 **Cards:**
 
@@ -667,6 +763,19 @@ M3Eはアクセシビリティを核心原則として設計：
 3. **Motion**: `prefers-reduced-motion`メディアクエリを尊重
 4. **Focus Indicators**: 十分なコントラストの可視フォーカス状態
 5. **Variable Fonts**: ウェイト/幅変化でも可読性を維持
+
+### Calm Cockpit UI監査チェックリスト
+
+- [ ] First viewportに次の判断または主要な答えがある
+- [ ] 主作業以外のナビ、境界線、アイコン、補助情報が目立ちすぎない
+- [ ] アクセントカラーはCTA、警告、承認、締め、報酬確定に限定されている
+- [ ] 色だけで状態を伝えていない
+- [ ] ドラッグ操作にクリック/メニュー代替がある
+- [ ] focusがsticky header/footer/modalに隠れない
+- [ ] タップ対象は最低24px、実運用の主要操作は44-48pxを確保している
+- [ ] Sherpa/AI提案は提案内容、根拠、影響範囲、Proposal、承認/却下/再提案を表示する
+- [ ] Money/Rewardは金額だけでなく、差分、根拠、証跡、承認状態を表示する
+- [ ] 装飾カード、巨大ヒーロー、意味のないモーションで判断速度を落としていない
 
 ```css
 @media (prefers-reduced-motion: reduce) {

@@ -8,33 +8,58 @@
 
 **Project:** GENBA QUEST
 **Generated:** 2026-02-01 18:33:15
-**Category:** Gaming
+**Category:** Work OS / Construction Operations
 
 ---
 
 ## Global Rules
 
+### Product UI Direction
+
+**Style:** Calm Cockpit
+
+GENBA QUEST is a construction work OS. UI must help guild members and admins understand today's work, site status, accounting, rewards, and approvals quickly. Gameful styling may appear as light flavor, but operational clarity always wins.
+
+### Five Principles
+
+1. **Calm density** - Keep useful information visible while making secondary UI quiet.
+2. **Decision-first** - Lead with the next decision or answer, not feature promotion.
+3. **Expressive only for decisions** - Use strong color, shape, and motion only for approvals, warnings, close/fix actions, and reward confirmation.
+4. **Direct + Sherpa split** - Frequent simple actions stay in direct UI; complex multi-step actions go through Sherpa.
+5. **Transparent automation** - Sherpa/AI output must show proposal content, evidence, impact, and approval/retry paths.
+
 ### Color Palette
 
 | Role | Hex | CSS Variable |
 |------|-----|--------------|
-| Primary | `#2563EB` | `--color-primary` |
-| Secondary | `#3B82F6` | `--color-secondary` |
+| Primary | `#0D9488` | `--color-primary` |
+| Secondary | `#14B8A6` | `--color-secondary` |
 | CTA/Accent | `#F97316` | `--color-cta` |
 | Background | `#F8FAFC` | `--color-background` |
-| Text | `#1E293B` | `--color-text` |
+| Text | `#134E4A` | `--color-text` |
+
+**Color Notes:** Teal is the calm system identity. Orange is reserved for primary actions and high-stakes decision states. Do not use accent color for decorative cards or inactive navigation.
 
 ### Typography
 
-- **Heading Font:** Press Start 2P
-- **Body Font:** VT323
-- **Mood:** pixel, retro, gaming, 8-bit, nostalgic, arcade
-- **Google Fonts:** [Press Start 2P + VT323](https://fonts.google.com/share?selection.family=Press+Start+2P|VT323)
+- **Heading Font:** Plus Jakarta Sans
+- **Body Font:** Plus Jakarta Sans
+- **Mood:** calm, work-focused, clear, trustworthy, lightly gameful
+- **Google Fonts:** [Plus Jakarta Sans](https://fonts.google.com/specimen/Plus+Jakarta+Sans)
 
 **CSS Import:**
 ```css
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
 ```
+
+### App Type Scale
+
+- App screen headings: `24px-28px`
+- Section titles: `18px-20px`
+- Body/list text: `14px-16px`
+- Labels/metadata: `12px-14px`
+- Large display type is reserved for marketing pages or rare empty states.
+- Do not use viewport-scaled app text or negative letter spacing.
 
 ### Spacing Variables
 
@@ -83,8 +108,8 @@
 /* Secondary Button */
 .btn-secondary {
   background: transparent;
-  color: #2563EB;
-  border: 2px solid #2563EB;
+  color: #0D9488;
+  border: 2px solid #0D9488;
   padding: 12px 24px;
   border-radius: 8px;
   font-weight: 600;
@@ -97,17 +122,16 @@
 
 ```css
 .card {
-  background: #F8FAFC;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: var(--shadow-md);
-  transition: all 200ms ease;
+  background: #FFFFFF;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
   cursor: pointer;
 }
 
 .card:hover {
-  box-shadow: var(--shadow-lg);
-  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 ```
 
@@ -123,9 +147,9 @@
 }
 
 .input:focus {
-  border-color: #2563EB;
+  border-color: #0D9488;
   outline: none;
-  box-shadow: 0 0 0 3px #2563EB20;
+  box-shadow: 0 0 0 3px #0D948820;
 }
 ```
 
@@ -139,8 +163,8 @@
 
 .modal {
   background: white;
-  border-radius: 16px;
-  padding: 32px;
+  border-radius: 12px;
+  padding: 24px;
   box-shadow: var(--shadow-xl);
   max-width: 500px;
   width: 90%;
@@ -151,27 +175,34 @@
 
 ## Style Guidelines
 
-**Style:** Retro-Futurism
+**Style:** Calm Cockpit
 
-**Keywords:** Vintage sci-fi, 80s aesthetic, neon glow, geometric patterns, CRT scanlines, pixel art, cyberpunk, synthwave
+**Keywords:** calm density, decision-first, quiet navigation, evidence-rich, operational cockpit, readable under pressure
 
-**Best For:** Gaming, entertainment, music platforms, tech brands, artistic projects, nostalgic, cyberpunk
+**Best For:** construction operations, accounting, approvals, site scheduling, reward transparency
 
-**Key Effects:** CRT scanlines (::before overlay), neon glow (text-shadow+box-shadow), glitch effects (skew/offset keyframes)
+**Key Effects:** compact hierarchy, subtle separators, stable layout, meaningful status color, visible focus, quick confirmation states
 
 ### Page Pattern
 
-**Pattern Name:** Feature-Rich Showcase
+**Pattern Name:** Decision Cockpit
 
-- **CTA Placement:** Above fold
-- **Section Order:** Hero > Features > CTA
+- **First viewport:** next decision, current state, blockers, and primary action
+- **Section Order:** Current answer > work queue > evidence/detail > secondary tools
+- **Navigation:** Today / Calendar / Sites / Money plus Sherpa FAB
+- **Cards:** repeated items, decision cards, and modals only; no nested cards
+- **Expressive UI:** high-stakes decision states only
 
 ---
 
 ## Anti-Patterns (Do NOT Use)
 
-- ❌ Minimalist design
-- ❌ Static assets
+- ❌ Oversized heroes in app screens
+- ❌ Feature-showcase layouts inside operational workflows
+- ❌ Decoration-only gradients, neon, scanlines, glows, and loud backgrounds
+- ❌ Nested cards or card-heavy page sections
+- ❌ Expressive motion without state meaning
+- ❌ Hidden AI execution without Proposal/evidence/impact preview
 
 ### Additional Forbidden Patterns
 
@@ -191,10 +222,16 @@ Before delivering any UI code, verify:
 - [ ] No emojis used as icons (use SVG instead)
 - [ ] All icons from consistent icon set (Heroicons/Lucide)
 - [ ] `cursor-pointer` on all clickable elements
-- [ ] Hover states with smooth transitions (150-300ms)
+- [ ] Hover/focus/active states do not shift layout
+- [ ] Motion is purposeful and respects `prefers-reduced-motion`
 - [ ] Light mode: text contrast 4.5:1 minimum
 - [ ] Focus states visible for keyboard navigation
-- [ ] `prefers-reduced-motion` respected
+- [ ] Focus is not hidden behind sticky UI
+- [ ] Drag interactions have non-drag alternatives
+- [ ] Touch targets are at least 24px, preferably 44px-48px for mobile
 - [ ] Responsive: 375px, 768px, 1024px, 1440px
 - [ ] No content hidden behind fixed navbars
 - [ ] No horizontal scroll on mobile
+- [ ] First viewport shows the screen's next decision or primary answer
+- [ ] Accent color is used only for CTA, warning, approval, close/fix, or reward-confirm states
+- [ ] Sherpa/AI actions show proposal, evidence, impact, and approval/retry paths

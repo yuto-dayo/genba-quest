@@ -4,15 +4,18 @@ import {
     createPathV31MonthlyDistributionProposal,
     createPathV31SiteCloseProposal,
     createPathV31SiteCloseReopenProposal,
+    createPathV32SimpleMonthlyDistributionProposal,
     fetchPathV31DayLogs,
     fetchPathV31Experience,
     fetchPathV31SiteCloses,
     previewPathV31MonthlyDistribution,
+    previewPathV32SimpleMonthlyDistribution,
     recommendPathV31LeadAssignment,
     type PathTradeFamily,
     type PathV31DayLog,
     type PathV31MonthlyDistributionPreview,
     type PathV31SiteClose,
+    type PathV32SimpleMonthlyDistributionPreview,
 } from "../../lib/api";
 
 const TRADE_OPTIONS: Array<{ value: PathTradeFamily; label: string }> = [
@@ -47,6 +50,7 @@ export function PathV31Tab() {
     const [dayLogs, setDayLogs] = useState<PathV31DayLog[]>([]);
     const [siteCloses, setSiteCloses] = useState<PathV31SiteClose[]>([]);
     const [monthlyPreview, setMonthlyPreview] = useState<PathV31MonthlyDistributionPreview | null>(null);
+    const [monthlyV32Preview, setMonthlyV32Preview] = useState<PathV32SimpleMonthlyDistributionPreview | null>(null);
     const [experience, setExperience] = useState<Record<string, unknown> | null>(null);
     const [recommendation, setRecommendation] = useState<Record<string, unknown> | null>(null);
 
@@ -98,8 +102,12 @@ export function PathV31Tab() {
             try {
                 setError(null);
                 await loadBase();
-                const preview = await previewPathV31MonthlyDistribution(currentMonthValue());
+                const [preview, v32Preview] = await Promise.all([
+                    previewPathV31MonthlyDistribution(currentMonthValue()),
+                    previewPathV32SimpleMonthlyDistribution(currentMonthValue()),
+                ]);
                 setMonthlyPreview(preview);
+                setMonthlyV32Preview(v32Preview);
             } catch (requestError) {
                 setError(requestError instanceof Error ? requestError.message : "読み込みに失敗しました");
             }
@@ -158,11 +166,27 @@ export function PathV31Tab() {
     const handleRefreshMonthly = async () => {
         try {
             setFeedback("月次分配を再計算中...", null);
-            const preview = await previewPathV31MonthlyDistribution(monthlyMonth);
+            const [preview, v32Preview] = await Promise.all([
+                previewPathV31MonthlyDistribution(monthlyMonth),
+                previewPathV32SimpleMonthlyDistribution(monthlyMonth),
+            ]);
             setMonthlyPreview(preview);
+            setMonthlyV32Preview(v32Preview);
             setFeedback("月次分配 preview を更新しました。", null);
         } catch (requestError) {
             setFeedback(null, requestError instanceof Error ? requestError.message : "preview に失敗しました");
+        }
+    };
+
+    const handleCreateV32MonthlyProposal = async () => {
+        try {
+            setFeedback("V3.2 Simple proposal を作成中...", null);
+            await createPathV32SimpleMonthlyDistributionProposal(monthlyMonth);
+            const preview = await previewPathV32SimpleMonthlyDistribution(monthlyMonth);
+            setMonthlyV32Preview(preview);
+            setFeedback("V3.2 Simple proposal を作成しました。", null);
+        } catch (requestError) {
+            setFeedback(null, requestError instanceof Error ? requestError.message : "V3.2 proposal 作成に失敗しました");
         }
     };
 
@@ -353,7 +377,54 @@ export function PathV31Tab() {
                     <div className={styles.actions}>
                         <button type="button" className={`${styles.button} ${styles.buttonSecondary}`} onClick={handleRefreshMonthly}>preview 更新</button>
                         <button type="button" className={styles.button} onClick={handleCreateMonthlyProposal}>月次分配 proposal 作成</button>
+                        <button type="button" className={styles.button} onClick={handleCreateV32MonthlyProposal}>V3.2 proposal 作成</button>
                     </div>
+                    {monthlyV32Preview && (
+                        <>
+                            <div className={styles.inlineList}>
+                                <span className={styles.chip}>V3.2 Simple</span>
+                                <span className={styles.chip}>MonthlyPool {monthlyV32Preview.monthly_pool.toLocaleString("ja-JP")}</span>
+                                <span className={styles.chip}>対象 {monthlyV32Preview.active_member_count}人</span>
+                                <span className={styles.chip}>Weight {monthlyV32Preview.total_weight_num.toLocaleString("ja-JP")}</span>
+                                {monthlyV32Preview.warnings.map((warning) => (
+                                    <span key={warning} className={styles.chip}>{warning}</span>
+                                ))}
+                            </div>
+                            <p className={styles.muted}>現場利益は現場別ではなく月間チーム成果として合算されています。</p>
+                            <div className={styles.tableWrap}>
+                                <table className={styles.table}>
+                                    <thead>
+                                        <tr>
+                                            <th>Member</th>
+                                            <th>Level</th>
+                                            <th>稼働日</th>
+                                            <th>稼働係数</th>
+                                            <th>Weight</th>
+                                            <th>Share</th>
+                                            <th>チーム成果分配</th>
+                                            <th>補正</th>
+                                            <th>Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {monthlyV32Preview.members.map((member) => (
+                                            <tr key={member.member_id}>
+                                                <td>{member.member_name}</td>
+                                                <td>{member.level} / {member.level_weight_milli}</td>
+                                                <td>{member.confirmed_work_days} / {member.month_total_days}日</td>
+                                                <td>{(member.work_presence_bp / 100).toFixed(1)} / 100</td>
+                                                <td>{member.monthly_weight_num.toLocaleString("ja-JP")}</td>
+                                                <td>{(member.final_share_bp / 100).toFixed(2)}%</td>
+                                                <td>{member.rounded_amount.toLocaleString("ja-JP")}</td>
+                                                <td>{member.member_correction_amount.toLocaleString("ja-JP")}</td>
+                                                <td>{member.total_pay_amount.toLocaleString("ja-JP")}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </>
+                    )}
                     {monthlyPreview && (
                         <>
                             <div className={styles.inlineList}>

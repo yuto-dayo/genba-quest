@@ -1,5 +1,6 @@
 import { getAuthToken } from "./supabase";
 import { getActiveOrgId } from "../stores/activeOrg";
+import { getDevAuthUserKey } from "./devAuth";
 
 function isLoopbackApiUrl(value: string): boolean {
     try {
@@ -33,6 +34,11 @@ export const api = async <T>(
 
     if (activeOrgId && !headers.has("x-org-id")) {
         headers.set("x-org-id", activeOrgId);
+    }
+
+    const devAuthUserKey = getDevAuthUserKey();
+    if (devAuthUserKey && !headers.has("x-dev-user-key")) {
+        headers.set("x-dev-user-key", devAuthUserKey);
     }
 
     let response: Response;
@@ -122,6 +128,7 @@ export type ProposalType =
     | "assignment.create"
     | "assignment.update"
     | "assignment.cancel"
+    | "leave.request"
     | "communication.review"
     | "communication.task"
     | "task.revision.request"
@@ -429,6 +436,181 @@ export const submitAssignmentCreateProposal = (
                 note: input.note?.trim() || undefined,
             },
             description: `${input.site_name}（${input.date}）への配置`,
+        }),
+    });
+
+export interface AssignmentCreateDraftCommitItemResult {
+    draft_id: string;
+    success: boolean;
+    proposal_id?: string;
+    auto_approved?: boolean;
+    auto_executed?: boolean;
+    error?: string;
+}
+
+export interface AssignmentCreateDraftCommitResponse {
+    ok: boolean;
+    total_proposals: number;
+    pending_count: number;
+    auto_approved_count: number;
+    proposal_ids: string[];
+    results: AssignmentCreateDraftCommitItemResult[];
+    message: string;
+}
+
+export interface AssignmentCreateDraftCommitInput extends AssignmentProposalCreateInput {
+    id: string;
+}
+
+export const commitAssignmentCreateDrafts = async (
+    drafts: AssignmentCreateDraftCommitInput[]
+): Promise<AssignmentCreateDraftCommitResponse> => {
+    const settledResults = await Promise.allSettled(
+        drafts.map((draft) => submitAssignmentCreateProposal(draft))
+    );
+
+    const results = settledResults.map<AssignmentCreateDraftCommitItemResult>((settled, index) => {
+        const draft = drafts[index]!;
+        if (settled.status === "fulfilled") {
+            return {
+                draft_id: draft.id,
+                success: true,
+                proposal_id: settled.value.proposal.id,
+                auto_approved: settled.value.auto_approved,
+                auto_executed: settled.value.auto_executed,
+            };
+        }
+
+        return {
+            draft_id: draft.id,
+            success: false,
+            error: getPromiseErrorMessage(settled.reason),
+        };
+    });
+
+    const succeeded = results.filter((result) => result.success);
+    const autoApprovedCount = succeeded.filter((result) => result.auto_approved).length;
+    const pendingCount = succeeded.length - autoApprovedCount;
+    const proposalIds = succeeded
+        .map((result) => result.proposal_id)
+        .filter((proposalId): proposalId is string => typeof proposalId === "string");
+    const failedCount = results.length - succeeded.length;
+
+    let message = "変更案を送れませんでした。もう一度お試しください。";
+    if (succeeded.length > 0 && failedCount > 0) {
+        message = `${succeeded.length}件送信、${failedCount}件失敗しました。`;
+    } else if (pendingCount > 0) {
+        message = `${succeeded.length}件の変更案を送りました。`;
+    } else if (succeeded.length > 0) {
+        message = `${succeeded.length}件の変更案を送りました。`;
+    }
+
+    return {
+        ok: succeeded.length > 0,
+        total_proposals: results.length,
+        pending_count: pendingCount,
+        auto_approved_count: autoApprovedCount,
+        proposal_ids: proposalIds,
+        results,
+        message,
+    };
+};
+
+export type PersonalScheduleType = "event" | "task" | "vacation" | "sick_leave" | "business_trip" | "training";
+export type PersonalScheduleVisibility = "personal" | "organization";
+
+export interface PersonalSchedule {
+    id: string;
+    user_id: string;
+    start_date: string;
+    end_date: string;
+    type: PersonalScheduleType;
+    title: string;
+    start_time?: string | null;
+    end_time?: string | null;
+    address?: string | null;
+    color?: string | null;
+    blocks_assignment: boolean;
+    visibility: PersonalScheduleVisibility;
+    reason?: string | null;
+    approved: boolean;
+    created_at?: string;
+    updated_at?: string;
+}
+
+export const fetchPersonalSchedules = (params: {
+    from: string;
+    to: string;
+    scope?: "organization" | "personal";
+}) => {
+    const searchParams = new URLSearchParams();
+    searchParams.append("from", params.from);
+    searchParams.append("to", params.to);
+    if (params.scope) searchParams.append("scope", params.scope);
+
+    return api<PersonalSchedule[]>(`/api/v1/calendar/personal-schedules?${searchParams.toString()}`);
+};
+
+export interface LeaveRequestProposalInput {
+    user_id?: string;
+    date: string;
+    reason?: string;
+}
+
+export const submitLeaveRequestProposal = (input: LeaveRequestProposalInput) =>
+    api<AssignmentProposalCreateResponse>("/api/v1/proposals/create-and-submit", {
+        method: "POST",
+        body: JSON.stringify({
+            type: "leave.request",
+            payload: {
+                user_id: input.user_id,
+                start_date: input.date,
+                end_date: input.date,
+                schedule_type: "vacation",
+                title: "休み",
+                visibility: "organization",
+                blocks_assignment: true,
+                reason: input.reason?.trim() || undefined,
+            },
+            description: `${input.date} の休み`,
+        }),
+    });
+
+export interface PersonalScheduleProposalInput {
+    start_date: string;
+    end_date?: string;
+    schedule_type: PersonalScheduleType;
+    title: string;
+    start_time?: string;
+    end_time?: string;
+    address?: string;
+    color?: string;
+    visibility?: PersonalScheduleVisibility;
+    reason?: string;
+}
+
+export const submitPersonalScheduleProposal = (input: PersonalScheduleProposalInput) =>
+    api<AssignmentProposalCreateResponse>("/api/v1/proposals/create-and-submit", {
+        method: "POST",
+        body: JSON.stringify({
+            type: "leave.request",
+            payload: {
+                schedule_type: input.schedule_type,
+                title: input.title.trim(),
+                start_date: input.start_date,
+                end_date: input.end_date || input.start_date,
+                start_time: input.start_time || undefined,
+                end_time: input.end_time || undefined,
+                address: input.address?.trim() || undefined,
+                color: input.color?.trim() || undefined,
+                visibility: input.visibility || "personal",
+                blocks_assignment: ["vacation", "sick_leave"].includes(input.schedule_type),
+                reason: input.reason?.trim() || undefined,
+            },
+            description:
+                input.end_date && input.end_date !== input.start_date
+                    ? `${input.start_date}〜${input.end_date} の${input.title.trim() || "予定"}`
+                    : `${input.start_date} の${input.title.trim() || "予定"}`,
         }),
     });
 
@@ -1074,6 +1256,8 @@ export interface Client {
     billing_address?: string | null;
     payment_terms?: string | null;
     invoice_notes_default?: string | null;
+    calendar_color_token?: string | null;
+    calendar_color?: string | null;
     created_at: string;
     updated_at?: string | null;
     deleted_at?: string | null;
@@ -1132,13 +1316,19 @@ export interface Site {
     revenue?: number;
     status: string;
     client_id?: string;
-    client?: { id: string; name: string };
+    client?: {
+        id: string;
+        name: string;
+        calendar_color_token?: string | null;
+        calendar_color?: string | null;
+    };
     assigned_users?: string[];
     started_at?: string;
     expected_completion_at?: string;
     schedule_mode?: "continuous" | "weekdays" | "custom";
     working_weekdays?: number[];
     custom_work_dates?: string[];
+    required_worker_count?: number | null;
     created_at: string;
     updated_at?: string;
     completed_at?: string;
@@ -1166,6 +1356,14 @@ export interface SiteCompletionResult {
 export interface SiteCloseDraftInput {
     recognized_revenue: number;
     included_day_log_ids: string[];
+    site_day_log_drafts?: Array<{
+        date: string;
+        member_id: string;
+        role_type: PathV31RoleType;
+        credited_unit: number;
+        trade_families?: PathTradeFamily[];
+        memo?: string;
+    }>;
     material_cost: number;
     external_cost: number;
     direct_cost: number;
@@ -1771,7 +1969,7 @@ export const PATH_BIG_SKILL_STATE_OPTIONS = [
     "stable_independent",
 ] as const;
 
-export const PATH_LEVEL_OPTIONS = ["L1", "L2", "L3", "L4"] as const;
+export const PATH_LEVEL_OPTIONS = ["L1", "L2", "L3", "L4", "L5"] as const;
 export const PATH_TRADE_FAMILY_OPTIONS = [
     "wall_finish",
     "floor_finish",
@@ -2470,6 +2668,14 @@ export interface PathRewardCorrectionSummary {
     items: PathRewardCorrectionHistoryItem[];
 }
 
+export interface PathPendingCloseSite {
+    site_id: string;
+    site_name: string;
+    completed_at: string | null;
+    close_proposal_status: string | null;
+    href: string;
+}
+
 export interface PathRewardConfirmationSummary {
     month: string;
     member_id: string;
@@ -2493,6 +2699,7 @@ export interface PathRewardConfirmationSummary {
     explanation_missing: boolean;
     explanation_missing_message: string | null;
     site_breakdown: PathRewardSiteBreakdown[];
+    pending_close_sites: PathPendingCloseSite[];
     corrections: PathRewardCorrectionSummary;
     evidence_refs: PathRewardEvidenceRef[];
     internal_controls: {
@@ -2508,17 +2715,38 @@ export interface PathRewardQaRequest {
     site_id?: string | null;
 }
 
+export type PathRewardQaConfidence = "low" | "medium" | "high";
+
+export interface PathRewardQaAmountBreakdown {
+    label: string;
+    amount: number;
+    detail: string;
+    evidence_refs: PathRewardEvidenceRef[];
+}
+
+export interface PathRewardQaAdjustment {
+    label: string;
+    amount: number | null;
+    detail: string;
+    evidence_refs: PathRewardEvidenceRef[];
+}
+
 export interface PathRewardQaResponse {
     conclusion: string;
-    reasons: string[];
+    amount_breakdown: PathRewardQaAmountBreakdown[];
+    why_changed: string[];
+    adjustments: PathRewardQaAdjustment[];
     evidence_refs: PathRewardEvidenceRef[];
     next_action: string | null;
+    confidence: PathRewardQaConfidence;
 }
 
 export type PathV31RoleType = "assist" | "lead" | "solo" | "support";
 export type PathV31ShareMode = "auto_points" | "fixed_template";
 export type PathV31OutcomeStatus = "ok" | "rework" | "unknown";
 export type PathV31SpeedClass = "slow" | "normal" | "fast";
+export type PathV31ResponsibilityLevel = "owner" | "lead" | "member" | "support";
+export type PathV31RewardRoleKey = "planning" | "quality" | "admin" | "client";
 
 export interface PathV31DayLog {
     id: string;
@@ -2617,6 +2845,85 @@ export interface PathV31MonthlyDistributionPreview {
         total_pay: number;
         calculation_snapshot: Record<string, unknown>;
     }>;
+}
+
+export interface PathV32SimpleMonthlyDistributionPreview {
+    month: string;
+    calculation_system: "path_v32_simple";
+    path_rule_version: "3.2.0-simple";
+    monthly_pool: number;
+    site_profit_total: number;
+    pool_adjustment_total: number;
+    member_correction_total: number;
+    total_weight_num: number;
+    month_total_days: number;
+    active_member_count: number;
+    warnings: string[];
+    calculation_snapshot: Record<string, unknown>;
+    members: Array<{
+        member_id: string;
+        member_name: string;
+        level: PathLevel;
+        level_source: "history" | "profile" | "default";
+        level_weight_milli: number;
+        month_total_days: number;
+        confirmed_work_days: number;
+        work_presence_bp: number;
+        monthly_weight_num: number;
+        total_weight_num_snapshot: number;
+        final_share_bp: number;
+        raw_amount: number;
+        rounded_amount: number;
+        member_correction_amount: number;
+        total_pay_amount: number;
+        calculation_snapshot: Record<string, unknown>;
+    }>;
+}
+
+export interface PathV31MonthlyWorkUnits {
+    month: string;
+    period_start: string;
+    period_end: string;
+    deduction_policy: {
+        standard_units_mode: "calendar_days";
+        leave_source: "personal_schedules";
+        leave_types: Array<"vacation" | "sick_leave">;
+        include_pending_proposals: boolean;
+    };
+    members: Array<{
+        member_id: string;
+        member_name: string;
+        standard_units: number;
+        leave_units: number;
+        work_units: number;
+        leave_breakdown: Partial<Record<"vacation" | "sick_leave", number>>;
+        source_schedule_count: number;
+    }>;
+    total_work_units: number;
+}
+
+export interface PathV31SiteMemberRewardInput {
+    id?: string;
+    org_id?: string;
+    site_id: string;
+    member_id: string;
+    participation_units: number;
+    responsibility_level: PathV31ResponsibilityLevel;
+    role_shares: Record<PathV31RewardRoleKey, number>;
+    note?: string;
+    created_at?: string;
+    updated_at?: string;
+}
+
+export interface PathV31SiteMemberRolePlan {
+    id?: string;
+    org_id?: string;
+    site_id: string;
+    member_id: string;
+    role_shares: Record<PathV31RewardRoleKey, number>;
+    note?: string;
+    created_at?: string;
+    updated_at?: string;
 }
 
 export interface PathV31Experience {
@@ -2974,6 +3281,53 @@ export const fetchPathV31SiteCloses = (params?: {
     );
 };
 
+export const fetchPathV31MonthlyWorkUnits = (month: string) =>
+    api<PathV31MonthlyWorkUnits>(
+        `/api/v1/path/module/monthly-work-units?month=${encodeURIComponent(month)}`
+    );
+
+export const fetchPathV31SiteMemberRewardInputs = (params?: {
+    site_id?: string;
+    member_id?: string;
+    limit?: number;
+}) => {
+    const searchParams = new URLSearchParams();
+    if (params?.site_id) searchParams.append("site_id", params.site_id);
+    if (params?.member_id) searchParams.append("member_id", params.member_id);
+    if (params?.limit !== undefined) searchParams.append("limit", String(params.limit));
+    const query = searchParams.toString();
+    return api<{ inputs: PathV31SiteMemberRewardInput[] }>(
+        `/api/v1/path/module/site-member-reward-inputs${query ? `?${query}` : ""}`
+    );
+};
+
+export const savePathV31SiteMemberRewardInput = (data: Omit<PathV31SiteMemberRewardInput, "id" | "org_id" | "created_at" | "updated_at">) =>
+    api<{ input: PathV31SiteMemberRewardInput }>("/api/v1/path/module/site-member-reward-inputs", {
+        method: "POST",
+        body: JSON.stringify(data),
+    });
+
+export const fetchPathV31SiteMemberRolePlans = (params?: {
+    site_id?: string;
+    member_id?: string;
+    limit?: number;
+}) => {
+    const searchParams = new URLSearchParams();
+    if (params?.site_id) searchParams.append("site_id", params.site_id);
+    if (params?.member_id) searchParams.append("member_id", params.member_id);
+    if (params?.limit !== undefined) searchParams.append("limit", String(params.limit));
+    const query = searchParams.toString();
+    return api<{ plans: PathV31SiteMemberRolePlan[] }>(
+        `/api/v1/path/module/site-member-role-plans${query ? `?${query}` : ""}`
+    );
+};
+
+export const savePathV31SiteMemberRolePlan = (data: Omit<PathV31SiteMemberRolePlan, "id" | "org_id" | "created_at" | "updated_at">) =>
+    api<{ plan: PathV31SiteMemberRolePlan }>("/api/v1/path/module/site-member-role-plans", {
+        method: "POST",
+        body: JSON.stringify(data),
+    });
+
 export const createPathV31SiteCloseProposal = (data: PathV31SiteCloseRequest) =>
     api<{
         proposal: ProposalRecord;
@@ -3011,6 +3365,26 @@ export const createPathV31MonthlyDistributionProposal = (month: string) =>
         auto_executed: boolean;
         preview: Record<string, unknown>;
     }>("/api/v1/path/module/monthly-distribution/proposals", {
+        method: "POST",
+        body: JSON.stringify({ month }),
+    });
+
+export const previewPathV32SimpleMonthlyDistribution = (month: string) =>
+    api<{ preview: PathV32SimpleMonthlyDistributionPreview }>(
+        "/api/v1/path/module/monthly-distribution-v32/preview",
+        {
+            method: "POST",
+            body: JSON.stringify({ month }),
+        }
+    ).then((response) => response.preview);
+
+export const createPathV32SimpleMonthlyDistributionProposal = (month: string) =>
+    api<{
+        proposal: ProposalRecord;
+        auto_approved: boolean;
+        auto_executed: boolean;
+        preview: Record<string, unknown>;
+    }>("/api/v1/path/module/monthly-distribution-v32/proposals", {
         method: "POST",
         body: JSON.stringify({ month }),
     });

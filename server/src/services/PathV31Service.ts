@@ -12,6 +12,7 @@ import {
   PathTradeFamily,
   hashStableRecord,
 } from "./PathPolicyBundleService";
+import { PathV32SimpleRewardService } from "./PathV32SimpleRewardService";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -1057,6 +1058,12 @@ export class PathV31Service {
       if (updateLogsResult.error) {
         throw new Error(`Failed to lock site day logs: ${updateLogsResult.error.message}`);
       }
+
+      await new PathV32SimpleRewardService(this.orgId).syncSiteCloseMemberUnits(
+        siteCloseId,
+        String(payload.site_id ?? ""),
+        dayLogIds,
+      );
     }
 
     const outcomeSnapshots = coerceArray<Record<string, unknown>>(payload.outcome_snapshots);

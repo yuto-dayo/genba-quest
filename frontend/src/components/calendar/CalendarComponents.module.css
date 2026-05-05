@@ -3,9 +3,10 @@
 /* Week header */
 .weekHeader {
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
+    grid-template-columns: repeat(7, minmax(0, 1fr));
     margin-bottom: 8px;
     text-align: center;
+    min-width: 0;
 }
 
 .weekHeaderLabel {
@@ -24,13 +25,15 @@
 
 /* MonthCalendar */
 .monthGrid {
+    position: relative;
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
+    grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 1px;
     background: var(--md-sys-color-outline-variant);
     border: 1px solid var(--md-sys-color-outline-variant);
     border-radius: var(--md-sys-shape-corner-medium);
     overflow: hidden;
+    min-width: 0;
 }
 
 .dayCell {
@@ -47,6 +50,7 @@
     gap: 6px;
     cursor: pointer;
     position: relative;
+    min-width: 0;
     transition: background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
         transform var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
     -webkit-tap-highlight-color: transparent;
@@ -87,14 +91,8 @@
 }
 
 .status_holiday {
-    background: repeating-linear-gradient(
-        135deg,
-        var(--md-sys-color-surface-container-low),
-        var(--md-sys-color-surface-container-low) 6px,
-        var(--md-sys-color-surface-container) 6px,
-        var(--md-sys-color-surface-container) 12px
-    );
-    color: var(--md-sys-color-on-surface-variant);
+    background: var(--md-sys-color-surface-container-lowest);
+    color: inherit;
 }
 
 .dayCell.selected {
@@ -122,6 +120,31 @@
     opacity: 0.55;
 }
 
+.dayCell.shortageDay {
+    background: linear-gradient(
+        180deg,
+        color-mix(in srgb, #fff3d8 76%, white),
+        color-mix(in srgb, #ffd29a 26%, var(--md-sys-color-surface-container-lowest))
+    );
+    box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, #f97316 58%, var(--md-sys-color-outline-variant)),
+        inset 0 -4px 0 color-mix(in srgb, #f97316 72%, transparent);
+}
+
+.dayCell.shortageDay .dayNumber {
+    color: #9a4a00;
+    font-weight: 800;
+}
+
+.dayCell.shortageDay.selected {
+    outline-color: #f97316;
+    background: linear-gradient(
+        180deg,
+        color-mix(in srgb, #ffe4b7 84%, white),
+        color-mix(in srgb, #f97316 18%, var(--md-sys-color-secondary-container))
+    );
+}
+
 .dayCellTop {
     display: flex;
     align-items: center;
@@ -143,13 +166,110 @@
     color: var(--md-sys-color-error);
 }
 
+.dayTentativeBadge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--md-sys-color-tertiary-container);
+    color: var(--md-sys-color-on-tertiary-container);
+    font: var(--md-sys-typescale-label-small);
+    font-weight: 800;
+}
+
+.completedOverflowBadge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--md-sys-color-outline) 28%, white);
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-small);
+    font-weight: 800;
+}
+
+.dayCellBadges {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex: 0 0 auto;
+    gap: 3px;
+    min-width: 0;
+    white-space: nowrap;
+}
+
+.completedRunLayer {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-rows: repeat(var(--calendar-row-count, 6), minmax(0, 1fr));
+    gap: 1px;
+    min-width: 0;
+    pointer-events: none;
+}
+
+.completedRunBar {
+    grid-row: var(--completed-run-row);
+    grid-column: var(--completed-run-column) / span var(--completed-run-span);
+    align-self: start;
+    justify-self: stretch;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-width: 0;
+    height: 16px;
+    margin: var(--completed-run-offset, 31px) 10px 0;
+    padding: 0 7px;
+    border-radius: 999px;
+    background: var(--completed-site-color, #0d9488);
+    color: var(--completed-site-text, white);
+    font: var(--md-sys-typescale-label-small);
+    font-weight: 800;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(127, 29, 29, 0.22);
+}
+
+.completedRunBarStart,
+.completedRunBarContinuation,
+.completedRunBarSingle {
+    justify-content: center;
+}
+
+.completedSiteCheck {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    background: white;
+    color: #dc2626;
+}
+
+.completedSiteName {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .dayDensity {
     display: grid;
     gap: 6px;
     margin-top: auto;
 }
 
-.dayDensityTrack,
 .weekDensityTrack {
     display: flex;
     height: 6px;
@@ -158,12 +278,10 @@
     background: color-mix(in srgb, var(--md-sys-color-outline-variant) 55%, white);
 }
 
-.dayDensityConfirmed,
 .weekDensityConfirmed {
     background: var(--md-sys-color-primary);
 }
 
-.dayDensityPending,
 .weekDensityPending {
     background: var(--md-sys-color-tertiary);
 }
@@ -200,9 +318,42 @@
     color: var(--md-sys-color-on-primary-container);
 }
 
+.tentativeIconChip {
+    background: var(--md-sys-color-tertiary-container);
+    color: var(--md-sys-color-on-tertiary-container);
+}
+
 .availabilityHoliday {
     background: var(--md-sys-color-surface-container-high);
     color: var(--md-sys-color-on-surface-variant);
+}
+
+.dayRestInitial {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--schedule-color, var(--md-sys-color-primary)) 16%, white);
+    color: var(--schedule-color, var(--md-sys-color-primary));
+    font: var(--md-sys-typescale-label-small);
+    font-weight: 700;
+}
+
+.scheduleColorDots {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    min-width: 0;
+}
+
+.scheduleColorDot {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    background: var(--schedule-color, var(--md-sys-color-primary));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, white 34%, transparent);
 }
 
 .dayGlyphRow {
@@ -210,6 +361,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 6px;
+    min-width: 0;
 }
 
 .dayDotGroup {
@@ -217,6 +369,7 @@
     align-items: center;
     gap: 4px;
     min-width: 0;
+    overflow: hidden;
 }
 
 .dayDot {
@@ -232,6 +385,10 @@
 
 .dayDotPending {
     background: var(--md-sys-color-tertiary);
+}
+
+.dayDotTentative {
+    background: color-mix(in srgb, var(--md-sys-color-tertiary) 72%, white);
 }
 
 .dayDotNeutral {
@@ -255,9 +412,50 @@
 }
 
 /* Mobile: denser cells but still >=48px tap target */
+@media (max-width: 768px) {
+    .weekHeader {
+        margin-bottom: 6px;
+    }
+
+    .weekHeaderLabel {
+        padding: 4px 0;
+    }
+
+    .dayCell {
+        min-height: 74px;
+        padding: 5px 5px 4px;
+        gap: 4px;
+    }
+
+    .dayDensity {
+        gap: 4px;
+    }
+
+    .completedRunBar {
+        height: 15px;
+        margin-inline: 7px;
+        padding: 0 5px;
+    }
+
+    .dayDotGroup {
+        gap: 3px;
+    }
+
+    .dayDot {
+        width: 7px;
+        height: 7px;
+    }
+
+    .dayCountBadge {
+        min-width: 20px;
+        height: 20px;
+        padding: 0 6px;
+    }
+}
+
 @media (max-width: 480px) {
     .dayCell {
-        min-height: 78px;
+        min-height: 64px;
         padding: 5px 4px 3px;
     }
 
@@ -281,7 +479,11 @@
 
 @media (max-width: 360px) {
     .dayCell {
-        min-height: 68px;
+        min-height: 58px;
+    }
+
+    .dayDot:nth-child(n + 4) {
+        display: none;
     }
 }
 
@@ -433,6 +635,11 @@
     box-shadow: inset 4px 0 0 var(--md-sys-color-error);
 }
 
+.assignment_tentative {
+    box-shadow: inset 4px 0 0 var(--md-sys-color-tertiary);
+    background: color-mix(in srgb, var(--md-sys-color-tertiary-container) 32%, var(--md-sys-color-surface-container-lowest));
+}
+
 .assignment_confirmed {
     box-shadow: inset 4px 0 0 var(--md-sys-color-secondary);
 }
@@ -510,6 +717,11 @@
     color: var(--md-sys-color-on-error-container);
 }
 
+.statusBadge.tentative {
+    background: var(--md-sys-color-tertiary-container);
+    color: var(--md-sys-color-on-tertiary-container);
+}
+
 .statusBadge.confirmed {
     background: var(--md-sys-color-secondary-container);
     color: var(--md-sys-color-on-secondary-container);
@@ -528,6 +740,11 @@
 .statusIconBadge.pending {
     background: var(--md-sys-color-error-container);
     color: var(--md-sys-color-on-error-container);
+}
+
+.statusIconBadge.tentative {
+    background: var(--md-sys-color-tertiary-container);
+    color: var(--md-sys-color-on-tertiary-container);
 }
 
 .statusIconBadge.confirmed {

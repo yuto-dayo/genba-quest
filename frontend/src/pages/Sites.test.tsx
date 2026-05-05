@@ -86,7 +86,7 @@ describe("Sites", () => {
         expect(await screen.findByText("detail:渋谷マンション")).toBeInTheDocument();
     });
 
-    it("returns to LUQO when a site detail opened from PATH is closed", async () => {
+    it("returns to PATH when a site detail opened from PATH is closed", async () => {
         fetchSites.mockResolvedValue([baseSite]);
         fetchSite.mockResolvedValue(baseSite);
 
@@ -94,7 +94,7 @@ describe("Sites", () => {
             <MemoryRouter initialEntries={["/sites?site=site-1&return=luqo&period=2026-04&reward=1&member=member-1"]}>
                 <Routes>
                     <Route path="/sites" element={<Sites />} />
-                    <Route path="/luqo" element={<div data-testid="luqo-page">LUQO</div>} />
+                    <Route path="/path" element={<div data-testid="path-page">PATH</div>} />
                 </Routes>
             </MemoryRouter>,
         );
@@ -103,6 +103,6 @@ describe("Sites", () => {
 
         fireEvent.click(screen.getByRole("button", { name: "閉じる" }));
 
-        expect(await screen.findByTestId("luqo-page")).toBeInTheDocument();
+        expect(await screen.findByTestId("path-page")).toBeInTheDocument();
     });
 });

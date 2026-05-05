@@ -49,7 +49,7 @@ vi.mock("./pages/Communications", () => ({
     Communications: () => <div>communications-page</div>,
 }));
 
-vi.mock("./pages/LUQO", () => ({
+vi.mock("./pages/PathRewardConfirmation", () => ({
     default: () => <div>luqo-page</div>,
 }));
 

@@ -1,19 +1,28 @@
 import { BrowserRouter, Link, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import {
-    Building2,
-    ChevronRight,
-    HardHat,
-    Loader2,
-    Mail,
+  Bell,
+  Building2,
+  CalendarDays,
+  ChevronRight,
+  CircleDollarSign,
+  HardHat,
+  Home,
+  Loader2,
+  Mail,
+  MapPinned,
+  MessageSquareText,
   PlusCircle,
+  Route as RouteIcon,
+  Settings2,
   TriangleAlert,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CommunicationRecordSheet } from "./components/CommunicationRecordSheet";
 import { Communications } from "./pages/Communications";
 import { Calendar } from "./pages/Calendar";
-import LUQOPage from "./pages/LUQO";
+import PathRewardConfirmationPage from "./pages/PathRewardConfirmation";
 import { Money } from "./pages/Money";
 import { Settings } from "./pages/Settings";
 import { Sites } from "./pages/Sites";
@@ -37,14 +46,14 @@ import styles from "./App.module.css";
 
 const MONTHLY_EVALUATION_START_DAY = 25;
 
-const NAV_ITEMS = [
-  { path: "/", label: "今日" },
-  { path: "/calendar", label: "スケジュール" },
-  { path: "/sites", label: "現場" },
-  { path: "/communications", label: "連絡" },
-  { path: "/money", label: "お金" },
-  { path: "/luqo", label: "今月の評価" },
-  { path: "/settings", label: "設定" },
+const NAV_ITEMS: ReadonlyArray<{ path: string; label: string; icon: LucideIcon }> = [
+  { path: "/", label: "今日", icon: Home },
+  { path: "/calendar", label: "予定", icon: CalendarDays },
+  { path: "/sites", label: "現場", icon: MapPinned },
+  { path: "/communications", label: "連絡", icon: MessageSquareText },
+  { path: "/money", label: "お金", icon: CircleDollarSign },
+  { path: "/path", label: "PATH", icon: RouteIcon },
+  { path: "/settings", label: "設定", icon: Settings2 },
 ] as const;
 
 type ClientEntryState =
@@ -104,6 +113,7 @@ function Navigation({
   onOpenBell: () => void;
 }) {
   const location = useLocation();
+  const activePath = location.pathname === "/luqo" ? "/path" : location.pathname;
   const chipRailRef = useRef<HTMLDivElement | null>(null);
   const [showLeftFade, setShowLeftFade] = useState(false);
   const [showRightFade, setShowRightFade] = useState(false);
@@ -163,9 +173,14 @@ function Navigation({
   return (
     <header className={styles.header}>
       <div className={styles.headerTop}>
-        <Link to="/" className={styles.logo}>
-          <HardHat size={22} className={styles.logoIcon} />
-          GENBA QUEST
+        <Link to="/" className={styles.logo} aria-label="GENBA QUEST ホーム">
+          <span className={styles.logoMark} aria-hidden="true">
+            <HardHat size={18} className={styles.logoIcon} />
+          </span>
+          <span className={styles.logoCopy}>
+            <span className={styles.logoKicker}>現場OS</span>
+            <span className={styles.logoText}>GENBA QUEST</span>
+          </span>
         </Link>
         <div
           className={`${styles.orgBadge} ${
@@ -208,7 +223,8 @@ function Navigation({
       >
         <nav ref={chipRailRef} className={styles.chipRail} aria-label="画面切り替え">
           {NAV_ITEMS.map((item) => {
-            const isActive = location.pathname === item.path;
+            const isActive = activePath === item.path;
+            const NavIcon = item.icon;
             return (
               <Link
                 key={item.path}
@@ -218,6 +234,7 @@ function Navigation({
                 aria-current={isActive ? "page" : undefined}
               >
                 <span className={styles.navChipSurface}>
+                  <NavIcon size={16} className={styles.navChipIcon} aria-hidden="true" />
                   <span className={styles.navChipLabel}>{item.label}</span>
                 </span>
               </Link>
@@ -235,6 +252,7 @@ function Navigation({
               title={monthlyEvaluationPreviewMode ? `${bellLabel}をプレビュー` : bellLabel}
             >
               <span className={styles.navChipSurface}>
+                <Bell size={16} className={styles.navChipIcon} aria-hidden="true" />
                 <span className={styles.navChipLabel}>確認</span>
                 {bellBadgeLabel && <span className={styles.navChipBadge}>{bellBadgeLabel}</span>}
               </span>
@@ -802,7 +820,7 @@ function AppContent() {
       if (reviewAlertMemberId) {
         searchParams.set("member", reviewAlertMemberId);
       }
-      navigate(`/luqo?${searchParams.toString()}`);
+      navigate(`/path?${searchParams.toString()}`);
       return;
     }
 
@@ -995,7 +1013,8 @@ function AppContent() {
                 <Route path="/money" element={<Money />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/communications" element={<Communications />} />
-                <Route path="/luqo" element={<LUQOPage />} />
+                <Route path="/path" element={<PathRewardConfirmationPage />} />
+                <Route path="/luqo" element={<PathRewardConfirmationPage />} />
               </Routes>
             </div>
           </main>

@@ -8,7 +8,11 @@ const fetchFocusItems = vi.fn();
 const fetchSites = vi.fn();
 const fetchPendingProposals = vi.fn();
 const fetchPathV31DayLogs = vi.fn();
+const fetchPathV31SiteMemberRolePlans = vi.fn();
+const fetchPathV31SiteMemberRewardInputs = vi.fn();
 const savePathV31DayLog = vi.fn();
+const savePathV31SiteMemberRolePlan = vi.fn();
+const savePathV31SiteMemberRewardInput = vi.fn();
 
 vi.mock("framer-motion", () => ({
     motion: new Proxy(
@@ -26,7 +30,11 @@ vi.mock("../lib/api", () => ({
     fetchSites: (...args: unknown[]) => fetchSites(...args),
     fetchPendingProposals: (...args: unknown[]) => fetchPendingProposals(...args),
     fetchPathV31DayLogs: (...args: unknown[]) => fetchPathV31DayLogs(...args),
+    fetchPathV31SiteMemberRolePlans: (...args: unknown[]) => fetchPathV31SiteMemberRolePlans(...args),
+    fetchPathV31SiteMemberRewardInputs: (...args: unknown[]) => fetchPathV31SiteMemberRewardInputs(...args),
     savePathV31DayLog: (...args: unknown[]) => savePathV31DayLog(...args),
+    savePathV31SiteMemberRolePlan: (...args: unknown[]) => savePathV31SiteMemberRolePlan(...args),
+    savePathV31SiteMemberRewardInput: (...args: unknown[]) => savePathV31SiteMemberRewardInput(...args),
     approveProposal: vi.fn(),
     completeFocusItem: vi.fn(),
     createFocusItem: vi.fn(),
@@ -60,31 +68,26 @@ vi.mock("../hooks/useCalendar", () => ({
     useCalendar: () => ({
         calendarDays: [
             {
-                date: "2026-04-22",
-                day: 22,
+                date: "2026-04-23",
+                day: 23,
                 assignments: [
                     {
                         id: "assignment-1",
                         user_id: "user-1",
                         site_id: "site-1",
                         site_name: "渋谷マンション",
-                        date: "2026-04-22",
+                        date: "2026-04-23",
                         status: "scheduled",
                         source: "proposal",
                     },
                 ],
+                personal_schedules: [],
                 isToday: true,
                 isCurrentMonth: true,
                 isWeekend: false,
             },
         ],
-        selectDate: vi.fn(),
-        selectedDate: null,
     }),
-}));
-
-vi.mock("../components/calendar/WeekCalendar", () => ({
-    WeekCalendar: () => <div data-testid="week-calendar" />,
 }));
 
 vi.mock("../components/ProposalDetailModal", () => ({
@@ -121,6 +124,8 @@ describe("Today page", () => {
         ]);
         fetchPendingProposals.mockResolvedValue([]);
         fetchPathV31DayLogs.mockResolvedValue({ logs: [] });
+        fetchPathV31SiteMemberRolePlans.mockResolvedValue({ plans: [] });
+        fetchPathV31SiteMemberRewardInputs.mockResolvedValue({ inputs: [] });
         savePathV31DayLog.mockResolvedValue({
             log: {
                 id: "log-1",
@@ -133,6 +138,32 @@ describe("Today page", () => {
                 credited_unit: 1,
                 memo: "",
                 locked_by_site_close_id: null,
+                created_at: "2026-04-22T09:00:00.000Z",
+                updated_at: "2026-04-22T09:00:00.000Z",
+            },
+        });
+        savePathV31SiteMemberRolePlan.mockResolvedValue({
+            plan: {
+                id: "role-plan-1",
+                org_id: "org-1",
+                site_id: "site-1",
+                member_id: "user-1",
+                role_shares: { planning: 1, quality: 0, admin: 0, client: 0 },
+                note: "",
+                created_at: "2026-04-22T09:00:00.000Z",
+                updated_at: "2026-04-22T09:00:00.000Z",
+            },
+        });
+        savePathV31SiteMemberRewardInput.mockResolvedValue({
+            input: {
+                id: "reward-input-1",
+                org_id: "org-1",
+                site_id: "site-1",
+                member_id: "user-1",
+                participation_units: 1,
+                responsibility_level: "member",
+                role_shares: { planning: 1, quality: 0, admin: 0, client: 0 },
+                note: "",
                 created_at: "2026-04-22T09:00:00.000Z",
                 updated_at: "2026-04-22T09:00:00.000Z",
             },
@@ -177,5 +208,45 @@ describe("Today page", () => {
 
         expect(await screen.findByRole("button", { name: "編集" })).toBeInTheDocument();
         expect(screen.queryByRole("heading", { name: "今日の記録" })).not.toBeInTheDocument();
+    });
+
+    it("saves role plans and then opens responsibility input with planned role shares", async () => {
+        render(
+            <MemoryRouter initialEntries={["/today"]}>
+                <Routes>
+                    <Route path="/today" element={<Today />} />
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        const roleButton = await screen.findByRole("button", { name: "役割" });
+        fireEvent.click(roleButton);
+        fireEvent.change(screen.getByLabelText("段取り"), { target: { value: "1" } });
+        fireEvent.click(screen.getByRole("button", { name: "保存" }));
+
+        await waitFor(() => {
+            expect(savePathV31SiteMemberRolePlan).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    site_id: "site-1",
+                    member_id: "user-1",
+                    role_shares: expect.objectContaining({ planning: 1 }),
+                }),
+            );
+        });
+
+        const responsibilityButton = await screen.findByRole("button", { name: "責任" });
+        fireEvent.click(responsibilityButton);
+        fireEvent.click(screen.getByRole("button", { name: "保存" }));
+
+        await waitFor(() => {
+            expect(savePathV31SiteMemberRewardInput).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    site_id: "site-1",
+                    member_id: "user-1",
+                    participation_units: 1,
+                    role_shares: expect.objectContaining({ planning: 1 }),
+                }),
+            );
+        });
     });
 });

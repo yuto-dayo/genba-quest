@@ -379,7 +379,7 @@ router.get("/profiles", async (req: AuthenticatedRequest, res: Response) => {
       member_id: typeof req.query.member_id === "string" ? req.query.member_id : undefined,
       current_level:
         typeof req.query.current_level === "string"
-          ? (req.query.current_level as "L1" | "L2" | "L3" | "L4")
+          ? (req.query.current_level as "L1" | "L2" | "L3" | "L4" | "L5")
           : undefined,
       limit: normalizeLimit(req.query.limit),
     });

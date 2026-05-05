@@ -75,6 +75,27 @@ function formatCurrency(value?: number | null): string {
     return `¥${Math.abs(value).toLocaleString()}`;
 }
 
+function formatSignedCurrency(transaction: AccountingTransaction): string {
+    if (typeof transaction.amount_total !== "number" || !Number.isFinite(transaction.amount_total)) {
+        return "未設定";
+    }
+
+    const sign = transaction.kind === "expense" ? "-" : "+";
+    return `${sign}¥${Math.abs(transaction.amount_total).toLocaleString()}`;
+}
+
+function getSourceDocumentMessage(sourceDocument: AccountingTransaction["source_document"]): string {
+    if (!sourceDocument?.original_filename) {
+        return "アップロード証憑はありません";
+    }
+
+    if (sourceDocument.drive_file_url) {
+        return "Google Drive 上の元ファイルを確認できます";
+    }
+
+    return "ファイル名は記録済みです。元ファイルリンクはありません";
+}
+
 export function TransactionDetailModal({
     transaction,
     onClose,
@@ -200,6 +221,11 @@ export function TransactionDetailModal({
     };
 
     const sourceDocument = transaction.source_document;
+    const totalLabel = transaction.status === "voided" ? "取消済み金額" : "合計";
+    const totalValue = transaction.status === "voided"
+        ? formatSignedCurrency(transaction)
+        : formatCurrency(transaction.amount_total);
+    const sourceDocumentMessage = getSourceDocumentMessage(sourceDocument);
 
     return (
         <motion.div
@@ -243,8 +269,8 @@ export function TransactionDetailModal({
 
                 <div className={styles.summaryGrid}>
                     <article className={styles.summaryCard}>
-                        <span className={styles.summaryLabel}>合計</span>
-                        <strong className={styles.summaryValue}>{formatCurrency(transaction.amount_total)}</strong>
+                        <span className={styles.summaryLabel}>{totalLabel}</span>
+                        <strong className={styles.summaryValue}>{totalValue}</strong>
                     </article>
                     <article className={styles.summaryCard}>
                         <span className={styles.summaryLabel}>取引日</span>
@@ -332,11 +358,7 @@ export function TransactionDetailModal({
                         <div className={styles.documentCopy}>
                             <span className={styles.detailLabel}>添付証憑</span>
                             <strong>{sourceDocument?.original_filename || "証憑なし"}</strong>
-                            <p>
-                                {sourceDocument?.drive_file_url
-                                    ? "Google Drive 上の元ファイルを確認できます"
-                                    : "この取引はアップロード証憑の紐付けがありません"}
-                            </p>
+                            <p>{sourceDocumentMessage}</p>
                         </div>
                         {sourceDocument?.drive_file_url && (
                             <a

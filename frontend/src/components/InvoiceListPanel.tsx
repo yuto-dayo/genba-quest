@@ -118,18 +118,18 @@ export function InvoiceListPanel({ refreshKey = 0, onCreateInvoice }: InvoiceLis
         <section className={styles.section}>
             <div className={styles.header}>
                 <div className={styles.headerCopy}>
-                    <p className={styles.eyebrow}>Invoice Desk</p>
+                    <p className={styles.eyebrow}>請求書の確認</p>
                     <div className={styles.titleRow}>
                         <h2 className={styles.title}>請求書</h2>
                         <span className={styles.countBadge}>{invoices.length}件</span>
                     </div>
                     <p className={styles.description}>
-                        主導線は取引登録のままにしつつ、発行後の確認だけをこの棚にまとめます
+                        番号、請求先、PDFの状態をここで確認できます。
                     </p>
                 </div>
                 <button className={styles.createButton} onClick={onCreateInvoice}>
                     <FileText size={16} />
-                    <span>請求書作成</span>
+                    <span>請求書を作る</span>
                 </button>
             </div>
 
@@ -137,17 +137,17 @@ export function InvoiceListPanel({ refreshKey = 0, onCreateInvoice }: InvoiceLis
                 <article className={styles.summaryCard}>
                     <span className={styles.summaryLabel}>発行済み</span>
                     <strong className={styles.summaryValue}>{invoices.length}件</strong>
-                    <p className={styles.summaryNote}>履歴全体</p>
+                    <p className={styles.summaryNote}>すべての履歴</p>
                 </article>
                 <article className={styles.summaryCard}>
                     <span className={styles.summaryLabel}>要確認</span>
                     <strong className={styles.summaryValue}>{attentionCount}件</strong>
-                    <p className={styles.summaryNote}>PDF待ち / 再生成</p>
+                    <p className={styles.summaryNote}>PDF待ち</p>
                 </article>
                 <article className={styles.summaryCard}>
                     <span className={styles.summaryLabel}>今月発行</span>
                     <strong className={styles.summaryValue}>{issuedThisMonthCount}件</strong>
-                    <p className={styles.summaryNote}>直近の稼働量</p>
+                    <p className={styles.summaryNote}>今月分</p>
                 </article>
             </div>
 
@@ -156,8 +156,8 @@ export function InvoiceListPanel({ refreshKey = 0, onCreateInvoice }: InvoiceLis
                     <Clock3 size={16} />
                 </div>
                 <div>
-                    <strong>発行後の確認棚</strong>
-                    <p>新規作成は登録導線から。ここでは番号、請求先、PDF状態の最終確認に絞ります。</p>
+                    <strong>発行後の確認</strong>
+                    <p>請求書の状態だけを短く確認できます。</p>
                 </div>
             </div>
 
@@ -198,7 +198,7 @@ export function InvoiceListPanel({ refreshKey = 0, onCreateInvoice }: InvoiceLis
                         <div>
                             <h3 className={styles.previewTitle}>最近の請求書</h3>
                             <p className={styles.previewDescription}>
-                                {expanded ? "履歴をまとめて表示中" : "初期表示は最新3件だけに絞っています"}
+                                {expanded ? "履歴を表示中" : "最新3件を表示中"}
                             </p>
                         </div>
                         {invoices.length > 3 && (

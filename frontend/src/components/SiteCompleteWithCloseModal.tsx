@@ -5,17 +5,30 @@ import {
     completeSiteWithClose,
     fetchPathV31DayLogs,
     type CompleteSiteWithCloseResult,
+    type Member,
     type PathV31DayLog,
+    type PathV31RoleType,
     type Site,
 } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
+import { normalizeDateList, normalizeSiteScheduleMode, normalizeWeekdays } from "../lib/siteSchedule";
 import styles from "./SiteCompleteWithCloseModal.module.css";
 
 interface SiteCompleteWithCloseModalProps {
     site: Site;
+    members?: Member[];
     initialRecognizedRevenue?: number | null;
     onClose: () => void;
     onSuccess: (result: CompleteSiteWithCloseResult) => void;
+}
+
+interface SiteDayLogDraftForm {
+    id: string;
+    date: string;
+    member_id: string;
+    member_name: string;
+    role_type: PathV31RoleType;
+    credited_unit: string;
 }
 
 const COST_FIELD_KEYS = [
@@ -39,8 +52,80 @@ function toNumber(value: string): number {
     return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function toDateKey(value?: string | null): string | null {
+    if (!value) {
+        return null;
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        return value;
+    }
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+        return null;
+    }
+    return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}-${String(
+        parsed.getDate(),
+    ).padStart(2, "0")}`;
+}
+
+function buildDateRange(startKey: string, endKey: string): string[] {
+    const start = new Date(`${startKey}T00:00:00`);
+    const end = new Date(`${endKey}T00:00:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
+        return [];
+    }
+
+    const dates: string[] = [];
+    const current = new Date(start);
+    while (current <= end && dates.length < 120) {
+        dates.push(toDateKey(current.toISOString()) || startKey);
+        current.setDate(current.getDate() + 1);
+    }
+    return dates;
+}
+
+function getMemberName(member: Member | undefined, fallbackId: string): string {
+    return member?.full_name || member?.display_name || member?.username || fallbackId.slice(0, 8);
+}
+
+function buildDraftDayLogs(site: Site, members: Member[]): SiteDayLogDraftForm[] {
+    const assignedUserIds = Array.from(new Set(site.assigned_users ?? []));
+    if (assignedUserIds.length === 0) {
+        return [];
+    }
+
+    const mode = normalizeSiteScheduleMode(site.schedule_mode);
+    const today = toDateKey(new Date().toISOString()) || "";
+    const startKey = toDateKey(site.started_at) || toDateKey(site.expected_completion_at) || today;
+    const endKey = toDateKey(site.completed_at) || toDateKey(site.expected_completion_at) || today;
+    const dates =
+        mode === "custom"
+            ? normalizeDateList(site.custom_work_dates).filter((date) => date <= endKey)
+            : buildDateRange(startKey, endKey).filter((date) => {
+                  if (mode !== "weekdays") {
+                      return true;
+                  }
+                  const weekdays = normalizeWeekdays(site.working_weekdays);
+                  return weekdays.length === 0 || weekdays.includes(new Date(`${date}T00:00:00`).getDay());
+              });
+    const targetDates = dates.length > 0 ? dates : [endKey || today];
+    const memberById = new Map(members.map((member) => [member.id, member]));
+
+    return targetDates.flatMap((date) =>
+        assignedUserIds.map((memberId) => ({
+            id: `${date}:${memberId}`,
+            date,
+            member_id: memberId,
+            member_name: getMemberName(memberById.get(memberId), memberId),
+            role_type: "support",
+            credited_unit: "1",
+        })),
+    );
+}
+
 export function SiteCompleteWithCloseModal({
     site,
+    members = [],
     initialRecognizedRevenue,
     onClose,
     onSuccess,
@@ -52,6 +137,9 @@ export function SiteCompleteWithCloseModal({
     const [clientRequestId, setClientRequestId] = useState(() => createClientRequestId());
     const [dayLogs, setDayLogs] = useState<PathV31DayLog[]>([]);
     const [selectedDayLogIds, setSelectedDayLogIds] = useState<string[]>([]);
+    const [siteDayLogDrafts, setSiteDayLogDrafts] = useState<SiteDayLogDraftForm[]>(() =>
+        buildDraftDayLogs(site, members),
+    );
     const [form, setForm] = useState({
         recognized_revenue: String(initialRecognizedRevenue ?? site.revenue ?? 0),
         material_cost: "0",
@@ -78,6 +166,9 @@ export function SiteCompleteWithCloseModal({
                 const eligibleLogs = response.logs.filter((log) => !log.locked_by_site_close_id);
                 setDayLogs(eligibleLogs);
                 setSelectedDayLogIds(eligibleLogs.map((log) => log.id));
+                if (eligibleLogs.length === 0) {
+                    setSiteDayLogDrafts(buildDraftDayLogs(site, members));
+                }
             } catch (requestError) {
                 if (!cancelled) {
                     setError(requestError instanceof Error ? requestError.message : "日報の取得に失敗しました");
@@ -92,7 +183,7 @@ export function SiteCompleteWithCloseModal({
         return () => {
             cancelled = true;
         };
-    }, [site.id]);
+    }, [members, site]);
 
     const distributableProfit = useMemo(() => {
         const recognizedRevenue = toNumber(form.recognized_revenue);
@@ -118,10 +209,7 @@ export function SiteCompleteWithCloseModal({
     };
 
     const handleSubmit = async () => {
-        if (selectedDayLogIds.length === 0) {
-            setError("締め対象の日報を1件以上選択してください");
-            return;
-        }
+        const usingDrafts = selectedDayLogIds.length === 0;
 
         try {
             setSubmitting(true);
@@ -132,6 +220,16 @@ export function SiteCompleteWithCloseModal({
                 expected_site_updated_at: site.updated_at,
                 recognized_revenue: toNumber(form.recognized_revenue),
                 included_day_log_ids: selectedDayLogIds,
+                site_day_log_drafts: usingDrafts
+                    ? siteDayLogDrafts.map((draft) => ({
+                          date: draft.date,
+                          member_id: draft.member_id,
+                          role_type: draft.role_type,
+                          credited_unit: toNumber(draft.credited_unit) || 1,
+                          trade_families: [],
+                          memo: "site_close_assignment_supplement",
+                      }))
+                    : undefined,
                 material_cost: toNumber(form.material_cost),
                 external_cost: toNumber(form.external_cost),
                 direct_cost: toNumber(form.direct_cost),
@@ -147,6 +245,17 @@ export function SiteCompleteWithCloseModal({
         } finally {
             setSubmitting(false);
         }
+    };
+
+    const updateDraft = <K extends keyof SiteDayLogDraftForm>(
+        draftId: string,
+        key: K,
+        value: SiteDayLogDraftForm[K],
+    ) => {
+        resetIdempotencyOnEdit();
+        setSiteDayLogDrafts((current) =>
+            current.map((draft) => (draft.id === draftId ? { ...draft, [key]: value } : draft)),
+        );
     };
 
     const updateField = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) => {
@@ -254,7 +363,51 @@ export function SiteCompleteWithCloseModal({
                                 <span className={styles.sectionMeta}>{selectedDayLogIds.length}件選択</span>
                             </div>
                             {dayLogs.length === 0 ? (
-                                <div className={styles.empty}>未lockの日報がありません。締め前に日報を記録してください。</div>
+                                <div className={styles.draftLogList}>
+                                    <div className={styles.empty}>
+                                        未lockの日報がないため、配置から日報を作ります。
+                                    </div>
+                                    {siteDayLogDrafts.map((draft) => (
+                                        <div key={draft.id} className={styles.draftLogItem}>
+                                            <div className={styles.draftLogName}>
+                                                <span>{draft.member_name}</span>
+                                                <small>{draft.date}</small>
+                                            </div>
+                                            <select
+                                                className={styles.select}
+                                                value={draft.role_type}
+                                                onChange={(event) =>
+                                                    updateDraft(
+                                                        draft.id,
+                                                        "role_type",
+                                                        event.target.value as PathV31RoleType,
+                                                    )
+                                                }
+                                            >
+                                                <option value="lead">lead</option>
+                                                <option value="solo">solo</option>
+                                                <option value="assist">assist</option>
+                                                <option value="support">support</option>
+                                            </select>
+                                            <input
+                                                className={styles.unitInput}
+                                                type="number"
+                                                min="0.25"
+                                                step="0.25"
+                                                value={draft.credited_unit}
+                                                onChange={(event) =>
+                                                    updateDraft(draft.id, "credited_unit", event.target.value)
+                                                }
+                                                aria-label={`${draft.member_name} unit`}
+                                            />
+                                        </div>
+                                    ))}
+                                    {siteDayLogDrafts.length === 0 && (
+                                        <div className={styles.empty}>
+                                            画面で配置を確認できません。送信時に承認済みの配置proposalから補完を試します。
+                                        </div>
+                                    )}
+                                </div>
                             ) : (
                                 <div className={styles.logList}>
                                     {dayLogs.map((log) => {
@@ -295,7 +448,7 @@ export function SiteCompleteWithCloseModal({
                         type="button"
                         className={styles.primaryButton}
                         onClick={handleSubmit}
-                        disabled={loading || submitting || dayLogs.length === 0}
+                        disabled={loading || submitting}
                     >
                         {submitting ? <Loader2 size={18} className={styles.spinner} /> : <CheckCircle2 size={18} />}
                         完了して締め送信

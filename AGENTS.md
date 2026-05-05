@@ -212,6 +212,7 @@ When asked to list available skills:
 | `accounting-sherpa` | 自然言語で経理操作 | 267 |
 | `document-classifier` | OCR書類タイプ判定 | — |
 | `generating-cartoon-monsters` | モンスター画像生成 | — |
+| `cleaning-dirty-worktrees` | dirty worktree の安全な退避・クリーン化 | — |
 
 ### Context Map (task → skill)
 
@@ -231,6 +232,7 @@ When asked to list available skills:
 | コード品質監査 | `$ln-620-codebase-auditor` | — |
 | セッション引き継ぎ | `$handing-off-session` | — |
 | 作業完了ごとの引き継ぎ更新 | `$incremental-handoff` | `HANDOFF.md` |
+| dirty worktree 整理 | `$cleaning-dirty-worktrees` | `git status --short` |
 
 ### Audit Worker Skills (ln-*)
 

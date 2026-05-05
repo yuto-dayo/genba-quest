@@ -27,7 +27,7 @@ export const PROFILE_CERTIFICATION_STATUS_OPTIONS = [
   "revoked",
 ] as const;
 export const CONFIRMATION_TARGET_TYPE_OPTIONS = ["big_skill", "skill_tag", "level"] as const;
-export const PATH_LEVEL_OPTIONS = ["L1", "L2", "L3", "L4"] as const;
+export const PATH_LEVEL_OPTIONS = ["L1", "L2", "L3", "L4", "L5"] as const;
 
 export type BigSkillKey = (typeof BIG_SKILL_KEYS)[number];
 export type BigSkillState = (typeof BIG_SKILL_STATE_OPTIONS)[number];

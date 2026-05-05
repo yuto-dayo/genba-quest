@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { CircleSlash, Sparkles } from 'lucide-react';
+import { CircleSlash, Clock3, Sparkles } from 'lucide-react';
 import type { AvailabilityTokenKind, CalendarDay } from '../../types/calendar';
 import styles from './CalendarComponents.module.css';
 
@@ -16,13 +16,13 @@ function resolveAvailabilityLabel(
 ): string | null {
     const kind = availabilityTokens?.[day.date];
     if (kind === 'leave_request') {
-        return '休み希望';
+        return '休';
     }
     if (kind === 'available') {
         return '空きあり';
     }
-    if (day.shift?.available === false) {
-        return day.shift.note === '定休日' ? '休' : '休み希望';
+    if (day.personal_schedules.some((schedule) => schedule.status === 'approved' || schedule.status === 'pending')) {
+        return '休';
     }
     return null;
 }
@@ -35,10 +35,10 @@ function getAvailabilityMeta(label: string | null) {
             label,
         };
     }
-    if (label === '休み希望' || label === '休') {
+    if (label === '休') {
         return {
             icon: CircleSlash,
-            className: label === '休' ? styles.availabilityHoliday : styles.availabilityLeave,
+            className: styles.availabilityHoliday,
             label,
         };
     }
@@ -78,6 +78,9 @@ export function WeekCalendar({
                 const pendingCount = day.assignments.filter(
                     (assignment) => assignment.status === 'pending'
                 ).length;
+                const tentativeCount = day.assignments.filter(
+                    (assignment) => assignment.status === 'tentative'
+                ).length;
                 const totalCount = day.assignments.length;
                 const availabilityLabel = resolveAvailabilityLabel(day, availabilityTokens);
                 const availabilityMeta = getAvailabilityMeta(availabilityLabel);
@@ -109,6 +112,18 @@ export function WeekCalendar({
                                     aria-label={availabilityMeta.label}
                                 >
                                     <availabilityMeta.icon
+                                        size={12}
+                                        className={styles.availabilityGlyph}
+                                        aria-hidden="true"
+                                    />
+                                </span>
+                            )}
+                            {tentativeCount > 0 && (
+                                <span
+                                    className={`${styles.availabilityIconChip} ${styles.tentativeIconChip}`}
+                                    aria-label={`仮押さえ${tentativeCount}件`}
+                                >
+                                    <Clock3
                                         size={12}
                                         className={styles.availabilityGlyph}
                                         aria-hidden="true"

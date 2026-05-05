@@ -30,7 +30,12 @@ function buildProposal(id: string, status: "draft" | "pending" | "approved" | "r
 
 describe("communication contact read model", () => {
   beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-04-22T10:00:00.000Z"));
     jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   it("aggregates conversations by contact and picks overdue as the representative status", async () => {

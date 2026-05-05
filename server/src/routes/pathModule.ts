@@ -11,6 +11,7 @@ import {
 } from "../services/PathPolicyBundleService";
 import { ActorRef } from "../services/PolicyEngine";
 import { PathV31Service } from "../services/PathV31Service";
+import { PathV32SimpleRewardService } from "../services/PathV32SimpleRewardService";
 import { assertV22WriteAllowed } from "../lib/pathV31Config";
 
 const router = Router();
@@ -75,6 +76,8 @@ const PATH_MODULE_ERROR_STATUS_MAP: Record<string, number> = {
   INVALID_SITE_CLOSE_STATUS: 400,
   CANDIDATES_REQUIRED: 400,
   NO_ELIGIBLE_CANDIDATES: 409,
+  PATH_V32_ZERO_TOTAL_WEIGHT: 409,
+  PATH_LEVEL_UPDATE_FIXED_MONTH_REJECTED: 409,
 };
 
 function getOrgId(req: AuthenticatedRequest): string {
@@ -99,6 +102,10 @@ function getPathModuleService(req: AuthenticatedRequest): PathGovernedModuleServ
 
 function getPathV31Service(req: AuthenticatedRequest): PathV31Service {
   return new PathV31Service(getOrgId(req));
+}
+
+function getPathV32SimpleRewardService(req: AuthenticatedRequest): PathV32SimpleRewardService {
+  return new PathV32SimpleRewardService(getOrgId(req));
 }
 
 function getPolicyService(req: AuthenticatedRequest): PathPolicyBundleService {
@@ -582,6 +589,101 @@ router.post("/monthly-distribution/proposals", async (req: AuthenticatedRequest,
       auto_approved: result.autoApproved,
       auto_executed: result.autoExecuted,
       preview: payload.calculation_snapshot,
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+router.post("/monthly-distribution-v32/preview", async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const month = typeof req.body?.month === "string" ? req.body.month : "";
+    const preview = await getPathV32SimpleRewardService(req).previewMonthlyDistribution(month);
+    res.json({ preview });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+router.post("/monthly-distribution-v32/proposals", async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const actor = buildHumanActor(req);
+    const month = typeof req.body?.month === "string" ? req.body.month : "";
+    const payload = await getPathV32SimpleRewardService(req).buildMonthlyDistributionProposalPayload(month, actor);
+    const result = await getProposalService(req).createAndSubmit({
+      type: "reward.calculate",
+      description: `${month} PATH V3.2 Simple monthly distribution`,
+      payload,
+      created_by: actor,
+    });
+    res.status(201).json({
+      proposal: result.proposal,
+      auto_approved: result.autoApproved,
+      auto_executed: result.autoExecuted,
+      preview: payload.calculation_snapshot,
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+router.post("/reward-pool-adjustment-proposals", async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const actor = buildHumanActor(req);
+    const payload = getPathV32SimpleRewardService(req).buildPoolAdjustmentProposalPayload(req.body, actor);
+    const result = await getProposalService(req).createAndSubmit({
+      type: "reward.pool.adjust",
+      description: `${payload.month} PATH pool adjustment`,
+      payload,
+      created_by: actor,
+    });
+    res.status(201).json({
+      proposal: result.proposal,
+      auto_approved: result.autoApproved,
+      auto_executed: result.autoExecuted,
+      payload,
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+router.post("/reward-member-adjustment-v32-proposals", async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const actor = buildHumanActor(req);
+    const payload = getPathV32SimpleRewardService(req).buildMemberAdjustmentProposalPayload(req.body, actor);
+    const result = await getProposalService(req).createAndSubmit({
+      type: "reward.adjust",
+      description: `${payload.target_month} PATH member correction`,
+      payload,
+      created_by: actor,
+    });
+    res.status(201).json({
+      proposal: result.proposal,
+      auto_approved: result.autoApproved,
+      auto_executed: result.autoExecuted,
+      payload,
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+router.post("/level-update-proposals", async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const actor = buildHumanActor(req);
+    const payload = await getPathV32SimpleRewardService(req).buildLevelUpdateProposalPayload(req.body, actor);
+    const result = await getProposalService(req).createAndSubmit({
+      type: "path.level.update",
+      description: `${payload.effective_month} PATH level update`,
+      payload,
+      created_by: actor,
+    });
+    res.status(201).json({
+      proposal: result.proposal,
+      auto_approved: result.autoApproved,
+      auto_executed: result.autoExecuted,
+      payload,
     });
   } catch (error) {
     handleError(res, error);

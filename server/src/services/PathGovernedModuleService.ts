@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "../lib/supabaseAdmin";
+import { DEV_AUTH_USERS } from "../config/devAuthUsers";
 import { ActorRef, Proposal } from "./PolicyEngine";
 import {
   PATH_POLICY_BUNDLE_KEY,
@@ -11,6 +12,10 @@ import {
   hashStableRecord,
 } from "./PathPolicyBundleService";
 import { PathV31Service } from "./PathV31Service";
+import {
+  PathRewardAnalysisService,
+  type RewardAnalysisContextBundle,
+} from "./PathRewardAnalysisService";
 
 const MONTH_PATTERN = /^\d{4}-\d{2}$/;
 const UUID_PATTERN =
@@ -20,6 +25,8 @@ const PATH_MODULE_PENDING_TYPES = new Set([
   "evaluation.finalize",
   "reward.calculate",
   "reward.adjust",
+  "reward.pool.adjust",
+  "path.level.update",
   "skill.achieve",
   "skill.revoke",
 ]);
@@ -30,7 +37,7 @@ const PATH_ROUNDING_MODE = "half_up";
 const PATH_ROUNDING_SCALE = 0;
 const PATH_ROUNDING_MINOR_UNIT = 1;
 
-export type PathRoleLevel = "L1" | "L2" | "L3" | "L4";
+export type PathRoleLevel = "L1" | "L2" | "L3" | "L4" | "L5";
 export type PathDifficultyBand = "S1" | "S2" | "S3";
 export type PathRiskBand = "low" | "medium" | "high";
 export type PathRoleType = "lead" | "support" | "teaching";
@@ -327,6 +334,14 @@ export interface PathRewardCorrectionSummary {
   items: PathRewardCorrectionHistoryItem[];
 }
 
+export interface PathPendingCloseSite {
+  site_id: string;
+  site_name: string;
+  completed_at: string | null;
+  close_proposal_status: string | null;
+  href: string;
+}
+
 export interface PathRewardConfirmationSummary {
   month: string;
   member_id: string;
@@ -350,6 +365,7 @@ export interface PathRewardConfirmationSummary {
   explanation_missing: boolean;
   explanation_missing_message: string | null;
   site_breakdown: PathRewardSiteBreakdown[];
+  pending_close_sites: PathPendingCloseSite[];
   corrections: PathRewardCorrectionSummary;
   evidence_refs: PathRewardEvidenceRef[];
   internal_controls: {
@@ -365,11 +381,30 @@ export interface PathRewardQaRequest {
   site_id?: string | null;
 }
 
+export type PathRewardQaConfidence = "low" | "medium" | "high";
+
+export interface PathRewardQaAmountBreakdown {
+  label: string;
+  amount: number;
+  detail: string;
+  evidence_refs: PathRewardEvidenceRef[];
+}
+
+export interface PathRewardQaAdjustment {
+  label: string;
+  amount: number | null;
+  detail: string;
+  evidence_refs: PathRewardEvidenceRef[];
+}
+
 export interface PathRewardQaResponse {
   conclusion: string;
-  reasons: string[];
+  amount_breakdown: PathRewardQaAmountBreakdown[];
+  why_changed: string[];
+  adjustments: PathRewardQaAdjustment[];
   evidence_refs: PathRewardEvidenceRef[];
   next_action: string | null;
+  confidence: PathRewardQaConfidence;
 }
 
 interface RewardConfirmationMonthView {
@@ -463,7 +498,17 @@ function isPathModulePendingProposal(row: Record<string, unknown>): boolean {
   }
 
   if (type === "reward.calculate" || type === "reward.adjust") {
-    return payload.path_module_version === "v2.2" || payload.calculation_system === "path_v22";
+    return (
+      payload.path_module_version === "v2.2" ||
+      payload.path_module_version === "v3.2-simple" ||
+      payload.calculation_system === "path_v22" ||
+      payload.calculation_system === "path_v31" ||
+      payload.calculation_system === "path_v32_simple"
+    );
+  }
+
+  if (type === "reward.pool.adjust" || type === "path.level.update") {
+    return payload.calculation_system === "path_v32_simple";
   }
 
   return false;
@@ -534,6 +579,13 @@ function previousMonthValue(month: string): string {
   const normalizedMonth = ensureMonth(month);
   const [year, monthIndex] = normalizedMonth.split("-").map(Number);
   const date = new Date(year, monthIndex - 2, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function nextMonthValue(month: string): string {
+  const normalizedMonth = ensureMonth(month);
+  const [year, monthIndex] = normalizedMonth.split("-").map(Number);
+  const date = new Date(year, monthIndex, 1);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
@@ -1296,7 +1348,7 @@ export class PathGovernedModuleService {
 
     const membersDerived = input.members.map((member) => {
       ensureUuid(member.member_id, "INVALID_MEMBER_ID");
-      assert(["L1", "L2", "L3", "L4"].includes(member.role_level), "INVALID_LEVEL");
+      assert(["L1", "L2", "L3", "L4", "L5"].includes(member.role_level), "INVALID_LEVEL");
 
       const A = normalizeScore(member.A, "INVALID_A_SCORE");
       const R = normalizeScore(member.R, "INVALID_R_SCORE");
@@ -1647,7 +1699,7 @@ export class PathGovernedModuleService {
       throw new Error(`Failed to fetch member profiles for reward basis: ${error.message}`);
     }
 
-    return new Map(
+    const memberNameMap = new Map(
       ((data ?? []) as Array<Record<string, unknown>>).map((row) => {
         const id = typeof row.id === "string" ? row.id : "";
         const name =
@@ -1659,6 +1711,17 @@ export class PathGovernedModuleService {
         return [id, name] as const;
       }),
     );
+
+    for (const devUser of DEV_AUTH_USERS) {
+      if (
+        normalizedIds.includes(devUser.id) &&
+        (!memberNameMap.has(devUser.id) || memberNameMap.get(devUser.id) === devUser.id)
+      ) {
+        memberNameMap.set(devUser.id, devUser.name);
+      }
+    }
+
+    return memberNameMap;
   }
 
   private sumCreditedUnits(payload: Record<string, unknown>, memberId: string, fallback = 0): number {
@@ -4028,6 +4091,83 @@ export class PathGovernedModuleService {
     };
   }
 
+  private async listPendingCloseSites(month: string): Promise<PathPendingCloseSite[]> {
+    const normalizedMonth = ensureMonth(month);
+    const { data: sitesData, error: sitesError } = await supabaseAdmin
+      .from("sites")
+      .select("id,name,completed_at")
+      .eq("org_id", this.orgId)
+      .eq("status", "completed")
+      .gte("completed_at", `${normalizedMonth}-01T00:00:00.000Z`)
+      .lt("completed_at", `${nextMonthValue(normalizedMonth)}-01T00:00:00.000Z`);
+
+    if (sitesError) {
+      throw new Error(`Failed to fetch pending close sites: ${sitesError.message}`);
+    }
+
+    const sites = (sitesData ?? []) as Array<Record<string, unknown>>;
+    const siteIds = sites
+      .map((site) => String(site.id ?? ""))
+      .filter((value): value is string => UUID_PATTERN.test(value));
+    if (siteIds.length === 0) {
+      return [];
+    }
+
+    const [closesResult, proposalsResult] = await Promise.all([
+      supabaseAdmin
+        .from("site_closes")
+        .select("site_id,status")
+        .eq("org_id", this.orgId)
+        .in("site_id", siteIds),
+      supabaseAdmin
+        .from("proposals")
+        .select("site_id,status,created_at")
+        .eq("org_id", this.orgId)
+        .eq("type", "site.close.finalize")
+        .in("site_id", siteIds)
+        .in("status", ["draft", "pending", "approved"])
+        .order("created_at", { ascending: false }),
+    ]);
+
+    if (closesResult.error) {
+      throw new Error(`Failed to fetch site closes for pending close sites: ${closesResult.error.message}`);
+    }
+    if (proposalsResult.error) {
+      throw new Error(`Failed to fetch close proposals for pending close sites: ${proposalsResult.error.message}`);
+    }
+
+    const finalizedCloseSiteIds = new Set(
+      ((closesResult.data ?? []) as Array<Record<string, unknown>>)
+        .filter((close) => String(close.status ?? "") === "finalized")
+        .map((close) => String(close.site_id ?? ""))
+        .filter((value): value is string => UUID_PATTERN.test(value)),
+    );
+    const proposalStatusBySiteId = new Map<string, string>();
+    ((proposalsResult.data ?? []) as Array<Record<string, unknown>>).forEach((proposal) => {
+      const siteId = String(proposal.site_id ?? "");
+      if (UUID_PATTERN.test(siteId) && !proposalStatusBySiteId.has(siteId)) {
+        proposalStatusBySiteId.set(siteId, String(proposal.status ?? "pending"));
+      }
+    });
+
+    return sites
+      .map((site) => {
+        const siteId = String(site.id ?? "");
+        if (!UUID_PATTERN.test(siteId) || finalizedCloseSiteIds.has(siteId)) {
+          return null;
+        }
+
+        return {
+          site_id: siteId,
+          site_name: String(site.name ?? `現場 ${siteId.slice(0, 8)}`),
+          completed_at: typeof site.completed_at === "string" ? site.completed_at : null,
+          close_proposal_status: proposalStatusBySiteId.get(siteId) ?? null,
+          href: buildSiteHref(siteId),
+        } satisfies PathPendingCloseSite;
+      })
+      .filter((site): site is PathPendingCloseSite => site !== null);
+  }
+
   private buildRewardDeltaReasons(params: {
     month: string;
     current: RewardConfirmationMonthView;
@@ -4183,11 +4323,12 @@ export class PathGovernedModuleService {
     const previousMonth = previousMonthValue(normalizedMonth);
     const memberNameMap = await this.loadMemberNameMap([normalizedMemberId]);
     const memberName = memberNameMap.get(normalizedMemberId) ?? normalizedMemberId;
-    const [currentView, previousView, explanation, corrections, rewardProposals] = await Promise.all([
+    const [currentView, previousView, explanation, corrections, pendingCloseSites, rewardProposals] = await Promise.all([
       this.loadRewardConfirmationMonthView(normalizedMonth, normalizedMemberId),
       this.loadRewardConfirmationMonthView(previousMonth, normalizedMemberId).catch(() => null),
       this.getMemberRewardExplanation(normalizedMemberId, normalizedMonth).catch(() => null),
       this.listRewardCorrectionsForMember(normalizedMonth, normalizedMemberId),
+      this.listPendingCloseSites(normalizedMonth),
       supabaseAdmin
         .from("proposals")
         .select("id,status,created_at,payload")
@@ -4204,7 +4345,7 @@ export class PathGovernedModuleService {
     const matchingRewardProposals = ((rewardProposals.data ?? []) as Array<Record<string, unknown>>).filter((proposal) => {
       const payload = isRecord(proposal.payload) ? proposal.payload : null;
       return (
-        payload?.calculation_system === "path_v31" &&
+        (payload?.calculation_system === "path_v31" || payload?.calculation_system === "path_v32_simple") &&
         typeof payload.month === "string" &&
         payload.month === normalizedMonth
       );
@@ -4339,6 +4480,7 @@ export class PathGovernedModuleService {
         ? "詳細な説明データがまだ揃っていません"
         : null,
       site_breakdown: siteBreakdown,
+      pending_close_sites: pendingCloseSites,
       corrections,
       evidence_refs: evidenceRefs,
       internal_controls: {
@@ -4348,10 +4490,211 @@ export class PathGovernedModuleService {
     };
   }
 
-  async answerRewardConfirmationQuestion(
+  private buildRewardAnalysisContext(summary: PathRewardConfirmationSummary): RewardAnalysisContextBundle {
+    const evidenceMap = new Map<string, PathRewardEvidenceRef>();
+    const evidenceKeyBySignature = new Map<string, string>();
+    const safeEvidenceRefs: RewardAnalysisContextBundle["context"]["evidence_refs"] = [];
+
+    const sanitizeEvidenceLabel = (ref: PathRewardEvidenceRef) => {
+      const baseLabel =
+        ref.kind === "proposal"
+          ? ref.label.includes("補正")
+            ? "補正申請"
+            : "確定申請"
+          : ref.label;
+      return baseLabel
+        .replace(UUID_PATTERN, "参照")
+        .replace(/\b[0-9a-f]{8}\b/gi, "参照")
+        .trim();
+    };
+
+    const registerEvidence = (ref: PathRewardEvidenceRef) => {
+      const signature = JSON.stringify({
+        kind: ref.kind,
+        label: sanitizeEvidenceLabel(ref),
+        anchor: ref.anchor ?? null,
+      });
+      const existingKey = evidenceKeyBySignature.get(signature);
+      if (existingKey) {
+        return existingKey;
+      }
+      const evidenceKey = `ev_${safeEvidenceRefs.length + 1}`;
+      evidenceKeyBySignature.set(signature, evidenceKey);
+      evidenceMap.set(evidenceKey, ref);
+      safeEvidenceRefs.push({
+        evidence_key: evidenceKey,
+        kind: ref.kind,
+        label: sanitizeEvidenceLabel(ref),
+        anchor: ref.anchor ?? null,
+      });
+      return evidenceKey;
+    };
+
+    const registerMany = (refs: PathRewardEvidenceRef[]) =>
+      Array.from(new Set(refs.map((ref) => registerEvidence(ref))));
+
+    const siteBreakdown = summary.site_breakdown.map((site, index) => ({
+      label:
+        site.site_name && !/\b[0-9a-f]{8}\b/i.test(site.site_name)
+          ? site.site_name
+          : `現場${index + 1}`,
+      amount: site.amount,
+      reflected_ratio: site.reflected_ratio,
+      correction_state: site.correction_state,
+      reason_summary: site.reason_summary,
+      own_contribution: {
+        floor_amount: site.detail.self_explanation.floor_amount,
+        result_amount: site.detail.self_explanation.result_amount,
+        correction_amount: site.detail.self_explanation.correction_amount,
+        credited_units: site.detail.self_explanation.credited_units,
+        reason_lines: site.detail.self_explanation.reason_lines,
+      },
+      anonymous_relative_position: {
+        participant_count: site.detail.site_summary.participant_count,
+        self_band: site.detail.site_summary.self_band,
+      },
+      evidence_keys: registerMany(site.evidence_refs),
+    }));
+
+    const corrections = {
+      total_amount: summary.corrections.total_amount,
+      applied_amount: summary.corrections.applied_amount,
+      count: summary.corrections.count,
+      has_corrections: summary.corrections.has_corrections,
+      items: summary.corrections.items.map((item) => ({
+        status: item.status,
+        reason: item.reason,
+        amount: item.amount,
+        correction_month: item.correction_month,
+        target_month: item.target_month,
+        mode: item.mode,
+        evidence_keys: registerMany(item.evidence_refs),
+      })),
+    };
+
+    registerMany([
+      ...summary.evidence_refs,
+      ...summary.top_reasons.flatMap((reason) => reason.evidence_refs),
+      ...summary.explanation_cards.flatMap((card) => card.evidence_refs),
+    ]);
+
+    const ruleLabel =
+      summary.explanation_cards.find((card) => card.id === "rule")?.evidence_refs[0]?.label ??
+      summary.evidence_refs.find((ref) => ref.kind === "rule")?.label ??
+      null;
+    const ruleVersion =
+      ruleLabel && ruleLabel !== "反映ルール" ? ruleLabel.replace(/^反映ルール\s*/, "") : null;
+
+    return {
+      context: {
+        estimated_amount: summary.estimated_amount,
+        delta_amount: summary.delta_amount,
+        site_breakdown: siteBreakdown,
+        corrections,
+        rule_version: ruleVersion,
+        evidence_refs: safeEvidenceRefs,
+      },
+      evidenceMap,
+    };
+  }
+
+  private buildRewardQaAmountBreakdown(
+    summary: PathRewardConfirmationSummary,
+    targetSite?: PathRewardSiteBreakdown | null,
+  ): PathRewardQaAmountBreakdown[] {
+    if (targetSite) {
+      return [
+        {
+          label: `${targetSite.site_name} の合計`,
+          amount: targetSite.amount,
+          detail: targetSite.reason_summary,
+          evidence_refs: targetSite.evidence_refs,
+        },
+        {
+          label: "最低保証",
+          amount: targetSite.detail.self_explanation.floor_amount,
+          detail: "この現場での自分の稼働ユニット分です。",
+          evidence_refs: targetSite.evidence_refs,
+        },
+        {
+          label: "成果反映",
+          amount: targetSite.detail.self_explanation.result_amount,
+          detail: "この現場での担当比重や成果反映分です。",
+          evidence_refs: targetSite.evidence_refs,
+        },
+      ];
+    }
+
+    return [
+      {
+        label: "今月の見込み",
+        amount: summary.estimated_amount,
+        detail: "最低保証、成果反映、反映済み補正を合わせた金額です。",
+        evidence_refs: summary.evidence_refs,
+      },
+      {
+        label: "最低保証",
+        amount: summary.base_amount,
+        detail: "稼働ユニットを中心に反映された土台の金額です。",
+        evidence_refs: summary.top_reasons.find((reason) => reason.key === "workload")?.evidence_refs ?? [],
+      },
+      {
+        label: "成果反映",
+        amount: summary.result_amount,
+        detail: "現場利益、担当比重、評価反映などによる金額です。",
+        evidence_refs:
+          summary.top_reasons.find((reason) => reason.key === "performance")?.evidence_refs ??
+          summary.evidence_refs.filter((ref) => ref.kind === "rule"),
+      },
+      {
+        label: "補正",
+        amount: summary.correction_amount,
+        detail: "この月に反映済みの調整額です。",
+        evidence_refs: [
+          {
+            kind: "section",
+            label: "補正 / 調整を見る",
+            anchor: "reward-corrections",
+          },
+          ...summary.corrections.items.flatMap((item) => item.evidence_refs),
+        ],
+      },
+    ];
+  }
+
+  private buildRewardQaAdjustments(summary: PathRewardConfirmationSummary): PathRewardQaAdjustment[] {
+    return summary.corrections.items.map((item) => ({
+      label: item.correction_month ? `${item.correction_month} 反映予定` : "反映月を確認してください",
+      amount: item.amount,
+      detail: `${item.reason} / ${item.status}`,
+      evidence_refs: item.evidence_refs,
+    }));
+  }
+
+  private buildRewardQaResponse(params: {
+    summary: PathRewardConfirmationSummary;
+    conclusion: string;
+    whyChanged: string[];
+    evidenceRefs: PathRewardEvidenceRef[];
+    nextAction: string | null;
+    confidence?: PathRewardQaConfidence;
+    targetSite?: PathRewardSiteBreakdown | null;
+  }): PathRewardQaResponse {
+    return {
+      conclusion: params.conclusion,
+      amount_breakdown: this.buildRewardQaAmountBreakdown(params.summary, params.targetSite),
+      why_changed: params.whyChanged.length > 0 ? params.whyChanged : ["根拠データから大きな差分は見つかりませんでした。"],
+      adjustments: this.buildRewardQaAdjustments(params.summary),
+      evidence_refs: params.evidenceRefs,
+      next_action: params.nextAction,
+      confidence: params.confidence ?? (params.summary.explanation_missing ? "low" : "medium"),
+    };
+  }
+
+  private answerRewardConfirmationQuestionDeterministic(
+    summary: PathRewardConfirmationSummary,
     input: PathRewardQaRequest,
-  ): Promise<PathRewardQaResponse> {
-    const summary = await this.getRewardConfirmationSummary(input.month, input.member_id);
+  ): PathRewardQaResponse {
     const normalizedQuestion = input.question.trim();
     const lowered = normalizedQuestion.toLowerCase();
     const targetSite =
@@ -4362,16 +4705,17 @@ export class PathGovernedModuleService {
       null;
 
     if (lowered.includes("補正")) {
-      return {
+      return this.buildRewardQaResponse({
+        summary,
         conclusion: summary.corrections.has_corrections
           ? `この月には ${summary.corrections.count} 件の補正があり、反映済み合計は ${summary.corrections.applied_amount.toLocaleString("ja-JP")}円です。`
           : "この月に反映済みの補正はありません。",
-        reasons: summary.corrections.has_corrections
+        whyChanged: summary.corrections.has_corrections
           ? summary.corrections.items.map(
               (item) => `${item.reason} / ${item.status} / ${item.amount.toLocaleString("ja-JP")}円`,
             )
           : ["補正履歴は見つかりませんでした。"],
-        evidence_refs: [
+        evidenceRefs: [
           {
             kind: "section",
             label: "補正 / 調整を見る",
@@ -4379,21 +4723,22 @@ export class PathGovernedModuleService {
           },
           ...summary.corrections.items.flatMap((item) => item.evidence_refs),
         ],
-        next_action: null,
-      };
+        nextAction: null,
+      });
     }
 
     if (lowered.includes("ルール")) {
       const ruleCard = summary.explanation_cards.find((card) => card.id === "rule");
-      return {
+      return this.buildRewardQaResponse({
+        summary,
         conclusion: ruleCard?.body ?? "反映ルールの版を確認できませんでした。",
-        reasons: [
+        whyChanged: [
           "表示中の金額はその月の反映ルール版に基づいています。",
           "詳細は根拠欄からルール版と指紋を辿れます。",
         ],
-        evidence_refs: ruleCard?.evidence_refs ?? summary.evidence_refs.filter((ref) => ref.kind === "rule"),
-        next_action: null,
-      };
+        evidenceRefs: ruleCard?.evidence_refs ?? summary.evidence_refs.filter((ref) => ref.kind === "rule"),
+        nextAction: null,
+      });
     }
 
     if (lowered.includes("来月") || lowered.includes("増やす")) {
@@ -4411,37 +4756,53 @@ export class PathGovernedModuleService {
           ? "担当比重が大きい現場ほど成果反映が乗りやすいので、責任を持つ場面を増やすと効きやすいです。"
           : null,
       ].filter((value): value is string => Boolean(value));
-      return {
+      return this.buildRewardQaResponse({
+        summary,
         conclusion:
           nextActions[0] ??
           "今ある根拠だけでは、次に効く行動を断定できるほどの差分は見つかりませんでした。",
-        reasons: summary.top_reasons.map((reason) => reason.summary),
-        evidence_refs: summary.top_reasons.flatMap((reason) => reason.evidence_refs),
-        next_action: nextActions[0] ?? "根拠が足りないため、これ以上の提案はまだ出せません。",
-      };
+        whyChanged: summary.top_reasons.map((reason) => reason.summary),
+        evidenceRefs: summary.top_reasons.flatMap((reason) => reason.evidence_refs),
+        nextAction: nextActions[0] ?? "根拠が足りないため、これ以上の提案はまだ出せません。",
+      });
     }
 
     if ((lowered.includes("現場") || lowered.includes("配分")) && targetSite) {
-      return {
+      return this.buildRewardQaResponse({
+        summary,
+        targetSite,
         conclusion: `${targetSite.site_name} は ${targetSite.amount.toLocaleString("ja-JP")}円が反映されています。`,
-        reasons: targetSite.detail.self_explanation.reason_lines,
-        evidence_refs: targetSite.evidence_refs,
-        next_action:
+        whyChanged: targetSite.detail.self_explanation.reason_lines,
+        evidenceRefs: targetSite.evidence_refs,
+        nextAction:
           targetSite.reflected_ratio <= 0
             ? "この現場では成果反映が小さいため、担当比重や高利益現場の比率を確認すると次の改善点が見えます。"
             : null,
-      };
+      });
     }
 
-    return {
+    return this.buildRewardQaResponse({
+      summary,
       conclusion:
         summary.delta_amount === null
           ? `今月の見込みは ${summary.estimated_amount.toLocaleString("ja-JP")}円です。`
           : `今月の見込みは ${summary.estimated_amount.toLocaleString("ja-JP")}円で、先月比は ${summary.delta_amount.toLocaleString("ja-JP")}円です。`,
-      reasons: summary.top_reasons.map((reason) => reason.summary),
-      evidence_refs: summary.top_reasons.flatMap((reason) => reason.evidence_refs),
-      next_action: null,
-    };
+      whyChanged: summary.top_reasons.map((reason) => reason.summary),
+      evidenceRefs: summary.top_reasons.flatMap((reason) => reason.evidence_refs),
+      nextAction: null,
+    });
+  }
+
+  async answerRewardConfirmationQuestion(
+    input: PathRewardQaRequest,
+  ): Promise<PathRewardQaResponse> {
+    const summary = await this.getRewardConfirmationSummary(input.month, input.member_id);
+    const analysisContext = this.buildRewardAnalysisContext(summary);
+    return new PathRewardAnalysisService().analyzeRewardConfirmation(
+      analysisContext,
+      input.question.trim(),
+      () => this.answerRewardConfirmationQuestionDeterministic(summary, input),
+    );
   }
 
   async getOpportunityAuditSummary(month: string): Promise<Record<string, unknown>[]> {

@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import LUQOPage from "./LUQO";
+import PathRewardConfirmationPage from "./PathRewardConfirmation";
 
 vi.mock("../components/luqo/rewardConfirmation/RewardConfirmationExperience", () => ({
     RewardConfirmationExperience: (props: {
@@ -18,11 +18,6 @@ vi.mock("../components/luqo/rewardConfirmation/RewardConfirmationExperience", ()
     ),
 }));
 
-vi.mock("../lib/api", () => ({
-    fetchLUQOScores: vi.fn().mockResolvedValue({ scores: [] }),
-    fetchLUQORewardCalculations: vi.fn().mockResolvedValue({ calculations: [] }),
-}));
-
 function renderPage(initialEntry: string) {
     function LocationProbe() {
         const location = useLocation();
@@ -36,7 +31,7 @@ function renderPage(initialEntry: string) {
                     path="/luqo"
                     element={(
                         <>
-                            <LUQOPage />
+                            <PathRewardConfirmationPage />
                             <LocationProbe />
                         </>
                     )}
@@ -46,7 +41,7 @@ function renderPage(initialEntry: string) {
     );
 }
 
-describe("/luqo page", () => {
+describe("Path reward confirmation page", () => {
     beforeEach(() => {
         vi.clearAllMocks();
     });
@@ -55,7 +50,8 @@ describe("/luqo page", () => {
         renderPage("/luqo");
 
         expect(screen.getByTestId("reward-confirmation")).toHaveTextContent("REWARD_CONFIRMATION");
-        expect(screen.getByText("旧 LUQO 互換レイヤー")).toBeInTheDocument();
+        expect(screen.queryByText("旧 LUQO 互換レイヤー")).not.toBeInTheDocument();
+        expect(screen.queryByText("legacy 参照データ")).not.toBeInTheDocument();
     });
 
     it("passes deep link params into the reward confirmation experience", async () => {

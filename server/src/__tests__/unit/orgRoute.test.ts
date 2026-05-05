@@ -12,6 +12,7 @@ import orgRouter from "../../routes/org";
 
 const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
 const ORIGINAL_DEV_SKIP_AUTH = process.env.DEV_SKIP_AUTH;
+const ORIGINAL_DEFAULT_ORG_ID = process.env.DEFAULT_ORG_ID;
 
 type MockRes = {
   status: jest.Mock;
@@ -63,11 +64,13 @@ describe("org router", () => {
     delete process.env.ORG_BOOTSTRAP_ALLOWED_EMAILS;
     process.env.NODE_ENV = ORIGINAL_NODE_ENV;
     process.env.DEV_SKIP_AUTH = ORIGINAL_DEV_SKIP_AUTH;
+    process.env.DEFAULT_ORG_ID = ORIGINAL_DEFAULT_ORG_ID;
   });
 
   afterAll(() => {
     process.env.NODE_ENV = ORIGINAL_NODE_ENV;
     process.env.DEV_SKIP_AUTH = ORIGINAL_DEV_SKIP_AUTH;
+    process.env.DEFAULT_ORG_ID = ORIGINAL_DEFAULT_ORG_ID;
   });
 
   it("GET /members resolves the active org and returns hydrated members", async () => {
@@ -149,6 +152,42 @@ describe("org router", () => {
     expect(orgMembersChain.eq).toHaveBeenCalledWith("org_id", "11111111-1111-4111-8111-111111111111");
     expect(orgMembersChain.eq).toHaveBeenCalledWith("status", "active");
     expect(profilesChain.in).toHaveBeenCalledWith("id", ["user-1", "user-2"]);
+  });
+
+  it("GET /members exposes the four dev auth users when development auth has no DB memberships", async () => {
+    process.env.NODE_ENV = "development";
+    process.env.DEV_SKIP_AUTH = "true";
+    process.env.DEFAULT_ORG_ID = "11111111-1111-4111-8111-111111111111";
+
+    const activeMembershipsChain = createChain({ data: [], error: null });
+    const orgMembersChain = createChain({ data: [], error: null });
+    const profilesChain = createChain({ data: [], error: null });
+    setupMockFromSequence(mockFrom, [activeMembershipsChain, orgMembersChain, profilesChain]);
+
+    const req = {
+      userId: "22222222-2222-4222-8222-0000000000a2",
+      headers: {},
+      params: {},
+    } as any;
+    const res = createMockRes();
+
+    await listMembersHandler(req, res);
+
+    expect(res.status).not.toHaveBeenCalled();
+    const members = res.json.mock.calls[0]?.[0] as Array<{ user_id: string; display_name: string }>;
+    expect(members).toHaveLength(4);
+    expect(members).toEqual(expect.arrayContaining([
+      expect.objectContaining({ user_id: "44444444-4444-4444-8444-0000000000a4", display_name: "ダイト" }),
+      expect.objectContaining({ user_id: "33333333-3333-4333-8333-0000000000a3", display_name: "テル" }),
+      expect.objectContaining({ user_id: "22222222-2222-4222-8222-0000000000a2", display_name: "ジェイ" }),
+      expect.objectContaining({ user_id: "e93f3438-ae73-4c55-b2ab-a370d096bde0", display_name: "ユウト" }),
+    ]));
+    expect(profilesChain.in).toHaveBeenCalledWith("id", [
+      "e93f3438-ae73-4c55-b2ab-a370d096bde0",
+      "22222222-2222-4222-8222-0000000000a2",
+      "33333333-3333-4333-8333-0000000000a3",
+      "44444444-4444-4444-8444-0000000000a4",
+    ]);
   });
 
   it("GET /members returns 409 when multiple active memberships require selection", async () => {

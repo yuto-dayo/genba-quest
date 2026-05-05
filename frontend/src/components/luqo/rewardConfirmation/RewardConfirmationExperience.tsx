@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Bot, ChevronDown, ChevronUp, MessageSquareText, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { ChevronDown, ChevronUp, MessageSquareText, Send, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
     askPathRewardConfirmationQuestion,
@@ -29,9 +29,47 @@ function formatDelta(value: number) {
     return `${sign}${formatCurrency(Math.abs(value))}`;
 }
 
+function formatStatusLabel(value: PathRewardConfirmationSummary["status"]) {
+    const labels: Record<string, string> = {
+        "試算中": "試算中",
+        "確定申請中": "確認中",
+        "確定済み": "確認済み",
+    };
+    return labels[value] ?? String(value);
+}
+
+function formatCorrectionStatus(value: string) {
+    const labels: Record<string, string> = {
+        draft: "下書き",
+        pending: "確認待ち",
+        approved: "承認済み",
+        executed: "反映済み",
+        rejected: "却下",
+    };
+    return labels[value] ?? value;
+}
+
+function formatCorrectionImpact(amount: number) {
+    if (amount < 0) {
+        return `来月の支払から${formatCurrency(Math.abs(amount))}差し引き`;
+    }
+    if (amount > 0) {
+        return `来月の支払に${formatCurrency(amount)}追加`;
+    }
+    return "来月の支払調整なし";
+}
+
 function formatMonthLabel(month: string) {
     const [year, monthPart] = month.split("-");
     return `${year}年${Number(monthPart)}月`;
+}
+
+function formatCorrectionReason(item: PathRewardConfirmationSummary["corrections"]["items"][number]) {
+    const internalPattern = /(seed|posted|reward\.adjust|adjustment|proposal|uuid|idempotency)/i;
+    if (!item.reason || internalPattern.test(item.reason)) {
+        return `${item.target_month ? formatMonthLabel(item.target_month) : "今月分"}の精算調整`;
+    }
+    return item.reason;
 }
 
 function renderEvidence(ref: PathRewardEvidenceRef, index: number) {
@@ -84,7 +122,7 @@ function SiteDrawer({
             ? site.detail.site_summary.anonymous_relative_distribution
                   .map((value, index) => `#${index + 1} ${Math.round(value * 100)}%`)
                   .join(" / ")
-            : "人数が少ないため、相対分布は帯だけ表示しています。";
+            : "少人数のため、個人名と金額は出さず位置づけだけ表示します。";
 
     const bandLabel: Record<PathRewardSiteBreakdown["detail"]["site_summary"]["self_band"], string> = {
         solo: "単独",
@@ -96,22 +134,28 @@ function SiteDrawer({
 
     return (
         <div className={styles.drawerBackdrop} onClick={onClose}>
-            <aside className={styles.drawer} onClick={(event) => event.stopPropagation()}>
+            <aside
+                className={styles.drawer}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={`site-drawer-${site.site_id}`}
+                onClick={(event) => event.stopPropagation()}
+            >
                 <div className={styles.drawerHeader}>
                     <div>
                         <p className={styles.eyebrow}>現場ごとの配分</p>
-                        <h3>{site.site_name}</h3>
+                        <h3 id={`site-drawer-${site.site_id}`}>{site.site_name}</h3>
                     </div>
-                    <button type="button" className={styles.inlineButton} onClick={onClose}>
+                    <button type="button" className={styles.inlineButton} onClick={onClose} aria-label="現場別内訳を閉じる">
                         閉じる
                     </button>
                 </div>
 
                 <section className={styles.drawerSection}>
-                    <h4>自分の金額と理由</h4>
+                    <h4>自分の現場報酬</h4>
                     <div className={styles.metricGrid}>
                         <div className={styles.metricCard}>
-                            <span>配分額</span>
+                            <span>現場報酬</span>
                             <strong>{formatCurrency(site.detail.self_explanation.amount)}</strong>
                         </div>
                         <div className={styles.metricCard}>
@@ -135,7 +179,7 @@ function SiteDrawer({
                 </section>
 
                 <section className={styles.drawerSection}>
-                    <h4>現場全体サマリー</h4>
+                    <h4>現場全体</h4>
                     <div className={styles.metricGrid}>
                         <div className={styles.metricCard}>
                             <span>分配原資</span>
@@ -146,7 +190,7 @@ function SiteDrawer({
                             <strong>{site.detail.site_summary.participant_count}人</strong>
                         </div>
                         <div className={styles.metricCard}>
-                            <span>自分の位置づけ</span>
+                            <span>位置づけ</span>
                             <strong>{bandLabel[site.detail.site_summary.self_band]}</strong>
                         </div>
                         <div className={styles.metricCard}>
@@ -154,7 +198,7 @@ function SiteDrawer({
                             <strong>{Math.round(site.reflected_ratio * 100)}%</strong>
                         </div>
                     </div>
-                    <p className={styles.drawerCopy}>{distributionSummary}</p>
+                    <p className={styles.drawerCopy}>4人チーム内の目安: {distributionSummary}</p>
                     <div className={styles.evidenceRow}>
                         {site.evidence_refs.map((ref, index) => renderEvidence(ref, index))}
                     </div>
@@ -168,7 +212,7 @@ function AiAnswer({ answer }: { answer: PathRewardQaResponse | null }) {
     if (!answer) {
         return (
             <p className={styles.aiPlaceholder}>
-                金額の疑問をそのまま聞けます。答えは必ず根拠付きで返します。
+                金額の疑問をそのまま確認できます。今ある精算データだけを使って返します。
             </p>
         );
     }
@@ -180,26 +224,77 @@ function AiAnswer({ answer }: { answer: PathRewardQaResponse | null }) {
                 <p>{answer.conclusion}</p>
             </section>
             <section className={styles.aiSection}>
+                <h4>金額の内訳</h4>
+                <div className={styles.amountBreakdownList}>
+                    {answer.amount_breakdown.map((item) => (
+                        <article key={`${item.label}-${item.amount}`} className={styles.amountBreakdownItem}>
+                            <div>
+                                <span>{item.label}</span>
+                                <strong>{formatCurrency(item.amount)}</strong>
+                            </div>
+                            <p>{item.detail}</p>
+                            {item.evidence_refs.length > 0 && (
+                                <div className={styles.evidenceRow}>
+                                    {item.evidence_refs.map((ref, index) => renderEvidence(ref, index))}
+                                </div>
+                            )}
+                        </article>
+                    ))}
+                </div>
+            </section>
+            <section className={styles.aiSection}>
                 <h4>理由</h4>
                 <ul className={styles.reasonList}>
-                    {answer.reasons.map((reason) => (
+                    {answer.why_changed.map((reason) => (
                         <li key={reason}>{reason}</li>
                     ))}
                 </ul>
+            </section>
+            <section className={styles.aiSection}>
+                <h4>来月調整</h4>
+                {answer.adjustments.length > 0 ? (
+                    <div className={styles.adjustmentList}>
+                        {answer.adjustments.map((item) => (
+                            <article key={`${item.label}-${item.amount ?? "none"}`} className={styles.adjustmentItem}>
+                                <div>
+                                    <span>{item.label}</span>
+                                    <strong>{item.amount === null ? "金額なし" : formatDelta(item.amount)}</strong>
+                                </div>
+                                <p>{item.detail}</p>
+                                {item.evidence_refs.length > 0 && (
+                                    <div className={styles.evidenceRow}>
+                                        {item.evidence_refs.map((ref, index) => renderEvidence(ref, index))}
+                                    </div>
+                                )}
+                            </article>
+                        ))}
+                    </div>
+                ) : (
+                    <p>この月に確認できる来月調整はありません。</p>
+                )}
             </section>
             <section className={styles.aiSection}>
                 <h4>根拠</h4>
                 <div className={styles.evidenceRow}>
                     {answer.evidence_refs.map((ref, index) => renderEvidence(ref, index))}
                 </div>
-            </section>
-            <section className={styles.aiSection}>
-                <h4>次に効く行動</h4>
                 <p>{answer.next_action ?? "根拠が足りないため、今は提案できる行動がありません。"}</p>
             </section>
         </div>
     );
 }
+
+type RewardChatMessage =
+    | {
+          id: string;
+          role: "user";
+          content: string;
+      }
+    | {
+          id: string;
+          role: "assistant";
+          answer: PathRewardQaResponse;
+      };
 
 export function RewardConfirmationExperience({
     initialPeriod,
@@ -222,14 +317,16 @@ export function RewardConfirmationExperience({
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [question, setQuestion] = useState("");
-    const [answer, setAnswer] = useState<PathRewardQaResponse | null>(null);
+    const [chatOpen, setChatOpen] = useState(false);
+    const [chatMessages, setChatMessages] = useState<RewardChatMessage[]>([]);
     const [asking, setAsking] = useState(false);
     const [selectedSiteId, setSelectedSiteId] = useState<string | null>(focusSiteId ?? null);
     const [internalOpen, setInternalOpen] = useState(false);
+    const requestSequenceRef = useRef(0);
+    const chatMessageSequenceRef = useRef(0);
 
     const month = initialPeriod || currentMonthValue();
-    const effectiveMemberId =
-        membershipRole === "admin" && focusMemberId ? focusMemberId : currentUserId;
+    const effectiveMemberId = focusMemberId?.trim() || currentUserId;
     const selectedSite = useMemo(
         () => summary?.site_breakdown.find((item) => item.site_id === selectedSiteId) ?? null,
         [selectedSiteId, summary],
@@ -238,17 +335,21 @@ export function RewardConfirmationExperience({
     useEffect(() => {
         if (activeOrgRole) {
             setMembershipRole(activeOrgRole);
-            return;
         }
 
         void fetchOrgContext()
-            .then((context) => setMembershipRole(context.membership.role))
+            .then((context) => {
+                if (!activeOrgRole) {
+                    setMembershipRole(context.membership.role);
+                }
+                setCurrentUserId((current) => current || context.membership.user_id);
+            })
             .catch(() => {});
     }, [activeOrgRole]);
 
     useEffect(() => {
         void supabase.auth.getSession().then(({ data: { session } }) => {
-            setCurrentUserId(session?.user?.id || null);
+            setCurrentUserId((current) => session?.user?.id || current);
         });
     }, []);
 
@@ -257,57 +358,110 @@ export function RewardConfirmationExperience({
             return;
         }
 
+        const requestId = requestSequenceRef.current + 1;
+        requestSequenceRef.current = requestId;
         setLoading(true);
         setError(null);
         void fetchPathRewardConfirmation(month, effectiveMemberId)
             .then((nextSummary) => {
-                setSummary(nextSummary);
-                if (focusSiteId && nextSummary.site_breakdown.some((item) => item.site_id === focusSiteId)) {
-                    setSelectedSiteId(focusSiteId);
-                } else if (!selectedSiteId && nextSummary.site_breakdown[0]) {
-                    setSelectedSiteId(nextSummary.site_breakdown[0].site_id);
+                if (requestSequenceRef.current !== requestId) {
+                    return;
                 }
+                setSummary(nextSummary);
+                setSelectedSiteId((current) => {
+                    if (focusSiteId && nextSummary.site_breakdown.some((item) => item.site_id === focusSiteId)) {
+                        return focusSiteId;
+                    }
+                    return current;
+                });
             })
             .catch((requestError) => {
+                if (requestSequenceRef.current !== requestId) {
+                    return;
+                }
                 setError(requestError instanceof Error ? requestError.message : "読み込みに失敗しました");
             })
-            .finally(() => setLoading(false));
+            .finally(() => {
+                if (requestSequenceRef.current === requestId) {
+                    setLoading(false);
+                }
+            });
     }, [effectiveMemberId, focusSiteId, month]);
 
     const ask = async (nextQuestion: string) => {
-        if (!effectiveMemberId || !nextQuestion.trim()) {
+        const trimmedQuestion = nextQuestion.trim();
+        if (!effectiveMemberId || !trimmedQuestion) {
             return;
         }
 
+        const userMessageId = `path-chat-user-${chatMessageSequenceRef.current}`;
+        chatMessageSequenceRef.current += 1;
+        setChatOpen(true);
+        setChatMessages((current) => [
+            ...current,
+            {
+                id: userMessageId,
+                role: "user",
+                content: trimmedQuestion,
+            },
+        ]);
         setAsking(true);
-        setQuestion(nextQuestion);
+        setQuestion("");
         try {
             const nextAnswer = await askPathRewardConfirmationQuestion({
                 month,
                 member_id: effectiveMemberId,
                 site_id: selectedSiteId,
-                question: nextQuestion.trim(),
+                question: trimmedQuestion,
             });
-            setAnswer(nextAnswer);
+            const assistantMessageId = `path-chat-assistant-${chatMessageSequenceRef.current}`;
+            chatMessageSequenceRef.current += 1;
+            setChatMessages((current) => [
+                ...current,
+                {
+                    id: assistantMessageId,
+                    role: "assistant",
+                    answer: nextAnswer,
+                },
+            ]);
         } catch (requestError) {
-            setAnswer({
-                conclusion: requestError instanceof Error ? requestError.message : "回答を取得できませんでした。",
-                reasons: ["根拠を読み込めませんでした。"],
-                evidence_refs: [],
-                next_action: null,
-            });
+            const assistantMessageId = `path-chat-assistant-${chatMessageSequenceRef.current}`;
+            chatMessageSequenceRef.current += 1;
+            setChatMessages((current) => [
+                ...current,
+                {
+                    id: assistantMessageId,
+                    role: "assistant",
+                    answer: {
+                        conclusion: requestError instanceof Error ? requestError.message : "回答を取得できませんでした。",
+                        amount_breakdown: [],
+                        why_changed: ["根拠を読み込めませんでした。"],
+                        adjustments: [],
+                        evidence_refs: [],
+                        next_action: null,
+                        confidence: "low",
+                    },
+                },
+            ]);
         } finally {
             setAsking(false);
         }
     };
 
-    const starterQuestions = [
-        "なんで今月は先月より低いの？",
-        "この現場の配分が少ない理由は？",
-        "補正って何が入ってる？",
-        "来月増やすには何が効く？",
-        "ルール上はどこで決まってる？",
-    ];
+    const submitChatQuestion = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        void ask(question);
+    };
+
+    const submitChatQuestionWithEnter = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+        if (event.nativeEvent.isComposing) {
+            return;
+        }
+        if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            void ask(question);
+        }
+    };
 
     if (loading) {
         return <div className={styles.stateCard}>報酬確認を読み込み中...</div>;
@@ -317,184 +471,139 @@ export function RewardConfirmationExperience({
         return <div className={styles.stateCard}>{error ?? "報酬確認を表示できませんでした"}</div>;
     }
 
+    const primaryCorrection = summary.corrections.items[0] ?? null;
+    const pendingCloseSites = summary.pending_close_sites ?? [];
+    const isConfirmed = summary.status === "確定済み";
+    const buildCorrectionProposalHref = (proposalId: string) =>
+        `/path?tab=reward&period=${encodeURIComponent(summary.month)}&member=${encodeURIComponent(summary.member_id)}&proposal=${encodeURIComponent(proposalId)}`;
+
     return (
         <div className={styles.shell}>
             <div className={styles.mainColumn}>
                 <section className={styles.hero}>
                     <div className={styles.heroHeader}>
                         <div>
-                            <p className={styles.eyebrow}>LUQO / PATH</p>
-                            <h1>報酬確認</h1>
-                            <p className={styles.subtitle}>今月の見込みと、その根拠を確認できます</p>
+                            <p className={styles.eyebrow}>PATH</p>
+                            <h1>今月の精算額</h1>
+                            <p className={styles.subtitle}>対象: {summary.member_name}</p>
                         </div>
-                        <span className={styles.statusBadge}>{summary.status}</span>
+                        <span className={styles.statusBadge}>{formatStatusLabel(summary.status)}</span>
                     </div>
                     <div className={styles.heroGrid}>
-                        <div className={styles.heroCard}>
-                            <span>今月の見込み報酬</span>
+                        <div className={`${styles.heroCard} ${styles.amountCard}`}>
+                            <span>今月の分配額</span>
                             <strong>{formatCurrency(summary.estimated_amount)}</strong>
-                            <p>{formatMonthLabel(summary.month)}の見込みです。</p>
+                            <p>{formatMonthLabel(summary.month)}</p>
                         </div>
                         <div className={styles.heroCard}>
-                            <span>先月比</span>
-                            <strong>{summary.delta_amount === null ? "比較なし" : formatDelta(summary.delta_amount)}</strong>
-                            <p>{summary.delta_empty_state ?? "先月との差を表示しています。"}</p>
+                            <span>{isConfirmed ? "確認状態" : "確認状況"}</span>
+                            <strong className={styles.compactStrong}>
+                                {isConfirmed ? "確認済みです" : formatStatusLabel(summary.status)}
+                            </strong>
+                            <p>{isConfirmed ? "この月の操作は不要です。" : "金額の確認中です。"}</p>
                         </div>
-                        <div className={styles.heroCard}>
-                            <span>主な増減理由</span>
-                            <strong>{summary.top_reasons.length}件</strong>
-                            <ul className={styles.reasonListCompact}>
-                                {summary.top_reasons.map((reason) => (
-                                    <li key={reason.key}>{reason.label}</li>
-                                ))}
-                            </ul>
-                        </div>
-                    </div>
-                </section>
-
-                <section className={styles.section}>
-                    <div className={styles.sectionHeader}>
-                        <div>
-                            <h2>今月こうなった理由</h2>
-                            <p>まず全体の理由を短く確認できます。</p>
-                        </div>
-                    </div>
-                    {summary.explanation_missing && (
-                        <div className={styles.noticeCard}>{summary.explanation_missing_message}</div>
-                    )}
-                    <div className={styles.cardGrid}>
-                        {summary.explanation_cards.map((card) => (
-                            <article key={card.id} className={styles.infoCard}>
-                                <h3>{card.title}</h3>
-                                <p>{card.body}</p>
-                                <div className={styles.evidenceRow}>
-                                    {card.evidence_refs.map((ref, index) => renderEvidence(ref, index))}
-                                </div>
-                            </article>
-                        ))}
-                    </div>
-                    <div className={styles.reasonColumns}>
-                        <article className={styles.infoCard}>
-                            <h3>増えた要因</h3>
-                            <ul className={styles.reasonList}>
-                                {(summary.increase_reasons.length > 0 ? summary.increase_reasons : summary.top_reasons)
-                                    .filter((reason) => reason.direction !== "decrease")
-                                    .map((reason) => (
-                                        <li key={reason.key}>
-                                            <strong>{reason.label}</strong>
-                                            <span>{reason.summary}</span>
-                                        </li>
-                                    ))}
-                            </ul>
-                        </article>
-                        <article className={styles.infoCard}>
-                            <h3>減った要因</h3>
-                            <ul className={styles.reasonList}>
-                                {(summary.decrease_reasons.length > 0 ? summary.decrease_reasons : summary.top_reasons)
-                                    .filter((reason) => reason.direction !== "increase")
-                                    .map((reason) => (
-                                        <li key={reason.key}>
-                                            <strong>{reason.label}</strong>
-                                            <span>{reason.summary}</span>
-                                        </li>
-                                    ))}
-                            </ul>
-                        </article>
-                    </div>
-                </section>
-
-                <section className={styles.section}>
-                    <div className={styles.sectionHeader}>
-                        <div>
-                            <h2>現場ごとの配分</h2>
-                            <p>自分の配分額と、その理由を現場ごとに見られます。</p>
-                        </div>
-                    </div>
-                    <div className={styles.tableCard}>
-                        <table className={styles.table}>
-                            <thead>
-                                <tr>
-                                    <th>現場名</th>
-                                    <th>自分の配分額</th>
-                                    <th>反映比重</th>
-                                    <th>主な理由</th>
-                                    <th>補正有無</th>
-                                    <th>根拠を見る</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {summary.site_breakdown.length > 0 ? (
-                                    summary.site_breakdown.map((site) => (
-                                        <tr key={site.site_id}>
-                                            <td>{site.site_name}</td>
-                                            <td>{formatCurrency(site.amount)}</td>
-                                            <td>{Math.round(site.reflected_ratio * 100)}%</td>
-                                            <td>{site.reason_summary}</td>
-                                            <td>{site.correction_state}</td>
-                                            <td>
-                                                <button
-                                                    type="button"
-                                                    className={styles.inlineButton}
-                                                    onClick={() => setSelectedSiteId(site.site_id)}
-                                                >
-                                                    根拠を見る
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))
-                                ) : (
-                                    <tr>
-                                        <td colSpan={6}>現場ごとの配分データはまだありません。</td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-
-                <section id="reward-corrections" className={styles.section}>
-                    <div className={styles.sectionHeader}>
-                        <div>
-                            <h2>補正 / 調整</h2>
-                            <p>補正の理由と履歴をまとめて確認できます。</p>
-                        </div>
-                    </div>
-                    <div className={styles.metricGrid}>
-                        <div className={styles.metricCard}>
-                            <span>補正総額</span>
-                            <strong>{formatCurrency(summary.corrections.total_amount)}</strong>
-                        </div>
-                        <div className={styles.metricCard}>
-                            <span>反映済み</span>
-                            <strong>{formatCurrency(summary.corrections.applied_amount)}</strong>
-                        </div>
-                        <div className={styles.metricCard}>
-                            <span>件数</span>
-                            <strong>{summary.corrections.count}件</strong>
-                        </div>
-                    </div>
-                    <div className={styles.cardGrid}>
-                        {summary.corrections.items.length > 0 ? (
-                            summary.corrections.items.map((item) => (
-                                <article key={item.proposal_id} className={styles.infoCard}>
-                                    <div className={styles.rowBetween}>
-                                        <h3>{item.reason}</h3>
-                                        <span className={styles.statusSubtle}>{item.status}</span>
-                                    </div>
-                                    <p>
-                                        {formatCurrency(item.amount)} / {item.mode} / {item.correction_month ?? "補正月なし"}
-                                    </p>
-                                    {item.note && <p>{item.note}</p>}
-                                    <div className={styles.evidenceRow}>
-                                        {item.evidence_refs.map((ref, index) => renderEvidence(ref, index))}
-                                    </div>
-                                </article>
-                            ))
-                        ) : (
-                            <div className={styles.noticeCard}>今月の補正はありません。</div>
+                        {summary.delta_amount !== null && (
+                            <div className={styles.heroCard}>
+                                <span>先月比</span>
+                                <strong>{formatDelta(summary.delta_amount)}</strong>
+                                <p>{summary.delta_empty_state ?? "先月との差です。"}</p>
+                            </div>
                         )}
                     </div>
+                    {primaryCorrection && (
+                        <div className={styles.adjustmentBanner}>
+                            <div>
+                                <span>来月の調整</span>
+                                <strong>{formatDelta(primaryCorrection.amount)}</strong>
+                                <p>
+                                    {primaryCorrection.correction_month
+                                        ? `反映 ${primaryCorrection.correction_month}`
+                                        : "反映月を確認してください"} / {summary.corrections.count}件
+                                </p>
+                            </div>
+                            <a className={styles.secondaryLinkButton} href="#reward-corrections">
+                                調整を見る
+                            </a>
+                        </div>
+                    )}
+                    {pendingCloseSites.length > 0 && (
+                        <div className={styles.pendingCloseBanner}>
+                            <div>
+                                <span>締め待ち現場あり</span>
+                                <strong>{pendingCloseSites.length}件</strong>
+                                <p>完了済みですが、PATH報酬にはまだ反映されていません。</p>
+                            </div>
+                            <Link className={styles.secondaryLinkButton} to={pendingCloseSites[0].href}>
+                                現場を見る
+                            </Link>
+                        </div>
+                    )}
                 </section>
+
+                {summary.site_breakdown.length > 0 && (
+                    <section className={styles.section}>
+                        <div className={styles.sectionHeader}>
+                            <div>
+                                <h2>現場別内訳</h2>
+                            </div>
+                        </div>
+                        <div className={styles.siteCardList}>
+                            {summary.site_breakdown.map((site) => (
+                                <article key={site.site_id} className={styles.siteCard}>
+                                    <div className={styles.siteCardHeader}>
+                                        <div>
+                                            <h3>{site.site_name}</h3>
+                                            <span>{site.reason_summary}</span>
+                                        </div>
+                                        <strong>{formatCurrency(site.amount)}</strong>
+                                    </div>
+                                    <div className={styles.siteCardFacts}>
+                                        <div>
+                                            <span>比重</span>
+                                            <strong>{Math.round(site.reflected_ratio * 100)}%</strong>
+                                        </div>
+                                        <div>
+                                            <span>補正</span>
+                                            <strong>{site.correction_state}</strong>
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className={styles.inlineButton}
+                                        onClick={() => setSelectedSiteId(site.site_id)}
+                                    >
+                                        詳細
+                                    </button>
+                                </article>
+                            ))}
+                        </div>
+                    </section>
+                )}
+
+                {summary.corrections.items.length > 0 && (
+                    <section id="reward-corrections" className={styles.section}>
+                        <div className={styles.sectionHeader}>
+                            <div>
+                                <h2>来月の調整</h2>
+                            </div>
+                        </div>
+                        <div className={styles.cardGrid}>
+                            {summary.corrections.items.map((item) => (
+                                <article key={item.proposal_id} className={styles.infoCard}>
+                                    <div className={styles.rowBetween}>
+                                        <h3>{formatCorrectionImpact(item.amount)}</h3>
+                                        <span className={styles.statusSubtle}>{formatCorrectionStatus(item.status)}</span>
+                                    </div>
+                                    <p>{item.correction_month ? `反映 ${item.correction_month}` : "反映月を確認してください"}</p>
+                                    <p>理由: {formatCorrectionReason(item)}</p>
+                                    <Link className={styles.evidenceLink} to={buildCorrectionProposalHref(item.proposal_id)}>
+                                        申請を見る
+                                    </Link>
+                                </article>
+                            ))}
+                        </div>
+                    </section>
+                )}
 
                 {membershipRole === "admin" && (
                     <section className={styles.section}>
@@ -518,52 +627,87 @@ export function RewardConfirmationExperience({
                 )}
             </div>
 
-            <aside className={styles.sideColumn}>
-                <section className={styles.aiPanel}>
-                    <div className={styles.sectionHeader}>
-                        <div>
-                            <p className={styles.eyebrow}>根拠付きAI</p>
-                            <h2>AIに聞く</h2>
-                        </div>
-                        <Bot size={18} />
-                    </div>
-                    <p className={styles.aiIntro}>
-                        金額の理由を根拠付きで説明します。自由な推測ではなく、今あるデータだけを使います。
-                    </p>
-                    <div className={styles.chipRow}>
-                        {starterQuestions.map((starter) => (
+            <div className={styles.chatDock}>
+                {chatOpen && (
+                    <section className={styles.chatPanel} aria-label="PATH報酬チャット">
+                        <div className={styles.chatHeader}>
+                            <div>
+                                <span>PATHチャット</span>
+                                <strong>精算の質問</strong>
+                            </div>
                             <button
-                                key={starter}
                                 type="button"
-                                className={styles.questionChip}
-                                onClick={() => void ask(starter)}
+                                className={styles.chatIconButton}
+                                onClick={() => setChatOpen(false)}
+                                aria-label="チャットを閉じる"
                             >
-                                <Sparkles size={14} />
-                                {starter}
+                                <X size={18} />
                             </button>
-                        ))}
-                    </div>
-                    <label className={styles.inputLabel}>
-                        <span>質問</span>
-                        <textarea
-                            className={styles.textarea}
-                            value={question}
-                            onChange={(event) => setQuestion(event.target.value)}
-                            placeholder="なんで今月は先月より低いの？"
-                        />
-                    </label>
+                        </div>
+                        <div className={styles.chatMessages} aria-live="polite">
+                            {chatMessages.length === 0 && (
+                                <div className={`${styles.chatMessage} ${styles.assistantMessage}`}>
+                                    <div className={styles.chatBubble}>
+                                        <p>気になる金額をそのまま入力してください。</p>
+                                    </div>
+                                </div>
+                            )}
+                            {chatMessages.map((message) =>
+                                message.role === "user" ? (
+                                    <div key={message.id} className={`${styles.chatMessage} ${styles.userMessage}`}>
+                                        <div className={styles.chatBubble}>
+                                            <p>{message.content}</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div key={message.id} className={`${styles.chatMessage} ${styles.assistantMessage}`}>
+                                        <div className={styles.chatBubble}>
+                                            <AiAnswer answer={message.answer} />
+                                        </div>
+                                    </div>
+                                ),
+                            )}
+                            {asking && (
+                                <div className={`${styles.chatMessage} ${styles.assistantMessage}`}>
+                                    <div className={styles.chatBubble}>
+                                        <p>確認中です...</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        <form className={styles.chatForm} onSubmit={submitChatQuestion}>
+                            <textarea
+                                className={styles.chatInput}
+                                value={question}
+                                onChange={(event) => setQuestion(event.target.value)}
+                                onKeyDown={submitChatQuestionWithEnter}
+                                placeholder="金額の理由を聞く"
+                                aria-label="PATH報酬への質問"
+                                rows={1}
+                            />
+                            <button
+                                type="submit"
+                                className={styles.chatSendButton}
+                                disabled={asking || !question.trim()}
+                                aria-label="質問を送る"
+                            >
+                                <Send size={18} />
+                            </button>
+                        </form>
+                    </section>
+                )}
+                {!chatOpen && (
                     <button
                         type="button"
-                        className={styles.primaryButton}
-                        onClick={() => void ask(question)}
-                        disabled={asking}
+                        className={styles.chatFab}
+                        onClick={() => setChatOpen(true)}
+                        aria-label="PATH報酬を質問する"
                     >
                         <MessageSquareText size={16} />
-                        {asking ? "回答を作成中..." : "質問する"}
+                        質問
                     </button>
-                    <AiAnswer answer={answer} />
-                </section>
-            </aside>
+                )}
+            </div>
 
             {selectedSite && <SiteDrawer site={selectedSite} onClose={() => setSelectedSiteId(null)} />}
         </div>

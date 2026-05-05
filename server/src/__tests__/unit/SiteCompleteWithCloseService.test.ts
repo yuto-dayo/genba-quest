@@ -59,6 +59,7 @@ function buildPayloadHash(siteId: string, clientRequestId: string, dayLogId: str
         expected_site_updated_at: undefined,
         recognized_revenue: 98000,
         included_day_log_ids: [dayLogId],
+        site_day_log_drafts: undefined,
         material_cost: 0,
         external_cost: 0,
         direct_cost: 0,
@@ -81,6 +82,7 @@ describe("SiteCompleteWithCloseService", () => {
   const orgId = "11111111-1111-4111-8111-111111111111";
   const siteId = "22222222-2222-4222-8222-222222222222";
   const dayLogId = "33333333-3333-4333-8333-333333333333";
+  const supplementedDayLogId = "55555555-5555-4555-8555-555555555555";
   const actor = {
     type: "human" as const,
     id: "44444444-4444-4444-8444-444444444444",
@@ -382,6 +384,90 @@ describe("SiteCompleteWithCloseService", () => {
         idempotency_key: `site.close.finalize:${orgId}:${siteId}:request-2`,
       }),
     );
+  });
+
+  it("prefers existing unlocked site day logs before assignment supplementation", async () => {
+    const eligibleLogsChain = createChain({
+      data: [{ id: dayLogId }],
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [eligibleLogsChain]);
+
+    const service = new SiteCompleteWithCloseService(orgId);
+    const result = await (service as any).supplementDayLogsForClose(
+      {
+        id: siteId,
+        org_id: orgId,
+        status: "active",
+        completed_at: null,
+        assigned_users: [actor.id],
+      },
+      {
+        client_request_id: "request-supplement-1",
+        recognized_revenue: 98000,
+        included_day_log_ids: [],
+        site_day_log_drafts: [
+          {
+            date: "2026-04-18",
+            member_id: actor.id,
+            role_type: "support",
+            credited_unit: 1,
+          },
+        ],
+      },
+      actor,
+    );
+
+    expect(result).toEqual([dayLogId]);
+    expect(eligibleLogsChain.insert).not.toHaveBeenCalled();
+  });
+
+  it("creates unlocked site day logs from completion drafts when no manual logs exist", async () => {
+    const eligibleLogsChain = createChain({ data: [], error: null });
+    const existingByNaturalKeyChain = createChain({ data: null, error: null });
+    const insertChain = createChain({
+      data: { id: supplementedDayLogId },
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [eligibleLogsChain, existingByNaturalKeyChain, insertChain]);
+
+    const service = new SiteCompleteWithCloseService(orgId);
+    const result = await (service as any).supplementDayLogsForClose(
+      {
+        id: siteId,
+        org_id: orgId,
+        status: "active",
+        completed_at: null,
+        assigned_users: [actor.id],
+      },
+      {
+        client_request_id: "request-supplement-2",
+        recognized_revenue: 98000,
+        included_day_log_ids: [],
+        site_day_log_drafts: [
+          {
+            date: "2026-04-18",
+            member_id: actor.id,
+            role_type: "lead",
+            credited_unit: 1.25,
+            memo: "from modal",
+          },
+        ],
+      },
+      actor,
+    );
+
+    expect(result).toEqual([supplementedDayLogId]);
+    expect(insertChain.insert).toHaveBeenCalledWith({
+      org_id: orgId,
+      date: "2026-04-18",
+      site_id: siteId,
+      member_id: actor.id,
+      trade_families: [],
+      role_type: "lead",
+      credited_unit: 1.25,
+      memo: "from modal",
+    });
   });
 
   it("reverses completion and rolls revenue back when close submission fails without an existing proposal", async () => {

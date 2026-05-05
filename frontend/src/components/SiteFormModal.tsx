@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { X, Loader2, AlertTriangle, Check, Plus, Trash2, Pencil, Receipt, Wand2 } from "lucide-react";
+import { X, Loader2, AlertTriangle, Check, Plus, Trash2, Pencil, Receipt, Wand2, Paperclip, FileText } from "lucide-react";
 import {
     createSite,
     updateSite,
@@ -9,6 +9,7 @@ import {
     fetchSiteLineItems,
     parseSiteDraftFromText,
     saveSiteLineItems,
+    uploadSiteDocument,
     type Site,
     type Member,
     type SiteLineItem,
@@ -115,6 +116,20 @@ function parseNumericInput(value: string): number | null {
     return Number.isFinite(parsed) ? parsed : null;
 }
 
+function parseOptionalNonNegativeIntegerInput(value: string): number | null | undefined {
+    const trimmed = value.trim();
+    if (!trimmed) {
+        return null;
+    }
+
+    const parsed = Number(trimmed);
+    if (!Number.isInteger(parsed) || parsed < 0) {
+        return undefined;
+    }
+
+    return parsed;
+}
+
 function formatYen(value: number): string {
     return `¥${Math.round(value).toLocaleString("ja-JP")}`;
 }
@@ -130,6 +145,34 @@ function calculateLineItemSubtotal(item: LineItemForm): number | null {
     return quantity * unitPrice;
 }
 
+function readFileAsBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const result = typeof reader.result === "string" ? reader.result : "";
+            const [, base64] = result.split(",");
+            if (!base64) {
+                reject(new Error("ファイルを読み込めませんでした"));
+                return;
+            }
+            resolve(base64);
+        };
+        reader.onerror = () => reject(new Error("ファイルを読み込めませんでした"));
+        reader.readAsDataURL(file);
+    });
+}
+
+async function uploadSiteAttachments(siteId: string, files: File[]) {
+    for (const file of files) {
+        const fileBase64 = await readFileAsBase64(file);
+        await uploadSiteDocument(siteId, {
+            file_base64: fileBase64,
+            mime_type: file.type || "application/octet-stream",
+            original_filename: file.name,
+        });
+    }
+}
+
 interface SiteFormModalProps {
     site?: Site;
     onClose: () => void;
@@ -140,10 +183,16 @@ export function SiteFormModal({ site, onClose, onSuccess }: SiteFormModalProps) 
     const isEdit = !!site;
 
     const [name, setName] = useState(site?.name || "");
+    const [siteStatus, setSiteStatus] = useState<"active" | "tentative">(
+        site?.status === "tentative" ? "tentative" : "active"
+    );
     const [cautions, setCautions] = useState(site?.cautions || "");
     const [address, setAddress] = useState(site?.address || "");
     const [clientId, setClientId] = useState(site?.client_id || "");
     const [assignedUsers, setAssignedUsers] = useState<string[]>(site?.assigned_users || []);
+    const [requiredWorkerCount, setRequiredWorkerCount] = useState(
+        site?.required_worker_count == null ? "" : String(site.required_worker_count)
+    );
     const [startedAt, setStartedAt] = useState(site?.started_at || "");
     const [expectedCompletionAt, setExpectedCompletionAt] = useState(site?.expected_completion_at || "");
     const [scheduleMode, setScheduleMode] = useState(normalizeSiteScheduleMode(site?.schedule_mode));
@@ -163,10 +212,13 @@ export function SiteFormModal({ site, onClose, onSuccess }: SiteFormModalProps) 
     const [draftLoading, setDraftLoading] = useState(false);
     const [draftSummary, setDraftSummary] = useState<SiteDraftFromText | null>(null);
     const [draftClientName, setDraftClientName] = useState<string | null>(null);
+    const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [showExpenseModal, setShowExpenseModal] = useState(false);
     const [expenseSaved, setExpenseSaved] = useState(false);
+    const attachmentInputRef = useRef<HTMLInputElement>(null);
+    const canEditStatus = !isEdit || site.status === "active" || site.status === "tentative";
 
     useEffect(() => {
         fetchClients()
@@ -343,6 +395,19 @@ export function SiteFormModal({ site, onClose, onSuccess }: SiteFormModalProps) 
         }
     };
 
+    const handleAttachmentSelect = (files: FileList | null) => {
+        const selectedFiles = Array.from(files || []);
+        if (selectedFiles.length === 0) {
+            return;
+        }
+        setError(null);
+        setAttachmentFiles((prev) => [...prev, ...selectedFiles]);
+    };
+
+    const handleRemoveAttachment = (index: number) => {
+        setAttachmentFiles((prev) => prev.filter((_, currentIndex) => currentIndex !== index));
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!name.trim()) return;
@@ -350,6 +415,13 @@ export function SiteFormModal({ site, onClose, onSuccess }: SiteFormModalProps) 
         try {
             setSaving(true);
             setError(null);
+
+            const normalizedRequiredWorkerCount =
+                parseOptionalNonNegativeIntegerInput(requiredWorkerCount);
+            if (normalizedRequiredWorkerCount === undefined) {
+                setError("必要人数は0以上の整数で入力してください");
+                return;
+            }
 
             if (startedAt && expectedCompletionAt && startedAt > expectedCompletionAt) {
                 setError("工期の開始日は完了予定日以前にしてください");
@@ -398,11 +470,13 @@ export function SiteFormModal({ site, onClose, onSuccess }: SiteFormModalProps) 
                 address: address.trim() || undefined,
                 client_id: clientId || undefined,
                 assigned_users: assignedUsers.length > 0 ? assignedUsers : undefined,
+                required_worker_count: normalizedRequiredWorkerCount,
                 started_at: startedAt || undefined,
                 expected_completion_at: expectedCompletionAt || undefined,
                 schedule_mode: scheduleMode,
                 working_weekdays: scheduleMode === "weekdays" ? workingWeekdays : undefined,
                 custom_work_dates: scheduleMode === "custom" ? customWorkDates : undefined,
+                ...(canEditStatus ? { status: siteStatus } : {}),
             };
 
             // 有効な工事項目だけ抽出（名前が入っているもの）
@@ -425,6 +499,9 @@ export function SiteFormModal({ site, onClose, onSuccess }: SiteFormModalProps) 
                 const created = await createSite(payload);
                 if (created?.id && validItems.length > 0) {
                     await saveSiteLineItems(created.id, validItems);
+                }
+                if (created?.id && attachmentFiles.length > 0) {
+                    await uploadSiteAttachments(created.id, attachmentFiles);
                 }
                 await onSuccess(created);
             }
@@ -518,6 +595,36 @@ export function SiteFormModal({ site, onClose, onSuccess }: SiteFormModalProps) 
                         </div>
                     )}
 
+                    {canEditStatus && (
+                        <div className={styles.formGroup}>
+                            <label className={styles.label}>登録状態</label>
+                            <div className={styles.statusChoiceGrid}>
+                                <button
+                                    type="button"
+                                    className={`${styles.statusChoiceCard} ${siteStatus === "active" ? styles.statusChoiceCardSelected : ""}`}
+                                    onClick={() => setSiteStatus("active")}
+                                >
+                                    <strong>
+                                        {siteStatus === "active" && <Check size={14} />}
+                                        受注済み
+                                    </strong>
+                                    <span>日程と稼働に反映します</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`${styles.statusChoiceCard} ${siteStatus === "tentative" ? styles.statusChoiceCardSelected : ""}`}
+                                    onClick={() => setSiteStatus("tentative")}
+                                >
+                                    <strong>
+                                        {siteStatus === "tentative" && <Check size={14} />}
+                                        仮押さえ
+                                    </strong>
+                                    <span>候補として残します</span>
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     {clients.length > 0 && (
                         <div className={styles.formGroup}>
                             <label className={styles.label}>取引先</label>
@@ -584,6 +691,23 @@ export function SiteFormModal({ site, onClose, onSuccess }: SiteFormModalProps) 
                             </div>
                         </div>
                     )}
+
+                    <div className={styles.formGroup}>
+                        <label className={styles.label}>必要人数</label>
+                        <input
+                            type="number"
+                            inputMode="numeric"
+                            min="0"
+                            step="1"
+                            className={styles.input}
+                            value={requiredWorkerCount}
+                            onChange={(e) => setRequiredWorkerCount(e.target.value)}
+                            placeholder="未設定"
+                        />
+                        <span className={styles.scheduleHint}>
+                            未設定の現場はスケジュールの不足計算から外れます。
+                        </span>
+                    </div>
 
                     {/* 工期 */}
                     <div className={styles.formGroup}>
@@ -695,6 +819,71 @@ export function SiteFormModal({ site, onClose, onSuccess }: SiteFormModalProps) 
                             <span className={styles.scheduleHint}>
                                 日にちを空ける現場は、実際に入る日だけ登録してください。
                             </span>
+                        </div>
+                    )}
+
+                    {!isEdit && (
+                        <div className={styles.attachmentSection}>
+                            <div className={styles.attachmentHeader}>
+                                <div>
+                                    <label className={styles.label}>
+                                        <Paperclip size={14} />
+                                        添付
+                                    </label>
+                                    <p className={styles.attachmentText}>
+                                        発注書や見積メモを一緒に残せます。
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    className={styles.attachmentButton}
+                                    onClick={() => attachmentInputRef.current?.click()}
+                                >
+                                    <Paperclip size={16} />
+                                    追加
+                                </button>
+                            </div>
+                            {attachmentFiles.length > 0 ? (
+                                <div className={styles.attachmentList}>
+                                    {attachmentFiles.map((file, index) => (
+                                        <div key={`${file.name}-${file.size}-${index}`} className={styles.attachmentItem}>
+                                            <FileText size={16} />
+                                            <span className={styles.attachmentName}>{file.name}</span>
+                                            <span className={styles.attachmentSize}>
+                                                {Math.max(1, Math.round(file.size / 1024)).toLocaleString("ja-JP")}KB
+                                            </span>
+                                            <button
+                                                type="button"
+                                                className={styles.attachmentRemoveButton}
+                                                onClick={() => handleRemoveAttachment(index)}
+                                                aria-label={`${file.name}を外す`}
+                                            >
+                                                <X size={14} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <button
+                                    type="button"
+                                    className={styles.attachmentEmptyButton}
+                                    onClick={() => attachmentInputRef.current?.click()}
+                                >
+                                    <Paperclip size={16} />
+                                    ファイルを添付
+                                </button>
+                            )}
+                            <input
+                                ref={attachmentInputRef}
+                                type="file"
+                                accept="image/*,application/pdf"
+                                multiple
+                                className={styles.fileInput}
+                                onChange={(event) => {
+                                    handleAttachmentSelect(event.target.files);
+                                    event.target.value = "";
+                                }}
+                            />
                         </div>
                     )}
 

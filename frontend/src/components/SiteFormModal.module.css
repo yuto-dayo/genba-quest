@@ -215,6 +215,54 @@
     line-height: 1.5;
 }
 
+.statusChoiceGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.statusChoiceCard {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 80px;
+    padding: 14px;
+    border: 1px solid var(--md-sys-color-outline);
+    border-radius: var(--md-sys-shape-corner-medium);
+    background: var(--md-sys-color-surface-container-low);
+    color: var(--md-sys-color-on-surface);
+    text-align: left;
+    cursor: pointer;
+    transition: all var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+}
+
+.statusChoiceCard:hover {
+    border-color: var(--md-sys-color-primary);
+}
+
+.statusChoiceCard strong {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font: var(--md-sys-typescale-title-small);
+}
+
+.statusChoiceCard span {
+    font: var(--md-sys-typescale-body-small);
+    color: var(--md-sys-color-on-surface-variant);
+    line-height: 1.4;
+}
+
+.statusChoiceCardSelected {
+    border-color: transparent;
+    background: var(--md-sys-color-primary-container);
+}
+
+.statusChoiceCardSelected strong,
+.statusChoiceCardSelected span {
+    color: var(--md-sys-color-on-primary-container);
+}
+
 .scheduleModeGrid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -398,6 +446,120 @@
 .expenseShortcutButton:disabled {
     opacity: 0.45;
     cursor: not-allowed;
+}
+
+.attachmentSection {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-medium);
+    background: var(--md-sys-color-surface-container-low);
+}
+
+.attachmentHeader {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.attachmentText {
+    margin: 6px 0 0;
+    font: var(--md-sys-typescale-body-small);
+    color: var(--md-sys-color-on-surface-variant);
+    line-height: 1.5;
+}
+
+.attachmentButton,
+.attachmentEmptyButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border-radius: var(--md-sys-shape-corner-full);
+    font: var(--md-sys-typescale-label-large);
+    cursor: pointer;
+    transition: all var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+}
+
+.attachmentButton {
+    flex-shrink: 0;
+    min-height: 40px;
+    padding: 0 16px;
+    border: none;
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+}
+
+.attachmentButton:hover,
+.attachmentEmptyButton:hover {
+    box-shadow: var(--md-sys-elevation-level1);
+}
+
+.attachmentEmptyButton {
+    min-height: 44px;
+    width: 100%;
+    border: 2px dashed var(--md-sys-color-outline-variant);
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.attachmentList {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.attachmentItem {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 8px;
+    min-height: 42px;
+    padding: 8px 10px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-small);
+    background: var(--md-sys-color-surface-container-lowest);
+}
+
+.attachmentName {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: var(--md-sys-typescale-body-medium);
+    color: var(--md-sys-color-on-surface);
+}
+
+.attachmentSize {
+    font: var(--md-sys-typescale-label-small);
+    color: var(--md-sys-color-on-surface-variant);
+    white-space: nowrap;
+}
+
+.attachmentRemoveButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: pointer;
+    transition: all var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+}
+
+.attachmentRemoveButton:hover {
+    background: color-mix(in srgb, var(--md-sys-color-error) 12%, transparent);
+    color: var(--md-sys-color-error);
+}
+
+.fileInput {
+    display: none;
 }
 
 /* 工事項目 */
@@ -836,6 +998,7 @@
         align-items: stretch;
     }
 
+    .statusChoiceGrid,
     .scheduleModeGrid,
     .customDateRow {
         grid-template-columns: 1fr;
@@ -845,6 +1008,7 @@
     .lineItemEditorHeader,
     .lineItemEditorActions,
     .expenseShortcutHeader,
+    .attachmentHeader,
     .smartDraftHeader {
         flex-direction: column;
         align-items: stretch;
@@ -857,6 +1021,7 @@
     .cancelDraftButton,
     .cancelDraftButton,
     .saveDraftButton,
+    .attachmentButton,
     .addLineItemButton {
         width: 100%;
     }

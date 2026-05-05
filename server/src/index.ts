@@ -22,6 +22,7 @@ import pathEvaluationsRouter from "./routes/pathEvaluations";
 import pathRewardsRouter from "./routes/pathRewards";
 import pathModuleRouter from "./routes/pathModule";
 import focusItemsRouter from "./routes/focusItems";
+import calendarRouter from "./routes/calendar";
 import devPreviewRouter from "./routes/devPreview";
 
 const app = express();
@@ -108,6 +109,7 @@ app.use("/api/v1/path/evaluations", pathEvaluationsRouter);
 app.use("/api/v1/path/rewards", pathRewardsRouter);
 app.use("/api/v1/path/module", pathModuleRouter);
 app.use("/api/v1/focus-items", focusItemsRouter);
+app.use("/api/v1/calendar", calendarRouter);
 
 app.listen(PORT, "0.0.0.0", () => {
     console.log(`🏗️ GENBA QUEST server listening on http://0.0.0.0:${PORT}`);

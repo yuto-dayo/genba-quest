@@ -15,6 +15,8 @@ function renderAssignments(dayLogStatus: "none" | "saved" | "locked") {
     const onCompleteFocusItem = vi.fn();
     const onOpenSite = vi.fn();
     const onRecordDayLog = vi.fn();
+    const onPlanRole = vi.fn();
+    const onRecordRewardInput = vi.fn();
     const onAddFocusItem = vi.fn();
 
     render(
@@ -36,14 +38,19 @@ function renderAssignments(dayLogStatus: "none" | "saved" | "locked") {
             onCompleteFocusItem={onCompleteFocusItem}
             onOpenSite={onOpenSite}
             onRecordDayLog={onRecordDayLog}
+            onPlanRole={onPlanRole}
+            onRecordRewardInput={onRecordRewardInput}
             onAddFocusItem={onAddFocusItem}
             getDayLogStatus={() => dayLogStatus}
+            getSiteInputStatus={() => "role_missing"}
         />,
     );
 
     return {
         onOpenSite,
         onRecordDayLog,
+        onPlanRole,
+        onRecordRewardInput,
         onAddFocusItem,
     };
 }
@@ -73,5 +80,14 @@ describe("TodayAssignments", () => {
 
         expect(onRecordDayLog).not.toHaveBeenCalled();
         expect(onAddFocusItem).toHaveBeenCalledWith(expect.objectContaining({ id: baseSite.id }));
+    });
+
+    it("shows role status and opens role planning from the site card", () => {
+        const { onPlanRole } = renderAssignments("none");
+
+        expect(screen.getByText("役割未入力")).toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "役割" }));
+
+        expect(onPlanRole).toHaveBeenCalledWith(expect.objectContaining({ id: baseSite.id }));
     });
 });

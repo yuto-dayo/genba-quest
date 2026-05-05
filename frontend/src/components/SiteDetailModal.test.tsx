@@ -105,7 +105,7 @@ describe("SiteDetailModal", () => {
         expect(screen.queryByText("完了にする")).not.toBeInTheDocument();
         expect(
             screen.getByRole("link", { name: "この月のPATH報酬を確認" }),
-        ).toHaveAttribute("href", "/luqo?period=2026-04&reward=1&site=site-1");
+        ).toHaveAttribute("href", "/path?period=2026-04&reward=1&site=site-1");
     });
 
     it("preserves LUQO context when returning to the reward flow", () => {
@@ -132,7 +132,7 @@ describe("SiteDetailModal", () => {
             screen.getByRole("link", { name: "この月のPATH報酬を確認" }),
         ).toHaveAttribute(
             "href",
-            "/luqo?period=2026-03&reward=1&site=site-1&member=member-7",
+            "/path?period=2026-03&reward=1&site=site-1&member=member-7",
         );
     });
 

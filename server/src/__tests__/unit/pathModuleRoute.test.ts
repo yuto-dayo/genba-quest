@@ -4,6 +4,8 @@ const mockPrepareRewardRunProposalByMonthCloseId = jest.fn();
 const mockListDayLogs = jest.fn();
 const mockUpsertDayLog = jest.fn();
 const mockBuildSiteCloseProposalPayload = jest.fn();
+const mockPreviewV32MonthlyDistribution = jest.fn();
+const mockBuildV32MonthlyDistributionProposalPayload = jest.fn();
 const mockResolveActiveOrgMembership = jest.fn();
 const mockGetRewardConfirmationSummary = jest.fn();
 const mockAnswerRewardConfirmationQuestion = jest.fn();
@@ -38,6 +40,13 @@ jest.mock("../../services/PathV31Service", () => ({
     listDayLogs: mockListDayLogs,
     upsertDayLog: mockUpsertDayLog,
     buildSiteCloseProposalPayload: mockBuildSiteCloseProposalPayload,
+  })),
+}));
+
+jest.mock("../../services/PathV32SimpleRewardService", () => ({
+  PathV32SimpleRewardService: jest.fn().mockImplementation(() => ({
+    previewMonthlyDistribution: mockPreviewV32MonthlyDistribution,
+    buildMonthlyDistributionProposalPayload: mockBuildV32MonthlyDistributionProposalPayload,
   })),
 }));
 
@@ -77,6 +86,8 @@ describe("pathModule router", () => {
   const dayLogsGetHandler = getHandler("/day-logs", "get");
   const dayLogsPostHandler = getHandler("/day-logs", "post");
   const siteClosesPostHandler = getHandler("/site-closes", "post");
+  const monthlyV32PreviewHandler = getHandler("/monthly-distribution-v32/preview", "post");
+  const monthlyV32ProposalHandler = getHandler("/monthly-distribution-v32/proposals", "post");
   const rewardConfirmationHandler = getHandler("/reward-confirmation", "get");
   const rewardConfirmationQaHandler = getHandler("/reward-confirmation/qa", "post");
 
@@ -178,6 +189,35 @@ describe("pathModule router", () => {
       share_snapshot: [],
       calculation_snapshot: { site_id: "site-1" },
     });
+    mockPreviewV32MonthlyDistribution.mockResolvedValue({
+      month: "2026-06",
+      calculation_system: "path_v32_simple",
+      path_rule_version: "3.2.0-simple",
+      monthly_pool: 1000000,
+      total_weight_num: 86000,
+      active_member_count: 4,
+      members: [],
+      warnings: [],
+      calculation_snapshot: { month: "2026-06" },
+    });
+    mockBuildV32MonthlyDistributionProposalPayload.mockResolvedValue({
+      path_module_version: "v3.2-simple",
+      calculation_system: "path_v32_simple",
+      path_rule_version: "3.2.0-simple",
+      month: "2026-06",
+      month_close_id: "month-close-v32",
+      reward_rule_version_id: "rule-v32",
+      monthly_pool: 1000000,
+      total_weight_num: 86000,
+      member_payouts: [],
+      calculation_snapshot: { month: "2026-06" },
+      created_by_actor: {
+        type: "human",
+        id: "33333333-3333-4333-8333-333333333333",
+        name: "管理者",
+      },
+      input_hash: "hash-v32",
+    });
     mockGetRewardConfirmationSummary.mockResolvedValue({
       month: "2026-04",
       member_id: "member-1",
@@ -207,9 +247,19 @@ describe("pathModule router", () => {
     });
     mockAnswerRewardConfirmationQuestion.mockResolvedValue({
       conclusion: "今月は比較データがありません。",
-      reasons: ["先月の比較データがまだありません。"],
+      amount_breakdown: [
+        {
+          label: "今月の見込み",
+          amount: 160000,
+          detail: "最低保証、成果反映、反映済み補正を合わせた金額です。",
+          evidence_refs: [],
+        },
+      ],
+      why_changed: ["先月の比較データがまだありません。"],
+      adjustments: [],
       evidence_refs: [],
       next_action: null,
+      confidence: "medium",
     });
   });
 
@@ -263,6 +313,8 @@ describe("pathModule router", () => {
       expect.objectContaining({
         answer: expect.objectContaining({
           conclusion: "今月は比較データがありません。",
+          amount_breakdown: expect.any(Array),
+          why_changed: expect.any(Array),
         }),
       }),
     );
@@ -366,6 +418,81 @@ describe("pathModule router", () => {
       error: "REWARD_CALCULATE_REQUIRES_FIXED_MONTH_CLOSE",
       code: "REWARD_CALCULATE_REQUIRES_FIXED_MONTH_CLOSE",
       message: "REWARD_CALCULATE_REQUIRES_FIXED_MONTH_CLOSE",
+    });
+  });
+
+  it("POST /monthly-distribution-v32/preview uses authenticated org context", async () => {
+    const req = {
+      userId: "33333333-3333-4333-8333-333333333333",
+      userName: "管理者",
+      orgId: "00000000-0000-0000-0000-000000000001",
+      body: {
+        month: "2026-06",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await monthlyV32PreviewHandler(req, res);
+
+    expect(mockPreviewV32MonthlyDistribution).toHaveBeenCalledWith("2026-06");
+    expect(res.json).toHaveBeenCalledWith({
+      preview: expect.objectContaining({
+        calculation_system: "path_v32_simple",
+        month: "2026-06",
+      }),
+    });
+  });
+
+  it("POST /monthly-distribution-v32/proposals creates reward.calculate through ProposalService", async () => {
+    mockCreateAndSubmit.mockResolvedValue({
+      proposal: { id: "proposal-v32", type: "reward.calculate", status: "pending" },
+      autoApproved: false,
+      autoExecuted: false,
+    });
+
+    const req = {
+      userId: "33333333-3333-4333-8333-333333333333",
+      userName: "管理者",
+      orgId: "00000000-0000-0000-0000-000000000001",
+      body: {
+        month: "2026-06",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await monthlyV32ProposalHandler(req, res);
+
+    expect(mockBuildV32MonthlyDistributionProposalPayload).toHaveBeenCalledWith(
+      "2026-06",
+      {
+        type: "human",
+        id: "33333333-3333-4333-8333-333333333333",
+        name: "管理者",
+      },
+    );
+    expect(mockCreateAndSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "reward.calculate",
+        description: "2026-06 PATH V3.2 Simple monthly distribution",
+        payload: expect.objectContaining({
+          calculation_system: "path_v32_simple",
+          month_close_id: "month-close-v32",
+          reward_rule_version_id: "rule-v32",
+          created_by_actor: expect.objectContaining({ type: "human" }),
+        }),
+        created_by: {
+          type: "human",
+          id: "33333333-3333-4333-8333-333333333333",
+          name: "管理者",
+        },
+      }),
+    );
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({
+      proposal: { id: "proposal-v32", type: "reward.calculate", status: "pending" },
+      auto_approved: false,
+      auto_executed: false,
+      preview: { month: "2026-06" },
     });
   });
 

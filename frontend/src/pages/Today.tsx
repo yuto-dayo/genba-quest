@@ -4,10 +4,13 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import {
     AlertCircle,
     Building2,
+    CalendarCheck2,
     Check,
     CheckCircle2,
     ClipboardCheck,
+    ListChecks,
     RefreshCw,
+    ShieldAlert,
     X,
 } from "lucide-react";
 import {
@@ -18,25 +21,33 @@ import {
     executeProposal,
     fetchFocusItems,
     fetchPendingProposals,
+    fetchPathV31SiteMemberRewardInputs,
+    fetchPathV31SiteMemberRolePlans,
     fetchSites,
     instructProposal,
     rejectProposal,
+    savePathV31SiteMemberRewardInput,
+    savePathV31SiteMemberRolePlan,
     savePathV31DayLog,
     type FocusItemHorizon,
     type FocusItemRecord,
     type FocusItemScope,
     type PathTradeFamily,
     type PathV31DayLog,
+    type PathV31RewardRoleKey,
+    type PathV31ResponsibilityLevel,
     type PathV31RoleType,
+    type PathV31SiteMemberRewardInput,
+    type PathV31SiteMemberRolePlan,
     type ProposalRecord,
     type Site,
     updateFocusItem,
 } from "../lib/api";
 import { useCalendar } from "../hooks/useCalendar";
-import { WeekCalendar } from "../components/calendar/WeekCalendar";
 import { ProposalDetailModal } from "../components/ProposalDetailModal";
 import { SiteDetailModal } from "../components/SiteDetailModal";
 import { TodayAssignments } from "../components/today/TodayAssignments";
+import type { SiteInputStatus } from "../components/today/TodayAssignments";
 import { MonthlySummary } from "../components/today/MonthlySummary";
 import { PendingBadge } from "../components/today/PendingBadge";
 import { getErrorMessage } from "../lib/error";
@@ -81,6 +92,27 @@ const DAY_LOG_ROLE_OPTIONS: Array<{ value: PathV31RoleType; label: string }> = [
     { value: "support", label: "support" },
 ] as const;
 
+const REWARD_ROLE_LABELS: Record<PathV31RewardRoleKey, string> = {
+    planning: "段取り",
+    quality: "品質",
+    admin: "事務",
+    client: "顧客",
+};
+
+const RESPONSIBILITY_LEVEL_OPTIONS: Array<{ value: PathV31ResponsibilityLevel; label: string }> = [
+    { value: "owner", label: "責任者" },
+    { value: "lead", label: "主担当" },
+    { value: "member", label: "担当" },
+    { value: "support", label: "補助" },
+];
+
+const EMPTY_ROLE_SHARES: Record<PathV31RewardRoleKey, number> = {
+    planning: 0,
+    quality: 0,
+    admin: 0,
+    client: 0,
+};
+
 const EMPTY_FORM = {
     title: "",
     note: "",
@@ -102,6 +134,22 @@ type DayLogFormState = {
     memo: string;
 };
 
+type SiteRolePlanFormState = {
+    site_id: string;
+    member_id: string;
+    role_shares: Record<PathV31RewardRoleKey, number>;
+    note: string;
+};
+
+type SiteRewardInputFormState = {
+    site_id: string;
+    member_id: string;
+    participation_units: number;
+    responsibility_level: PathV31ResponsibilityLevel;
+    role_shares: Record<PathV31RewardRoleKey, number>;
+    note: string;
+};
+
 const EMPTY_DAY_LOG_FORM: DayLogFormState = {
     date: "",
     site_id: "",
@@ -110,6 +158,22 @@ const EMPTY_DAY_LOG_FORM: DayLogFormState = {
     role_type: "assist",
     credited_unit: 1,
     memo: "",
+};
+
+const EMPTY_ROLE_PLAN_FORM: SiteRolePlanFormState = {
+    site_id: "",
+    member_id: "",
+    role_shares: EMPTY_ROLE_SHARES,
+    note: "",
+};
+
+const EMPTY_REWARD_INPUT_FORM: SiteRewardInputFormState = {
+    site_id: "",
+    member_id: "",
+    participation_units: 1,
+    responsibility_level: "member",
+    role_shares: EMPTY_ROLE_SHARES,
+    note: "",
 };
 
 const PENDING_PROPOSAL_LABELS: Record<string, string> = {
@@ -157,6 +221,24 @@ function buildTodayDayLogMap(logs: PathV31DayLog[]): Record<string, PathV31DayLo
     }, {});
 }
 
+function buildBySiteMap<T extends { site_id: string }>(items: T[]): Record<string, T> {
+    return items.reduce<Record<string, T>>((acc, item) => {
+        acc[item.site_id] = item;
+        return acc;
+    }, {});
+}
+
+function normalizeRoleShares(
+    shares?: Partial<Record<PathV31RewardRoleKey, number>> | null,
+): Record<PathV31RewardRoleKey, number> {
+    return {
+        planning: Number(shares?.planning ?? 0),
+        quality: Number(shares?.quality ?? 0),
+        admin: Number(shares?.admin ?? 0),
+        client: Number(shares?.client ?? 0),
+    };
+}
+
 function getDayLogErrorMessage(error: unknown): string {
     const message = getErrorMessage(error);
     if (message === "DAY_LOG_LOCKED") {
@@ -176,6 +258,8 @@ export function Today() {
     const [sites, setSites] = useState<Site[]>([]);
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
     const [todayDayLogsBySiteId, setTodayDayLogsBySiteId] = useState<Record<string, PathV31DayLog>>({});
+    const [siteRolePlansBySiteId, setSiteRolePlansBySiteId] = useState<Record<string, PathV31SiteMemberRolePlan>>({});
+    const [siteRewardInputsBySiteId, setSiteRewardInputsBySiteId] = useState<Record<string, PathV31SiteMemberRewardInput>>({});
     const [pendingCount, setPendingCount] = useState(0);
     const [pendingProposals, setPendingProposals] = useState<ProposalRecord[]>([]);
     const [pendingSheetOpen, setPendingSheetOpen] = useState(false);
@@ -191,6 +275,12 @@ export function Today() {
     const [dayLogSheetOpen, setDayLogSheetOpen] = useState(false);
     const [dayLogSubmitting, setDayLogSubmitting] = useState(false);
     const [dayLogForm, setDayLogForm] = useState<DayLogFormState>(EMPTY_DAY_LOG_FORM);
+    const [rolePlanSheetOpen, setRolePlanSheetOpen] = useState(false);
+    const [rolePlanSubmitting, setRolePlanSubmitting] = useState(false);
+    const [rolePlanForm, setRolePlanForm] = useState<SiteRolePlanFormState>(EMPTY_ROLE_PLAN_FORM);
+    const [rewardInputSheetOpen, setRewardInputSheetOpen] = useState(false);
+    const [rewardInputSubmitting, setRewardInputSubmitting] = useState(false);
+    const [rewardInputForm, setRewardInputForm] = useState<SiteRewardInputFormState>(EMPTY_REWARD_INPUT_FORM);
     const [selectedSite, setSelectedSite] = useState<Site | null>(null);
     const [actionNotice, setActionNotice] = useState<string | null>(null);
     const [actionError, setActionError] = useState<string | null>(null);
@@ -198,7 +288,7 @@ export function Today() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const { calendarDays, selectDate, selectedDate } = useCalendar();
+    const { calendarDays } = useCalendar();
     const targetProposalId = searchParams.get("proposal");
     const todayKey = useMemo(() => buildTodayKey(todayDate), [todayDate]);
     const todayAssignments = useMemo(
@@ -212,6 +302,14 @@ export function Today() {
     const selectedDayLogSite = useMemo(
         () => sites.find((site) => site.id === dayLogForm.site_id) || null,
         [dayLogForm.site_id, sites]
+    );
+    const selectedRolePlanSite = useMemo(
+        () => sites.find((site) => site.id === rolePlanForm.site_id) || null,
+        [rolePlanForm.site_id, sites]
+    );
+    const selectedRewardInputSite = useMemo(
+        () => sites.find((site) => site.id === rewardInputForm.site_id) || null,
+        [rewardInputForm.site_id, sites]
     );
 
     const clearProposalSearchParam = useCallback(() => {
@@ -276,9 +374,17 @@ export function Today() {
             setPendingProposals(pendingProposalsData);
             setPendingCount(pendingProposalsData.length);
             if (nextCurrentUserId) {
-                await syncTodayDayLogs(nextCurrentUserId);
+                const [, rolePlansResponse, rewardInputsResponse] = await Promise.all([
+                    syncTodayDayLogs(nextCurrentUserId),
+                    fetchPathV31SiteMemberRolePlans({ member_id: nextCurrentUserId, limit: 200 }),
+                    fetchPathV31SiteMemberRewardInputs({ member_id: nextCurrentUserId, limit: 200 }),
+                ]);
+                setSiteRolePlansBySiteId(buildBySiteMap(rolePlansResponse.plans));
+                setSiteRewardInputsBySiteId(buildBySiteMap(rewardInputsResponse.inputs));
             } else {
                 setTodayDayLogsBySiteId({});
+                setSiteRolePlansBySiteId({});
+                setSiteRewardInputsBySiteId({});
             }
         } catch (err: unknown) {
             setError(getErrorMessage(err));
@@ -342,6 +448,16 @@ export function Today() {
         return log.locked_by_site_close_id ? "locked" : "saved";
     }, [todayDayLogsBySiteId]);
 
+    const getSiteInputStatus = useCallback((siteId: string): SiteInputStatus => {
+        if (siteRewardInputsBySiteId[siteId]) {
+            return "reward_saved";
+        }
+        if (siteRolePlansBySiteId[siteId]) {
+            return todayDayLogsBySiteId[siteId] ? "reward_missing" : "role_saved";
+        }
+        return "role_missing";
+    }, [siteRewardInputsBySiteId, siteRolePlansBySiteId, todayDayLogsBySiteId]);
+
     const openDayLogSheet = (site: Site) => {
         if (!currentUserId) {
             setActionError("ログイン情報を確認できませんでした");
@@ -368,6 +484,44 @@ export function Today() {
         setDayLogSheetOpen(true);
     };
 
+    const openRolePlanSheet = (site: Site) => {
+        if (!currentUserId) {
+            setActionError("ログイン情報を確認できませんでした");
+            return;
+        }
+
+        const existingPlan = siteRolePlansBySiteId[site.id];
+        setRolePlanForm({
+            site_id: site.id,
+            member_id: currentUserId,
+            role_shares: normalizeRoleShares(existingPlan?.role_shares),
+            note: existingPlan?.note || "",
+        });
+        setActionError(null);
+        setRolePlanSheetOpen(true);
+    };
+
+    const openRewardInputSheet = (site: Site) => {
+        if (!currentUserId) {
+            setActionError("ログイン情報を確認できませんでした");
+            return;
+        }
+
+        const existingInput = siteRewardInputsBySiteId[site.id];
+        const rolePlan = siteRolePlansBySiteId[site.id];
+        const dayLog = todayDayLogsBySiteId[site.id];
+        setRewardInputForm({
+            site_id: site.id,
+            member_id: currentUserId,
+            participation_units: existingInput?.participation_units ?? dayLog?.credited_unit ?? 1,
+            responsibility_level: existingInput?.responsibility_level ?? "member",
+            role_shares: normalizeRoleShares(existingInput?.role_shares ?? rolePlan?.role_shares),
+            note: existingInput?.note || "",
+        });
+        setActionError(null);
+        setRewardInputSheetOpen(true);
+    };
+
     const closeComposer = () => {
         setComposerOpen(false);
         setComposerMode("general");
@@ -379,6 +533,16 @@ export function Today() {
     const closeDayLogSheet = () => {
         setDayLogSheetOpen(false);
         setDayLogForm(EMPTY_DAY_LOG_FORM);
+    };
+
+    const closeRolePlanSheet = () => {
+        setRolePlanSheetOpen(false);
+        setRolePlanForm(EMPTY_ROLE_PLAN_FORM);
+    };
+
+    const closeRewardInputSheet = () => {
+        setRewardInputSheetOpen(false);
+        setRewardInputForm(EMPTY_REWARD_INPUT_FORM);
     };
 
     const horizonCounts = useMemo(() => {
@@ -548,6 +712,79 @@ export function Today() {
         }
     };
 
+    const handleSubmitRolePlan = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+
+        if (!currentUserId) {
+            setActionError("ログイン情報を確認できませんでした");
+            return;
+        }
+        if (!rolePlanForm.site_id) {
+            setActionError("現場を選んでください");
+            return;
+        }
+
+        try {
+            setRolePlanSubmitting(true);
+            setActionError(null);
+            setActionNotice(null);
+
+            const { plan } = await savePathV31SiteMemberRolePlan({
+                ...rolePlanForm,
+                member_id: currentUserId,
+                note: rolePlanForm.note.trim() || undefined,
+            });
+
+            setSiteRolePlansBySiteId((current) => ({
+                ...current,
+                [plan.site_id]: plan,
+            }));
+            setActionNotice("役割を保存しました");
+            closeRolePlanSheet();
+        } catch (err: unknown) {
+            setActionError(getErrorMessage(err));
+        } finally {
+            setRolePlanSubmitting(false);
+        }
+    };
+
+    const handleSubmitRewardInput = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+
+        if (!currentUserId) {
+            setActionError("ログイン情報を確認できませんでした");
+            return;
+        }
+        if (!rewardInputForm.site_id) {
+            setActionError("現場を選んでください");
+            return;
+        }
+
+        try {
+            setRewardInputSubmitting(true);
+            setActionError(null);
+            setActionNotice(null);
+
+            const { input } = await savePathV31SiteMemberRewardInput({
+                ...rewardInputForm,
+                member_id: currentUserId,
+                participation_units: Number(rewardInputForm.participation_units) || 0,
+                note: rewardInputForm.note.trim() || undefined,
+            });
+
+            setSiteRewardInputsBySiteId((current) => ({
+                ...current,
+                [input.site_id]: input,
+            }));
+            setActionNotice("責任を保存しました");
+            closeRewardInputSheet();
+        } catch (err: unknown) {
+            setActionError(getErrorMessage(err));
+        } finally {
+            setRewardInputSubmitting(false);
+        }
+    };
+
     const handleProposalMutation = async (
         proposalId: string,
         action: "approve" | "reject" | "instruct" | "execute",
@@ -610,13 +847,52 @@ export function Today() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2 }}
             >
-                <div>
+                <div className={styles.heroIntro}>
                     <h1 className={styles.dateTitle}>{todayDateLabel}</h1>
+                    <p className={styles.heroLead}>
+                        現場 {todayAssignments.length}件 ・ 解決 {horizonCounts.today}件 ・ 承認待ち {pendingCount}件
+                    </p>
                 </div>
                 <div className={styles.heroActions}>
                     <PendingBadge count={pendingCount} onClick={openPendingSheet} />
                 </div>
             </motion.header>
+
+            <motion.div
+                className={styles.todayBrief}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.02 }}
+                aria-label="今日の概要"
+            >
+                <article className={`${styles.briefItem} ${styles.briefItemPrimary}`}>
+                    <span className={styles.briefIcon}>
+                        <CalendarCheck2 size={18} />
+                    </span>
+                    <span className={styles.briefText}>
+                        <span className={styles.briefLabel}>今日の現場</span>
+                        <strong className={styles.briefValue}>{todayAssignments.length}件</strong>
+                    </span>
+                </article>
+                <article className={styles.briefItem}>
+                    <span className={styles.briefIcon}>
+                        <ListChecks size={18} />
+                    </span>
+                    <span className={styles.briefText}>
+                        <span className={styles.briefLabel}>解決すること</span>
+                        <strong className={styles.briefValue}>{horizonCounts.today}件</strong>
+                    </span>
+                </article>
+                <button type="button" className={styles.briefItemButton} onClick={openPendingSheet}>
+                    <span className={styles.briefIcon}>
+                        <ShieldAlert size={18} />
+                    </span>
+                    <span className={styles.briefText}>
+                        <span className={styles.briefLabel}>承認待ち</span>
+                        <strong className={styles.briefValue}>{pendingCount}件</strong>
+                    </span>
+                </button>
+            </motion.div>
 
             {actionError && (
                 <div className={styles.errorBanner}>
@@ -646,8 +922,11 @@ export function Today() {
                     onCompleteFocusItem={(item) => void handleCompleteFocusItem(item)}
                     onOpenSite={setSelectedSite}
                     onRecordDayLog={openDayLogSheet}
+                    onPlanRole={openRolePlanSheet}
+                    onRecordRewardInput={openRewardInputSheet}
                     onAddFocusItem={openFocusItemQuickComposer}
                     getDayLogStatus={getDayLogStatus}
+                    getSiteInputStatus={getSiteInputStatus}
                 />
             </motion.section>
 
@@ -736,24 +1015,6 @@ export function Today() {
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.12 }}
-            >
-                <div className={styles.sectionHeader}>
-                    <h2 className={styles.sectionTitle}>今週の見通し</h2>
-                </div>
-                <div className={styles.calendarShell}>
-                    <WeekCalendar
-                        days={calendarDays}
-                        onSelectDate={selectDate}
-                        selectedDate={selectedDate}
-                    />
-                </div>
-            </motion.section>
-
-            <motion.section
-                className={styles.section}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.16 }}
             >
                 <div className={styles.sectionHeader}>
                     <h2 className={styles.sectionTitle}>今月の数字</h2>
@@ -855,9 +1116,9 @@ export function Today() {
                                                     <button
                                                         type="button"
                                                         className={styles.pendingJumpButton}
-                                                        onClick={() => navigate(pathProposalHref)}
+                                                        onClick={() => setSelectedProposal(proposal)}
                                                     >
-                                                        今月の評価で開く
+                                                        内容を確認
                                                     </button>
                                                 </div>
                                             )}
@@ -875,7 +1136,7 @@ export function Today() {
 
                         {pathPendingCount > 0 && (
                             <div className={styles.pendingFootnote}>
-                                PATH proposal は 今月の評価 に移動すると、対象月・メンバー・承認 queue を同じ文脈で確認できます。
+                                PATH Proposal は詳細で対象月・メンバー・根拠を確認して、そのまま承認できます。
                             </div>
                         )}
                     </motion.div>
@@ -1014,6 +1275,233 @@ export function Today() {
                                 >
                                     <ClipboardCheck size={16} />
                                     {dayLogSubmitting ? "保存中..." : dayLogForm.id ? "更新" : "保存"}
+                                </button>
+                            </div>
+                        </form>
+                    </motion.div>
+                </div>
+            )}
+
+            {rolePlanSheetOpen && (
+                <div className={styles.sheetOverlay} onClick={closeRolePlanSheet}>
+                    <motion.div
+                        className={styles.sheet}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 20 }}
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className={styles.sheetHeader}>
+                            <div className={styles.sheetHeading}>
+                                <h3 className={styles.sheetTitle}>役割</h3>
+                            </div>
+                            <button
+                                type="button"
+                                className={styles.closeButton}
+                                onClick={closeRolePlanSheet}
+                                aria-label="閉じる"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <form className={styles.sheetForm} onSubmit={handleSubmitRolePlan}>
+                            {selectedRolePlanSite && (
+                                <div className={styles.sheetSiteCard}>
+                                    <span className={styles.sheetSiteEyebrow}>入力する現場</span>
+                                    <strong>{selectedRolePlanSite.name}</strong>
+                                    {selectedRolePlanSite.address && (
+                                        <span>{selectedRolePlanSite.address}</span>
+                                    )}
+                                </div>
+                            )}
+
+                            <div className={styles.roleShareGrid}>
+                                {(["planning", "quality", "admin", "client"] as PathV31RewardRoleKey[]).map((key) => (
+                                    <label key={key} className={styles.fieldLabel}>
+                                        {REWARD_ROLE_LABELS[key]}
+                                        <input
+                                            className={styles.textInput}
+                                            type="number"
+                                            min={0}
+                                            step={0.1}
+                                            value={rolePlanForm.role_shares[key]}
+                                            onChange={(event) =>
+                                                setRolePlanForm((current) => ({
+                                                    ...current,
+                                                    role_shares: {
+                                                        ...current.role_shares,
+                                                        [key]: Number(event.target.value) || 0,
+                                                    },
+                                                }))
+                                            }
+                                        />
+                                    </label>
+                                ))}
+                            </div>
+
+                            <label className={styles.fieldLabel}>
+                                メモ
+                                <textarea
+                                    className={styles.textArea}
+                                    value={rolePlanForm.note}
+                                    onChange={(event) =>
+                                        setRolePlanForm((current) => ({
+                                            ...current,
+                                            note: event.target.value,
+                                        }))
+                                    }
+                                    rows={3}
+                                />
+                            </label>
+
+                            <div className={styles.sheetActions}>
+                                <button
+                                    type="button"
+                                    className={styles.secondaryButton}
+                                    onClick={closeRolePlanSheet}
+                                >
+                                    キャンセル
+                                </button>
+                                <button
+                                    type="submit"
+                                    className={styles.primaryButton}
+                                    disabled={rolePlanSubmitting}
+                                >
+                                    <ClipboardCheck size={16} />
+                                    {rolePlanSubmitting ? "保存中..." : "保存"}
+                                </button>
+                            </div>
+                        </form>
+                    </motion.div>
+                </div>
+            )}
+
+            {rewardInputSheetOpen && (
+                <div className={styles.sheetOverlay} onClick={closeRewardInputSheet}>
+                    <motion.div
+                        className={styles.sheet}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 20 }}
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className={styles.sheetHeader}>
+                            <div className={styles.sheetHeading}>
+                                <h3 className={styles.sheetTitle}>責任</h3>
+                            </div>
+                            <button
+                                type="button"
+                                className={styles.closeButton}
+                                onClick={closeRewardInputSheet}
+                                aria-label="閉じる"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <form className={styles.sheetForm} onSubmit={handleSubmitRewardInput}>
+                            {selectedRewardInputSite && (
+                                <div className={styles.sheetSiteCard}>
+                                    <span className={styles.sheetSiteEyebrow}>入力する現場</span>
+                                    <strong>{selectedRewardInputSite.name}</strong>
+                                    {selectedRewardInputSite.address && (
+                                        <span>{selectedRewardInputSite.address}</span>
+                                    )}
+                                </div>
+                            )}
+
+                            <label className={styles.fieldLabel}>
+                                参加ユニット
+                                <input
+                                    className={styles.textInput}
+                                    type="number"
+                                    min={0}
+                                    step={0.25}
+                                    value={rewardInputForm.participation_units}
+                                    onChange={(event) =>
+                                        setRewardInputForm((current) => ({
+                                            ...current,
+                                            participation_units: Number(event.target.value) || 0,
+                                        }))
+                                    }
+                                />
+                            </label>
+
+                            <label className={styles.fieldLabel}>
+                                責任レベル
+                                <select
+                                    className={styles.selectInput}
+                                    value={rewardInputForm.responsibility_level}
+                                    onChange={(event) =>
+                                        setRewardInputForm((current) => ({
+                                            ...current,
+                                            responsibility_level: event.target.value as PathV31ResponsibilityLevel,
+                                        }))
+                                    }
+                                >
+                                    {RESPONSIBILITY_LEVEL_OPTIONS.map((option) => (
+                                        <option key={option.value} value={option.value}>
+                                            {option.label}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+
+                            <div className={styles.roleShareGrid}>
+                                {(["planning", "quality", "admin", "client"] as PathV31RewardRoleKey[]).map((key) => (
+                                    <label key={key} className={styles.fieldLabel}>
+                                        {REWARD_ROLE_LABELS[key]}
+                                        <input
+                                            className={styles.textInput}
+                                            type="number"
+                                            min={0}
+                                            step={0.1}
+                                            value={rewardInputForm.role_shares[key]}
+                                            onChange={(event) =>
+                                                setRewardInputForm((current) => ({
+                                                    ...current,
+                                                    role_shares: {
+                                                        ...current.role_shares,
+                                                        [key]: Number(event.target.value) || 0,
+                                                    },
+                                                }))
+                                            }
+                                        />
+                                    </label>
+                                ))}
+                            </div>
+
+                            <label className={styles.fieldLabel}>
+                                メモ
+                                <textarea
+                                    className={styles.textArea}
+                                    value={rewardInputForm.note}
+                                    onChange={(event) =>
+                                        setRewardInputForm((current) => ({
+                                            ...current,
+                                            note: event.target.value,
+                                        }))
+                                    }
+                                    rows={3}
+                                />
+                            </label>
+
+                            <div className={styles.sheetActions}>
+                                <button
+                                    type="button"
+                                    className={styles.secondaryButton}
+                                    onClick={closeRewardInputSheet}
+                                >
+                                    キャンセル
+                                </button>
+                                <button
+                                    type="submit"
+                                    className={styles.primaryButton}
+                                    disabled={rewardInputSubmitting}
+                                >
+                                    <ClipboardCheck size={16} />
+                                    {rewardInputSubmitting ? "保存中..." : "保存"}
                                 </button>
                             </div>
                         </form>

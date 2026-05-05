@@ -13,6 +13,7 @@ const STATUS_META: Record<
     { label: string; icon: LucideIcon; className: string }
 > = {
     pending: { label: '要確認', icon: AlertCircle, className: 'pending' },
+    tentative: { label: '仮押さえ', icon: Clock3, className: 'tentative' },
     confirmed: { label: '確定', icon: CheckCircle2, className: 'confirmed' },
     scheduled: { label: '予定', icon: CalendarIcon, className: 'scheduled' },
     completed: { label: '完了', icon: Check, className: 'completed' },
@@ -85,7 +86,11 @@ export function DayDetail({ day }: DayDetailProps) {
                                             <Icon size={14} aria-hidden="true" />
                                         </span>
                                     </div>
-                                    <div className={styles.siteName}>{assignment.site_name}</div>
+                                    <div className={styles.siteName}>
+                                        {assignment.status === 'tentative'
+                                            ? `仮押さえ: ${assignment.site_name}`
+                                            : assignment.site_name}
+                                    </div>
                                     {assignment.client_name && (
                                         <div className={styles.clientRow}>
                                             <Building2 size={12} aria-hidden="true" />

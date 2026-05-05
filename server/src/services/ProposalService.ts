@@ -21,6 +21,7 @@ import {
 } from "./PathEvaluationService";
 import { PathGovernedModuleService } from "./PathGovernedModuleService";
 import { PathV31Service } from "./PathV31Service";
+import { PathV32SimpleRewardService } from "./PathV32SimpleRewardService";
 import { LUQOService } from "./LUQOService";
 
 // ============================================================
@@ -146,12 +147,14 @@ export class ProposalService {
   private disableRpcFallback: boolean;
   private pathGovernedModuleService: PathGovernedModuleService;
   private pathV31Service: PathV31Service;
+  private pathV32SimpleRewardService: PathV32SimpleRewardService;
 
   constructor(orgId: string = '00000000-0000-0000-0000-000000000001') {
     this.orgId = orgId;
     this.engine = new PolicyEngine(orgId);
     this.pathGovernedModuleService = new PathGovernedModuleService(orgId);
     this.pathV31Service = new PathV31Service(orgId);
+    this.pathV32SimpleRewardService = new PathV32SimpleRewardService(orgId);
     const fallbackMode = (process.env.PROPOSAL_RPC_FALLBACK_MODE || 'allow').toLowerCase();
     this.disableRpcFallback = ['disabled', 'deny', 'off'].includes(fallbackMode);
   }
@@ -1886,6 +1889,14 @@ export class ProposalService {
     if (proposal.type === 'reward.calculate' && proposal.payload?.calculation_system === 'path_v31') {
       await this.pathV31Service.syncMonthlyDistributionFromExecutedProposal(proposal);
     }
+
+    if (proposal.type === 'reward.calculate' && proposal.payload?.calculation_system === 'path_v32_simple') {
+      await this.pathV32SimpleRewardService.syncMonthlyDistributionFromExecutedProposal(proposal);
+    }
+
+    if (proposal.type === 'path.level.update' && proposal.payload?.calculation_system === 'path_v32_simple') {
+      await this.pathV32SimpleRewardService.syncLevelUpdateFromExecutedProposal(proposal);
+    }
   }
 
   private mapExecutedProposalToGovernanceEvent(proposal: Proposal): string {
@@ -1918,6 +1929,18 @@ export class ProposalService {
 
     if (proposal.type === 'reward.calculate' && proposal.payload?.calculation_system === 'path_v31') {
       return 'path.monthly_distribution.finalized';
+    }
+
+    if (proposal.type === 'reward.calculate' && proposal.payload?.calculation_system === 'path_v32_simple') {
+      return 'path.monthly_distribution.finalized';
+    }
+
+    if (proposal.type === 'reward.pool.adjust' && proposal.payload?.calculation_system === 'path_v32_simple') {
+      return 'path.reward_pool.adjusted';
+    }
+
+    if (proposal.type === 'path.level.update' && proposal.payload?.calculation_system === 'path_v32_simple') {
+      return 'path.member_level.updated';
     }
 
     if (
@@ -2008,7 +2031,11 @@ export class ProposalService {
 
     if (proposal.type === 'reward.calculate' || proposal.type === 'reward.adjust') {
       const calculationSystem = proposal.payload?.calculation_system;
-      return calculationSystem === 'path_v22' || calculationSystem === 'path_v31';
+      return calculationSystem === 'path_v22' || calculationSystem === 'path_v31' || calculationSystem === 'path_v32_simple';
+    }
+
+    if (proposal.type === 'reward.pool.adjust' || proposal.type === 'path.level.update') {
+      return proposal.payload?.calculation_system === 'path_v32_simple';
     }
 
     return false;

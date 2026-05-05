@@ -60,6 +60,7 @@ export function SiteDetailModal({ site, onClose, onUpdated }: SiteDetailModalPro
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const isCompleted = site.status === "completed";
+    const isTentative = site.status === "tentative";
     const closePhase = site.close_phase || (isCompleted ? "completed_unclosed" : "active");
     const rewardReturnHref = useMemo(
         () => buildRewardReturnHref(site, searchParams),
@@ -200,7 +201,7 @@ export function SiteDetailModal({ site, onClose, onUpdated }: SiteDetailModalPro
                         <div className={styles.headerInfo}>
                             <h2 className={styles.siteName}>{site.name}</h2>
                             <span className={`${styles.statusBadge} ${styles[site.status]}`}>
-                                {isCompleted ? "完了" : "進行中"}
+                                {isCompleted ? "完了" : isTentative ? "仮押さえ" : "進行中"}
                             </span>
                         </div>
                         <button
@@ -402,7 +403,7 @@ export function SiteDetailModal({ site, onClose, onUpdated }: SiteDetailModalPro
                             <Pencil size={18} />
                             編集
                         </button>
-                        {!isCompleted ? (
+                        {!isCompleted && !isTentative ? (
                             <button
                                 className={styles.completeButton}
                                 onClick={handleCompleteClick}
@@ -539,6 +540,7 @@ export function SiteDetailModal({ site, onClose, onUpdated }: SiteDetailModalPro
                 {showCloseModal && (
                     <SiteCompleteWithCloseModal
                         site={site}
+                        members={members}
                         initialRecognizedRevenue={closeDraftRevenue}
                         onClose={() => setShowCloseModal(false)}
                         onSuccess={handleCompleteWithCloseSuccess}
@@ -602,7 +604,7 @@ function buildRewardReturnHref(site: Site, searchParams: URLSearchParams): strin
         next.set("member", memberId);
     }
 
-    return `/luqo?${next.toString()}`;
+    return `/path?${next.toString()}`;
 }
 
 function deriveRewardMonthFromSite(site: Site): string | null {

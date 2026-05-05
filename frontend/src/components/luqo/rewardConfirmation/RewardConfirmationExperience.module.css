@@ -1,16 +1,11 @@
 .shell {
-    display: grid;
-    gap: 24px;
-    align-items: start;
+    position: relative;
+    padding-bottom: 84px;
 }
 
 .mainColumn {
     display: grid;
     gap: 24px;
-}
-
-.sideColumn {
-    position: relative;
 }
 
 .hero {
@@ -111,6 +106,10 @@
     padding: 18px;
 }
 
+.amountCard strong {
+    font-size: clamp(34px, 9vw, 48px);
+}
+
 .heroCard span,
 .metricCard span {
     display: block;
@@ -140,6 +139,66 @@
     color: rgba(19, 78, 74, 0.76);
     font-size: 14px;
     line-height: 1.6;
+}
+
+.compactStrong {
+    font-size: 18px !important;
+    line-height: 1.35 !important;
+}
+
+.adjustmentBanner,
+.pendingCloseBanner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 14px;
+    padding: 14px;
+    border: 1px solid rgba(249, 115, 22, 0.24);
+    border-radius: 18px;
+    background: rgba(255, 247, 237, 0.88);
+}
+
+.pendingCloseBanner {
+    border-color: rgba(13, 148, 136, 0.24);
+    background: rgba(240, 253, 250, 0.9);
+}
+
+.adjustmentBanner span,
+.pendingCloseBanner span {
+    display: block;
+    color: rgba(124, 45, 18, 0.78);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.pendingCloseBanner span {
+    color: rgba(19, 78, 74, 0.76);
+}
+
+.adjustmentBanner strong,
+.pendingCloseBanner strong {
+    display: block;
+    margin-top: 4px;
+    color: #9a3412;
+    font-size: 24px;
+    line-height: 1.1;
+}
+
+.pendingCloseBanner strong {
+    color: #0f766e;
+}
+
+.adjustmentBanner p,
+.pendingCloseBanner p {
+    margin: 4px 0 0;
+    color: rgba(124, 45, 18, 0.74);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.pendingCloseBanner p {
+    color: rgba(19, 78, 74, 0.72);
 }
 
 .section {
@@ -174,6 +233,52 @@
     margin: 0;
     padding-left: 18px;
     color: #134e4a;
+}
+
+.amountBreakdownList,
+.adjustmentList {
+    display: grid;
+    gap: 10px;
+}
+
+.amountBreakdownItem,
+.adjustmentItem {
+    display: grid;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid rgba(13, 148, 136, 0.12);
+    border-radius: 14px;
+    background: rgba(13, 148, 136, 0.05);
+}
+
+.amountBreakdownItem > div:first-child,
+.adjustmentItem > div:first-child {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.amountBreakdownItem span,
+.adjustmentItem span {
+    color: rgba(19, 78, 74, 0.72);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.amountBreakdownItem strong,
+.adjustmentItem strong {
+    color: #134e4a;
+    font-size: 16px;
+    white-space: nowrap;
+}
+
+.amountBreakdownItem p,
+.adjustmentItem p {
+    margin: 0;
+    color: rgba(19, 78, 74, 0.76);
+    font-size: 13px;
+    line-height: 1.5;
 }
 
 .reasonList {
@@ -252,8 +357,71 @@
     background: rgba(13, 148, 136, 0.04);
 }
 
+.siteCardList {
+    display: grid;
+    gap: 12px;
+}
+
+.siteCard {
+    display: grid;
+    gap: 14px;
+    padding: 16px;
+    border: 1px solid rgba(13, 148, 136, 0.14);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 12px 28px rgba(15, 118, 110, 0.08);
+}
+
+.siteCardHeader,
+.siteCardFacts {
+    display: grid;
+    gap: 10px;
+}
+
+.siteCardHeader h3 {
+    margin: 0;
+    color: #134e4a;
+    font-size: 16px;
+}
+
+.siteCardHeader span,
+.siteCardFacts span {
+    color: rgba(19, 78, 74, 0.68);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.siteCardHeader strong {
+    color: #0f766e;
+    font-size: 24px;
+}
+
+.siteCardFacts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.siteCardFacts > div {
+    display: grid;
+    gap: 4px;
+    padding: 12px;
+    border-radius: 14px;
+    background: rgba(13, 148, 136, 0.07);
+}
+
+.siteCardFacts strong {
+    color: #134e4a;
+    font-size: 16px;
+}
+
+.siteCard .inlineButton {
+    justify-self: stretch;
+    border-radius: 14px;
+    background: rgba(13, 148, 136, 0.1);
+}
+
 .inlineButton,
 .primaryButton,
+.secondaryLinkButton,
 .questionChip,
 .internalToggle {
     display: inline-flex;
@@ -271,21 +439,36 @@
 }
 
 .inlineButton {
-    padding: 0;
+    min-height: 48px;
+    padding: 0 12px;
     background: transparent;
     color: #0f766e;
     font-weight: 700;
 }
 
 .primaryButton,
+.secondaryLinkButton,
 .questionChip,
 .internalToggle {
     width: 100%;
     border-radius: 18px;
 }
 
+.secondaryLinkButton {
+    width: auto;
+    min-height: 48px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: rgba(19, 78, 74, 0.08);
+    color: #134e4a;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+}
+
 .primaryButton {
-    padding: 13px 18px;
+    min-height: 52px;
+    padding: 14px 18px;
     background: linear-gradient(135deg, #f97316, #fb923c);
     color: #fff;
     font-weight: 700;
@@ -299,6 +482,7 @@
 
 .questionChip {
     width: auto;
+    min-height: 48px;
     padding: 10px 12px;
     background: rgba(13, 148, 136, 0.08);
     color: #134e4a;
@@ -400,10 +584,184 @@
     margin: 0;
 }
 
+.chatDock {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 1000;
+    display: grid;
+    justify-items: end;
+    gap: 10px;
+    pointer-events: none;
+}
+
+.chatDock > * {
+    pointer-events: auto;
+}
+
+.chatFab,
+.chatIconButton,
+.chatSendButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    cursor: pointer;
+    font: inherit;
+}
+
+.chatFab {
+    gap: 8px;
+    min-height: 52px;
+    padding: 0 18px;
+    border-radius: 999px;
+    background: #134e4a;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 800;
+    box-shadow: 0 18px 38px rgba(19, 78, 74, 0.22);
+}
+
+.chatPanel {
+    width: min(420px, calc(100vw - 28px));
+    max-height: min(620px, calc(100vh - 132px));
+    display: grid;
+    grid-template-rows: auto minmax(180px, 1fr) auto;
+    overflow: hidden;
+    border: 1px solid rgba(13, 148, 136, 0.18);
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 24px 56px rgba(19, 78, 74, 0.2);
+}
+
+.chatHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(19, 78, 74, 0.08);
+}
+
+.chatHeader span {
+    display: block;
+    color: rgba(19, 78, 74, 0.68);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.chatHeader strong {
+    display: block;
+    margin-top: 2px;
+    color: #134e4a;
+    font-size: 16px;
+}
+
+.chatIconButton,
+.chatSendButton {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 auto;
+    border-radius: 999px;
+}
+
+.chatIconButton {
+    background: rgba(13, 148, 136, 0.08);
+    color: #134e4a;
+}
+
+.chatMessages {
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    background: rgba(240, 253, 250, 0.5);
+}
+
+.chatMessage {
+    display: flex;
+    width: 100%;
+}
+
+.userMessage {
+    justify-content: flex-end;
+}
+
+.assistantMessage {
+    justify-content: flex-start;
+}
+
+.chatBubble {
+    max-width: 88%;
+    padding: 12px 14px;
+    border-radius: 18px;
+    color: #134e4a;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.chatBubble p {
+    margin: 0;
+}
+
+.assistantMessage .chatBubble {
+    border-bottom-left-radius: 6px;
+    background: #fff;
+    border: 1px solid rgba(13, 148, 136, 0.12);
+}
+
+.userMessage .chatBubble {
+    border-bottom-right-radius: 6px;
+    background: #0f766e;
+    color: #fff;
+}
+
+.chatForm {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+    padding: 12px;
+    border-top: 1px solid rgba(19, 78, 74, 0.08);
+    background: #fff;
+}
+
+.chatInput {
+    min-height: 42px;
+    max-height: 120px;
+    flex: 1;
+    resize: vertical;
+    padding: 11px 12px;
+    border: 1px solid rgba(19, 78, 74, 0.16);
+    border-radius: 14px;
+    background: rgba(240, 253, 250, 0.62);
+    color: #134e4a;
+    font: inherit;
+    outline: none;
+}
+
+.chatInput:focus {
+    border-color: rgba(13, 148, 136, 0.48);
+    box-shadow: 0 0 0 4px rgba(13, 148, 136, 0.12);
+}
+
+.chatSendButton {
+    background: #f97316;
+    color: #fff;
+    box-shadow: 0 10px 24px rgba(249, 115, 22, 0.2);
+}
+
+.chatSendButton:disabled {
+    cursor: default;
+    opacity: 0.48;
+    box-shadow: none;
+}
+
 .drawerBackdrop {
     position: fixed;
     inset: 0;
-    z-index: 40;
+    z-index: 1001;
     display: flex;
     justify-content: flex-end;
     background: rgba(19, 78, 74, 0.28);
@@ -436,15 +794,6 @@
 }
 
 @media (min-width: 1100px) {
-    .shell {
-        grid-template-columns: minmax(0, 1fr) 360px;
-    }
-
-    .sideColumn {
-        position: sticky;
-        top: 88px;
-    }
-
     .reasonColumns {
         grid-template-columns: 1fr 1fr;
     }
@@ -459,9 +808,26 @@
     .heroHeader,
     .rowBetween,
     .drawerHeader,
-    .sectionHeader {
+    .sectionHeader,
+    .adjustmentBanner,
+    .pendingCloseBanner {
         flex-direction: column;
         align-items: stretch;
+    }
+
+    .adjustmentBanner .secondaryLinkButton,
+    .pendingCloseBanner .secondaryLinkButton {
+        width: 100%;
+    }
+
+    .chatDock {
+        right: 14px;
+        bottom: 14px;
+    }
+
+    .chatPanel {
+        width: calc(100vw - 28px);
+        max-height: calc(100vh - 116px);
     }
 
     .tableCard {

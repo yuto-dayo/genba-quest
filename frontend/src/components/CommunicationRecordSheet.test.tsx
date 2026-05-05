@@ -53,8 +53,8 @@ const activeConversation = {
     updated_at: "2026-04-22T09:00:00.000Z",
 } as const;
 
-const members = [{ id: "member-1", full_name: "田中", username: "tanaka" }];
-const sites = [{ id: "site-1", name: "渋谷ビル改修" }];
+const members = [{ id: "member-1", full_name: "田中", username: "tanaka", avatar_url: null }];
+const sites = [{ id: "site-1", name: "渋谷ビル改修", status: "active", created_at: "2026-04-01T00:00:00.000Z" }];
 
 describe("CommunicationRecordSheet", () => {
     beforeEach(() => {

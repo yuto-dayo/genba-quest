@@ -25,6 +25,7 @@ Historical evidence from the adoption session:
 Current Codex shell limitation:
 
 - `SUPABASE_DB_PASSWORD` is unset, so direct linked checks that require the pooler password must be rerun from a password-backed shell.
+- Post-commit session-end gates on 2026-05-04: server typecheck PASS, frontend typecheck PASS, frontend lint PASS, server test FAIL in `server/src/__tests__/unit/communicationContactReadModel.test.ts` (`days_since_latest_activity` expected 1, received 12). The failure is in existing server read-model behavior, not in the DB baseline files committed here.
 
 ## Remaining
 
@@ -35,3 +36,68 @@ Current Codex shell limitation:
 
 - Frontend changes, skill changes, and unrelated handoff changes are outside this baseline adoption commit.
 - RLS hardening is a separate follow-up migration series; do not fold it into the baseline adoption commit.
+
+---
+
+## L1. Session Summary (Compacted)
+
+<!-- HANDOFF_L1_START -->
+- [focus] NEXT_CMD: `Run linked final DB checks from a shell with SUPABASE_DB_PASSWORD and supabase link state, then start separate RLS hardening migration design`. Source: realtime
+- [H0001] Completed: P0 baseline adoption commit split out as d082259 without frontend/skills/unrelated handoff changes
+- [H0001] Remaining: Run linked final DB checks from a shell with SUPABASE_DB_PASSWORD and supabase link state, then start separate RLS hardening migration design
+<!-- HANDOFF_L1_END -->
+
+## L2. Project Continuity (Compacted)
+
+### Decisions
+<!-- HANDOFF_L2_DECISIONS_START -->
+- [H0001] Auto-captured decision: P0 baseline adoption commit split out as d082259 without frontend/skills/unrelated handoff changes
+<!-- HANDOFF_L2_DECISIONS_END -->
+
+### Landmines
+<!-- HANDOFF_L2_LANDMINES_START -->
+- [H0001] No new landmines reported in this chunk.
+<!-- HANDOFF_L2_LANDMINES_END -->
+
+### Open Threads
+<!-- HANDOFF_L2_THREADS_START -->
+- [H0001] Run linked final DB checks from a shell with SUPABASE_DB_PASSWORD and supabase link state, then start separate RLS hardening migration design
+<!-- HANDOFF_L2_THREADS_END -->
+
+### Compaction State
+<!-- HANDOFF_L2_STATE_START -->
+- threshold: `20`
+- keep_recent: `12`
+- current_l3_entries: `1`
+- last_compacted_at: `never`
+- archived_entries: `0`
+<!-- HANDOFF_L2_STATE_END -->
+
+---
+
+## 11. Incremental Updates
+
+## Session Events (audit log)
+
+<!-- HANDOFF_SESSION_EVENTS_START -->
+- 2026-05-04 16:31:32 +0900 — ended by codex
+<!-- HANDOFF_SESSION_EVENTS_END -->
+
+### 2026-05-04 16:31:15 +0900
+
+- Entry-ID: `H0001`
+- Completed:
+  - [x] P0 baseline adoption commit split out as d082259 without frontend/skills/unrelated handoff changes
+- Remaining:
+  - [ ] Run linked final DB checks from a shell with SUPABASE_DB_PASSWORD and supabase link state, then start separate RLS hardening migration design
+- Changed Files:
+  - `docs/DB_BASELINE_REVIEW.md` - baseline adoption evidence and blocked final linked check
+  - `docs/SQL_INVENTORY.md` - canonical 5 migration inventory
+  - `supabase/migrations` - 5 canonical migration files retained
+  - `handoff/db/baseline-adoption.md` - compact audit note
+- Working Context:
+  - Auto-captured decision: P0 baseline adoption commit split out as d082259 without frontend/skills/unrelated handoff changes
+- Validation:
+  - `git diff --cached --check => PASS before commit; supabase migration list => BLOCKED no project ref/password; supabase db lint --linked --schema public,private --fail-on error => BLOCKED no project ref/password; broad RLS scan => 146 USING(true)/WITH CHECK(true) occurrences in supabase baseline`
+- Landmines:
+  - No new landmines reported in this chunk.

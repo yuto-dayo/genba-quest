@@ -104,6 +104,7 @@ export function buildDefaultPathPolicyConstants(): Record<string, unknown> {
       L2: 1.0,
       L3: 1.15,
       L4: 1.3,
+      L5: 1.45,
     },
     MONTHLY_COEFFICIENT_RULES: [
       { min: 0, max: 1, coefficient: 0.9 },
@@ -159,6 +160,8 @@ export function buildDefaultRiskRules(): Record<string, unknown> {
       "evaluation.finalize",
       "reward.calculate",
       "reward.adjust",
+      "reward.pool.adjust",
+      "path.level.update",
       "skill.achieve:stable_independent",
       "policy.update",
     ],

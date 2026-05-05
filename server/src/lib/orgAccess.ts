@@ -1,4 +1,5 @@
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
+import { getDevAuthUserById, getDevDefaultOrgId, isDevAuthMode } from "../config/devAuthUsers";
 import { supabaseAdmin } from "./supabaseClient";
 
 export type OrgRole = "admin" | "member";
@@ -56,7 +57,25 @@ export async function listActiveMemberships(userId: string): Promise<OrgMembersh
         throw error;
     }
 
-    return (data || []) as OrgMembershipRecord[];
+    const memberships = (data || []) as OrgMembershipRecord[];
+    if (memberships.length > 0 || !isDevAuthMode()) {
+        return memberships;
+    }
+
+    const devUser = getDevAuthUserById(userId);
+    if (!devUser) {
+        return memberships;
+    }
+
+    return [{
+        org_id: getDevDefaultOrgId(),
+        user_id: devUser.id,
+        role: devUser.role,
+        status: "active",
+        title: null,
+        approval_limit: devUser.role === "admin" ? null : 0,
+        joined_at: null,
+    }];
 }
 
 export async function requireOrgMembership(input: {

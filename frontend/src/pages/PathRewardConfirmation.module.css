@@ -1,0 +1,37 @@
+.container {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 20px 12px 104px;
+}
+
+.devAuthBar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    margin: 0 0 12px;
+}
+
+.devAuthLabel {
+    color: #4f6366;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.devAuthSelect {
+    min-width: 128px;
+    border: 1px solid rgba(0, 77, 79, 0.2);
+    border-radius: 8px;
+    background: #ffffff;
+    color: #103d40;
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 700;
+    padding: 8px 12px;
+}
+
+@media (max-width: 640px) {
+    .devAuthBar {
+        justify-content: space-between;
+    }
+}

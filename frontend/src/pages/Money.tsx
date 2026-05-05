@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import {
     RefreshCw,
     Receipt,
@@ -19,21 +19,26 @@ import {
 } from "lucide-react";
 import {
     fetchPL,
-    fetchPathModulePendingProposals,
+    approveProposal,
+    executeProposal,
+    fetchPendingProposals,
     fetchTransactions,
     fetchPendingApprovals,
+    instructProposal,
+    rejectProposal,
     searchTransactions,
     batchReviewExpenses,
     type PLReport,
     type AccountingTransaction,
-    type PathModulePendingProposal,
+    type ProposalRecord,
 } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
-import { buildPathProposalHref, getPathProposalContext } from "../lib/pathProposal";
+import { getPathProposalContext, isPathModuleProposal } from "../lib/pathProposal";
 import { ExpenseModal } from "../components/ExpenseModal";
 import { SalesModal } from "../components/SalesModal";
 import { InvoiceModal } from "../components/InvoiceModal";
 import { InvoiceListPanel } from "../components/InvoiceListPanel";
+import { ProposalDetailModal } from "../components/ProposalDetailModal";
 import { TransactionDetailModal } from "../components/TransactionDetailModal";
 import { ApprovalCard } from "../components/ApprovalCard";
 import { FloatingActionButton } from "../components/FloatingActionButton";
@@ -43,6 +48,10 @@ import styles from "./Money.module.css";
 const formatDate = (dateStr?: string | null) => {
     if (!dateStr) return "";
     return dateStr.replace(/-/g, "/");
+};
+
+const formatCurrency = (value: number) => {
+    return `¥${Math.abs(value).toLocaleString()}`;
 };
 
 const PATH_PROPOSAL_LABELS: Record<string, string> = {
@@ -143,7 +152,7 @@ const useIsMobile = () => {
 };
 
 export function Money() {
-    const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
     const isMobile = useIsMobile();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -157,7 +166,9 @@ export function Money() {
     const [pl, setPL] = useState<PLReport | null>(null);
     const [transactions, setTransactions] = useState<AccountingTransaction[]>([]);
     const [pendingApprovals, setPendingApprovals] = useState<AccountingTransaction[]>([]);
-    const [pathPendingProposals, setPathPendingProposals] = useState<PathModulePendingProposal[]>([]);
+    const [pathPendingProposals, setPathPendingProposals] = useState<ProposalRecord[]>([]);
+    const [selectedPathProposal, setSelectedPathProposal] = useState<ProposalRecord | null>(null);
+    const [pathProposalActing, setPathProposalActing] = useState(false);
 
     // フィルター関連（統合型）
     const [filters, setFilters] = useState<SearchFilters>(defaultFilters);
@@ -187,11 +198,11 @@ export function Money() {
                 fetchPL({ month: selectedMonth }),
                 fetchTransactions({ limit: 50 }),
                 fetchPendingApprovals(),
-                fetchPathModulePendingProposals(6).catch(() => ({ proposals: [] })),
+                fetchPendingProposals().catch(() => []),
             ]);
             setPL(plData);
             setTransactions(txData);
-            setPathPendingProposals(pathPendingData.proposals);
+            setPathPendingProposals(pathPendingData.filter(isPathModuleProposal).slice(0, 6));
             // 決定的ソート順
             const sortedPending = [...pendingData].sort((a, b) => {
                 const riskOrder = { HIGH: 0, LOW: 1 };
@@ -214,6 +225,64 @@ export function Money() {
     useEffect(() => {
         loadData();
     }, [loadData]);
+
+    const clearProposalSearchParam = useCallback(() => {
+        if (!searchParams.has("proposal")) {
+            return;
+        }
+
+        const next = new URLSearchParams(searchParams);
+        next.delete("proposal");
+        setSearchParams(next, { replace: true });
+    }, [searchParams, setSearchParams]);
+
+    useEffect(() => {
+        const proposalId = searchParams.get("proposal");
+        if (!proposalId) {
+            return;
+        }
+
+        const matchedProposal = pathPendingProposals.find((proposal) => proposal.id === proposalId) || null;
+        if (matchedProposal) {
+            setSelectedPathProposal(matchedProposal);
+        }
+    }, [pathPendingProposals, searchParams]);
+
+    const openPathProposal = (proposal: ProposalRecord) => {
+        const next = new URLSearchParams(searchParams);
+        next.set("proposal", proposal.id);
+        setSearchParams(next, { replace: false });
+        setSelectedPathProposal(proposal);
+    };
+
+    const handlePathProposalMutation = async (
+        proposalId: string,
+        action: "approve" | "reject" | "instruct" | "execute",
+        payload?: string,
+    ) => {
+        try {
+            setPathProposalActing(true);
+            setError(null);
+
+            if (action === "approve") {
+                await approveProposal(proposalId, payload);
+            } else if (action === "reject") {
+                await rejectProposal(proposalId, payload || "");
+            } else if (action === "instruct") {
+                await instructProposal(proposalId, payload || "");
+            } else {
+                await executeProposal(proposalId);
+            }
+
+            setSelectedPathProposal(null);
+            clearProposalSearchParam();
+            await loadData();
+        } catch (err: unknown) {
+            setError(getErrorMessage(err));
+        } finally {
+            setPathProposalActing(false);
+        }
+    };
 
     // 月を変更する関数
     const changeMonth = (direction: "prev" | "next") => {
@@ -456,32 +525,27 @@ export function Money() {
                             <p className={styles.pathQueueEyebrow}>PATH approval queue</p>
                             <h2 className={styles.pathQueueTitle}>評価・支給の承認待ち</h2>
                             <p className={styles.pathQueueDescription}>
-                                Money からも PATH の承認待ちへ移動できます。会計と同じ日に確認する前提で並べています。
+                                会計確認と同じ場所で、PATH の根拠を見て承認・却下できます。
                             </p>
                         </div>
                     </div>
                     <div className={styles.pathQueueList}>
                         {pathPendingProposals.map((proposal) => {
                             const context = getPathProposalContext(proposal);
-                            const proposalHref = buildPathProposalHref(proposal);
 
                             return (
                                 <button
                                     key={proposal.id}
                                     type="button"
                                     className={styles.pathQueueItem}
-                                    onClick={() => {
-                                        if (proposalHref) {
-                                            navigate(proposalHref);
-                                        }
-                                    }}
+                                    onClick={() => openPathProposal(proposal)}
                                 >
                                     <div className={styles.pathQueueItemTop}>
                                         <span className={styles.pathQueueKind}>
                                             {PATH_PROPOSAL_LABELS[proposal.type] || proposal.type}
                                         </span>
                                         <span className={styles.pathQueueApprovals}>
-                                            {proposal.required_approvals} approvals
+                                            承認 {proposal.required_approvals}名
                                         </span>
                                     </div>
                                     <strong className={styles.pathQueueItemTitle}>{proposal.description}</strong>
@@ -489,6 +553,7 @@ export function Money() {
                                         {context?.month ? `対象月 ${context.month}` : "対象月未指定"}
                                         {context?.memberId ? ` ・ member ${context.memberId.slice(0, 8)}...` : ""}
                                     </p>
+                                    <span className={styles.pathQueueAction}>詳細を確認</span>
                                 </button>
                             );
                         })}
@@ -496,7 +561,7 @@ export function Money() {
                 </motion.section>
             )}
 
-            {/* PLサマリー - 横一列ダッシュボード */}
+            {/* 今月の経理サマリー */}
             {pl && (
                 <motion.section
                     className={styles.plSection}
@@ -504,58 +569,63 @@ export function Money() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.1 }}
                 >
-                    <div className={styles.plHeader}>
-                        <button
-                            className={styles.monthNav}
-                            aria-label="前月"
-                            onClick={() => changeMonth("prev")}
-                            disabled={loading}
-                        >
-                            <ChevronLeft size={16} />
-                        </button>
-                        <div className={styles.monthDisplay}>
-                            <Calendar size={14} />
-                            <span className={styles.monthText}>
-                                {selectedMonth.replace("-", "年")}月
-                            </span>
+                    <div className={styles.deckHeader}>
+                        <div className={styles.deckCopy}>
+                            <p className={styles.deckEyebrow}>今月の経理</p>
+                            <h1 className={styles.deckTitle}>お金の流れ</h1>
+                            <p className={styles.deckDescription}>
+                                利益、未処理、請求書をまとめて確認できます。
+                            </p>
                         </div>
-                        <button
-                            className={styles.monthNav}
-                            aria-label="翌月"
-                            onClick={() => changeMonth("next")}
-                            disabled={loading}
-                        >
-                            <ChevronRight size={16} />
-                        </button>
+                        <div className={styles.monthControl} aria-label="表示月">
+                            <button
+                                className={styles.monthNav}
+                                aria-label="前月"
+                                onClick={() => changeMonth("prev")}
+                                disabled={loading}
+                            >
+                                <ChevronLeft size={16} />
+                            </button>
+                            <div className={styles.monthDisplay}>
+                                <Calendar size={14} />
+                                <span className={styles.monthText}>
+                                    {selectedMonth.replace("-", "年")}月
+                                </span>
+                            </div>
+                            <button
+                                className={styles.monthNav}
+                                aria-label="翌月"
+                                onClick={() => changeMonth("next")}
+                                disabled={loading}
+                            >
+                                <ChevronRight size={16} />
+                            </button>
+                        </div>
                     </div>
-                    <div className={styles.plSummary}>
-                        <PLMetric
-                            label="売上"
-                            value={pl.sales}
-                            color="income"
-                        />
-                        <div className={styles.plDivider} />
-                        <PLMetric
-                            label="経費"
-                            value={pl.expenses}
-                            color="expense"
-                            negative
-                        />
-                        <div className={styles.plDivider} />
-                        <PLMetric
-                            label="利益"
-                            value={pl.profit}
-                            color="profit"
-                            badge={pl.sales > 0 ? `${((pl.profit / pl.sales) * 100).toFixed(1)}%` : "0%"}
-                            highlight
-                        />
-                        <div className={styles.plDivider} />
-                        <PLMetric
-                            label="分配可能"
-                            value={pl.distributable}
-                            color="distribute"
-                            badge="70%"
-                        />
+
+                    <div className={styles.deckBody}>
+                        <article className={styles.profitCard}>
+                            <span className={styles.metricLabel}>利益</span>
+                            <strong className={`${styles.profitValue} ${pl.profit < 0 ? styles.negativeProfit : ""}`}>
+                                {pl.profit < 0 && "-"}{formatCurrency(pl.profit)}
+                            </strong>
+                            <span className={styles.profitHint}>
+                                利益率 {pl.sales > 0 ? `${((pl.profit / pl.sales) * 100).toFixed(1)}%` : "0%"}
+                            </span>
+                        </article>
+
+                        <div className={styles.plSummary}>
+                            <PLMetric label="売上" value={pl.sales} color="income" />
+                            <PLMetric label="経費" value={pl.expenses} color="expense" negative />
+                            <PLMetric label="分配可能" value={pl.distributable} color="distribute" badge="70%" />
+                            <article className={styles.plMetric}>
+                                <span className={styles.metricLabel}>承認待ち</span>
+                                <span className={`${styles.metricValue} ${styles.pendingMetric}`}>
+                                    {pendingApprovals.length}件
+                                </span>
+                                <span className={styles.metricBadge}>要確認</span>
+                            </article>
+                        </div>
                     </div>
                 </motion.section>
             )}
@@ -565,15 +635,15 @@ export function Money() {
                 <section className={styles.quickActions}>
                     <button className={styles.actionBtn} onClick={() => openExpenseModal()}>
                         <Receipt size={20} />
-                        <span>経費登録</span>
+                        <span>経費を記録</span>
                     </button>
                     <button className={styles.actionBtn} onClick={() => openSalesModal()}>
                         <TrendingUp size={20} />
-                        <span>売上登録</span>
+                        <span>売上を記録</span>
                     </button>
                     <button className={styles.actionBtn} onClick={openInvoiceModal}>
                         <FileText size={20} />
-                        <span>請求書作成</span>
+                        <span>請求書を作る</span>
                     </button>
                 </section>
             )}
@@ -589,10 +659,11 @@ export function Money() {
                     >
                         {/* 入力エリア */}
                         <div className={styles.inputBox}>
+                            <Search className={styles.searchLeadingIcon} size={18} />
                             <input
                                 type="text"
                                 className={styles.mainInput}
-                                placeholder={isMobile ? "検索..." : "検索... (Enter: 確定)"}
+                                placeholder={isMobile ? "取引・請求書を検索" : "取引・請求書・現場を検索"}
                                 value={searchInput}
                                 onChange={(e) => setSearchInput(e.target.value)}
                                 onKeyDown={handleInputKeyDown}
@@ -790,7 +861,10 @@ export function Money() {
                         transition={{ delay: 0.3 }}
                     >
                         <div className={styles.sectionHeader}>
-                            <h2 className={styles.sectionTitle}>取引一覧</h2>
+                            <div>
+                                <p className={styles.sectionKicker}>検索と確認</p>
+                                <h2 className={styles.sectionTitle}>最近の取引</h2>
+                            </div>
                             <span className={styles.txCountBadge}>{filteredTransactions.length}件</span>
                         </div>
 
@@ -913,6 +987,20 @@ export function Money() {
                         onStartCorrection={handleStartCorrection}
                     />
                 )}
+                {selectedPathProposal && (
+                    <ProposalDetailModal
+                        proposal={selectedPathProposal}
+                        onClose={() => {
+                            setSelectedPathProposal(null);
+                            clearProposalSearchParam();
+                        }}
+                        onApprove={(proposalId, reason) => handlePathProposalMutation(proposalId, "approve", reason)}
+                        onReject={(proposalId, reason) => handlePathProposalMutation(proposalId, "reject", reason)}
+                        onInstruct={(proposalId, instruction) => handlePathProposalMutation(proposalId, "instruct", instruction)}
+                        onExecute={(proposalId) => handlePathProposalMutation(proposalId, "execute")}
+                        isActing={pathProposalActing}
+                    />
+                )}
             </AnimatePresence>
 
             {isMobile && (
@@ -922,9 +1010,9 @@ export function Money() {
                     openLabel="お金の登録メニューを開く"
                     closeLabel="お金の登録メニューを閉じる"
                     items={[
-                        { id: "expense", label: "経費登録", icon: <Receipt size={18} />, onClick: openExpenseModal },
-                        { id: "sale", label: "売上登録", icon: <TrendingUp size={18} />, onClick: openSalesModal },
-                        { id: "invoice", label: "請求書作成", icon: <FileText size={18} />, onClick: openInvoiceModal },
+                        { id: "expense", label: "経費を記録", icon: <Receipt size={18} />, onClick: openExpenseModal },
+                        { id: "sale", label: "売上を記録", icon: <TrendingUp size={18} />, onClick: openSalesModal },
+                        { id: "invoice", label: "請求書を作る", icon: <FileText size={18} />, onClick: openInvoiceModal },
                     ]}
                 />
             )}
@@ -952,7 +1040,7 @@ function PLMetric({
         <div className={`${styles.plMetric} ${highlight ? styles.highlight : ""}`}>
             <span className={styles.metricLabel}>{label}</span>
             <span className={`${styles.metricValue} ${styles[color]}`}>
-                {negative && value > 0 && "-"}¥{Math.abs(value).toLocaleString()}
+                {negative && value > 0 && "-"}{formatCurrency(value)}
             </span>
             {badge && (
                 <span className={`${styles.metricBadge} ${styles[color]}`}>
@@ -1017,16 +1105,24 @@ function TransactionRow({
     const isHighRisk = tx.risk_level === "HIGH";
     const isPending = tx.status === "pending_review";
     const statusMeta = getStatusMeta();
+    const kindToneClass =
+        tx.kind === "expense"
+            ? styles.expenseRow
+            : tx.kind === "sale"
+                ? styles.saleRow
+                : styles.invoiceRow;
 
     return (
         <motion.button
             type="button"
-            className={`${styles.txRow} ${isHighRisk ? styles.highRiskRow : ""} ${isPending ? styles.pendingRow : ""}`}
+            className={`${styles.txRow} ${kindToneClass} ${isHighRisk ? styles.highRiskRow : ""} ${isPending ? styles.pendingRow : ""}`}
             initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
             onClick={onOpenDetail}
         >
-            <div className={styles.colDate}>{formatDate(tx.recorded_date)}</div>
+            <div className={styles.colDate}>
+                <span className={styles.dateText}>{formatDate(tx.recorded_date)}</span>
+            </div>
             <div className={styles.colKind}>
                 <span className={`${styles.kindIcon} ${styles[tx.kind]}`}>
                     {tx.kind === "expense" && <Receipt size={14} />}

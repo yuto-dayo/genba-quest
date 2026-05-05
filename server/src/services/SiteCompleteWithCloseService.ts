@@ -13,6 +13,7 @@ import { PathV31Service } from "./PathV31Service";
 type DifficultyBand = "S1" | "S2" | "S3";
 type ShareMode = "auto_points" | "fixed_template";
 type OutcomeStatus = "ok" | "rework" | "unknown";
+type SiteDayLogRoleType = "assist" | "lead" | "solo" | "support";
 type ProposalStatus = "draft" | "pending" | "approved" | "rejected" | "executed";
 type AttemptPhase =
   | "started"
@@ -27,6 +28,7 @@ type AttemptPhase =
 export interface SiteCloseDraftInput {
   recognized_revenue: number;
   included_day_log_ids: string[];
+  site_day_log_drafts?: SiteDayLogDraftInput[];
   material_cost: number;
   external_cost: number;
   direct_cost: number;
@@ -51,6 +53,15 @@ export interface SiteCloseDraftInput {
     notes?: string;
   }>;
   closed_at?: string | null;
+}
+
+export interface SiteDayLogDraftInput {
+  date: string;
+  member_id: string;
+  role_type: SiteDayLogRoleType;
+  credited_unit: number;
+  trade_families?: unknown[];
+  memo?: string;
 }
 
 export interface CompleteSiteWithCloseRequest extends SiteCloseDraftInput {
@@ -111,6 +122,10 @@ interface SiteRow extends SiteRecord {
   revenue?: number | null;
   updated_at?: string | null;
   created_at?: string | null;
+  started_at?: string | null;
+  expected_completion_at?: string | null;
+  completed_at: string | null;
+  assigned_users?: string[] | null;
 }
 
 const UUID_PATTERN =
@@ -210,6 +225,9 @@ function getErrorCode(error: unknown): string {
 }
 
 function normalizeIncludedDayLogIds(value: unknown): string[] {
+  if (value === undefined || value === null) {
+    return [];
+  }
   if (!Array.isArray(value)) {
     throw new Error("DAY_LOGS_REQUIRED");
   }
@@ -217,10 +235,61 @@ function normalizeIncludedDayLogIds(value: unknown): string[] {
     .filter((entry): entry is string => typeof entry === "string")
     .map((entry) => entry.trim())
     .filter((entry) => UUID_PATTERN.test(entry));
-  if (normalized.length === 0) {
-    throw new Error("DAY_LOGS_REQUIRED");
-  }
   return Array.from(new Set(normalized));
+}
+
+function normalizeRoleType(value: unknown): SiteDayLogRoleType {
+  return value === "lead" || value === "solo" || value === "assist" || value === "support"
+    ? value
+    : "support";
+}
+
+function normalizeDateOnly(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return parsed.toISOString().slice(0, 10);
+}
+
+function normalizeSiteDayLogDrafts(value: unknown): SiteDayLogDraftInput[] | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (!Array.isArray(value)) {
+    throw new Error("INVALID_COMPLETE_WITH_CLOSE_REQUEST");
+  }
+
+  const drafts = value
+    .map((entry): SiteDayLogDraftInput | null => {
+      if (!isRecord(entry)) {
+        return null;
+      }
+      const date = normalizeDateOnly(entry.date);
+      const memberId = typeof entry.member_id === "string" ? entry.member_id.trim() : "";
+      if (!date || !UUID_PATTERN.test(memberId)) {
+        return null;
+      }
+      const creditedUnit = parseNumeric(entry.credited_unit);
+      return {
+        date,
+        member_id: memberId,
+        role_type: normalizeRoleType(entry.role_type),
+        credited_unit: creditedUnit !== null && creditedUnit > 0 ? creditedUnit : 1,
+        trade_families: Array.isArray(entry.trade_families) ? entry.trade_families : [],
+        memo: typeof entry.memo === "string" ? entry.memo : "",
+      };
+    })
+    .filter((entry): entry is SiteDayLogDraftInput => entry !== null);
+
+  return drafts.length > 0 ? drafts : undefined;
 }
 
 function buildCloseSummary(payload: Record<string, unknown>): Record<string, unknown> {
@@ -288,6 +357,12 @@ export class SiteCompleteWithCloseService {
       site = await this.fetchSite(normalizedSiteId);
       this.assertExpectedSiteVersion(site, input.expected_site_updated_at);
       await this.assertNoCompetingCloseProposal(normalizedSiteId);
+      if (input.included_day_log_ids.length === 0) {
+        input.included_day_log_ids = await this.supplementDayLogsForClose(site, input, actor);
+      }
+      if (input.included_day_log_ids.length === 0) {
+        throw new Error("DAY_LOGS_REQUIRED");
+      }
       const eligibleDayLogIds = await this.fetchEligibleDayLogIds(normalizedSiteId);
       this.assertIncludedDayLogsStillEligible(input.included_day_log_ids, eligibleDayLogIds);
     } catch (validationError) {
@@ -491,6 +566,7 @@ export class SiteCompleteWithCloseService {
       ),
       recognized_revenue: normalizeMoney(rawInput.recognized_revenue, "INVALID_RECOGNIZED_REVENUE"),
       included_day_log_ids: normalizeIncludedDayLogIds(rawInput.included_day_log_ids),
+      site_day_log_drafts: normalizeSiteDayLogDrafts(rawInput.site_day_log_drafts),
       material_cost: normalizeMoney(rawInput.material_cost ?? 0, "INVALID_MONEY_VALUE"),
       external_cost: normalizeMoney(rawInput.external_cost ?? 0, "INVALID_MONEY_VALUE"),
       direct_cost: normalizeMoney(rawInput.direct_cost ?? 0, "INVALID_MONEY_VALUE"),
@@ -734,6 +810,225 @@ export class SiteCompleteWithCloseService {
     if (!allEligible) {
       throw new Error("SITE_DAY_LOGS_CONFLICT");
     }
+  }
+
+  private async supplementDayLogsForClose(
+    site: SiteRow,
+    input: CompleteSiteWithCloseRequest,
+    actor: ActorRef,
+  ): Promise<string[]> {
+    const existingEligibleIds = await this.fetchEligibleDayLogIds(site.id);
+    if (existingEligibleIds.length > 0) {
+      return existingEligibleIds;
+    }
+
+    const drafts =
+      input.site_day_log_drafts && input.site_day_log_drafts.length > 0
+        ? input.site_day_log_drafts
+        : await this.buildDayLogDraftsFromAssignments(site, input);
+
+    const insertedIds: string[] = [];
+    for (const draft of drafts) {
+      const id = await this.upsertSupplementedDayLog(site.id, draft, actor);
+      if (id) {
+        insertedIds.push(id);
+      }
+    }
+
+    return Array.from(new Set(insertedIds));
+  }
+
+  private async buildDayLogDraftsFromAssignments(
+    site: SiteRow,
+    input: CompleteSiteWithCloseRequest,
+  ): Promise<SiteDayLogDraftInput[]> {
+    const proposalDrafts = await this.fetchAssignmentProposalDayLogDrafts(site.id);
+    if (proposalDrafts.length > 0) {
+      return proposalDrafts;
+    }
+
+    const fallbackDate =
+      normalizeDateOnly(input.effective_completed_at) ||
+      normalizeDateOnly(site.completed_at) ||
+      normalizeDateOnly(site.expected_completion_at) ||
+      normalizeDateOnly(site.started_at) ||
+      new Date().toISOString().slice(0, 10);
+    const assignedUsers = Array.isArray(site.assigned_users)
+      ? site.assigned_users.filter((value): value is string => UUID_PATTERN.test(String(value)))
+      : [];
+
+    return assignedUsers.map((memberId) => ({
+      date: fallbackDate,
+      member_id: memberId,
+      role_type: "support",
+      credited_unit: 1,
+      trade_families: [],
+      memo: "site_close_assignment_supplement",
+    }));
+  }
+
+  private async fetchAssignmentProposalDayLogDrafts(siteId: string): Promise<SiteDayLogDraftInput[]> {
+    const { data, error } = await supabaseAdmin
+      .from("proposals")
+      .select("id,payload,executed_at,created_at")
+      .eq("org_id", this.orgId)
+      .eq("type", "assignment.create")
+      .in("status", ["approved", "executed"])
+      .order("created_at", { ascending: true })
+      .limit(500);
+
+    if (error) {
+      throw new Error(`Failed to fetch assignment proposals for day log supplement: ${error.message}`);
+    }
+
+    const drafts = new Map<string, SiteDayLogDraftInput>();
+    ((data ?? []) as Array<Record<string, unknown>>).forEach((proposal) => {
+      const payload = isRecord(proposal.payload) ? proposal.payload : {};
+      const payloadSiteId =
+        this.getPayloadString(payload, ["site_id", "siteId", "target_site_id"]) ||
+        this.getPayloadString(proposal, ["site_id"]);
+      if (payloadSiteId !== siteId) {
+        return;
+      }
+
+      const date =
+        normalizeDateOnly(payload.date) ||
+        normalizeDateOnly(payload.due_date) ||
+        normalizeDateOnly(payload.start_date) ||
+        normalizeDateOnly(payload.recorded_date) ||
+        normalizeDateOnly(proposal.executed_at) ||
+        normalizeDateOnly(proposal.created_at);
+      if (!date) {
+        return;
+      }
+
+      this.extractWorkerIdsFromPayload(payload).forEach((memberId) => {
+        const key = `${date}:${memberId}`;
+        if (!drafts.has(key)) {
+          drafts.set(key, {
+            date,
+            member_id: memberId,
+            role_type: "support",
+            credited_unit: 1,
+            trade_families: [],
+            memo: "site_close_assignment_supplement",
+          });
+        }
+      });
+    });
+
+    return Array.from(drafts.values());
+  }
+
+  private getPayloadString(payload: Record<string, unknown>, keys: string[]): string | null {
+    for (const key of keys) {
+      const value = payload[key];
+      if (typeof value === "string" && value.trim().length > 0) {
+        return value.trim();
+      }
+    }
+    return null;
+  }
+
+  private extractWorkerIdsFromPayload(payload: Record<string, unknown>): string[] {
+    const directKeys = ["worker_id", "workerId", "user_id", "userId", "assignee_id", "member_id"];
+    const arrayKeys = ["worker_ids", "workerIds", "user_ids", "userIds", "assignee_ids", "member_ids"];
+    const collected: string[] = [];
+
+    directKeys.forEach((key) => {
+      const value = payload[key];
+      if (typeof value === "string" && UUID_PATTERN.test(value)) {
+        collected.push(value);
+      }
+    });
+
+    arrayKeys.forEach((key) => {
+      const value = payload[key];
+      if (Array.isArray(value)) {
+        value.forEach((id) => {
+          if (typeof id === "string" && UUID_PATTERN.test(id)) {
+            collected.push(id);
+          }
+        });
+      }
+    });
+
+    const assignments = payload.assignments;
+    if (Array.isArray(assignments)) {
+      assignments.forEach((assignment) => {
+        if (!isRecord(assignment)) {
+          return;
+        }
+        const id = this.getPayloadString(assignment, ["worker_id", "workerId", "user_id", "userId", "assignee_id"]);
+        if (id && UUID_PATTERN.test(id)) {
+          collected.push(id);
+        }
+      });
+    }
+
+    return Array.from(new Set(collected));
+  }
+
+  private async upsertSupplementedDayLog(
+    siteId: string,
+    draft: SiteDayLogDraftInput,
+    actor: ActorRef,
+  ): Promise<string | null> {
+    const payload = {
+      org_id: this.orgId,
+      date: draft.date,
+      site_id: siteId,
+      member_id: draft.member_id,
+      trade_families: draft.trade_families ?? [],
+      role_type: draft.role_type,
+      credited_unit: draft.credited_unit,
+      memo: draft.memo || `site_close_assignment_supplement:${actor.type}`,
+    };
+
+    const { data: existing, error: existingError } = await supabaseAdmin
+      .from("site_day_logs")
+      .select("id,locked_by_site_close_id")
+      .eq("org_id", this.orgId)
+      .eq("date", draft.date)
+      .eq("site_id", siteId)
+      .eq("member_id", draft.member_id)
+      .maybeSingle();
+
+    if (existingError) {
+      throw new Error(`Failed to fetch existing supplemented day log: ${existingError.message}`);
+    }
+
+    if (existing) {
+      if ((existing as Record<string, unknown>).locked_by_site_close_id) {
+        return null;
+      }
+
+      const { data, error } = await supabaseAdmin
+        .from("site_day_logs")
+        .update({
+          trade_families: payload.trade_families,
+          role_type: payload.role_type,
+          credited_unit: payload.credited_unit,
+          memo: payload.memo,
+        })
+        .eq("org_id", this.orgId)
+        .eq("id", String((existing as Record<string, unknown>).id ?? ""))
+        .select("id")
+        .single();
+
+      if (error) {
+        throw new Error(`Failed to update supplemented day log: ${error.message}`);
+      }
+
+      return String((data as Record<string, unknown>).id ?? "");
+    }
+
+    const { data, error } = await supabaseAdmin.from("site_day_logs").insert(payload).select("id").single();
+    if (error) {
+      throw new Error(`Failed to insert supplemented day log: ${error.message}`);
+    }
+
+    return String((data as Record<string, unknown>).id ?? "");
   }
 
   private async updateSiteRevenue(siteId: string, revenue: number): Promise<void> {

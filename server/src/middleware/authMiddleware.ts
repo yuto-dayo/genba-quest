@@ -1,4 +1,10 @@
 import { Request, Response, NextFunction } from "express";
+import {
+    getDefaultDevAuthUser,
+    getDevAuthUserByKey,
+    getDevDefaultOrgId,
+    isDevAuthMode,
+} from "../config/devAuthUsers";
 import { supabaseAdmin } from "../lib/supabaseClient";
 
 export interface AuthenticatedRequest extends Request {
@@ -7,11 +13,6 @@ export interface AuthenticatedRequest extends Request {
     userEmail?: string | null;
     orgId?: string;
 }
-
-const DEV_MODE = process.env.NODE_ENV === "development" && process.env.DEV_SKIP_AUTH === "true";
-// 開発用UUID（実際のSupabaseユーザーIDに合わせる必要あり）
-const DEV_USER_ID = process.env.DEV_USER_UUID || "00000000-0000-0000-0000-000000000001";
-const DEFAULT_ORG_ID = process.env.DEFAULT_ORG_ID || "00000000-0000-0000-0000-000000000001";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -30,7 +31,21 @@ function resolveOrgIdFromUser(user: {
         }
     }
 
-    return DEFAULT_ORG_ID;
+    return getDevDefaultOrgId();
+}
+
+function readFirstHeaderValue(value: string | string[] | undefined): string | null {
+    if (Array.isArray(value)) {
+        return value[0] ?? null;
+    }
+
+    return value ?? null;
+}
+
+function readDevUserKey(req: Request): string | null {
+    const headerValue = readFirstHeaderValue(req.headers["x-dev-user-key"]);
+    const queryValue = typeof req.query?.dev_user === "string" ? req.query.dev_user : null;
+    return headerValue || queryValue || process.env.DEV_USER_KEY || null;
 }
 
 export const authMiddleware = async (
@@ -39,11 +54,16 @@ export const authMiddleware = async (
     next: NextFunction
 ) => {
     // 開発モード: 認証スキップ
-    if (DEV_MODE) {
-        req.userId = DEV_USER_ID;
-        req.userName = "Dev User";
-        req.userEmail = process.env.DEV_USER_EMAIL || "dev@example.com";
-        req.orgId = DEFAULT_ORG_ID;
+    if (isDevAuthMode()) {
+        const requestedDevUserKey = readDevUserKey(req);
+        const selectedDevUser = getDevAuthUserByKey(requestedDevUserKey) ?? getDefaultDevAuthUser();
+        const useLegacyUserEnv = !requestedDevUserKey && process.env.DEV_USER_UUID;
+        req.userId = useLegacyUserEnv ? process.env.DEV_USER_UUID : selectedDevUser.id;
+        req.userName = useLegacyUserEnv ? process.env.DEV_USER_NAME || "Dev User" : selectedDevUser.name;
+        req.userEmail = useLegacyUserEnv
+            ? process.env.DEV_USER_EMAIL || "dev@example.com"
+            : selectedDevUser.email;
+        req.orgId = getDevDefaultOrgId();
         return next();
     }
 

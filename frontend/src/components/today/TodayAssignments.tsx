@@ -1,9 +1,10 @@
-import { AlertTriangle, Briefcase, Check, Clock3, FileText, MapPin, Plus, Users } from 'lucide-react';
+import { AlertTriangle, Briefcase, Check, Clock3, FileText, MapPin, Plus, ShieldCheck, Users } from 'lucide-react';
 import type { Assignment, AssignmentStatus } from '../../types/calendar';
 import type { FocusItemRecord, Site } from '../../lib/api';
 import styles from './TodayComponents.module.css';
 
 type DayLogStatus = 'none' | 'saved' | 'locked';
+export type SiteInputStatus = 'role_missing' | 'role_saved' | 'reward_missing' | 'reward_saved' | 'locked';
 
 interface TodayAssignmentsProps {
     assignments: Assignment[];
@@ -13,14 +14,18 @@ interface TodayAssignmentsProps {
     onCompleteFocusItem: (item: FocusItemRecord) => void;
     onOpenSite: (site: Site) => void;
     onRecordDayLog: (site: Site) => void;
+    onPlanRole: (site: Site) => void;
+    onRecordRewardInput: (site: Site) => void;
     onAddFocusItem: (site: Site) => void;
     getDayLogStatus: (siteId: string) => DayLogStatus;
+    getSiteInputStatus: (siteId: string) => SiteInputStatus;
 }
 
-const STATUS_ORDER: AssignmentStatus[] = ['pending', 'confirmed', 'scheduled', 'completed'];
+const STATUS_ORDER: AssignmentStatus[] = ['pending', 'tentative', 'confirmed', 'scheduled', 'completed'];
 
 const STATUS_LABELS: Record<AssignmentStatus, string> = {
     pending: '要確認',
+    tentative: '仮押さえ',
     confirmed: '承認済み',
     scheduled: '確定',
     completed: '完了',
@@ -28,9 +33,18 @@ const STATUS_LABELS: Record<AssignmentStatus, string> = {
 
 const STATUS_CLASS_NAMES: Record<AssignmentStatus, string> = {
     pending: styles.assignmentStatusPending,
+    tentative: styles.assignmentStatusTentative,
     confirmed: styles.assignmentStatusConfirmed,
     scheduled: styles.assignmentStatusScheduled,
     completed: styles.assignmentStatusCompleted,
+};
+
+const SITE_INPUT_LABELS: Record<SiteInputStatus, string> = {
+    role_missing: '役割未入力',
+    role_saved: '役割済み',
+    reward_missing: '責任待ち',
+    reward_saved: '入力済み',
+    locked: '締め済み',
 };
 
 function resolveSiteStatus(assignments: Assignment[]): AssignmentStatus {
@@ -72,8 +86,11 @@ export function TodayAssignments({
     onCompleteFocusItem,
     onOpenSite,
     onRecordDayLog,
+    onPlanRole,
+    onRecordRewardInput,
     onAddFocusItem,
     getDayLogStatus,
+    getSiteInputStatus,
 }: TodayAssignmentsProps) {
     const siteGroups = assignments.reduce<Map<string, Assignment[]>>((map, assignment) => {
         const key = assignment.site_id || assignment.site_name;
@@ -127,6 +144,7 @@ export function TodayAssignments({
             ) : (
                 siteSummaries.map((site) => {
                     const dayLogStatus = site.site ? getDayLogStatus(site.site.id) : 'none';
+                    const siteInputStatus = site.site ? getSiteInputStatus(site.site.id) : 'role_missing';
                     const dayLogLabel =
                         dayLogStatus === 'none'
                             ? '記録'
@@ -137,6 +155,10 @@ export function TodayAssignments({
                         dayLogStatus === 'locked'
                             ? styles.assignmentActionButton
                             : `${styles.assignmentActionButton} ${styles.assignmentActionPrimary}`;
+                    const showRewardAction =
+                        siteInputStatus === 'role_saved' ||
+                        siteInputStatus === 'reward_missing' ||
+                        siteInputStatus === 'reward_saved';
 
                     return (
                     <div key={site.siteId || site.siteName} className={styles.assignmentCard}>
@@ -154,6 +176,14 @@ export function TodayAssignments({
                                     {STATUS_LABELS[site.status]}
                                 </span>
                             </div>
+                            {site.site && (
+                                <div className={styles.siteInputStateRow}>
+                                    <span className={`${styles.siteInputBadge} ${siteInputStatus === 'reward_saved' ? styles.siteInputBadgeDone : ''}`}>
+                                        <ShieldCheck size={14} />
+                                        {SITE_INPUT_LABELS[siteInputStatus]}
+                                    </span>
+                                </div>
+                            )}
                             <div className={styles.assignmentMetaRow}>
                                 <span className={styles.assignmentMeta}>
                                     <Clock3 size={14} />
@@ -226,6 +256,29 @@ export function TodayAssignments({
                                         <Plus size={14} />
                                         {dayLogLabel}
                                     </button>
+                                    <button
+                                        type="button"
+                                        className={`${styles.assignmentActionButton} ${
+                                            siteInputStatus === 'role_missing' ? styles.assignmentActionPrimary : ''
+                                        }`}
+                                        onClick={() => onPlanRole(site.site!)}
+                                        disabled={siteInputStatus === 'locked'}
+                                    >
+                                        <ShieldCheck size={14} />
+                                        役割
+                                    </button>
+                                    {showRewardAction && (
+                                        <button
+                                            type="button"
+                                            className={`${styles.assignmentActionButton} ${
+                                                siteInputStatus === 'reward_missing' ? styles.assignmentActionPrimary : ''
+                                            }`}
+                                            onClick={() => onRecordRewardInput(site.site!)}
+                                        >
+                                            <Check size={14} />
+                                            責任
+                                        </button>
+                                    )}
                                 </div>
                             )}
 

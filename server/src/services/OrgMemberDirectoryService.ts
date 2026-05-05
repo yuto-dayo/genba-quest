@@ -1,3 +1,4 @@
+import { DEV_AUTH_USERS, getDevDefaultOrgId, isDevAuthMode } from "../config/devAuthUsers";
 import { OrgMembershipRecord, OrgMembershipStatus, OrgRole } from "../lib/orgAccess";
 import { supabaseAdmin } from "../lib/supabaseClient";
 
@@ -65,12 +66,36 @@ export async function listOrgMembers(orgId: string): Promise<OrgMemberDirectoryR
         throw error;
     }
 
-    const memberships = (data || []) as OrgMembershipRecord[];
+    const membershipMap = new Map<string, OrgMembershipRecord>();
+    for (const membership of (data || []) as OrgMembershipRecord[]) {
+        membershipMap.set(membership.user_id, membership);
+    }
+
+    if (isDevAuthMode() && orgId === getDevDefaultOrgId()) {
+        for (const devUser of DEV_AUTH_USERS) {
+            if (!membershipMap.has(devUser.id)) {
+                membershipMap.set(devUser.id, {
+                    org_id: orgId,
+                    user_id: devUser.id,
+                    role: devUser.role,
+                    status: "active",
+                    title: null,
+                    approval_limit: devUser.role === "admin" ? null : 0,
+                    joined_at: null,
+                });
+            }
+        }
+    }
+
+    const memberships = Array.from(membershipMap.values());
     const profileMap = await loadProfilesByIds(memberships.map((membership) => membership.user_id));
 
     return memberships
         .map((membership) => {
             const profile = profileMap.get(membership.user_id);
+
+            const devUser = DEV_AUTH_USERS.find((candidate) => candidate.id === membership.user_id);
+            const displayName = pickDisplayName(profile) ?? devUser?.name ?? null;
 
             return {
                 id: membership.user_id,
@@ -84,9 +109,8 @@ export async function listOrgMembers(orgId: string): Promise<OrgMemberDirectoryR
                 full_name: profile?.full_name ?? null,
                 username: profile?.username ?? null,
                 avatar_url: profile?.avatar_url ?? null,
-                display_name: pickDisplayName(profile),
+                display_name: displayName,
             };
         })
         .sort(compareMembers);
 }
-

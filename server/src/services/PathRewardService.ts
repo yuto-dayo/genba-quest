@@ -10,6 +10,7 @@ export const LEVEL_COEFFICIENTS = {
   L2: 1.0,
   L3: 1.15,
   L4: 1.3,
+  L5: 1.45,
 } as const;
 
 export const MONTHLY_COEFFICIENT_RULES = [

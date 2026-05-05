@@ -1,0 +1,142 @@
+.container {
+    position: sticky;
+    bottom: 14px;
+    z-index: 20;
+    display: grid;
+    gap: 12px;
+    margin-top: 16px;
+    padding: 14px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 56%, transparent);
+    border-radius: 22px;
+    background: color-mix(in srgb, var(--md-sys-color-surface) 96%, white);
+    box-shadow: var(--md-sys-elevation-level3);
+}
+
+.header,
+.draftRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.header h3 {
+    margin: 0;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-title-medium);
+}
+
+.header p,
+.draftRow span,
+.message {
+    margin: 3px 0 0;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+}
+
+.draftList {
+    display: grid;
+    gap: 8px;
+}
+
+.draftRow {
+    min-height: 48px;
+    padding: 8px 10px;
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 84%, white);
+}
+
+.draftRow div {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.draftRow strong {
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-large);
+}
+
+.clearButton,
+.removeButton,
+.submitButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: none;
+    cursor: pointer;
+    transition:
+        opacity var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        transform var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.clearButton,
+.removeButton {
+    min-height: 36px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 88%, white);
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-medium);
+}
+
+.clearButton {
+    padding: 0 12px;
+}
+
+.removeButton {
+    width: 34px;
+    height: 34px;
+}
+
+.submitButton {
+    min-height: 44px;
+    border-radius: 999px;
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+    font: var(--md-sys-typescale-label-large);
+}
+
+.clearButton:not(:disabled):hover,
+.removeButton:not(:disabled):hover,
+.submitButton:not(:disabled):hover {
+    transform: translateY(-1px);
+}
+
+.clearButton:disabled,
+.submitButton:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+.message {
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--md-sys-color-primary-container) 70%, white);
+    color: var(--md-sys-color-on-primary-container);
+}
+
+@media (max-width: 640px) {
+    .container {
+        bottom: 8px;
+        border-radius: 18px;
+    }
+
+    .header,
+    .draftRow {
+        align-items: flex-start;
+    }
+
+    .submitButton {
+        width: 100%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .clearButton,
+    .removeButton,
+    .submitButton {
+        transition: none;
+    }
+}

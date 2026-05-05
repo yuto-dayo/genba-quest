@@ -8,10 +8,12 @@
     background: rgba(9, 18, 26, 0.38);
     backdrop-filter: blur(8px);
     z-index: 950;
+    overscroll-behavior: contain;
 }
 
 .modal {
     width: min(100%, 580px);
+    max-height: calc(100dvh - 48px);
     border-radius: 28px;
     border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 48%, transparent);
     background:
@@ -21,36 +23,22 @@
             color-mix(in srgb, var(--md-sys-color-surface-container-low) 92%, white)
         );
     box-shadow: var(--md-sys-elevation-level4);
-    overflow: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
 }
 
 .header {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
     align-items: flex-start;
-    justify-content: space-between;
-    gap: 16px;
+    gap: 14px;
     padding: 20px 20px 12px;
 }
 
 .titleGroup {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-}
-
-.iconBadge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 44px;
-    height: 44px;
-    border-radius: 16px;
-    background: linear-gradient(
-        135deg,
-        color-mix(in srgb, var(--md-sys-color-secondary-container) 92%, white),
-        color-mix(in srgb, var(--md-sys-color-primary-container) 82%, white)
-    );
-    color: var(--md-sys-color-on-secondary-container);
+    min-width: 0;
+    padding-top: 1px;
 }
 
 .title {
@@ -68,10 +56,10 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 40px;
-    height: 40px;
+    width: 42px;
+    height: 42px;
     border: none;
-    border-radius: 999px;
+    border-radius: 14px;
     background: var(--md-sys-color-surface-container);
     color: var(--md-sys-color-on-surface-variant);
     cursor: pointer;
@@ -96,6 +84,17 @@
 .input:focus-visible,
 .select:focus-visible,
 .textarea:focus-visible,
+.titleInput:focus-visible,
+.dateTimeButton:focus-visible,
+.iconButton:focus-visible,
+.calendarDay:focus-visible,
+.timeChip:focus-visible,
+.timePartInput:focus-visible,
+.minuteChip:focus-visible,
+.colorSelectButton:focus-visible,
+.colorPickerOption:focus-visible,
+.switchButton:focus-visible,
+.pickerDoneButton:focus-visible,
 .secondaryButton:focus-visible,
 .primaryButton:focus-visible {
     outline: 2px solid var(--md-sys-color-primary);
@@ -123,6 +122,69 @@
     font: var(--md-sys-typescale-body-medium);
 }
 
+.actionMenu {
+    display: grid;
+    gap: 12px;
+    padding: 8px 20px 20px;
+}
+
+.actionButton {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 72px;
+    padding: 14px;
+    border-radius: 20px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 52%, transparent);
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
+    text-align: left;
+    cursor: pointer;
+    transition:
+        transform var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        border-color var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.actionButton:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--md-sys-color-primary) 42%, var(--md-sys-color-outline-variant));
+    background: color-mix(in srgb, var(--md-sys-color-primary-container) 24%, var(--md-sys-color-surface));
+}
+
+.actionButton:focus-visible {
+    outline: 2px solid var(--md-sys-color-primary);
+    outline-offset: 3px;
+}
+
+.actionButton strong,
+.actionButton small {
+    display: block;
+}
+
+.actionButton strong {
+    font: var(--md-sys-typescale-title-small);
+}
+
+.actionButton small {
+    margin-top: 2px;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+}
+
+.actionIcon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--md-sys-color-secondary-container) 84%, white);
+    color: var(--md-sys-color-on-secondary-container);
+}
+
 .contextRow {
     display: flex;
     flex-wrap: wrap;
@@ -147,6 +209,20 @@
     padding: 8px 20px 20px;
 }
 
+.primaryScheduleCard {
+    display: grid;
+    gap: 18px;
+    padding: 18px;
+    border-radius: 22px;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 84%, white);
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 42%, transparent);
+}
+
+.titleEntry {
+    display: grid;
+    gap: 10px;
+}
+
 .field {
     display: grid;
     gap: 8px;
@@ -163,7 +239,8 @@
 
 .input,
 .select,
-.textarea {
+.textarea,
+.titleInput {
     width: 100%;
     border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 70%, transparent);
     border-radius: 18px;
@@ -173,9 +250,21 @@
 }
 
 .input,
-.select {
+.select,
+.titleInput {
     min-height: 48px;
     padding: 0 14px;
+}
+
+.titleInput {
+    border: 0;
+    background: transparent;
+    font-weight: 600;
+}
+
+.titleInput::placeholder {
+    color: var(--md-sys-color-on-surface-variant);
+    font-weight: 600;
 }
 
 .textarea {
@@ -184,9 +273,592 @@
     padding: 12px 14px;
 }
 
+.dateTimeCard {
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+    border-radius: 20px;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 84%, white);
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 42%, transparent);
+}
+
+.allDayRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.switchButton {
+    position: relative;
+    width: 52px;
+    height: 32px;
+    padding: 3px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 58%, transparent);
+    border-radius: 999px;
+    background: var(--md-sys-color-surface);
+    cursor: pointer;
+    transition:
+        background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        border-color var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.switchButtonActive {
+    border-color: transparent;
+    background: var(--md-sys-color-primary);
+}
+
+.switchThumb {
+    display: block;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--md-sys-color-outline);
+    box-shadow: 0 1px 3px rgb(0 0 0 / 18%);
+    transform: translateX(0);
+    transition:
+        transform var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.switchButtonActive .switchThumb {
+    background: var(--md-sys-color-on-primary);
+    transform: translateX(20px);
+}
+
+.dateTimeStack {
+    display: grid;
+    gap: 10px;
+}
+
+.dateTimeRow {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) minmax(96px, 120px);
+    align-items: center;
+    gap: 8px;
+}
+
+.dateTimeLabel {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-medium);
+}
+
+.dateTimeButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 10px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 54%, transparent);
+    border-radius: 14px;
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
+    text-align: left;
+    font: var(--md-sys-typescale-body-medium);
+    cursor: pointer;
+    transition:
+        background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        border-color var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        color var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.dateTimeButtonActive {
+    border-color: color-mix(in srgb, var(--md-sys-color-primary) 56%, transparent);
+    background: color-mix(in srgb, var(--md-sys-color-primary-container) 56%, white);
+    color: var(--md-sys-color-on-primary-container);
+}
+
+.dateTimeButton:disabled {
+    opacity: 0.48;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 82%, white);
+    cursor: not-allowed;
+}
+
+.addressField {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    min-height: 52px;
+    padding: 0 14px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 52%, transparent);
+    border-radius: 18px;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 84%, white);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.addressField:focus-within {
+    border-color: color-mix(in srgb, var(--md-sys-color-primary) 56%, transparent);
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--md-sys-color-primary) 16%, transparent);
+}
+
+.addressInput {
+    width: 100%;
+    min-height: 50px;
+    border: 0;
+    background: transparent;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-body-large);
+}
+
+.addressInput::placeholder {
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.addressInput:focus {
+    outline: none;
+}
+
+.pickerScrim {
+    position: fixed;
+    inset: 0;
+    z-index: 980;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgb(9 18 26 / 28%);
+    backdrop-filter: blur(4px);
+}
+
+.pickerDialog {
+    width: min(100%, 380px);
+    max-height: min(620px, calc(100dvh - 40px));
+    overflow-y: auto;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 56%, transparent);
+    border-radius: 26px;
+    background: var(--md-sys-color-surface);
+    box-shadow: var(--md-sys-elevation-level4);
+}
+
+.pickerDialogHeader {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 36px;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 16px 8px;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-title-medium);
+}
+
+.pickerPanel {
+    display: grid;
+    gap: 12px;
+    padding: 8px 16px 16px;
+}
+
+.pickerHeader {
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr) 36px;
+    align-items: center;
+    gap: 8px;
+    color: var(--md-sys-color-on-surface);
+    text-align: center;
+    font: var(--md-sys-typescale-title-small);
+}
+
+.iconButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: pointer;
+}
+
+.iconButton:hover {
+    background: var(--md-sys-color-surface-container-high);
+    color: var(--md-sys-color-on-surface);
+}
+
+.weekdayGrid,
+.calendarGrid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 4px;
+}
+
+.weekdayGrid {
+    color: var(--md-sys-color-on-surface-variant);
+    text-align: center;
+    font: var(--md-sys-typescale-label-small);
+}
+
+.calendarDay {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 1;
+    min-width: 0;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-large);
+    cursor: pointer;
+}
+
+.calendarDay:hover {
+    background: var(--md-sys-color-surface-container-high);
+}
+
+.calendarDayMuted {
+    color: color-mix(in srgb, var(--md-sys-color-on-surface-variant) 62%, transparent);
+}
+
+.calendarDayToday {
+    box-shadow: inset 0 0 0 1px var(--md-sys-color-primary);
+}
+
+.calendarDaySelected {
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+}
+
+.calendarDaySelected:hover {
+    background: var(--md-sys-color-primary);
+}
+
+.pickerStepSegment {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    margin: 0 16px;
+    padding: 4px;
+    border-radius: 999px;
+    background: var(--md-sys-color-surface-container-low);
+}
+
+.pickerStepButton {
+    min-height: 40px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-large);
+    cursor: pointer;
+    transition:
+        background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        color var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        box-shadow var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.pickerStepButton:focus-visible {
+    outline: 2px solid var(--md-sys-color-primary);
+    outline-offset: 2px;
+}
+
+.pickerStepButtonActive {
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
+    box-shadow: var(--md-sys-elevation-level1);
+}
+
+.timeQuickSection {
+    display: grid;
+    gap: 10px;
+}
+
+.timePickerLabel {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-medium);
+}
+
+.timeQuickGrid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.timeChip {
+    min-height: 44px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 70%, transparent);
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 70%, white);
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-large);
+    cursor: pointer;
+}
+
+.timeChipActive {
+    border-color: transparent;
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+}
+
+.timeManualSection {
+    display: grid;
+    gap: 10px;
+    padding-top: 2px;
+}
+
+.timeEntryGrid {
+    display: grid;
+    grid-template-columns: minmax(0, 92px) auto minmax(0, 92px);
+    align-items: center;
+    justify-content: start;
+    gap: 8px;
+}
+
+.timePartInput {
+    width: 92px;
+    min-height: 52px;
+    padding: 0 12px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 62%, transparent);
+    border-radius: 16px;
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
+    text-align: center;
+    font: var(--md-sys-typescale-title-large);
+    font-variant-numeric: tabular-nums;
+}
+
+.timePartInput::placeholder {
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.timeSeparator {
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-title-large);
+}
+
+.minuteChipStage {
+    position: relative;
+    min-height: 84px;
+}
+
+.minuteChipRow {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: 8px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 200ms var(--md-sys-motion-easing-emphasized);
+}
+
+.minuteChipRowActive {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.minuteChipRowInactive {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.minuteChip {
+    min-width: 54px;
+    min-height: 38px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 70%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 70%, white);
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-large);
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+    transition:
+        background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        border-color var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        color var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.minuteChipActive {
+    border-color: transparent;
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+}
+
+.timePickerHint {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+}
+
+.timePickerError {
+    color: var(--md-sys-color-error);
+    font: var(--md-sys-typescale-body-small);
+}
+
+.pickerActions {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0 16px 16px;
+}
+
+.pickerDoneButton {
+    min-height: 40px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+    font: var(--md-sys-typescale-label-large);
+    cursor: pointer;
+}
+
+.typeSegment {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.scheduleControlRow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.chipRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    min-width: 0;
+}
+
+.typeSegmentButton {
+    min-height: 40px;
+    padding: 0 12px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 58%, transparent);
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-medium);
+    cursor: pointer;
+    transition:
+        background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        border-color var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        color var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.typeSegmentButton:hover {
+    color: var(--md-sys-color-on-surface);
+}
+
+.typeSegmentButton:focus-visible {
+    outline: 2px solid var(--md-sys-color-primary);
+    outline-offset: 3px;
+}
+
+.typeSegmentButtonActive {
+    border-color: transparent;
+    background: color-mix(in srgb, var(--md-sys-color-primary-container) 88%, white);
+    color: var(--md-sys-color-on-primary-container);
+}
+
+.typeSegmentButton:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.colorSelectButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    width: fit-content;
+    min-height: 40px;
+    padding: 0 12px 0 8px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 52%, transparent);
+    border-radius: 999px;
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-medium);
+    cursor: pointer;
+    transition:
+        transform var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        border-color var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.colorSelectButton:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--schedule-color) 56%, var(--md-sys-color-outline));
+    background: color-mix(in srgb, var(--schedule-color) 10%, var(--md-sys-color-surface));
+}
+
+.colorSelectSwatch,
+.colorPickerSwatch {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: var(--schedule-color);
+    color: white;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, white 36%, transparent);
+}
+
+.colorSelectSwatch {
+    width: 26px;
+    height: 26px;
+}
+
+.colorPickerDialog {
+    width: min(100%, 340px);
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 56%, transparent);
+    border-radius: 26px;
+    background: var(--md-sys-color-surface);
+    box-shadow: var(--md-sys-elevation-level4);
+    overflow: hidden;
+}
+
+.colorPickerGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    padding: 16px;
+}
+
+.colorPickerOption {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 52px;
+    padding: 0 12px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 56%, transparent);
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 70%, white);
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-medium);
+    cursor: pointer;
+    transition:
+        background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        border-color var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        transform var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.colorPickerOption:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--schedule-color) 48%, var(--md-sys-color-outline));
+}
+
+.colorPickerOptionSelected {
+    border-color: color-mix(in srgb, var(--schedule-color) 62%, var(--md-sys-color-outline));
+    background: color-mix(in srgb, var(--schedule-color) 14%, var(--md-sys-color-surface));
+}
+
+.colorPickerSwatch {
+    width: 30px;
+    height: 30px;
+}
+
+.colorPickerSwatch svg {
+    filter: drop-shadow(0 1px 1px rgb(0 0 0 / 35%));
+}
+
 .footer {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
     align-items: center;
     gap: 10px;
     padding: 16px 20px 20px;
@@ -255,11 +927,17 @@
     }
 
     .modal {
+        max-height: calc(100dvh - 24px);
         border-radius: 24px 24px 0 0;
     }
 
     .footer {
         grid-template-columns: 1fr;
+    }
+
+    .dateTimeRow {
+        grid-template-columns: 36px minmax(0, 1fr) minmax(86px, 104px);
+        gap: 6px;
     }
 
     .secondaryButton,
@@ -270,6 +948,8 @@
 
 @media (prefers-reduced-motion: reduce) {
     .closeButton,
+    .minuteChip,
+    .minuteChipRow,
     .secondaryButton,
     .primaryButton {
         transition: none;

@@ -12,6 +12,12 @@ jest.mock("../../services/PathV31Service", () => ({
   })),
 }));
 
+jest.mock("../../services/aiClient", () => ({
+  getAIProvider: jest.fn(),
+  getAvailableProviders: jest.fn(() => []),
+  getDefaultProviderName: jest.fn(() => "gemini"),
+}));
+
 import { supabaseAdmin } from "../../lib/supabaseAdmin";
 import { PathGovernedModuleService } from "../../services/PathGovernedModuleService";
 import { createChain, setupMockFrom } from "../helpers/mockSupabase";
@@ -407,6 +413,24 @@ describe("PathGovernedModuleService", () => {
           payload: { path_module_version: "v2.2", calculation_system: "path_v22" },
         },
         {
+          id: "path-v32-reward",
+          type: "reward.calculate",
+          status: "pending",
+          payload: { path_module_version: "v3.2-simple", calculation_system: "path_v32_simple" },
+        },
+        {
+          id: "path-v32-pool-adjust",
+          type: "reward.pool.adjust",
+          status: "pending",
+          payload: { calculation_system: "path_v32_simple" },
+        },
+        {
+          id: "path-v32-level-update",
+          type: "path.level.update",
+          status: "pending",
+          payload: { calculation_system: "path_v32_simple" },
+        },
+        {
           id: "generic-reward",
           type: "reward.calculate",
           status: "pending",
@@ -426,10 +450,18 @@ describe("PathGovernedModuleService", () => {
       "evaluation.finalize",
       "reward.calculate",
       "reward.adjust",
+      "reward.pool.adjust",
+      "path.level.update",
       "skill.achieve",
       "skill.revoke",
     ]);
-    expect(result.map((item) => item.id)).toEqual(["path-policy", "path-reward"]);
+    expect(result.map((item) => item.id)).toEqual([
+      "path-policy",
+      "path-reward",
+      "path-v32-reward",
+      "path-v32-pool-adjust",
+      "path-v32-level-update",
+    ]);
   });
 
   it("merges selected site ids into month close summary rows", async () => {
@@ -870,8 +902,20 @@ describe("PathGovernedModuleService", () => {
     expect(answer).toEqual(
       expect.objectContaining({
         conclusion: expect.stringContaining("1 件の補正"),
-        reasons: [expect.stringContaining("late_quality_fix")],
+        why_changed: [expect.stringContaining("late_quality_fix")],
+        amount_breakdown: expect.arrayContaining([
+          expect.objectContaining({
+            label: "補正",
+            amount: -8000,
+          }),
+        ]),
+        adjustments: expect.arrayContaining([
+          expect.objectContaining({
+            amount: -8000,
+          }),
+        ]),
         next_action: null,
+        confidence: "low",
       }),
     );
     expect(answer.evidence_refs).toEqual(
@@ -880,6 +924,147 @@ describe("PathGovernedModuleService", () => {
           anchor: "reward-corrections",
         }),
       ]),
+    );
+  });
+
+  it("builds a reward analysis context without raw identifiers or other-member amounts", () => {
+    const rawMemberId = "11111111-1111-4111-8111-111111111111";
+    const rawSiteId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const rawProposalId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const bundle = (service as any).buildRewardAnalysisContext({
+      month: "2026-04",
+      member_id: rawMemberId,
+      member_name: "田中",
+      status: "試算中",
+      estimated_amount: 160000,
+      base_amount: 90000,
+      result_amount: 65000,
+      correction_amount: 5000,
+      delta_amount: 10000,
+      delta_empty_state: null,
+      top_reasons: [
+        {
+          key: "workload",
+          label: "稼働量差分",
+          direction: "increase",
+          summary: "最低保証が増えています",
+          impact_amount: 10000,
+          evidence_refs: [{ kind: "status", label: "最低保証 90000円" }],
+        },
+      ],
+      increase_reasons: [],
+      decrease_reasons: [],
+      explanation_cards: [
+        {
+          id: "rule",
+          title: "反映ルールの版",
+          body: "path_v31 を使って計算しています。",
+          evidence_refs: [
+            {
+              kind: "rule",
+              label: "反映ルール path_v31",
+              meta: { fingerprint: "raw-fingerprint" },
+            },
+          ],
+        },
+      ],
+      explanation_missing: false,
+      explanation_missing_message: null,
+      site_breakdown: [
+        {
+          site_id: rawSiteId,
+          site_name: "現場 aaaaaaaa",
+          amount: 80000,
+          reflected_ratio: 0.6,
+          reason_summary: "自分の寄与だけの説明",
+          correction_state: "あり",
+          evidence_refs: [
+            {
+              kind: "site",
+              label: "現場 aaaaaaaa の現場詳細",
+              href: `/sites/${rawSiteId}`,
+              site_id: rawSiteId,
+            },
+          ],
+          detail: {
+            self_explanation: {
+              amount: 80000,
+              floor_amount: 45000,
+              result_amount: 30000,
+              correction_amount: 5000,
+              reflected_ratio: 0.6,
+              credited_units: 12,
+              reason_lines: ["自分の稼働ユニットが反映されています。"],
+            },
+            site_summary: {
+              distributable_profit: 120000,
+              participant_count: 4,
+              self_rank: 1,
+              self_band: "top",
+              privacy_mode: "exact_distribution",
+              anonymous_relative_distribution: [0.6, 0.4],
+            },
+          },
+        },
+      ],
+      corrections: {
+        total_amount: 5000,
+        applied_amount: 5000,
+        count: 1,
+        has_corrections: true,
+        items: [
+          {
+            proposal_id: rawProposalId,
+            status: "executed",
+            reason: "late_quality_fix",
+            amount: 5000,
+            correction_month: "2026-05",
+            target_month: "2026-04",
+            mode: "adjustment",
+            note: "raw note should not be included",
+            created_at: "2026-04-30T00:00:00.000Z",
+            evidence_refs: [
+              {
+                kind: "proposal",
+                label: `補正申請 ${rawProposalId.slice(0, 8)}`,
+                href: `/proposals/${rawProposalId}`,
+                proposal_id: rawProposalId,
+                site_id: rawSiteId,
+              },
+            ],
+          },
+        ],
+      },
+      evidence_refs: [
+        {
+          kind: "proposal",
+          label: `確定申請 ${rawProposalId.slice(0, 8)}`,
+          href: `/proposals/${rawProposalId}`,
+          proposal_id: rawProposalId,
+        },
+      ],
+      internal_controls: {
+        can_manage: true,
+        month: "2026-04",
+      },
+    });
+
+    const contextJson = JSON.stringify(bundle.context);
+    expect(contextJson).not.toContain(rawMemberId);
+    expect(contextJson).not.toContain(rawSiteId);
+    expect(contextJson).not.toContain(rawProposalId);
+    expect(contextJson).not.toContain("田中");
+    expect(contextJson).not.toContain("raw note should not be included");
+    expect(contextJson).not.toContain("raw-fingerprint");
+    expect(contextJson).not.toContain("120000");
+    expect(bundle.context.site_breakdown[0].label).toBe("現場1");
+    expect(bundle.context.evidence_refs[0]).toEqual(
+      expect.not.objectContaining({
+        href: expect.anything(),
+        site_id: expect.anything(),
+        proposal_id: expect.anything(),
+        meta: expect.anything(),
+      }),
     );
   });
 });

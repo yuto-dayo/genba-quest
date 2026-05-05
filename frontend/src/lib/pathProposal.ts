@@ -32,7 +32,15 @@ export function isPathModuleProposal(proposal: PathProposalLike | null | undefin
         return false;
     }
 
-    return proposal.payload.module === "path";
+    return (
+        proposal.payload.module === "path" ||
+        proposal.payload.path_module_version === "v2.2" ||
+        proposal.payload.path_module_version === "v3.1" ||
+        proposal.payload.path_module_version === "v3.2-simple" ||
+        proposal.payload.calculation_system === "path_v22" ||
+        proposal.payload.calculation_system === "path_v31" ||
+        proposal.payload.calculation_system === "path_v32_simple"
+    );
 }
 
 export function getPathProposalContext(
@@ -42,7 +50,7 @@ export function getPathProposalContext(
         return null;
     }
 
-    if (proposal.payload.module !== "path") {
+    if (!isPathModuleProposal(proposal)) {
         return null;
     }
 
