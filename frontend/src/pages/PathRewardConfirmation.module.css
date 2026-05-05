@@ -1,37 +1,38 @@
 .container {
+    min-height: calc(100vh - 84px);
     max-width: 1280px;
     margin: 0 auto;
-    padding: 20px 12px 104px;
-}
-
-.devAuthBar {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 10px;
-    margin: 0 0 12px;
-}
-
-.devAuthLabel {
-    color: #4f6366;
-    font-size: 0.8rem;
-    font-weight: 700;
+    padding: 18px 12px 104px;
 }
 
 .devAuthSelect {
-    min-width: 128px;
-    border: 1px solid rgba(0, 77, 79, 0.2);
-    border-radius: 8px;
-    background: #ffffff;
-    color: #103d40;
+    min-width: 96px;
+    height: 32px;
+    border: 1px solid rgba(13, 148, 136, 0.18);
+    border-radius: 999px;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(240, 253, 250, 0.68));
+    color: rgba(19, 78, 74, 0.78);
     font: inherit;
-    font-size: 0.9rem;
+    font-size: 0.78rem;
     font-weight: 700;
-    padding: 8px 12px;
+    padding: 6px 12px;
+    box-shadow: none;
+    cursor: pointer;
 }
 
-@media (max-width: 640px) {
-    .devAuthBar {
-        justify-content: space-between;
-    }
+.devAuthSelect:hover {
+    border-color: rgba(13, 148, 136, 0.28);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(240, 253, 250, 0.78));
+    color: #134e4a;
+}
+
+.devAuthSelect:focus {
+    outline: none;
+}
+
+.devAuthSelect:focus-visible {
+    border-color: rgba(13, 148, 136, 0.4);
+    box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12);
 }

@@ -190,10 +190,22 @@ export function Money() {
     const [expenseDraft, setExpenseDraft] = useState<ExpenseCorrectionDraft | null>(null);
     const [salesDraft, setSalesDraft] = useState<SalesCorrectionDraft | null>(null);
 
-    const loadData = useCallback(async () => {
+    const refreshPathPendingProposals = useCallback(async () => {
+        const pathPendingData = await fetchPendingProposals();
+        setPathPendingProposals(pathPendingData.filter(isPathModuleProposal).slice(0, 6));
+    }, []);
+
+    const loadData = useCallback(async (options?: { keepCurrentView?: boolean; suppressPageError?: boolean }) => {
+        const keepCurrentView = options?.keepCurrentView ?? false;
+        const suppressPageError = options?.suppressPageError ?? false;
+
         try {
-            setLoading(true);
-            setError(null);
+            if (!keepCurrentView) {
+                setLoading(true);
+            }
+            if (!suppressPageError) {
+                setError(null);
+            }
             const [plData, txData, pendingData, pathPendingData] = await Promise.all([
                 fetchPL({ month: selectedMonth }),
                 fetchTransactions({ limit: 50 }),
@@ -216,9 +228,15 @@ export function Money() {
             });
             setPendingApprovals(sortedPending);
         } catch (err: unknown) {
-            setError(getErrorMessage(err));
+            if (suppressPageError) {
+                console.error("[Money] background refresh failed:", err);
+            } else {
+                setError(getErrorMessage(err));
+            }
         } finally {
-            setLoading(false);
+            if (!keepCurrentView) {
+                setLoading(false);
+            }
         }
     }, [selectedMonth]);
 
@@ -276,7 +294,15 @@ export function Money() {
 
             setSelectedPathProposal(null);
             clearProposalSearchParam();
-            await loadData();
+            if (action === "approve" || action === "reject" || action === "execute") {
+                setPathPendingProposals((current) => current.filter((proposal) => proposal.id !== proposalId));
+            }
+            try {
+                await refreshPathPendingProposals();
+            } catch (refreshErr) {
+                console.error("[Money] PATH queue refresh failed:", refreshErr);
+            }
+            void loadData({ keepCurrentView: true, suppressPageError: true });
         } catch (err: unknown) {
             setError(getErrorMessage(err));
         } finally {
@@ -485,7 +511,7 @@ export function Money() {
                 <p className={styles.errorDescription}>
                     ネットワーク接続を確認して、再試行してください
                 </p>
-                <button onClick={loadData} className={styles.retryButton}>
+                <button onClick={() => loadData()} className={styles.retryButton}>
                     再試行
                 </button>
             </div>

@@ -17,6 +17,11 @@ const mockFrom = supabaseAdmin.from as jest.Mock;
 const orgId = "00000000-0000-0000-0000-000000000001";
 const closeA = "11111111-1111-4111-8111-111111111111";
 const closeB = "22222222-2222-4222-8222-222222222222";
+const canonicalMonthClose = "55555555-5555-4555-8555-555555555555";
+const ruleVersion = "66666666-6666-4666-8666-666666666666";
+const proposalExecution = "77777777-7777-4777-8777-777777777777";
+const rewardRun = "88888888-8888-4888-8888-888888888888";
+const revenueBasis = "99999999-9999-4999-8999-999999999999";
 const memberA = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const memberB = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const memberC = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
@@ -196,5 +201,74 @@ describe("PathV32SimpleRewardService", () => {
       }),
     );
     expect(preview.members.reduce((sum, member) => sum + member.total_pay_amount, 0)).toBe(1_120_000);
+  });
+
+  it("reuses an existing fixed canonical run when sync is retried", async () => {
+    const proposalExecutions = createChain({ data: { id: proposalExecution }, error: null });
+    const rewardRuns = createChain({ data: { id: rewardRun }, error: null });
+    const monthlyDistributionCloses = createChain({
+      data: { id: "10101010-1010-4010-8010-101010101010" },
+      error: null,
+    });
+    const monthlyDistributionLines = createChain({ data: null, error: null });
+    const rewardRunLines = createChain({ data: null, error: null });
+    const revenueBasisRows = createChain({ data: { id: revenueBasis }, error: null });
+
+    setupMockFrom(mockFrom, {
+      proposal_executions: proposalExecutions,
+      reward_runs: rewardRuns,
+      monthly_distribution_closes: monthlyDistributionCloses,
+      monthly_distribution_lines: monthlyDistributionLines,
+      reward_run_lines: rewardRunLines,
+      revenue_basis: revenueBasisRows,
+    });
+
+    await new PathV32SimpleRewardService(orgId).syncMonthlyDistributionFromExecutedProposal({
+      id: "proposal-v32",
+      org_id: orgId,
+      type: "reward.calculate",
+      status: "executed",
+      created_by: { type: "human", id: memberA, name: "A" },
+      executed_by: { type: "human", id: memberA, name: "A" },
+      executed_at: "2026-06-30T00:00:00.000Z",
+      approvals: [],
+      required_approvals: 1,
+      description: "2026-06 PATH V3.2 Simple monthly distribution",
+      created_at: "2026-06-30T00:00:00.000Z",
+      updated_at: "2026-06-30T00:00:00.000Z",
+      payload: {
+        month: "2026-06",
+        month_close_id: canonicalMonthClose,
+        reward_rule_version_id: ruleVersion,
+        total_weight_num: 1000,
+        monthly_pool: 100_000,
+        site_profit_total: 100_000,
+        pool_adjustment_total: 0,
+        member_correction_total: 0,
+        calculation_snapshot: {
+          site_closes: [{ site_id: "33333333-3333-4333-8333-333333333333" }],
+        },
+        member_payouts: [
+          {
+            member_id: memberA,
+            rounded_amount: 100_000,
+            total_pay_amount: 100_000,
+            member_correction_amount: 0,
+          },
+        ],
+      },
+    } as any);
+
+    expect(rewardRuns.insert).not.toHaveBeenCalled();
+    expect(rewardRunLines.upsert).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          reward_run_id: rewardRun,
+          recipient_id: memberA,
+          payout_amount: 100_000,
+        }),
+      ],
+      { onConflict: "reward_run_id,recipient_id", ignoreDuplicates: true },
+    );
   });
 });

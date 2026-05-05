@@ -121,6 +121,8 @@ export type ProposalType =
     | "invoice.mark_paid"
     | "reward.calculate"
     | "reward.adjust"
+    | "reward.pool.adjust"
+    | "path.level.update"
     | "skill.achieve"
     | "skill.revoke"
     | "evaluation.submit"

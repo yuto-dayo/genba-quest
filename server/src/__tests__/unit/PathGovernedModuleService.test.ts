@@ -5,10 +5,18 @@ jest.mock("../../lib/supabaseAdmin", () => ({
 }));
 
 const mockPreviewMonthlyDistribution = jest.fn();
+const mockPreviewV32MonthlyDistribution = jest.fn();
 
 jest.mock("../../services/PathV31Service", () => ({
   PathV31Service: jest.fn().mockImplementation(() => ({
     previewMonthlyDistribution: mockPreviewMonthlyDistribution,
+  })),
+}));
+
+jest.mock("../../services/PathV32SimpleRewardService", () => ({
+  PATH_V32_SIMPLE_RULE_VERSION: "3.2.0-simple",
+  PathV32SimpleRewardService: jest.fn().mockImplementation(() => ({
+    previewMonthlyDistribution: mockPreviewV32MonthlyDistribution,
   })),
 }));
 
@@ -62,6 +70,44 @@ describe("PathGovernedModuleService", () => {
           floor_units: 12,
           raw_result_weight: 1.2,
           boosted_result_weight: 1.3,
+        },
+      ],
+    });
+    mockPreviewV32MonthlyDistribution.mockResolvedValue({
+      month: "2026-04",
+      calculation_system: "path_v32_simple",
+      path_rule_version: "3.2.0-simple",
+      monthly_pool: 160000,
+      site_profit_total: 160000,
+      pool_adjustment_total: 0,
+      member_correction_total: 0,
+      total_weight_num: 12,
+      month_total_days: 30,
+      active_member_count: 1,
+      warnings: [],
+      calculation_snapshot: {
+        calculation_system: "path_v32_simple",
+        path_rule_version: "3.2.0-simple",
+        site_closes: [],
+      },
+      members: [
+        {
+          member_id: "11111111-1111-4111-8111-111111111111",
+          member_name: "田中 太郎",
+          level: "L3",
+          level_source: "default",
+          level_weight_milli: 1000,
+          month_total_days: 30,
+          confirmed_work_days: 12,
+          work_presence_bp: 4000,
+          monthly_weight_num: 12000,
+          total_weight_num_snapshot: 12000,
+          final_share_bp: 10000,
+          raw_amount: 160000,
+          rounded_amount: 160000,
+          member_correction_amount: 0,
+          total_pay_amount: 160000,
+          calculation_snapshot: {},
         },
       ],
     });
@@ -721,52 +767,94 @@ describe("PathGovernedModuleService", () => {
       }),
       policy_bundle_versions: createChain({ data: [], error: null }),
     });
-    mockPreviewMonthlyDistribution
+    mockPreviewV32MonthlyDistribution
       .mockResolvedValueOnce({
         month: "2026-04",
-        path_rule_version: "path_v31",
-        path_rule_fingerprint: "fp-v31",
+        calculation_system: "path_v32_simple",
+        path_rule_version: "3.2.0-simple",
+        monthly_pool: 160000,
+        site_profit_total: 160000,
+        pool_adjustment_total: 0,
+        member_correction_total: 0,
+        total_weight_num: 12,
+        month_total_days: 30,
+        active_member_count: 1,
+        warnings: [],
         calculation_snapshot: {
+          calculation_system: "path_v32_simple",
+          path_rule_version: "3.2.0-simple",
+          active_member_count: 1,
           site_closes: [
             {
               site_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-              distributable_profit: 120000,
-              share_snapshot: [
-                {
-                  member_id: "11111111-1111-4111-8111-111111111111",
-                  result_share: 0.6,
-                  credited_units: 12,
-                },
-                {
-                  member_id: "22222222-2222-4222-8222-222222222222",
-                  result_share: 0.4,
-                  credited_units: 8,
-                },
-              ],
+              distributable_profit: 160000,
+            },
+          ],
+          members: [
+            {
+              member_id: "11111111-1111-4111-8111-111111111111",
+              total_pay_amount: 160000,
             },
           ],
         },
         members: [
           {
             member_id: "11111111-1111-4111-8111-111111111111",
-            total_pay: 160000,
-            floor_pay: 90000,
-            result_pay: 70000,
-            correction: 0,
-            floor_units: 12,
-            raw_result_weight: 1.2,
-            boosted_result_weight: 1.3,
+            member_name: "田中 太郎",
+            level: "L3",
+            level_source: "default",
+            level_weight_milli: 1000,
+            month_total_days: 30,
+            confirmed_work_days: 12,
+            work_presence_bp: 4000,
+            monthly_weight_num: 12000,
+            total_weight_num_snapshot: 12000,
+            final_share_bp: 10000,
+            raw_amount: 160000,
+            rounded_amount: 160000,
+            member_correction_amount: 0,
+            total_pay_amount: 160000,
+            calculation_snapshot: {},
           },
         ],
       })
       .mockResolvedValueOnce({
         month: "2026-03",
-        path_rule_version: "path_v31",
-        path_rule_fingerprint: "fp-v31-prev",
+        calculation_system: "path_v32_simple",
+        path_rule_version: "3.2.0-simple",
+        monthly_pool: 0,
+        site_profit_total: 0,
+        pool_adjustment_total: 0,
+        member_correction_total: 0,
+        total_weight_num: 0,
+        month_total_days: 31,
+        active_member_count: 1,
+        warnings: [],
         calculation_snapshot: {
+          calculation_system: "path_v32_simple",
+          path_rule_version: "3.2.0-simple",
           site_closes: [],
         },
-        members: [],
+        members: [
+          {
+            member_id: "11111111-1111-4111-8111-111111111111",
+            member_name: "田中 太郎",
+            level: "L3",
+            level_source: "default",
+            level_weight_milli: 1000,
+            month_total_days: 31,
+            confirmed_work_days: 0,
+            work_presence_bp: 0,
+            monthly_weight_num: 0,
+            total_weight_num_snapshot: 0,
+            final_share_bp: 0,
+            raw_amount: 0,
+            rounded_amount: 0,
+            member_correction_amount: 0,
+            total_pay_amount: 0,
+            calculation_snapshot: {},
+          },
+        ],
       });
 
     const result = await service.getRewardConfirmationSummary(
@@ -790,6 +878,213 @@ describe("PathGovernedModuleService", () => {
         site_name: "渋谷マンション",
       }),
     ]);
+  });
+
+  it("uses the latest team-complete V3.2 finalized close", async () => {
+    const activeMembers = [
+      "11111111-1111-4111-8111-111111111111",
+      "22222222-2222-4222-8222-222222222222",
+    ];
+    const closeChain = createChain({
+      data: [
+        {
+          id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          month: "2026-05",
+          path_rule_version: "3.2.0-simple",
+          path_rule_fingerprint: "fp-v32-latest",
+          calculation_snapshot: {
+            calculation_system: "path_v32_simple",
+            site_closes: [],
+          },
+        },
+      ],
+      error: null,
+    });
+    const membershipChain = createChain({
+      data: activeMembers.map((user_id) => ({ user_id })),
+      error: null,
+    });
+    const teamLineChain = createChain({
+      data: [
+        {
+          member_id: activeMembers[0],
+          total_pay: 660000,
+          floor_pay: 0,
+          result_pay: 660000,
+          correction: 0,
+          floor_units: 3,
+          raw_result_weight: 3000,
+          boosted_result_weight: 3000,
+        },
+        {
+          member_id: activeMembers[1],
+          total_pay: 539540,
+          floor_pay: 0,
+          result_pay: 539540,
+          correction: 0,
+          floor_units: 2,
+          raw_result_weight: 2000,
+          boosted_result_weight: 2000,
+        },
+      ],
+      error: null,
+    });
+
+    (supabaseAdmin.from as jest.Mock).mockImplementation((table: string) => {
+      if (table === "monthly_distribution_closes") {
+        return closeChain;
+      }
+      if (table === "org_memberships") {
+        return membershipChain;
+      }
+      if (table === "monthly_distribution_lines") {
+        return teamLineChain;
+      }
+      return createChain({ data: null, error: null });
+    });
+
+    const result = await (service as any).loadRewardConfirmationMonthView(
+      "2026-05",
+      activeMembers[1],
+    );
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        month: "2026-05",
+        amount: 539540,
+        base_amount: 0,
+        result_amount: 539540,
+        floor_units: 2,
+        rule_version: "3.2.0-simple",
+        source: "finalized",
+      }),
+    );
+    expect(mockPreviewV32MonthlyDistribution).not.toHaveBeenCalled();
+    expect(mockPreviewMonthlyDistribution).not.toHaveBeenCalled();
+  });
+
+  it("uses V3.2 preview instead of falling back to a complete V3.1 close", async () => {
+    const activeMembers = [
+      "11111111-1111-4111-8111-111111111111",
+      "22222222-2222-4222-8222-222222222222",
+      "33333333-3333-4333-8333-333333333333",
+      "44444444-4444-4444-8444-444444444444",
+    ];
+    const closeChain = createChain({
+      data: [
+        {
+          id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          month: "2026-05",
+          path_rule_version: "3.2.0-simple",
+          path_rule_fingerprint: "fp-v32-partial",
+          calculation_snapshot: { site_closes: [] },
+        },
+        {
+          id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          month: "2026-05",
+          path_rule_version: "3.1.0",
+          path_rule_fingerprint: "fp-v31-team",
+          calculation_snapshot: { site_closes: [] },
+        },
+      ],
+      error: null,
+    });
+    const membershipChain = createChain({
+      data: activeMembers.map((user_id) => ({ user_id })),
+      error: null,
+    });
+    const partialLatestLines = createChain({
+      data: [
+        {
+          member_id: activeMembers[0],
+          total_pay: 2200000,
+          floor_pay: 2200000,
+          result_pay: 0,
+          correction: 0,
+          floor_units: 3,
+          raw_result_weight: 0,
+          boosted_result_weight: 0,
+        },
+      ],
+      error: null,
+    });
+    const teamCompleteLines = createChain({
+      data: [
+        {
+          member_id: activeMembers[0],
+          total_pay: 528933,
+          floor_pay: 170512,
+          result_pay: 358421,
+          correction: 0,
+          floor_units: 19,
+          raw_result_weight: 1.4,
+          boosted_result_weight: 1.5,
+        },
+        {
+          member_id: activeMembers[1],
+          total_pay: 539540,
+          floor_pay: 188462,
+          result_pay: 351078,
+          correction: 0,
+          floor_units: 21,
+          raw_result_weight: 1.4,
+          boosted_result_weight: 1.5,
+        },
+        {
+          member_id: activeMembers[2],
+          total_pay: 419016,
+          floor_pay: 152564,
+          result_pay: 266452,
+          correction: 0,
+          floor_units: 17,
+          raw_result_weight: 1.1,
+          boosted_result_weight: 1.2,
+        },
+        {
+          member_id: activeMembers[3],
+          total_pay: 512511,
+          floor_pay: 188462,
+          result_pay: 324049,
+          correction: 0,
+          floor_units: 21,
+          raw_result_weight: 1.3,
+          boosted_result_weight: 1.4,
+        },
+      ],
+      error: null,
+    });
+    const lineChains = [partialLatestLines, teamCompleteLines];
+
+    (supabaseAdmin.from as jest.Mock).mockImplementation((table: string) => {
+      if (table === "monthly_distribution_closes") {
+        return closeChain;
+      }
+      if (table === "org_memberships") {
+        return membershipChain;
+      }
+      if (table === "monthly_distribution_lines") {
+        return lineChains.shift() ?? createChain({ data: null, error: null });
+      }
+      return createChain({ data: null, error: null });
+    });
+
+    const result = await (service as any).loadRewardConfirmationMonthView(
+      "2026-05",
+      activeMembers[0],
+    );
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        month: "2026-05",
+        amount: 160000,
+        base_amount: 0,
+        result_amount: 160000,
+        rule_version: "3.2.0-simple",
+        source: "preview",
+      }),
+    );
+    expect(mockPreviewV32MonthlyDistribution).toHaveBeenCalledWith("2026-05");
+    expect(mockPreviewMonthlyDistribution).not.toHaveBeenCalled();
   });
 
   it("returns grounded QA output for correction questions", async () => {

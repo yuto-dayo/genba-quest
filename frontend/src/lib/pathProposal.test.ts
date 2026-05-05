@@ -13,7 +13,7 @@ describe("pathProposal helpers", () => {
                 month: "2026-05",
                 member_payouts: [{ member_id: "member-1" }],
             },
-        };
+        } as const;
 
         expect(isPathModuleProposal(proposal)).toBe(true);
         expect(getPathProposalContext(proposal)).toMatchObject({

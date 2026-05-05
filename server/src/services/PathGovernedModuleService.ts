@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "../lib/supabaseAdmin";
-import { DEV_AUTH_USERS } from "../config/devAuthUsers";
+import { DEV_AUTH_USERS, isDevAuthMode } from "../config/devAuthUsers";
 import { ActorRef, Proposal } from "./PolicyEngine";
 import {
   PATH_POLICY_BUNDLE_KEY,
@@ -12,6 +12,10 @@ import {
   hashStableRecord,
 } from "./PathPolicyBundleService";
 import { PathV31Service } from "./PathV31Service";
+import {
+  PATH_V32_SIMPLE_RULE_VERSION,
+  PathV32SimpleRewardService,
+} from "./PathV32SimpleRewardService";
 import {
   PathRewardAnalysisService,
   type RewardAnalysisContextBundle,
@@ -644,6 +648,9 @@ function readProposalAmount(payload: unknown): number | null {
 function distributeByWeights(total: number, weights: number[]): number[] {
   if (weights.length === 0) {
     return [];
+  }
+  if (total === 0) {
+    return weights.map(() => 0);
   }
 
   const sum = weights.reduce((acc, weight) => acc + weight, 0);
@@ -3754,30 +3761,53 @@ export class PathGovernedModuleService {
   ): Promise<RewardConfirmationMonthView> {
     const normalizedMonth = ensureMonth(month);
     const normalizedMemberId = ensureUuid(memberId, "INVALID_MEMBER_ID");
-    const { data: monthlyClose, error: monthlyCloseError } = await supabaseAdmin
+    const { data: monthlyCloses, error: monthlyCloseError } = await supabaseAdmin
       .from("monthly_distribution_closes")
       .select("*")
       .eq("org_id", this.orgId)
       .eq("month", normalizedMonth)
       .order("closed_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(12);
 
     if (monthlyCloseError) {
       throw new Error(`Failed to fetch reward confirmation close: ${monthlyCloseError.message}`);
     }
 
-    if (monthlyClose?.id) {
-      const { data: line, error: lineError } = await supabaseAdmin
+    const closeRows = ((monthlyCloses ?? []) as Array<Record<string, unknown>>).filter((row) =>
+      UUID_PATTERN.test(String(row.id ?? "")),
+    );
+
+    const activeMemberIds = await this.listActiveRewardConfirmationMemberIds();
+    for (const monthlyClose of closeRows) {
+      if (String(monthlyClose.path_rule_version ?? "") !== PATH_V32_SIMPLE_RULE_VERSION) {
+        continue;
+      }
+
+      const { data: lines, error: lineError } = await supabaseAdmin
         .from("monthly_distribution_lines")
         .select("*")
         .eq("org_id", this.orgId)
-        .eq("monthly_distribution_close_id", monthlyClose.id)
-        .eq("member_id", normalizedMemberId)
-        .maybeSingle();
+        .eq("monthly_distribution_close_id", monthlyClose.id as string);
 
       if (lineError) {
-        throw new Error(`Failed to fetch reward confirmation line: ${lineError.message}`);
+        throw new Error(`Failed to fetch reward confirmation lines: ${lineError.message}`);
+      }
+
+      const lineRows = ((lines ?? []) as Array<Record<string, unknown>>).filter((row) =>
+        UUID_PATTERN.test(String(row.member_id ?? "")),
+      );
+      const lineMemberIds = new Set(lineRows.map((row) => String(row.member_id ?? "")));
+      const isTeamComplete =
+        activeMemberIds.length === 0
+          ? lineRows.length > 0
+          : activeMemberIds.every((activeMemberId) => lineMemberIds.has(activeMemberId));
+      if (!isTeamComplete) {
+        continue;
+      }
+
+      const line = lineRows.find((row) => String(row.member_id ?? "") === normalizedMemberId) ?? null;
+      if (!line) {
+        continue;
       }
 
       return {
@@ -3802,25 +3832,57 @@ export class PathGovernedModuleService {
       };
     }
 
-    const preview = await new PathV31Service(this.orgId).previewMonthlyDistribution(normalizedMonth);
-    const member = preview.members.find((item) => item.member_id === normalizedMemberId) ?? null;
+    const v32Preview = await this.loadV32RewardConfirmationPreviewMonthView(normalizedMonth, normalizedMemberId);
+    return v32Preview;
+  }
+
+  private async loadV32RewardConfirmationPreviewMonthView(
+    month: string,
+    memberId: string,
+  ): Promise<RewardConfirmationMonthView> {
+    const preview = await new PathV32SimpleRewardService(this.orgId).previewMonthlyDistribution(month);
+    const member = preview.members.find((item) => item.member_id === memberId) ?? null;
+    const memberCorrection = normalizeMoney(Number(member?.member_correction_amount ?? 0));
+    const roundedAmount = normalizeMoney(Number(member?.rounded_amount ?? 0));
 
     return {
-      month: normalizedMonth,
-      amount: normalizeMoney(Number(member?.total_pay ?? 0)),
-      base_amount: normalizeMoney(Number(member?.floor_pay ?? 0)),
-      result_amount: normalizeMoney(Number(member?.result_pay ?? 0)),
-      correction_amount: normalizeMoney(Number(member?.correction ?? 0)),
-      floor_units: round4(Number(member?.floor_units ?? 0)),
-      raw_result_weight: round4(Number(member?.raw_result_weight ?? 0)),
-      boosted_result_weight: round4(Number(member?.boosted_result_weight ?? 0)),
+      month,
+      amount: normalizeMoney(Number(member?.total_pay_amount ?? 0)),
+      base_amount: 0,
+      result_amount: roundedAmount,
+      correction_amount: memberCorrection,
+      floor_units: round4(Number(member?.confirmed_work_days ?? 0)),
+      raw_result_weight: round4(Number(member?.monthly_weight_num ?? 0)),
+      boosted_result_weight: round4(Number(member?.monthly_weight_num ?? 0)),
       rule_version: preview.path_rule_version,
-      rule_fingerprint: preview.path_rule_fingerprint,
+      rule_fingerprint: hashStableRecord(preview.calculation_snapshot ?? {}),
       calculation_snapshot: isRecord(preview.calculation_snapshot)
         ? (preview.calculation_snapshot as Record<string, unknown>)
         : {},
       source: member ? "preview" : "empty",
     };
+  }
+
+  private async listActiveRewardConfirmationMemberIds(): Promise<string[]> {
+    const { data, error } = await supabaseAdmin
+      .from("org_memberships")
+      .select("user_id")
+      .eq("org_id", this.orgId)
+      .eq("status", "active");
+
+    if (error) {
+      throw new Error(`Failed to fetch active reward members: ${error.message}`);
+    }
+
+    const memberIds = ((data ?? []) as Array<Record<string, unknown>>)
+      .map((row) => String(row.user_id ?? ""))
+      .filter((value): value is string => UUID_PATTERN.test(value));
+
+    if (isDevAuthMode()) {
+      memberIds.push(...DEV_AUTH_USERS.map((user) => user.id));
+    }
+
+    return Array.from(new Set(memberIds));
   }
 
   private async buildRewardConfirmationSiteBreakdown(params: {
@@ -3836,6 +3898,14 @@ export class PathGovernedModuleService {
     if (siteCloses.length === 0) {
       return [];
     }
+    const calculationSystem = String(params.calculationSnapshot.calculation_system ?? "");
+    const isV32SimpleSnapshot = calculationSystem === "path_v32_simple";
+    const totalDistributableProfit = normalizeMoney(
+      siteCloses.reduce((sum, row) => sum + Number(row.distributable_profit ?? 0), 0),
+    );
+    const snapshotMemberRows = getRecordArray(params.calculationSnapshot.members);
+    const snapshotActiveMemberCount =
+      Number(params.calculationSnapshot.active_member_count ?? snapshotMemberRows.length) || 0;
 
     const siteIds = siteCloses
       .map((row) => (typeof row.site_id === "string" ? row.site_id : ""))
@@ -3864,16 +3934,24 @@ export class PathGovernedModuleService {
           shareSnapshot.find((row) => String(row.member_id ?? "") === params.memberId) ?? null;
         const explanationAllocation = allocationMap.get(siteId) ?? null;
         const distributableProfit = normalizeMoney(Number(close.distributable_profit ?? 0));
+        const v32SiteShare =
+          isV32SimpleSnapshot && totalDistributableProfit > 0
+            ? distributableProfit / totalDistributableProfit
+            : 0;
         const reflectedRatio = round4(
-          Number(memberShare?.result_share ?? explanationAllocation?.member_point_share ?? 0) || 0,
+          Number(memberShare?.result_share ?? explanationAllocation?.member_point_share ?? v32SiteShare) || 0,
         );
         const creditedUnits = round4(Number(memberShare?.credited_units ?? 0) || 0);
-        const rawContribution = round4(distributableProfit * reflectedRatio);
+        const rawContribution = round4(
+          isV32SimpleSnapshot && !memberShare && !explanationAllocation
+            ? distributableProfit
+            : distributableProfit * reflectedRatio,
+        );
         const correctionItem = params.correctionSummary.items.find(
           (item) => String(item.evidence_refs[0]?.site_id ?? "") === siteId,
         );
 
-        if (!memberShare && !explanationAllocation) {
+        if (!memberShare && !explanationAllocation && !isV32SimpleSnapshot) {
           return null;
         }
 
@@ -3885,7 +3963,7 @@ export class PathGovernedModuleService {
               ? explanationAllocation.site_name
               : `現場 ${siteId.slice(0, 8)}`),
           distributable_profit: distributableProfit,
-          participant_count: shareSnapshot.length,
+          participant_count: shareSnapshot.length || snapshotActiveMemberCount,
           reflected_ratio: reflectedRatio,
           credited_units: creditedUnits,
           raw_contribution: rawContribution,
@@ -3934,7 +4012,7 @@ export class PathGovernedModuleService {
           .filter((value) => value > 0)
           .sort((left, right) => right - left);
         const selfRank =
-          row.reflected_ratio > 0
+          rankedShares.length > 0 && row.reflected_ratio > 0
             ? rankedShares.findIndex((value) => value === row.reflected_ratio) + 1
             : null;
         const selfBand =
@@ -3951,24 +4029,35 @@ export class PathGovernedModuleService {
           row.participant_count >= 4
             ? rankedShares.map((value) => round4(value))
             : [];
-        const reasonLines = [
-          row.credited_units > 0
-            ? `最低保証に ${row.credited_units.toFixed(2)} ユニット分が反映されています。`
-            : "最低保証への反映はありません。",
-          row.reflected_ratio > 0
-            ? `成果反映ではこの現場の比重が ${Math.round(row.reflected_ratio * 100)}% でした。`
-            : "成果反映は小さめです。",
-          row.correction_item
-            ? `この月の補正が ${Math.abs(row.correction_item.amount).toLocaleString("ja-JP")}円あります。`
-            : "この現場に紐づく補正は確認されていません。",
-        ];
+        const reasonLines =
+          isV32SimpleSnapshot && row.share_snapshot.length === 0
+            ? [
+                "V3.2ではこの現場の利益がチーム共通の分配原資に入っています。",
+                "個別現場の担当比重ではなく、月の稼働日数とレベルで分配しています。",
+                row.correction_item
+                  ? `この月の補正が ${Math.abs(row.correction_item.amount).toLocaleString("ja-JP")}円あります。`
+                  : "この現場に紐づく補正は確認されていません。",
+              ]
+            : [
+                row.credited_units > 0
+                  ? `最低保証に ${row.credited_units.toFixed(2)} ユニット分が反映されています。`
+                  : "最低保証への反映はありません。",
+                row.reflected_ratio > 0
+                  ? `成果反映ではこの現場の比重が ${Math.round(row.reflected_ratio * 100)}% でした。`
+                  : "成果反映は小さめです。",
+                row.correction_item
+                  ? `この月の補正が ${Math.abs(row.correction_item.amount).toLocaleString("ja-JP")}円あります。`
+                  : "この現場に紐づく補正は確認されていません。",
+              ];
         return {
           site_id: row.site_id,
           site_name: row.site_name,
           amount: totalAmount,
           reflected_ratio: row.reflected_ratio,
           reason_summary:
-            row.distributable_profit > 0 && row.reflected_ratio > 0
+            isV32SimpleSnapshot && row.share_snapshot.length === 0
+              ? "現場利益がV3.2の共通原資に反映されています"
+              : row.distributable_profit > 0 && row.reflected_ratio > 0
               ? "現場利益と担当比重が配分に反映されています"
               : row.credited_units > 0
                 ? "稼働ユニットが最低保証に反映されています"
