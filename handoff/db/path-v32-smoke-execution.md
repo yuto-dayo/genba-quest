@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `承認直後に Money が一度エラー表示になったため、必要なら PATH proposal mutation 後の loadData エラー処理を改善する。リロード後は正常表示で queue なし`
+- NEXT_CMD: `必要なら実データのPATH pending proposalを用意してMoney詳細modalから承認/却下の実ブラウザ遷移を再確認する。DB smokeとAIチャットQAは別承認タスクとして残す。`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/db/path-v32-smoke-execution.md`
@@ -13,20 +13,20 @@
   - `sed -n '1,120p' docs/DESIGN_PHILOSOPHY.md`
 - STATE:
   - Branch: `master`
-  - Uncommitted: `117 files`
+  - Uncommitted: `7 files`
   - DB migrations: `latest local: none found`
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `b8448dc`
-  - Updated: `2026-05-05T15:27:56+0900`
+  - HEAD: `cf97c77`
+  - Updated: `2026-05-05T19:49:14+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
 
 <!-- HANDOFF_SESSION_EVENTS_START -->
-- 2026-05-05 15:22:18 +0900 — started by codex
-- 2026-05-05 15:28:30 +0900 — ended by codex
+- 2026-05-05 19:42:38 +0900 — started by codex
+- 2026-05-05 19:49:34 +0900 — ended by codex
 <!-- HANDOFF_SESSION_EVENTS_END -->
 
 ---
@@ -34,16 +34,16 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `承認直後に Money が一度エラー表示になったため、必要なら PATH proposal mutation 後の loadData エラー処理を改善する。リロード後は正常表示で queue なし`. Source: realtime
-- [H0001] Completed: 実ブラウザで Money の PATH queue から V3.2 proposal 詳細 modal を開き、承認操作を実行。proposal d6054b8d... は executed になり、pending/PATH queue から消えることを確認
-- [H0001] Remaining: 承認直後に Money が一度エラー表示になったため、必要なら PATH proposal mutation 後の loadData エラー処理を改善する。リロード後は正常表示で queue なし
+- [focus] NEXT_CMD: `必要なら実データのPATH pending proposalを用意してMoney詳細modalから承認/却下の実ブラウザ遷移を再確認する。DB smokeとAIチャットQAは別承認タスクとして残す。`. Source: realtime
+- [H0001] Completed: MoneyのPATH proposal操作エラーをページ全体のload errorから分離。承認/実行後のbackground refresh失敗はページを維持し、承認API自体の失敗もProposal詳細modal内のalertに表示するように修正。回帰テストを追加。
+- [H0001] Remaining: 必要なら実データのPATH pending proposalを用意してMoney詳細modalから承認/却下の実ブラウザ遷移を再確認する。DB smokeとAIチャットQAは別承認タスクとして残す。
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
-- [H0001] Auto-captured decision: 実ブラウザで Money の PATH queue から V3.2 proposal 詳細 modal を開き、承認操作を実行。proposal d6054b8d... は executed になり、pending/PATH queue から消えることを確認
+- [H0001] Auto-captured decision: MoneyのPATH proposal操作エラーをページ全体のload errorから分離。承認/実行後のbackground refresh失敗はページを維持し、承認API自体の失敗もProposal詳細modal内のalertに表示するように修正。回帰テストを追加。
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
@@ -53,7 +53,7 @@
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
-- [H0001] 承認直後に Money が一度エラー表示になったため、必要なら PATH proposal mutation 後の loadData エラー処理を改善する。リロード後は正常表示で queue なし
+- [H0001] 必要なら実データのPATH pending proposalを用意してMoney詳細modalから承認/却下の実ブラウザ遷移を再確認する。DB smokeとAIチャットQAは別承認タスクとして残す。
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
@@ -75,7 +75,7 @@ Branch: master
 Phase: A-0/A-1
 ```
 
-> [carryover] Working tree was dirty at session start (117 files). Prior session may have unfinished work — verify NEXT_CMD before executing.
+> [carryover] Working tree was dirty at session start (8 files). Prior session may have unfinished work — verify NEXT_CMD before executing.
 
 1. `docs/DESIGN_PHILOSOPHY.md` の冒頭を確認
 2. このファイルを更新しながら実装を進める
@@ -91,19 +91,21 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
-- [x] 実ブラウザで Money の PATH queue から V3.2 proposal 詳細 modal を開き、承認操作を実行。proposal d6054b8d... は executed になり、pending/PATH queue から消えることを確認
+- [x] MoneyのPATH proposal操作エラーをページ全体のload errorから分離。承認/実行後のbackground refresh失敗はページを維持し、承認API自体の失敗もProposal詳細modal内のalertに表示するように修正。回帰テストを追加。
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: 承認直後に Money が一度エラー表示になったため、必要なら PATH proposal mutation 後の loadData エラー処理を改善する。リロード後は正常表示で queue なし
+- [ ] **P0**: 必要なら実データのPATH pending proposalを用意してMoney詳細modalから承認/却下の実ブラウザ遷移を再確認する。DB smokeとAIチャットQAは別承認タスクとして残す。
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
-| `(not recorded)` | No file list provided (use --file "path - semantic description") |
+| `frontend/src/pages/Money.test.tsx` | PATH承認後background refresh失敗と承認API失敗の回帰テストを追加 |
+| `frontend/src/components/ProposalDetailModal.tsx` | 任意のactionErrorをmodal内alertとして表示 |
+| `frontend/src/pages/Money.tsx` | PATH proposal操作エラーをpathProposalErrorへ分離し、queue/background refreshは非致命扱いで再同期 |
 ---
 
 ## 6. Locked Files（編集中 - 他エージェント触らない）
@@ -121,10 +123,10 @@ cd frontend && npx eslint src/
 
 | Check | Result | Notes |
 | ----- | ------ | ----- |
-| server typecheck | SKIP | not run yet |
-| frontend typecheck | SKIP | not run yet |
-| lint | SKIP | not run yet |
-| test | SKIP | optional |
+| server typecheck | PASS | run by session-end (2026-05-05 19:49) |
+| frontend typecheck | PASS | run by session-end (2026-05-05 19:49) |
+| lint | PASS | frontend eslint src/ at 2026-05-05 19:49 |
+| test | PASS | server npm test -- --runInBand at 2026-05-05 19:49 |
 
 ---
 
@@ -150,18 +152,20 @@ cd frontend && npx eslint src/
 
 ## 11. Incremental Updates
 
-### 2026-05-05 15:27:56 +0900
+### 2026-05-05 19:49:14 +0900
 
 - Entry-ID: `H0001`
 - Completed:
-  - [x] 実ブラウザで Money の PATH queue から V3.2 proposal 詳細 modal を開き、承認操作を実行。proposal d6054b8d... は executed になり、pending/PATH queue から消えることを確認
+  - [x] MoneyのPATH proposal操作エラーをページ全体のload errorから分離。承認/実行後のbackground refresh失敗はページを維持し、承認API自体の失敗もProposal詳細modal内のalertに表示するように修正。回帰テストを追加。
 - Remaining:
-  - [ ] 承認直後に Money が一度エラー表示になったため、必要なら PATH proposal mutation 後の loadData エラー処理を改善する。リロード後は正常表示で queue なし
+  - [ ] 必要なら実データのPATH pending proposalを用意してMoney詳細modalから承認/却下の実ブラウザ遷移を再確認する。DB smokeとAIチャットQAは別承認タスクとして残す。
 - Changed Files:
-  - No file list provided (use --file "path - semantic description")
+  - `frontend/src/pages/Money.tsx` - PATH proposal操作エラーをpathProposalErrorへ分離し、queue/background refreshは非致命扱いで再同期
+  - `frontend/src/components/ProposalDetailModal.tsx` - 任意のactionErrorをmodal内alertとして表示
+  - `frontend/src/pages/Money.test.tsx` - PATH承認後background refresh失敗と承認API失敗の回帰テストを追加
 - Working Context:
-  - Auto-captured decision: 実ブラウザで Money の PATH queue から V3.2 proposal 詳細 modal を開き、承認操作を実行。proposal d6054b8d... は executed になり、pending/PATH queue から消えることを確認
+  - Auto-captured decision: MoneyのPATH proposal操作エラーをページ全体のload errorから分離。承認/実行後のbackground refresh失敗はページを維持し、承認API自体の失敗もProposal詳細modal内のalertに表示するように修正。回帰テストを追加。
 - Validation:
-  - `Browser: localhost:5173/money queue card displayed => modal opened with PATH context and approve button; approve click => API status executed with result_event_id c6ff57b0...; /api/v1/path/module/pending-proposals => []; browser reload Money => errorVisible=0, pathQueueVisible=0, targetVisible=0`
+  - `frontend Money.test.tsx 2 tests PASS; frontend Money/Today/Communications targeted tests 7 tests PASS; frontend targeted lint PASS; frontend npx tsc --noEmit PASS; git diff --check PASS`
 - Landmines:
   - No new landmines reported in this chunk.

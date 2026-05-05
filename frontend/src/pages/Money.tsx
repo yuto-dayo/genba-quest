@@ -169,6 +169,7 @@ export function Money() {
     const [pathPendingProposals, setPathPendingProposals] = useState<ProposalRecord[]>([]);
     const [selectedPathProposal, setSelectedPathProposal] = useState<ProposalRecord | null>(null);
     const [pathProposalActing, setPathProposalActing] = useState(false);
+    const [pathProposalError, setPathProposalError] = useState<string | null>(null);
 
     // フィルター関連（統合型）
     const [filters, setFilters] = useState<SearchFilters>(defaultFilters);
@@ -270,6 +271,7 @@ export function Money() {
         const next = new URLSearchParams(searchParams);
         next.set("proposal", proposal.id);
         setSearchParams(next, { replace: false });
+        setPathProposalError(null);
         setSelectedPathProposal(proposal);
     };
 
@@ -280,7 +282,7 @@ export function Money() {
     ) => {
         try {
             setPathProposalActing(true);
-            setError(null);
+            setPathProposalError(null);
 
             if (action === "approve") {
                 await approveProposal(proposalId, payload);
@@ -304,7 +306,13 @@ export function Money() {
             }
             void loadData({ keepCurrentView: true, suppressPageError: true });
         } catch (err: unknown) {
-            setError(getErrorMessage(err));
+            setPathProposalError(getErrorMessage(err));
+            try {
+                await refreshPathPendingProposals();
+            } catch (refreshErr) {
+                console.error("[Money] PATH queue refresh failed after mutation error:", refreshErr);
+            }
+            void loadData({ keepCurrentView: true, suppressPageError: true });
         } finally {
             setPathProposalActing(false);
         }
@@ -1018,6 +1026,7 @@ export function Money() {
                         proposal={selectedPathProposal}
                         onClose={() => {
                             setSelectedPathProposal(null);
+                            setPathProposalError(null);
                             clearProposalSearchParam();
                         }}
                         onApprove={(proposalId, reason) => handlePathProposalMutation(proposalId, "approve", reason)}
@@ -1025,6 +1034,7 @@ export function Money() {
                         onInstruct={(proposalId, instruction) => handlePathProposalMutation(proposalId, "instruct", instruction)}
                         onExecute={(proposalId) => handlePathProposalMutation(proposalId, "execute")}
                         isActing={pathProposalActing}
+                        actionError={pathProposalError}
                     />
                 )}
             </AnimatePresence>

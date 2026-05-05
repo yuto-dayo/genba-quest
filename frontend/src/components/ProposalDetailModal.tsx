@@ -14,6 +14,7 @@ interface ProposalDetailModalProps {
     onInstruct: (proposalId: string, instruction: string) => Promise<void>;
     onExecute: (proposalId: string) => Promise<void>;
     isActing: boolean;
+    actionError?: string | null;
 }
 
 const PROPOSAL_TYPE_LABELS: Record<string, string> = {
@@ -174,6 +175,7 @@ export function ProposalDetailModal({
     onInstruct,
     onExecute,
     isActing,
+    actionError,
 }: ProposalDetailModalProps) {
     const [reason, setReason] = useState("");
     const [showFullBody, setShowFullBody] = useState(false);
@@ -523,6 +525,12 @@ export function ProposalDetailModal({
                                 承認
                             </button>
                         </div>
+                        {actionError && (
+                            <div className={`${styles.resultInfo} ${styles.resultRejected}`} role="alert">
+                                <XCircle size={16} aria-hidden="true" />
+                                <span>{actionError}</span>
+                            </div>
+                        )}
                     </section>
                 )}
 
@@ -540,6 +548,12 @@ export function ProposalDetailModal({
                                 実行
                             </button>
                         </div>
+                        {actionError && (
+                            <div className={`${styles.resultInfo} ${styles.resultRejected}`} role="alert">
+                                <XCircle size={16} aria-hidden="true" />
+                                <span>{actionError}</span>
+                            </div>
+                        )}
                     </section>
                 )}
             </motion.div>
