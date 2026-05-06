@@ -16,8 +16,10 @@ import { CalendarScheduleModal } from '../components/calendar/CalendarScheduleMo
 import { useDraftAssignmentCreates } from '../hooks/useDraftAssignmentCreates';
 import {
     commitAssignmentCreateDrafts,
+    deletePersonalSchedule,
     fetchMembers,
     fetchOrgContext,
+    rejectProposal,
     submitLeaveRequestProposal,
     type Member,
 } from '../lib/api';
@@ -469,8 +471,36 @@ export function Calendar() {
         }
     };
 
-    const clearAvailabilityToken = () => {
+    const clearAvailabilityToken = async () => {
         if (!visibleSelectedDate) {
+            return;
+        }
+
+        if (isAvailabilitySubmitting) {
+            return;
+        }
+
+        if (selectedLeaveSchedule) {
+            setIsAvailabilitySubmitting(true);
+            setAvailabilityMessage(null);
+
+            try {
+                if (selectedLeaveSchedule.source === 'personal_schedule') {
+                    await deletePersonalSchedule(selectedLeaveSchedule.id);
+                } else if (selectedLeaveSchedule.status === 'pending') {
+                    await rejectProposal(selectedLeaveSchedule.id, '休みを解除');
+                } else {
+                    throw new Error('Approved leave proposal cannot be cleared before execution');
+                }
+
+                await reloadAssignments();
+                setAvailabilityMessage('休みを解除しました。');
+            } catch (error) {
+                console.error('Failed to clear leave request:', error);
+                setAvailabilityMessage('休みを解除できませんでした。もう一度お試しください。');
+            } finally {
+                setIsAvailabilitySubmitting(false);
+            }
             return;
         }
 
@@ -670,9 +700,10 @@ export function Calendar() {
                             <button
                                 type="button"
                                 className={styles.availabilityTokenButton}
-                                onClick={clearAvailabilityToken}
+                                onClick={() => void clearAvailabilityToken()}
+                                disabled={isAvailabilitySubmitting}
                             >
-                                解除
+                                {isAvailabilitySubmitting && selectedLeaveSchedule ? '解除中' : '解除'}
                             </button>
                         </div>
 

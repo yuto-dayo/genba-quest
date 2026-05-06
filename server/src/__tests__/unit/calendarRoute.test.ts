@@ -31,7 +31,7 @@ function createMockRes(): MockRes {
     return res;
 }
 
-function getHandler(method: "get", path: string) {
+function getHandler(method: "get" | "delete", path: string) {
     const layer = (calendarRouter as any).stack.find(
         (entry: any) => entry.route?.path === path && entry.route?.methods?.[method]
     );
@@ -45,6 +45,7 @@ function getHandler(method: "get", path: string) {
 
 describe("calendar router", () => {
     const personalSchedulesHandler = getHandler("get", "/personal-schedules");
+    const deletePersonalScheduleHandler = getHandler("delete", "/personal-schedules/:id");
     const mockFrom = (supabaseAdmin as unknown as { from: jest.Mock }).from;
     const mockResolveMembership = resolveActiveOrgMembership as jest.Mock;
     const mockListOrgMembers = listOrgMembers as jest.Mock;
@@ -98,5 +99,25 @@ describe("calendar router", () => {
         expect(res.status).toHaveBeenCalledWith(400);
         expect(res.json).toHaveBeenCalledWith({ error: "from must be before or equal to to" });
         expect(mockFrom).not.toHaveBeenCalled();
+    });
+
+    it("DELETE /personal-schedules/:id removes only the current member schedule", async () => {
+        const deleteChain = createChain({
+            data: { id: "schedule-1" },
+            error: null,
+        });
+        mockFrom.mockReturnValue(deleteChain);
+
+        const req = {
+            params: { id: "schedule-1" },
+        } as any;
+        const res = createMockRes();
+
+        await deletePersonalScheduleHandler(req, res);
+
+        expect(deleteChain.delete).toHaveBeenCalled();
+        expect(deleteChain.eq).toHaveBeenCalledWith("id", "schedule-1");
+        expect(deleteChain.eq).toHaveBeenCalledWith("user_id", "member-1");
+        expect(res.json).toHaveBeenCalledWith({ ok: true, id: "schedule-1" });
     });
 });

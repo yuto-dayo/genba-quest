@@ -553,6 +553,11 @@ export const fetchPersonalSchedules = (params: {
     return api<PersonalSchedule[]>(`/api/v1/calendar/personal-schedules?${searchParams.toString()}`);
 };
 
+export const deletePersonalSchedule = (scheduleId: string) =>
+    api<{ ok: boolean; id: string }>(`/api/v1/calendar/personal-schedules/${scheduleId}`, {
+        method: "DELETE",
+    });
+
 export interface LeaveRequestProposalInput {
     user_id?: string;
     date: string;

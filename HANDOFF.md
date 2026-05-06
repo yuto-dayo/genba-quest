@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `本番へデプロイして、スマホの genba-quest.onrender.com で caad.yuto@gmail.com の Today が表示されることを確認`
+- NEXT_CMD: `明示stageしてcommit後、origin/codex/production-loginへpush`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/HANDOFF.md`
@@ -18,12 +18,14 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
+  - HEAD: `e193319`
+  - Updated: `2026-05-06T14:43:12+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
 
 <!-- HANDOFF_SESSION_EVENTS_START -->
-- 2026-05-06 14:36:40 +0900 — started by codex
+- 2026-05-06 14:43:02 +0900 — started by codex
 <!-- HANDOFF_SESSION_EVENTS_END -->
 
 ---
@@ -31,32 +33,33 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [pending] No completed chunk recorded yet. Source: N/A
-- [pending] Use scripts/session/session-update.sh after each meaningful chunk. Source: N/A
-- [pending] NEXT_CMD in Quick Resume is the current executable action. Source: N/A
+- [focus] NEXT_CMD: `明示stageしてcommit後、origin/codex/production-loginへpush`. Source: realtime
+- [H0001] Completed: 予定ページの休み解除修正をpush用に整理。今回のコミット対象はCalendar/API/calendar route/unit tests/HANDOFFのみ
+- [H0001] Remaining: 明示stageしてcommit後、origin/codex/production-loginへpush
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
-- [pending] No decision context recorded yet. Source: N/A
+- [H0001] Auto-captured decision: 予定ページの休み解除修正をpush用に整理。今回のコミット対象はCalendar/API/calendar route/unit tests/HANDOFFのみ
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [none] No landmines recorded. Source: N/A
+- [H0001] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
-- [pending] No unresolved thread recorded yet. Source: N/A
+- [H0001] 明示stageしてcommit後、origin/codex/production-loginへpush
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
+- current_l3_entries: `1`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -87,40 +90,28 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
-- [ ] まだ未着手
-
+- [x] 予定ページの休み解除修正をpush用に整理。今回のコミット対象はCalendar/API/calendar route/unit tests/HANDOFFのみ
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: 本番へデプロイして、スマホの genba-quest.onrender.com で caad.yuto@gmail.com の Today が表示されることを確認
-- [ ] **P1**: 次の優先タスクを記載
-
+- [ ] **P0**: 明示stageしてcommit後、origin/codex/production-loginへpush
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
-| `HANDOFF.md` | [dirty: M] |
-| `frontend/src/App.test.tsx` | [dirty: M] |
-| `frontend/src/App.tsx` | [dirty: M] |
-| `handoff/beta-mvp-commit-finalize.md` | [dirty: M] |
-| `handoff/deploy/production.md` | [dirty: M] |
-| `handoff/frontend/mobile-mvp.md` | [dirty: M] |
-| `handoff/server.md` | [dirty: M] |
-| `server/src/__tests__/unit/pathModuleRoute.test.ts` | [dirty: M] |
-| `server/src/routes/pathModule.ts` | [dirty: M] |
-| `server/src/services/PathV31Service.ts` | [dirty: M] |
-| `.playwright-cli/` | [dirty: ??] |
-| `output/` | [dirty: ??] |
-
+| `server/src/__tests__/unit/calendarRoute.test.ts` | delete endpoint test |
+| `frontend/src/pages/Calendar.test.tsx` | 解除UI tests |
+| `server/src/routes/calendar.ts` | 本人schedule削除endpoint |
+| `frontend/src/lib/api.ts` | personal schedule削除API client |
+| `frontend/src/pages/Calendar.tsx` | 休み解除UIの保存済み/提案中状態接続 |
 ---
 
 ## 6. Locked Files（編集中 - 他エージェント触らない）
 
 > なし
-
 ---
 
 ## 7. Quality Gate
@@ -150,8 +141,7 @@ cd frontend && npx eslint src/
 
 ## 9. Risks / Blockers
 
-- `docs/DESIGN_PHILOSOPHY.md` 未参照で実装すると、Proposal中心設計から逸脱するリスクがある
-
+- 新規の blocker は未記録
 ---
 
 ## 10. References
@@ -162,3 +152,23 @@ cd frontend && npx eslint src/
 ---
 
 ## 11. Incremental Updates
+
+### 2026-05-06 14:43:12 +0900
+
+- Entry-ID: `H0001`
+- Completed:
+  - [x] 予定ページの休み解除修正をpush用に整理。今回のコミット対象はCalendar/API/calendar route/unit tests/HANDOFFのみ
+- Remaining:
+  - [ ] 明示stageしてcommit後、origin/codex/production-loginへpush
+- Changed Files:
+  - `frontend/src/pages/Calendar.tsx` - 休み解除UIの保存済み/提案中状態接続
+  - `frontend/src/lib/api.ts` - personal schedule削除API client
+  - `server/src/routes/calendar.ts` - 本人schedule削除endpoint
+  - `frontend/src/pages/Calendar.test.tsx` - 解除UI tests
+  - `server/src/__tests__/unit/calendarRoute.test.ts` - delete endpoint test
+- Working Context:
+  - Auto-captured decision: 予定ページの休み解除修正をpush用に整理。今回のコミット対象はCalendar/API/calendar route/unit tests/HANDOFFのみ
+- Validation:
+  - `前セッション: frontend Calendar.test.tsx/server calendarRoute.test.ts/tsc/eslint => PASS`
+- Landmines:
+  - No new landmines reported in this chunk.

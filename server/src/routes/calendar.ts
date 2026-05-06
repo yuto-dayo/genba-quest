@@ -98,4 +98,47 @@ router.get("/personal-schedules", async (req: AuthenticatedRequest, res: Respons
     }
 });
 
+/**
+ * DELETE /api/v1/calendar/personal-schedules/:id
+ *
+ * Minimal self-service undo for the personal calendar cockpit. Proposal history
+ * remains intact; this removes only the current user's projection row.
+ */
+router.delete("/personal-schedules/:id", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const scheduleId = req.params.id;
+        if (!scheduleId) {
+            res.status(400).json({ error: "schedule id is required" });
+            return;
+        }
+
+        const membership = await resolveActiveOrgMembership(req);
+        const { data, error } = await supabaseAdmin
+            .from("personal_schedules")
+            .delete()
+            .eq("id", scheduleId)
+            .eq("user_id", membership.user_id)
+            .select("id")
+            .maybeSingle();
+
+        if (error) {
+            throw error;
+        }
+
+        if (!data) {
+            res.status(404).json({ error: "Personal schedule not found" });
+            return;
+        }
+
+        res.json({ ok: true, id: data.id });
+    } catch (err) {
+        if (respondMappedError(res, err)) {
+            return;
+        }
+
+        console.error("Calendar personal schedule delete error:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
 export default router;

@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement, type ComponentProps, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Calendar } from "./Calendar";
@@ -7,10 +7,24 @@ import { Calendar } from "./Calendar";
 const fetchMembers = vi.fn();
 const fetchOrgContext = vi.fn();
 const commitAssignmentCreateDrafts = vi.fn();
+const deletePersonalSchedule = vi.fn();
+const rejectProposal = vi.fn();
 const submitLeaveRequestProposal = vi.fn();
 const getSession = vi.fn();
 const reloadAssignments = vi.fn();
 const selectDate = vi.fn();
+
+const baseCalendarDay = {
+    date: "2026-04-25",
+    day: 25,
+    assignments: [],
+    personal_schedules: [],
+    isToday: false,
+    isCurrentMonth: true,
+    isWeekend: true,
+};
+let mockCalendarDays = [baseCalendarDay];
+let mockSelectedDate = baseCalendarDay;
 
 vi.mock("framer-motion", () => ({
     motion: new Proxy(
@@ -71,27 +85,9 @@ vi.mock("../hooks/useCalendar", () => ({
     useCalendar: () => ({
         year: 2026,
         month: 4,
-        calendarDays: [
-            {
-                date: "2026-04-25",
-                day: 25,
-                assignments: [],
-                personal_schedules: [],
-                isToday: false,
-                isCurrentMonth: true,
-                isWeekend: true,
-            },
-        ],
+        calendarDays: mockCalendarDays,
         annualRestDaysByUser: {},
-        selectedDate: {
-            date: "2026-04-25",
-            day: 25,
-            assignments: [],
-            personal_schedules: [],
-            isToday: false,
-            isCurrentMonth: true,
-            isWeekend: true,
-        },
+        selectedDate: mockSelectedDate,
         sites: [],
         nextMonth: vi.fn(),
         prevMonth: vi.fn(),
@@ -105,8 +101,10 @@ vi.mock("../lib/api", async () => {
     return {
         ...actual,
         commitAssignmentCreateDrafts: (...args: unknown[]) => commitAssignmentCreateDrafts(...args),
+        deletePersonalSchedule: (...args: unknown[]) => deletePersonalSchedule(...args),
         fetchMembers: (...args: unknown[]) => fetchMembers(...args),
         fetchOrgContext: (...args: unknown[]) => fetchOrgContext(...args),
+        rejectProposal: (...args: unknown[]) => rejectProposal(...args),
         submitLeaveRequestProposal: (...args: unknown[]) => submitLeaveRequestProposal(...args),
     };
 });
@@ -122,8 +120,12 @@ vi.mock("../lib/supabase", () => ({
 describe("Calendar page", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        mockCalendarDays = [baseCalendarDay];
+        mockSelectedDate = baseCalendarDay;
         fetchMembers.mockResolvedValue([]);
         fetchOrgContext.mockResolvedValue({ membership: { user_id: "user-1" } });
+        deletePersonalSchedule.mockResolvedValue({ ok: true, id: "schedule-1" });
+        rejectProposal.mockResolvedValue({ id: "proposal-1" });
         getSession.mockResolvedValue({
             data: {
                 session: {
@@ -193,5 +195,82 @@ describe("Calendar page", () => {
         fireEvent.click(screen.getByRole("button", { name: "予定を入れる" }));
 
         expect(screen.getByRole("dialog")).toHaveTextContent("予定を入れる 2026-04-25");
+    });
+
+    it("clears a persisted leave schedule from the personal availability panel", async () => {
+        const dayWithLeave = {
+            ...baseCalendarDay,
+            personal_schedules: [
+                {
+                    id: "schedule-1",
+                    user_id: "user-1",
+                    start_date: "2026-04-25",
+                    end_date: "2026-04-25",
+                    type: "vacation",
+                    title: "休み",
+                    blocks_assignment: true,
+                    visibility: "organization",
+                    reason: null,
+                    approved: true,
+                    status: "approved",
+                    source: "personal_schedule",
+                },
+            ],
+        };
+        mockCalendarDays = [dayWithLeave];
+        mockSelectedDate = dayWithLeave;
+
+        render(<Calendar />);
+
+        fireEvent.click(screen.getByRole("button", { name: "自分" }));
+        await waitFor(() => {
+            expect(screen.getByRole("button", { name: "休み" })).toBeDisabled();
+        });
+
+        fireEvent.click(screen.getByRole("button", { name: "解除" }));
+
+        await waitFor(() => {
+            expect(deletePersonalSchedule).toHaveBeenCalledWith("schedule-1");
+        });
+        expect(reloadAssignments).toHaveBeenCalled();
+        expect(await screen.findByText("休みを解除しました。")).toBeInTheDocument();
+    });
+
+    it("rejects a pending leave proposal when clearing it", async () => {
+        const dayWithPendingLeave = {
+            ...baseCalendarDay,
+            personal_schedules: [
+                {
+                    id: "proposal-1",
+                    user_id: "user-1",
+                    start_date: "2026-04-25",
+                    end_date: "2026-04-25",
+                    type: "vacation",
+                    title: "休み",
+                    blocks_assignment: true,
+                    visibility: "organization",
+                    reason: null,
+                    approved: false,
+                    status: "pending",
+                    source: "proposal",
+                },
+            ],
+        };
+        mockCalendarDays = [dayWithPendingLeave];
+        mockSelectedDate = dayWithPendingLeave;
+
+        render(<Calendar />);
+
+        fireEvent.click(screen.getByRole("button", { name: "自分" }));
+        await waitFor(() => {
+            expect(screen.getByRole("button", { name: "休み" })).toBeDisabled();
+        });
+
+        fireEvent.click(screen.getByRole("button", { name: "解除" }));
+
+        await waitFor(() => {
+            expect(rejectProposal).toHaveBeenCalledWith("proposal-1", "休みを解除");
+        });
+        expect(deletePersonalSchedule).not.toHaveBeenCalled();
     });
 });
