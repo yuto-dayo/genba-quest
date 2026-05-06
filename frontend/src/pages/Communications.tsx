@@ -2,16 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useSearchParams } from "react-router-dom";
 import {
-    Activity,
     AlertCircle,
     ArrowRight,
-    BarChart3,
     Bot,
     CalendarClock,
     ChevronRight,
-    ClipboardList,
     ClipboardPaste,
-    Filter,
     HardHat,
     Mail,
     MapPinned,
@@ -19,7 +15,6 @@ import {
     Phone,
     Plus,
     RefreshCw,
-    Search,
     SendHorizontal,
     Sparkles,
     UserCircle2,
@@ -30,7 +25,6 @@ import {
     executeProposal,
     fetchCommunicationContactDetail,
     fetchCommunicationContacts,
-    fetchCommunicationInsightsSummary,
     fetchMembers,
     fetchSites,
     instructProposal,
@@ -43,7 +37,6 @@ import {
     type CommunicationContactStatusDetail,
     type CommunicationContactStatusRecord,
     type CommunicationDirection,
-    type CommunicationInsightsSummary,
     type Member,
     type ProposalRecord,
     type Site,
@@ -93,7 +86,6 @@ const DIRECTION_LABELS: Record<CommunicationDirection, string> = {
     internal: "内部",
 };
 
-type TabId = "board" | "analyze";
 type CommunicationEvidenceType = "external_original" | "team_sent_copy" | "oral_note";
 type CommunicationEntryMode = "customer_paste" | "team_paste" | "phone_note" | "site_conversation";
 
@@ -181,10 +173,6 @@ function formatDateOnly(value?: string | null): string {
     });
 }
 
-function formatPercent(value: number): string {
-    return `${Math.round(value * 100)}%`;
-}
-
 function getProposalStatusLabel(value: ProposalRecord["status"]): string {
     const labels: Record<ProposalRecord["status"], string> = {
         draft: "下書き",
@@ -212,11 +200,10 @@ function BoardHeader({
             animate={{ opacity: 1, y: 0 }}
         >
             <div>
-                <p className={styles.eyebrow}>Relationship Operations</p>
-                <h1 className={styles.pageTitle}>連絡</h1>
+                <p className={styles.eyebrow}>Messenger Ledger</p>
+                <h1 className={styles.pageTitle}>連絡台帳</h1>
                 <p className={styles.pageSubtitle}>
-                    今どこで止まっているかを共有して、次に何をやるかを決める。
-                    会話ログは根拠として残し、一覧は判断に必要な情報だけを先に出す。
+                    相手の原文、こちらの送信文、電話、現場会話を会話の流れで残します。
                 </p>
             </div>
 
@@ -231,161 +218,6 @@ function BoardHeader({
                 </button>
             </div>
         </motion.header>
-    );
-}
-
-function CommunicationKpiStrip({ contacts }: { contacts: CommunicationContactStatusRecord[] }) {
-    const metrics = useMemo(() => {
-        const openContacts = contacts.filter((contact) => contact.status !== "resolved");
-        return [
-            {
-                id: "attention",
-                label: "要対応",
-                value: openContacts.length,
-                tone: "default",
-            },
-            {
-                id: "overdue",
-                label: "期限超過",
-                value: openContacts.filter((contact) => contact.status === "overdue").length,
-                tone: "danger",
-            },
-            {
-                id: "missing-action",
-                label: "次なし",
-                value: openContacts.filter((contact) => contact.risk_flags.includes("no_next_action")).length,
-                tone: "warning",
-            },
-            {
-                id: "proposal-stale",
-                label: "提案停滞",
-                value: openContacts.filter((contact) => contact.risk_flags.includes("pending_proposal_stale")).length,
-                tone: "danger",
-            },
-            {
-                id: "no-owner",
-                label: "担当なし",
-                value: openContacts.filter((contact) => contact.risk_flags.includes("no_owner")).length,
-                tone: "warning",
-            },
-        ];
-    }, [contacts]);
-
-    return (
-        <section className={styles.kpiStrip}>
-            {metrics.map((metric) => (
-                <article
-                    key={metric.id}
-                    className={`${styles.kpiCard} ${
-                        metric.tone === "danger"
-                            ? styles.kpiCardDanger
-                            : metric.tone === "warning"
-                              ? styles.kpiCardWarning
-                              : ""
-                    }`}
-                >
-                    <span>{metric.label}</span>
-                    <strong>{metric.value}</strong>
-                </article>
-            ))}
-        </section>
-    );
-}
-
-function CommunicationContactFilters({
-    query,
-    onQueryChange,
-    statusFilters,
-    toggleStatus,
-    riskFilters,
-    toggleRisk,
-    ownerFilter,
-    setOwnerFilter,
-    includeResolved,
-    setIncludeResolved,
-    members,
-}: {
-    query: string;
-    onQueryChange: (value: string) => void;
-    statusFilters: CommunicationContactStatus[];
-    toggleStatus: (status: CommunicationContactStatus) => void;
-    riskFilters: CommunicationContactRiskFlag[];
-    toggleRisk: (risk: CommunicationContactRiskFlag) => void;
-    ownerFilter: string;
-    setOwnerFilter: (value: string) => void;
-    includeResolved: boolean;
-    setIncludeResolved: (value: boolean) => void;
-    members: Member[];
-}) {
-    return (
-        <section className={styles.filterCard}>
-            <div className={styles.searchRow}>
-                <label className={styles.searchField}>
-                    <Search size={16} />
-                    <input
-                        value={query}
-                        onChange={(event) => onQueryChange(event.target.value)}
-                        placeholder="会社名・相手・担当で探す"
-                    />
-                </label>
-                <label className={styles.ownerSelect}>
-                    <Filter size={16} />
-                    <select value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)}>
-                        <option value="">担当すべて</option>
-                        {members.map((member) => (
-                            <option key={member.id} value={member.id}>
-                                {member.full_name || member.username || member.id}
-                            </option>
-                        ))}
-                    </select>
-                </label>
-            </div>
-
-            <div className={styles.filterGroup}>
-                <span>状態</span>
-                <div className={styles.chipRow}>
-                    {(Object.keys(BOARD_STATUS_LABELS) as CommunicationContactStatus[]).map((status) => (
-                        <button
-                            key={status}
-                            type="button"
-                            className={`${styles.filterChip} ${
-                                statusFilters.includes(status) ? styles.filterChipActive : ""
-                            }`}
-                            onClick={() => toggleStatus(status)}
-                        >
-                            {BOARD_STATUS_LABELS[status]}
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            <div className={styles.filterGroup}>
-                <span>リスク</span>
-                <div className={styles.chipRow}>
-                    {(Object.keys(RISK_LABELS) as CommunicationContactRiskFlag[]).map((risk) => (
-                        <button
-                            key={risk}
-                            type="button"
-                            className={`${styles.filterChip} ${
-                                riskFilters.includes(risk) ? styles.filterChipActive : ""
-                            }`}
-                            onClick={() => toggleRisk(risk)}
-                        >
-                            {RISK_LABELS[risk]}
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            <label className={styles.checkboxRow}>
-                <input
-                    type="checkbox"
-                    checked={includeResolved}
-                    onChange={(event) => setIncludeResolved(event.target.checked)}
-                />
-                完了も見る
-            </label>
-        </section>
     );
 }
 
@@ -456,7 +288,7 @@ function CommunicationContactRow({
                     )}
                 </div>
                 <div className={styles.countMeta}>
-                    <span>期限 {formatDateOnly(contact.next_action_due_date)}</span>
+                    <span>{contact.next_action_due_date ? `期限 ${formatDateOnly(contact.next_action_due_date)}` : "期限なし"}</span>
                     <span>提案 {contact.in_flight_proposal_count}件</span>
                 </div>
             </div>
@@ -505,150 +337,9 @@ function CommunicationTimelineLog({ log }: { log: CommunicationContactRecentLogR
     );
 }
 
-function AnalyzeTab({
-    insights,
-    loading,
-    error,
-}: {
-    insights: CommunicationInsightsSummary | null;
-    loading: boolean;
-    error: string | null;
-}) {
-    if (loading) {
-        return <p className={styles.panelState}>分析を読み込み中...</p>;
-    }
-
-    if (error) {
-        return (
-            <div className={styles.errorBanner}>
-                <AlertCircle size={14} />
-                {error}
-            </div>
-        );
-    }
-
-    if (!insights) {
-        return <p className={styles.panelState}>分析データがまだありません。</p>;
-    }
-
-    return (
-        <div className={styles.analyzeLayout}>
-            <section className={styles.analysisCard}>
-                <div className={styles.analysisTitle}>
-                    <Activity size={16} />
-                    <h2>運用衛生</h2>
-                </div>
-                <div className={styles.analysisMetricGrid}>
-                    <div>
-                        <span>open contacts</span>
-                        <strong>{insights.hygiene.open_contacts}</strong>
-                    </div>
-                    <div>
-                        <span>owner あり率</span>
-                        <strong>{formatPercent(insights.hygiene.owner_coverage_rate)}</strong>
-                    </div>
-                    <div>
-                        <span>next_action あり率</span>
-                        <strong>{formatPercent(insights.hygiene.next_action_coverage_rate)}</strong>
-                    </div>
-                    <div>
-                        <span>overdue 率</span>
-                        <strong>{formatPercent(insights.hygiene.overdue_rate)}</strong>
-                    </div>
-                </div>
-            </section>
-
-            <section className={styles.analysisCard}>
-                <div className={styles.analysisTitle}>
-                    <Sparkles size={16} />
-                    <h2>停滞</h2>
-                </div>
-                <div className={styles.analysisMetricGrid}>
-                    <div>
-                        <span>7日停滞</span>
-                        <strong>{insights.stagnation.stale_7d_count}</strong>
-                    </div>
-                    <div>
-                        <span>提案停滞</span>
-                        <strong>{insights.proposal_health.in_flight_stale_count}</strong>
-                    </div>
-                    <div>
-                        <span>follow-up なし</span>
-                        <strong>{insights.proposal_health.follow_up_missing_after_link_count}</strong>
-                    </div>
-                </div>
-                <div className={styles.analysisList}>
-                    {insights.stagnation.by_status.map((item) => (
-                        <div key={item.status} className={styles.analysisRow}>
-                            <span>{BOARD_STATUS_LABELS[item.status]}</span>
-                            <strong>{item.count}</strong>
-                        </div>
-                    ))}
-                </div>
-            </section>
-
-            <section className={styles.analysisCard}>
-                <div className={styles.analysisTitle}>
-                    <Users size={16} />
-                    <h2>担当負荷</h2>
-                </div>
-                <div className={styles.analysisList}>
-                    {insights.owner_workload.map((item) => (
-                        <div key={item.owner_id || item.owner_name} className={styles.analysisRow}>
-                            <div>
-                                <strong>{item.owner_name}</strong>
-                                <p>open {item.open_contacts} / overdue {item.overdue_count}</p>
-                            </div>
-                            <span>未担当 {item.unowned_count}</span>
-                        </div>
-                    ))}
-                </div>
-            </section>
-
-            <section className={styles.analysisCard}>
-                <div className={styles.analysisTitle}>
-                    <BarChart3 size={16} />
-                    <h2>停滞理由</h2>
-                </div>
-                <div className={styles.analysisList}>
-                    {insights.reason_clusters.map((item) => (
-                        <div key={item.key} className={styles.analysisRow}>
-                            <span>{item.label}</span>
-                            <strong>{item.count}</strong>
-                        </div>
-                    ))}
-                </div>
-            </section>
-
-            <section className={`${styles.analysisCard} ${styles.analysisCardWide}`}>
-                <div className={styles.analysisTitle}>
-                    <MessageSquare size={16} />
-                    <h2>会社単位の俯瞰</h2>
-                </div>
-                <div className={styles.analysisList}>
-                    {insights.client_health.map((item) => (
-                        <div key={item.rollup_key} className={styles.analysisRow}>
-                            <div>
-                                <strong>{item.client_name}</strong>
-                                <p>{item.sites.join(" / ") || "現場情報なし"}</p>
-                            </div>
-                            <div className={styles.clientHealthMeta}>
-                                <span>open {item.open_contacts}</span>
-                                <span>overdue {item.overdue_count}</span>
-                                <span>提案 {item.in_flight_proposal_count}</span>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </section>
-        </div>
-    );
-}
-
 export function Communications() {
     const [searchParams] = useSearchParams();
     const proposalQuery = searchParams.get("proposal");
-    const [tab, setTab] = useState<TabId>("board");
     const [contacts, setContacts] = useState<CommunicationContactStatusRecord[]>([]);
     const [totalCount, setTotalCount] = useState(0);
     const [selectedContactKey, setSelectedContactKey] = useState<string | null>(null);
@@ -656,20 +347,12 @@ export function Communications() {
     const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
     const [members, setMembers] = useState<Member[]>([]);
     const [sites, setSites] = useState<Site[]>([]);
-    const [insights, setInsights] = useState<CommunicationInsightsSummary | null>(null);
-    const [query, setQuery] = useState("");
-    const [statusFilters, setStatusFilters] = useState<CommunicationContactStatus[]>([]);
-    const [riskFilters, setRiskFilters] = useState<CommunicationContactRiskFlag[]>([]);
-    const [ownerFilter, setOwnerFilter] = useState("");
-    const [includeResolved, setIncludeResolved] = useState(false);
     const [recordSheetOpen, setRecordSheetOpen] = useState(false);
     const [selectedProposal, setSelectedProposal] = useState<ProposalRecord | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [detailLoading, setDetailLoading] = useState(false);
     const [detailError, setDetailError] = useState<string | null>(null);
-    const [insightsLoading, setInsightsLoading] = useState(false);
-    const [insightsError, setInsightsError] = useState<string | null>(null);
     const [proposalActing, setProposalActing] = useState(false);
 
     const activeConversation = useMemo(
@@ -682,11 +365,7 @@ export function Communications() {
             setLoading(true);
             setError(null);
             const response = await fetchCommunicationContacts({
-                q: query || undefined,
-                status: statusFilters,
-                ownerUserId: ownerFilter ? [ownerFilter] : undefined,
-                risk: riskFilters,
-                includeResolved,
+                includeResolved: false,
                 sort: "attention",
                 page: 1,
                 pageSize: 200,
@@ -708,7 +387,7 @@ export function Communications() {
         } finally {
             setLoading(false);
         }
-    }, [includeResolved, ownerFilter, query, riskFilters, statusFilters]);
+    }, []);
 
     const loadDetail = useCallback(async (contactKey: string) => {
         try {
@@ -728,18 +407,6 @@ export function Communications() {
             setDetailError(getErrorMessage(requestError));
         } finally {
             setDetailLoading(false);
-        }
-    }, []);
-
-    const loadInsights = useCallback(async () => {
-        try {
-            setInsightsLoading(true);
-            setInsightsError(null);
-            setInsights(await fetchCommunicationInsightsSummary());
-        } catch (requestError: unknown) {
-            setInsightsError(getErrorMessage(requestError));
-        } finally {
-            setInsightsLoading(false);
         }
     }, []);
 
@@ -766,12 +433,6 @@ export function Communications() {
         }
         void loadDetail(selectedContactKey);
     }, [loadDetail, selectedContactKey]);
-
-    useEffect(() => {
-        if (tab === "analyze" && !insights && !insightsLoading) {
-            void loadInsights();
-        }
-    }, [insights, insightsLoading, loadInsights, tab]);
 
     useEffect(() => {
         if (!proposalQuery || contacts.length === 0 || selectedProposal) {
@@ -806,25 +467,10 @@ export function Communications() {
         };
     }, [contacts, proposalQuery, selectedProposal]);
 
-    function toggleStatus(status: CommunicationContactStatus) {
-        setStatusFilters((current) =>
-            current.includes(status) ? current.filter((value) => value !== status) : [...current, status],
-        );
-    }
-
-    function toggleRisk(risk: CommunicationContactRiskFlag) {
-        setRiskFilters((current) =>
-            current.includes(risk) ? current.filter((value) => value !== risk) : [...current, risk],
-        );
-    }
-
     async function handleRefresh() {
         await refreshContacts(selectedContactKey);
         if (selectedContactKey) {
             await loadDetail(selectedContactKey);
-        }
-        if (tab === "analyze") {
-            await loadInsights();
         }
     }
 
@@ -869,7 +515,7 @@ export function Communications() {
                 await executeProposal(proposalId);
             }
 
-            await Promise.all([refreshContacts(selectedContactKey), loadDetail(selectedContactKey), loadInsights()]);
+            await Promise.all([refreshContacts(selectedContactKey), loadDetail(selectedContactKey)]);
         } catch (requestError: unknown) {
             setDetailError(getErrorMessage(requestError));
         } finally {
@@ -888,51 +534,15 @@ export function Communications() {
                 </div>
             )}
 
-            <div className={styles.tabRail}>
-                <button
-                    type="button"
-                    className={`${styles.tabButton} ${tab === "board" ? styles.tabButtonActive : ""}`}
-                    onClick={() => setTab("board")}
-                >
-                    <ClipboardList size={16} />
-                    Board
-                </button>
-                <button
-                    type="button"
-                    className={`${styles.tabButton} ${tab === "analyze" ? styles.tabButtonActive : ""}`}
-                    onClick={() => setTab("analyze")}
-                >
-                    <BarChart3 size={16} />
-                    Analyze
-                </button>
-            </div>
-
-            {tab === "board" ? (
-                <>
-                    <CommunicationKpiStrip contacts={contacts} />
-                    <CommunicationContactFilters
-                        query={query}
-                        onQueryChange={setQuery}
-                        statusFilters={statusFilters}
-                        toggleStatus={toggleStatus}
-                        riskFilters={riskFilters}
-                        toggleRisk={toggleRisk}
-                        ownerFilter={ownerFilter}
-                        setOwnerFilter={setOwnerFilter}
-                        includeResolved={includeResolved}
-                        setIncludeResolved={setIncludeResolved}
-                        members={members}
-                    />
-
                     <div className={styles.boardLayout}>
                         <section className={styles.boardPane}>
                             {loading ? (
-                                <p className={styles.panelState}>連絡ボードを読み込み中...</p>
+                                <p className={styles.panelState}>連絡を読み込み中...</p>
                             ) : contacts.length === 0 ? (
                                 <div className={styles.emptyPane}>
                                     <MessageSquare size={36} />
-                                    <strong>該当する連絡先はありません</strong>
-                                    <span>絞り込みを戻すか、新しい会話を追加してください。</span>
+                                    <strong>まだ記録がありません</strong>
+                                    <span>相手の文章や電話メモを残すと、ここに会話として並びます。</span>
                                     <button
                                         type="button"
                                         className={styles.primaryButton}
@@ -978,23 +588,8 @@ export function Communications() {
                                 <>
                                     <section className={styles.detailCard}>
                                         <div className={styles.sectionTitle}>
-                                            <Sparkles size={16} />
-                                            <h2>Why now?</h2>
-                                        </div>
-                                        <div className={styles.whyNowList}>
-                                            {detail.why_now.map((item) => (
-                                                <article key={`${item.code}-${item.title}`} className={styles.whyNowItem}>
-                                                    <strong>{item.title}</strong>
-                                                    <p>{item.description}</p>
-                                                </article>
-                                            ))}
-                                        </div>
-                                    </section>
-
-                                    <section className={styles.detailCard}>
-                                        <div className={styles.sectionTitle}>
                                             <Bot size={16} />
-                                            <h2>集約サマリ</h2>
+                                            <h2>相手</h2>
                                         </div>
                                         <div className={styles.summaryHero}>
                                             <div>
@@ -1041,7 +636,7 @@ export function Communications() {
 
                                     <section className={styles.detailCard}>
                                         <div className={styles.sectionTitle}>
-                                            <ClipboardList size={16} />
+                                            <Sparkles size={16} />
                                             <h2>関連 Proposal</h2>
                                         </div>
                                         <div className={styles.listStack}>
@@ -1098,10 +693,6 @@ export function Communications() {
                             )}
                         </aside>
                     </div>
-                </>
-            ) : (
-                <AnalyzeTab insights={insights} loading={insightsLoading} error={insightsError} />
-            )}
 
             <FloatingActionButton
                 behavior="draggable"

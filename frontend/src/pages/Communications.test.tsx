@@ -6,7 +6,6 @@ import { Communications } from "./Communications";
 
 const fetchCommunicationContacts = vi.fn();
 const fetchCommunicationContactDetail = vi.fn();
-const fetchCommunicationInsightsSummary = vi.fn();
 const fetchMembers = vi.fn();
 const fetchSites = vi.fn();
 const addCommunicationLog = vi.fn();
@@ -25,7 +24,6 @@ vi.mock("framer-motion", () => ({
 vi.mock("../lib/api", () => ({
     fetchCommunicationContacts: (...args: unknown[]) => fetchCommunicationContacts(...args),
     fetchCommunicationContactDetail: (...args: unknown[]) => fetchCommunicationContactDetail(...args),
-    fetchCommunicationInsightsSummary: (...args: unknown[]) => fetchCommunicationInsightsSummary(...args),
     fetchMembers: (...args: unknown[]) => fetchMembers(...args),
     fetchSites: (...args: unknown[]) => fetchSites(...args),
     addCommunicationLog: (...args: unknown[]) => addCommunicationLog(...args),
@@ -214,36 +212,9 @@ describe("Communications page", () => {
             ],
             default_conversation_id: "conv-1",
         });
-        fetchCommunicationInsightsSummary.mockResolvedValue({
-            hygiene: {
-                open_contacts: 1,
-                owner_coverage_rate: 1,
-                next_action_coverage_rate: 1,
-                overdue_rate: 1,
-                overdue_count: 1,
-                no_next_action_count: 0,
-                no_owner_count: 0,
-            },
-            stagnation: { stale_7d_count: 0, by_status: [], by_owner: [] },
-            proposal_health: { in_flight_stale_count: 1, follow_up_missing_after_link_count: 1 },
-            owner_workload: [],
-            reason_clusters: [{ key: "pricing", label: "価格", count: 1 }],
-            client_health: [
-                {
-                    rollup_key: "client-1",
-                    client_id: "client-1",
-                    client_name: "田中工務店",
-                    open_contacts: 1,
-                    overdue_count: 1,
-                    in_flight_proposal_count: 2,
-                    owner_count: 1,
-                    sites: ["渋谷ビル改修"],
-                },
-            ],
-        });
     });
 
-    it("renders the board summary and detail sheet from the new read model", async () => {
+    it("renders the messenger ledger list and detail without legacy board controls", async () => {
         render(
             <MemoryRouter initialEntries={["/communications"]}>
                 <Routes>
@@ -252,14 +223,18 @@ describe("Communications page", () => {
             </MemoryRouter>,
         );
 
-        expect(await screen.findByText("要対応")).toBeInTheDocument();
+        await waitFor(() => {
+            expect(screen.getByText("連絡台帳")).toBeTruthy();
+        });
         expect(await screen.findByRole("button", { name: /田中工務店/ })).toBeInTheDocument();
-        expect(await screen.findByRole("heading", { name: "Why now?" })).toBeInTheDocument();
-        expect(screen.getByRole("heading", { name: "集約サマリ" })).toBeInTheDocument();
+        expect(await screen.findByRole("heading", { name: "相手" })).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /Board/ })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /Analyze/ })).not.toBeInTheDocument();
+        expect(screen.queryByRole("heading", { name: "Why now?" })).not.toBeInTheDocument();
         expect((await screen.findAllByText("価格表を返す")).length).toBeGreaterThan(0);
     });
 
-    it("loads analyze insights when the analyze tab is opened", async () => {
+    it("does not load the removed analyze insight endpoint", async () => {
         render(
             <MemoryRouter initialEntries={["/communications"]}>
                 <Routes>
@@ -268,14 +243,11 @@ describe("Communications page", () => {
             </MemoryRouter>,
         );
 
-        fireEvent.click(await screen.findByRole("button", { name: /Analyze/ }));
-
         await waitFor(() => {
-            expect(fetchCommunicationInsightsSummary).toHaveBeenCalled();
+            expect(screen.getByText("連絡台帳")).toBeTruthy();
         });
-
-        expect(await screen.findByRole("heading", { name: "運用衛生" })).toBeInTheDocument();
-        expect(screen.getByRole("heading", { name: "会社単位の俯瞰" })).toBeInTheDocument();
+        expect(screen.queryByRole("heading", { name: "運用衛生" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("heading", { name: "会社単位の俯瞰" })).not.toBeInTheDocument();
     });
 
     it("renders a single FAB action for recording communication", async () => {
