@@ -51,6 +51,7 @@ describe("app entry router", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     delete process.env.ORG_BOOTSTRAP_ALLOWED_EMAILS;
+    delete process.env.ORG_CREATION_MODE;
     process.env.NODE_ENV = ORIGINAL_NODE_ENV;
     process.env.DEV_SKIP_AUTH = ORIGINAL_DEV_SKIP_AUTH;
   });
@@ -122,6 +123,31 @@ describe("app entry router", () => {
     expect(res.json).toHaveBeenCalledWith({
       state: "needs_onboarding",
       viewer_email: "dev@example.com",
+      bootstrap_allowed: true,
+      memberships: [],
+      pending_invites: [],
+    });
+  });
+
+  it("returns bootstrap_allowed=true for signed-in users when org creation mode is authenticated", async () => {
+    process.env.ORG_CREATION_MODE = "authenticated";
+
+    const orgCountChain = createOrganizationCountChain(1);
+    const membershipsChain = createChain({ data: [], error: null });
+    const invitesChain = createChain({ data: [], error: null });
+    setupMockFromSequence(mockFrom, [orgCountChain, membershipsChain, invitesChain]);
+
+    const req = {
+      userId: "user-1",
+      userEmail: "new-owner@example.com",
+    } as any;
+    const res = createMockRes();
+
+    await handler(req, res);
+
+    expect(res.json).toHaveBeenCalledWith({
+      state: "needs_onboarding",
+      viewer_email: "new-owner@example.com",
       bootstrap_allowed: true,
       memberships: [],
       pending_invites: [],

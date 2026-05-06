@@ -196,7 +196,7 @@ describe("App entry gate", () => {
         expect(screen.getByRole("button", { name: "招待で参加" })).toBeInTheDocument();
     });
 
-    it("hides bootstrap form on onboarding even when bootstrap is allowed", async () => {
+    it("renders org creation form on onboarding when bootstrap is allowed", async () => {
         fetchAppEntryState.mockResolvedValue({
             state: "needs_onboarding",
             viewer_email: "worker@example.com",
@@ -207,9 +207,10 @@ describe("App entry gate", () => {
 
         render(<App />);
 
-        expect(await screen.findByText("招待を受けて参加")).toBeInTheDocument();
-        expect(screen.queryByRole("button", { name: "組織を作成" })).not.toBeInTheDocument();
-        expect(screen.queryByText("新しい組織を作成")).not.toBeInTheDocument();
+        expect(await screen.findByText("組織を作成して開始")).toBeInTheDocument();
+        expect(screen.getByText("新しい組織を作成")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "組織を作成" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "招待で参加" })).toBeInTheDocument();
     });
 
     it("hides bootstrap form when invite action state also allows bootstrap", async () => {
@@ -290,7 +291,7 @@ describe("App entry gate", () => {
         expect(screen.getByRole("button", { name: "連絡を記録" })).toBeInTheDocument();
     });
 
-    it("does not expose org bootstrap from onboarding state", async () => {
+    it("creates a new org from onboarding through the org bootstrap endpoint", async () => {
         fetchAppEntryState.mockResolvedValue({
             state: "needs_onboarding",
             viewer_email: "worker@example.com",
@@ -298,15 +299,39 @@ describe("App entry gate", () => {
             memberships: [],
             pending_invites: [],
         });
+        bootstrapOrg.mockResolvedValue({
+            active_org: {
+                id: "org-2",
+                name: "新会社",
+                slug: "new-company",
+                status: "active",
+            },
+            membership: {
+                org_id: "org-2",
+                user_id: "user-1",
+                role: "admin",
+                status: "active",
+            },
+        });
 
         render(<App />);
 
-        expect(await screen.findByText("招待を受けて参加")).toBeInTheDocument();
-        expect(screen.queryByPlaceholderText("例: GENBA 本部")).not.toBeInTheDocument();
-        expect(screen.queryByPlaceholderText("例: genba-hq")).not.toBeInTheDocument();
-        expect(screen.queryByRole("button", { name: "組織を作成" })).not.toBeInTheDocument();
-        expect(bootstrapOrg).not.toHaveBeenCalled();
+        fireEvent.change(await screen.findByPlaceholderText("例: GENBA 本部"), {
+            target: { value: "新会社" },
+        });
+        fireEvent.change(screen.getByPlaceholderText("例: genba-hq"), {
+            target: { value: "new-company" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "組織を作成" }));
+
+        await waitFor(() => {
+            expect(bootstrapOrg).toHaveBeenCalledWith({
+                name: "新会社",
+                slug: "new-company",
+            });
+        });
         expect(bootstrapFirstOrg).not.toHaveBeenCalled();
+        expect(await screen.findByText("today-page")).toBeInTheDocument();
     });
 
     it("skips org picker when stored active org is still valid", async () => {

@@ -37,6 +37,7 @@ import { MonthlyEvaluationModal } from "./components/today/MonthlyEvaluationModa
 import {
   acceptOrgInvite,
   bootstrapFirstOrg,
+  bootstrapOrg,
   fetchAppEntryState,
   fetchPathAiReviews,
   fetchPathForms,
@@ -1036,19 +1037,86 @@ function SystemBootstrapGate({
 }
 
 function OnboardingGate({
+  bootstrapAllowed,
+  bootstrapName,
+  bootstrapSlug,
+  bootstrapBusy,
+  bootstrapError,
   viewerEmail,
+  onBootstrapNameChange,
+  onBootstrapSlugChange,
+  onBootstrapSubmit,
   onOpenInviteHelp,
 }: {
+  bootstrapAllowed: boolean;
+  bootstrapName: string;
+  bootstrapSlug: string;
+  bootstrapBusy: boolean;
+  bootstrapError: string | null;
   viewerEmail: string | null;
+  onBootstrapNameChange: (value: string) => void;
+  onBootstrapSlugChange: (value: string) => void;
+  onBootstrapSubmit: () => void;
   onOpenInviteHelp: () => void;
 }) {
   return (
     <EntryLayout
       badge="未所属"
-      title="招待を受けて参加"
-      description="このアカウントは、まだどの組織にも参加していません。参加するには、管理者からの招待を受けてください。"
+      title={bootstrapAllowed ? "組織を作成して開始" : "招待を受けて参加"}
+      description={
+        bootstrapAllowed
+          ? "このアカウントで新しい組織を作成するか、既存組織からの招待で参加できます。"
+          : "このアカウントは、まだどの組織にも参加していません。参加するには、管理者からの招待を受けてください。"
+      }
     >
       <div className={styles.entryActions}>
+        {bootstrapAllowed && (
+          <div className={styles.bootstrapCard}>
+            <div className={styles.bootstrapCardHeader}>
+              <span className={styles.entryIconBadge}>
+                <PlusCircle size={18} />
+              </span>
+              <div>
+                <h2>新しい組織を作成</h2>
+                <p>作成後、このアカウントが admin として所属します。</p>
+              </div>
+            </div>
+
+            <label className={styles.entryField}>
+              <span>組織名</span>
+              <input
+                className={styles.entryInput}
+                value={bootstrapName}
+                onChange={(event) => onBootstrapNameChange(event.target.value)}
+                placeholder="例: GENBA 本部"
+              />
+            </label>
+
+            <label className={styles.entryField}>
+              <span>slug（任意）</span>
+              <input
+                className={styles.entryInput}
+                value={bootstrapSlug}
+                onChange={(event) => onBootstrapSlugChange(event.target.value)}
+                placeholder="例: genba-hq"
+              />
+            </label>
+
+            {bootstrapError && <p className={styles.entryError}>{bootstrapError}</p>}
+
+            <button
+              type="button"
+              className={`${styles.primaryButton} ${bootstrapBusy ? styles.primaryButtonBusy : ""}`}
+              onClick={onBootstrapSubmit}
+              disabled={bootstrapBusy}
+              aria-busy={bootstrapBusy}
+            >
+              {bootstrapBusy ? <Loader2 size={16} className={styles.spinnerIcon} /> : <PlusCircle size={16} />}
+              組織を作成
+            </button>
+          </div>
+        )}
+
         <button type="button" className={styles.secondaryButton} onClick={onOpenInviteHelp}>
           <Mail size={16} />
           招待で参加
@@ -1531,6 +1599,44 @@ function AppContent() {
     }
   }, [bootstrapName, bootstrapSlug, formatBootstrapError, setActiveOrgId, setOrgOptions]);
 
+  const handleOrgBootstrapSubmit = useCallback(async () => {
+    try {
+      setBootstrapBusy(true);
+      setBootstrapError(null);
+      const result = await bootstrapOrg({
+        name: bootstrapName,
+        slug: bootstrapSlug || null,
+      });
+
+      const nextOptions: ActiveOrgOption[] = [
+        {
+          org: {
+            id: result.active_org.id,
+            name: result.active_org.name,
+            slug: result.active_org.slug,
+            status: result.active_org.status,
+          },
+          membership: {
+            org_id: result.membership.org_id,
+            user_id: result.membership.user_id,
+            role: result.membership.role,
+            status: result.membership.status,
+          },
+        },
+      ];
+
+      setOrgOptions(nextOptions);
+      setActiveOrgId(result.active_org.id);
+      setEntryState({ state: "ready_client" });
+    } catch (error) {
+      setBootstrapError(
+        formatBootstrapError(error instanceof Error ? error.message : "ORG_BOOTSTRAP_FAILED"),
+      );
+    } finally {
+      setBootstrapBusy(false);
+    }
+  }, [bootstrapName, bootstrapSlug, formatBootstrapError, setActiveOrgId, setOrgOptions]);
+
   const handleAcceptInvite = useCallback(async (inviteId: string) => {
     if (!viewerEmail) {
       setInviteError("ログイン中のメールアドレスを確認できません。別の方法でログインしてください。");
@@ -1639,7 +1745,15 @@ function AppContent() {
     if (entryState.state === "needs_onboarding") {
       return (
         <OnboardingGate
+          bootstrapAllowed={entryState.bootstrap_allowed}
+          bootstrapName={bootstrapName}
+          bootstrapSlug={bootstrapSlug}
+          bootstrapBusy={bootstrapBusy}
+          bootstrapError={bootstrapError}
           viewerEmail={entryState.viewer_email}
+          onBootstrapNameChange={setBootstrapName}
+          onBootstrapSlugChange={setBootstrapSlug}
+          onBootstrapSubmit={() => void handleOrgBootstrapSubmit()}
           onOpenInviteHelp={() => setShowInviteHelp(true)}
         />
       );

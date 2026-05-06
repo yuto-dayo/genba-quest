@@ -5,7 +5,7 @@
 | Domain | File | Last Updated | Status |
 | ------ | ---- | ------------ | ------ |
 | local | `handoff/local.md` | 2026-05-06 | active |
-| deploy/production | `handoff/deploy/production.md` | 2026-05-06 | Push HEAD to master, then run real invite/signup smoke te... |
+| deploy/production | `handoff/deploy/production.md` | 2026-05-06 | Run manual invited Gmail login on a real phone/account; e... |
 | repo/handoff-infra-sync | `handoff/repo/handoff-infra-sync.md` | 2026-05-06 | active |
 
 ## Domain Selection Guide

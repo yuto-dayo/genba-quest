@@ -63,6 +63,7 @@ describe("org router", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     delete process.env.ORG_BOOTSTRAP_ALLOWED_EMAILS;
+    delete process.env.ORG_CREATION_MODE;
     process.env.NODE_ENV = ORIGINAL_NODE_ENV;
     process.env.DEV_SKIP_AUTH = ORIGINAL_DEV_SKIP_AUTH;
     process.env.DEFAULT_ORG_ID = ORIGINAL_DEFAULT_ORG_ID;
@@ -541,6 +542,65 @@ describe("org router", () => {
       },
       membership: {
         org_id: "11111111-1111-4111-8111-111111111111",
+        user_id: "user-1",
+        role: "admin",
+        status: "active",
+      },
+    });
+  });
+
+  it("POST /bootstrap allows a signed-in user when org creation mode is authenticated", async () => {
+    process.env.ORG_CREATION_MODE = "authenticated";
+    const activeMembershipsChain = createChain({
+      data: [],
+      error: null,
+    });
+    const profilesUpsertChain = createChain({
+      data: null,
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [activeMembershipsChain, profilesUpsertChain]);
+    mockRpc.mockResolvedValue({
+      data: {
+        org_id: "22222222-2222-4222-8222-222222222222",
+        org_name: "新会社",
+        org_slug: "new-company",
+        org_status: "active",
+        membership_org_id: "22222222-2222-4222-8222-222222222222",
+        membership_user_id: "user-1",
+        membership_role: "admin",
+        membership_status: "active",
+      },
+      error: null,
+    });
+
+    const req = {
+      userId: "user-1",
+      userEmail: "new-owner@example.com",
+      body: {
+        name: "新会社",
+        slug: "new-company",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await bootstrapHandler(req, res);
+
+    expect(mockRpc).toHaveBeenCalledWith("bootstrap_org", {
+      p_user_id: "user-1",
+      p_name: "新会社",
+      p_slug: "new-company",
+    });
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({
+      active_org: {
+        id: "22222222-2222-4222-8222-222222222222",
+        name: "新会社",
+        slug: "new-company",
+        status: "active",
+      },
+      membership: {
+        org_id: "22222222-2222-4222-8222-222222222222",
         user_id: "user-1",
         role: "admin",
         status: "active",

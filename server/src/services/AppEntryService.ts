@@ -123,6 +123,10 @@ function isDevBootstrapMode(): boolean {
     return process.env.NODE_ENV === "development" && process.env.DEV_SKIP_AUTH === "true";
 }
 
+function isAuthenticatedOrgCreationMode(): boolean {
+    return (process.env.ORG_CREATION_MODE || "").trim().toLowerCase() === "authenticated";
+}
+
 export function isOrgBootstrapAllowed(viewerEmail: string | null | undefined): boolean {
     if (isDevBootstrapMode()) {
         return true;
@@ -131,6 +135,10 @@ export function isOrgBootstrapAllowed(viewerEmail: string | null | undefined): b
     const normalizedEmail = normalizeEmail(viewerEmail);
     if (!normalizedEmail) {
         return false;
+    }
+
+    if (isAuthenticatedOrgCreationMode()) {
+        return true;
     }
 
     const allowlist = parseAllowedEmails(process.env.ORG_BOOTSTRAP_ALLOWED_EMAILS);

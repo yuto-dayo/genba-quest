@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `実データ環境で入口API 500 を解消して設定画面の実データ表示を確認`
+- NEXT_CMD: `session-endのQuality Gate後、全対象ファイルを明示stageして commit/push する。`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/local.md`
@@ -13,7 +13,7 @@
   - `sed -n '1,120p' docs/DESIGN_PHILOSOPHY.md`
 - STATE:
   - Branch: `codex/production-login`
-  - Uncommitted: `11 files`
+  - Uncommitted: `9 files`
   - DB migrations: `latest local: none found`
   - Tests: `not run yet`
   - Lint: `not run yet`
@@ -23,7 +23,7 @@
 ## Session Events (audit log)
 
 <!-- HANDOFF_SESSION_EVENTS_START -->
-- 2026-05-06 20:00:08 +0900 — started by codex
+- 2026-05-06 21:58:34 +0900 — started by codex
 <!-- HANDOFF_SESSION_EVENTS_END -->
 
 ---
@@ -71,7 +71,7 @@ Branch: codex/production-login
 Phase: A-0/A-1
 ```
 
-> [carryover] Working tree was dirty at session start (11 files). Prior session may have unfinished work — verify NEXT_CMD before executing.
+> [carryover] Working tree was dirty at session start (9 files). Prior session may have unfinished work — verify NEXT_CMD before executing.
 
 1. `docs/DESIGN_PHILOSOPHY.md` の冒頭を確認
 2. このファイルを更新しながら実装を進める
@@ -93,7 +93,7 @@ Phase: A-0/A-1
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: 実データ環境で入口API 500 を解消して設定画面の実データ表示を確認
+- [ ] **P0**: session-endのQuality Gate後、全対象ファイルを明示stageして commit/push する。
 - [ ] **P1**: 次の優先タスクを記載
 
 ---
@@ -103,12 +103,10 @@ Phase: A-0/A-1
 | File | What Changed |
 | ---- | ------------ |
 | `HANDOFF.md` | [dirty: M] |
-| `frontend/src/App.module.css` | [dirty: M] |
 | `frontend/src/App.test.tsx` | [dirty: M] |
 | `frontend/src/App.tsx` | [dirty: M] |
-| `frontend/src/pages/Settings.module.css` | [dirty: M] |
-| `frontend/src/pages/Settings.tsx` | [dirty: M] |
-| `handoff/local.md` | [dirty: M] |
+| `handoff/deploy/production.md` | [dirty: M] |
+| `handoff/local.md` | [dirty: MM] |
 | `server/.env.example` | [dirty: M] |
 | `server/src/__tests__/unit/appEntryRoute.test.ts` | [dirty: M] |
 | `server/src/__tests__/unit/orgRoute.test.ts` | [dirty: M] |
