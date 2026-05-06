@@ -2,38 +2,30 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `Push HEAD to master, then run real invite/signup smoke test with an actual invited email when available`
+- NEXT_CMD: `commit を master にpushし、Render自動デプロイ後に本番 /settings を確認`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
-  - `/Users/yutoyoshino/Documents/genba-quest/handoff/deploy/production.md`
-  - `/Users/yutoyoshino/Documents/genba-quest/docs/DESIGN_PHILOSOPHY.md`
+  - `/private/tmp/genba-quest-master-settings/handoff/deploy/production.md`
+  - `/private/tmp/genba-quest-master-settings/docs/DESIGN_PHILOSOPHY.md`
 - DO_NOT_READ:
   - `docs/DESIGN_PHILOSOPHY.md` (full)
 - VERIFY_FIRST:
   - `sed -n '1,120p' docs/DESIGN_PHILOSOPHY.md`
 - STATE:
-  - Branch: `codex/production-login`
-  - Uncommitted: `22 files`
+  - Branch: `codex/settings-simple-master`
+  - Uncommitted: `2 files`
   - DB migrations: `latest local: none found`
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `fbdfa56`
-  - Updated: `2026-05-06T18:46:48+0900`
+  - HEAD: `7d68c83`
+  - Updated: `2026-05-06T22:15:55+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
 
 <!-- HANDOFF_SESSION_EVENTS_START -->
-- 2026-05-06 15:13:08 +0900 — started by codex
-- 2026-05-06 15:15:45 +0900 — started by codex
-- 2026-05-06 15:16:10 +0900 — ended by codex
-- 2026-05-06 15:23:26 +0900 — started by codex
-- 2026-05-06 15:27:47 +0900 — ended by codex
-- 2026-05-06 18:41:46 +0900 — started by codex
-- 2026-05-06 18:45:59 +0900 — ended by codex
-- 2026-05-06 18:46:31 +0900 — started by codex
-- 2026-05-06 18:47:07 +0900 — ended by codex
+- 2026-05-06 22:14:59 +0900 — started by codex
 <!-- HANDOFF_SESSION_EVENTS_END -->
 
 ---
@@ -41,41 +33,33 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `Push HEAD to master, then run real invite/signup smoke test with an actual invited email when available`. Source: realtime
-- [H0004] Completed: committed production grant migration locally as fbdfa56 (chore: track invite rpc production grants)
-- [H0004] Remaining: Push HEAD to master, then run real invite/signup smoke test with an actual invited email when available
-- [H0003] Completed: production Supabase accept_org_invite RPC migration applied and execute grants restricted to service_role
-- [H0003] Remaining: Run a real invite/signup smoke test with an actual invited email: signup, confirm email, open invite, press 参加する, verify Today loads
+- [focus] NEXT_CMD: `commit を master にpushし、Render自動デプロイ後に本番 /settings を確認`. Source: realtime
+- [H0001] Completed: origin/master ベースに設定画面シンプル版を載せ、本番反映用コミット準備
+- [H0001] Remaining: commit を master にpushし、Render自動デプロイ後に本番 /settings を確認
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
-- [H0004] Auto-captured decision: committed production grant migration locally as fbdfa56 (chore: track invite rpc production grants)
-- [H0003] Auto-captured decision: production Supabase accept_org_invite RPC migration applied and execute grants restricted to service_role
-- [H0002] Auto-captured decision: Render API cost check completed using Keychain-stored API key: service genba-quest is starter plan, not suspended, latest deploy live; logs show no app error/5xx entries in filt...
-- [H0001] Auto-captured decision: Production cost sanity check completed: Render config, public health, Supabase org/project, DB size, storage size, auth users, recent write volume, connections, logs, and perfor...
+- [H0001] Auto-captured decision: origin/master ベースに設定画面シンプル版を載せ、本番反映用コミット準備
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0004] No new landmines reported in this chunk.
+- [H0001] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
-- [H0004] Push HEAD to master, then run real invite/signup smoke test with an actual invited email when available
-- [H0003] Run a real invite/signup smoke test with an actual invited email: signup, confirm email, open invite, press 参加する, verify Today loads
-- [H0002] Open Render Billing dashboard for exact invoice/usage because public API probes for /v1/usage and /v1/billing returned 404; decide whether to keep starter or downgrade to free by updating Render service plan
-- [H0001] If exact invoice/usage numbers are needed, open Supabase Usage/Billing and Render Billing dashboards; configure Render MCP/API key for service metrics
+- [H0001] commit を master にpushし、Render自動デプロイ後に本番 /settings を確認
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `4`
+- current_l3_entries: `1`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -86,11 +70,11 @@
 
 ```text
 Agent: 未定（Claude Code / Codex）
-Branch: codex/production-login
+Branch: codex/settings-simple-master
 Phase: A-0/A-1
 ```
 
-> [carryover] Working tree was dirty at session start (22 files). Prior session may have unfinished work — verify NEXT_CMD before executing.
+> [carryover] Working tree was dirty at session start (3 files). Prior session may have unfinished work — verify NEXT_CMD before executing.
 
 1. `docs/DESIGN_PHILOSOPHY.md` の冒頭を確認
 2. このファイルを更新しながら実装を進める
@@ -106,30 +90,20 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
-- [x] committed production grant migration locally as fbdfa56 (chore: track invite rpc production grants)
-- [x] production Supabase accept_org_invite RPC migration applied and execute grants restricted to service_role
-- [x] Render API cost check completed using Keychain-stored API key: service genba-quest is starter plan, not suspended, latest deploy live; logs show no app error/5xx entries in filtered checks; recent log volume dominated by /health
-- [x] Production cost sanity check completed: Render config, public health, Supabase org/project, DB size, storage size, auth users, recent write volume, connections, logs, and performance advisors reviewed
+- [x] origin/master ベースに設定画面シンプル版を載せ、本番反映用コミット準備
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: Push HEAD to master, then run real invite/signup smoke test with an actual invited email when available
-- [ ] **P1**: Run a real invite/signup smoke test with an actual invited email: signup, confirm email, open invite, press 参加する, verify Today loads
-- [ ] **P1**: Open Render Billing dashboard for exact invoice/usage because public API probes for /v1/usage and /v1/billing returned 404; decide whether to keep starter or downgrade to free by updating Render service plan
-- [ ] **P1**: If exact invoice/usage numbers are needed, open Supabase Usage/Billing and Render Billing dashboards; configure Render MCP/API key for service metrics
+- [ ] **P0**: commit を master にpushし、Render自動デプロイ後に本番 /settings を確認
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
-| `supabase/migrations/20260506094325_revoke_public_accept_org_invite_execute.sql` | committed PUBLIC execute revoke migration |
-| `supabase/migrations/20260506094251_restrict_accept_org_invite_execute.sql` | committed production grant restriction migration |
-| `supabase/migrations/20260506094325_revoke_public_accept_org_invite_execute.sql` | revoke inherited PUBLIC execute privilege for accept_org_invite |
-| `supabase/migrations/20260506094251_restrict_accept_org_invite_execute.sql` | restrict direct accept_org_invite execution to service_role roles |
-| `handoff/deploy/production.md` | Render API cost check result and exact billing follow-up |
-| `handoff/deploy/production.md` | production cost check result and follow-up |
+| `frontend/src/pages/Settings.module.css` | simple settings list/detail styles for production master |
+| `frontend/src/pages/Settings.tsx` | simple settings list/detail flow for production master |
 ---
 
 ## 6. Locked Files（編集中 - 他エージェント触らない）
@@ -147,10 +121,10 @@ cd frontend && npx eslint src/
 
 | Check | Result | Notes |
 | ----- | ------ | ----- |
-| server typecheck | PASS | run by session-end (2026-05-06 18:46) |
-| frontend typecheck | PASS | run by session-end (2026-05-06 18:46) |
-| lint | PASS | frontend eslint src/ at 2026-05-06 18:47 |
-| test | PASS | server npm test -- --runInBand at 2026-05-06 18:47 |
+| server typecheck | SKIP | not run yet |
+| frontend typecheck | SKIP | not run yet |
+| lint | SKIP | not run yet |
+| test | SKIP | optional |
 
 ---
 
@@ -176,71 +150,19 @@ cd frontend && npx eslint src/
 
 ## 11. Incremental Updates
 
-### 2026-05-06 15:15:52 +0900
+### 2026-05-06 22:15:55 +0900
 
 - Entry-ID: `H0001`
 - Completed:
-  - [x] Production cost sanity check completed: Render config, public health, Supabase org/project, DB size, storage size, auth users, recent write volume, connections, logs, and performance advisors reviewed
+  - [x] origin/master ベースに設定画面シンプル版を載せ、本番反映用コミット準備
 - Remaining:
-  - [ ] If exact invoice/usage numbers are needed, open Supabase Usage/Billing and Render Billing dashboards; configure Render MCP/API key for service metrics
+  - [ ] commit を master にpushし、Render自動デプロイ後に本番 /settings を確認
 - Changed Files:
-  - `handoff/deploy/production.md` - production cost check result and follow-up
+  - `frontend/src/pages/Settings.tsx` - simple settings list/detail flow for production master
+  - `frontend/src/pages/Settings.module.css` - simple settings list/detail styles for production master
 - Working Context:
-  - Auto-captured decision: Production cost sanity check completed: Render config, public health, Supabase org/project, DB size, storage size, auth users, recent write volume, connections, logs, and perfor...
+  - Auto-captured decision: origin/master ベースに設定画面シンプル版を載せ、本番反映用コミット準備
 - Validation:
-  - `Render public health => PASS 200 in 1.10s; Supabase project ACTIVE_HEALTHY; DB size 23 MB; Storage 26 MB; Auth users 13; rows 24h proposals=7 ledger_events=6; Render API unavailable because RENDER_API_KEY absent`
-- Landmines:
-  - No new landmines reported in this chunk.
-
-### 2026-05-06 15:27:26 +0900
-
-- Entry-ID: `H0002`
-- Completed:
-  - [x] Render API cost check completed using Keychain-stored API key: service genba-quest is starter plan, not suspended, latest deploy live; logs show no app error/5xx entries in filtered checks; recent log volume dominated by /health
-- Remaining:
-  - [ ] Open Render Billing dashboard for exact invoice/usage because public API probes for /v1/usage and /v1/billing returned 404; decide whether to keep starter or downgrade to free by updating Render service plan
-- Changed Files:
-  - `handoff/deploy/production.md` - Render API cost check result and exact billing follow-up
-- Working Context:
-  - Auto-captured decision: Render API cost check completed using Keychain-stored API key: service genba-quest is starter plan, not suspended, latest deploy live; logs show no app error/5xx entries in filt...
-- Validation:
-  - `Render API list services => PASS 200; plan=starter; service detail => not_suspended numInstances=1; deploys => latest live; logs 24h sample => 3000 fetched, top GET /health=1718; /v1/usage,/v1/billing,/metrics probes => 404`
-- Landmines:
-  - No new landmines reported in this chunk.
-
-### 2026-05-06 18:45:42 +0900
-
-- Entry-ID: `H0003`
-- Completed:
-  - [x] production Supabase accept_org_invite RPC migration applied and execute grants restricted to service_role
-- Remaining:
-  - [ ] Run a real invite/signup smoke test with an actual invited email: signup, confirm email, open invite, press 参加する, verify Today loads
-- Changed Files:
-  - `supabase/migrations/20260506094251_restrict_accept_org_invite_execute.sql` - restrict direct accept_org_invite execution to service_role roles
-  - `supabase/migrations/20260506094325_revoke_public_accept_org_invite_execute.sql` - revoke inherited PUBLIC execute privilege for accept_org_invite
-- Working Context:
-  - Auto-captured decision: production Supabase accept_org_invite RPC migration applied and execute grants restricted to service_role
-- Validation:
-  - `production health => PASS (https://genba-quest.onrender.com/health ok:true)`
-  - `production frontend asset => PASS (invite gate includes 参加する)`
-  - `production db function => PASS (public.accept_org_invite exists)`
-  - `production function privileges => PASS (anon=false authenticated=false service_role=true)`
-- Landmines:
-  - No new landmines reported in this chunk.
-
-### 2026-05-06 18:46:48 +0900
-
-- Entry-ID: `H0004`
-- Completed:
-  - [x] committed production grant migration locally as fbdfa56 (chore: track invite rpc production grants)
-- Remaining:
-  - [ ] Push HEAD to master, then run real invite/signup smoke test with an actual invited email when available
-- Changed Files:
-  - `supabase/migrations/20260506094251_restrict_accept_org_invite_execute.sql` - committed production grant restriction migration
-  - `supabase/migrations/20260506094325_revoke_public_accept_org_invite_execute.sql` - committed PUBLIC execute revoke migration
-- Working Context:
-  - Auto-captured decision: committed production grant migration locally as fbdfa56 (chore: track invite rpc production grants)
-- Validation:
-  - `git commit => PASS (fbdfa56)`
+  - `frontend npm ci=PASS; frontend npx tsc --noEmit=PASS; frontend eslint src/pages/Settings.tsx=PASS`
 - Landmines:
   - No new landmines reported in this chunk.

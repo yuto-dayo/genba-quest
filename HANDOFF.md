@@ -5,7 +5,7 @@
 | Domain | File | Last Updated | Status |
 | ------ | ---- | ------------ | ------ |
 | local | `handoff/local.md` | 2026-05-06 | Deploy/push the login reset tap-target fix, then verify o... |
-| deploy/production | `handoff/deploy/production.md` | 2026-05-06 | Push HEAD to master, then run real invite/signup smoke te... |
+| deploy/production | `handoff/deploy/production.md` | 2026-05-06 | active |
 | repo/handoff-infra-sync | `handoff/repo/handoff-infra-sync.md` | 2026-05-06 | active |
 
 ## Domain Selection Guide
