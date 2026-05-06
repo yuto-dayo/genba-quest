@@ -528,7 +528,8 @@
 
 .primaryButton,
 .secondaryButton,
-.textButton {
+.textButton,
+.googleButton {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -539,6 +540,37 @@
     font: var(--md-sys-typescale-label-large);
     font-weight: 700;
     cursor: pointer;
+}
+
+.googleButton {
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 20%, transparent);
+    background: white;
+    color: var(--md-sys-color-on-surface);
+    box-shadow: 0 1px 2px rgba(28, 25, 23, 0.06);
+}
+
+.googleButton:disabled {
+    opacity: 0.72;
+    cursor: not-allowed;
+}
+
+.authDivider {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 10px;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-medium);
+}
+
+.authDivider span {
+    height: 1px;
+    background: color-mix(in srgb, var(--md-sys-color-outline) 18%, transparent);
+}
+
+.authDivider strong {
+    font: inherit;
+    font-weight: 700;
 }
 
 .primaryButton {

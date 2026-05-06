@@ -15,6 +15,7 @@ const getSession = vi.fn();
 const onAuthStateChange = vi.fn();
 const signInWithOtp = vi.fn();
 const signInWithPassword = vi.fn();
+const signInWithOAuth = vi.fn();
 const signUp = vi.fn();
 const resetPasswordForEmail = vi.fn();
 const updateUser = vi.fn();
@@ -104,6 +105,7 @@ vi.mock("./lib/supabase", () => ({
             onAuthStateChange: (...args: unknown[]) => onAuthStateChange(...args),
             signInWithOtp: (...args: unknown[]) => signInWithOtp(...args),
             signInWithPassword: (...args: unknown[]) => signInWithPassword(...args),
+            signInWithOAuth: (...args: unknown[]) => signInWithOAuth(...args),
             signUp: (...args: unknown[]) => signUp(...args),
             resetPasswordForEmail: (...args: unknown[]) => resetPasswordForEmail(...args),
             updateUser: (...args: unknown[]) => updateUser(...args),
@@ -155,6 +157,7 @@ describe("App entry gate", () => {
         });
         signInWithOtp.mockResolvedValue({ error: null });
         signInWithPassword.mockResolvedValue({ error: null });
+        signInWithOAuth.mockResolvedValue({ error: null });
         signUp.mockResolvedValue({ data: { session: null }, error: null });
         resetPasswordForEmail.mockResolvedValue({ error: null });
         updateUser.mockResolvedValue({ error: null });
@@ -406,6 +409,40 @@ describe("App entry gate", () => {
         });
     });
 
+    it("starts Google login with the current origin as the redirect target", async () => {
+        getSession.mockResolvedValue({ data: { session: null } });
+
+        render(<App />);
+
+        fireEvent.click(await screen.findByRole("button", { name: "Googleで続ける" }));
+
+        await waitFor(() => {
+            expect(signInWithOAuth).toHaveBeenCalledWith({
+                provider: "google",
+                options: {
+                    redirectTo: window.location.origin,
+                },
+            });
+        });
+    });
+
+    it("shows an error and releases the Google login button when OAuth fails", async () => {
+        getSession.mockResolvedValue({ data: { session: null } });
+        signInWithOAuth.mockResolvedValue({
+            error: new Error("provider not configured"),
+        });
+
+        render(<App />);
+
+        const googleButton = await screen.findByRole("button", { name: "Googleで続ける" });
+        fireEvent.click(googleButton);
+
+        expect(await screen.findByText("Googleログインできませんでした。")).toBeInTheDocument();
+        await waitFor(() => {
+            expect(googleButton).toBeEnabled();
+        });
+    });
+
     it("sets a password on the explicit first-registration flow", async () => {
         getSession.mockResolvedValue({ data: { session: null } });
 
@@ -507,6 +544,67 @@ describe("App entry gate", () => {
         expect(resetPasswordForEmail).not.toHaveBeenCalled();
     });
 
+    it("does not accept an invite when the authenticated session has no email", async () => {
+        getSession.mockResolvedValue({
+            data: {
+                session: {
+                    user: {
+                        id: "user-1",
+                        email: null,
+                    },
+                },
+            },
+        });
+        fetchAppEntryState.mockResolvedValue({
+            state: "needs_invite_action",
+            viewer_email: null,
+            bootstrap_allowed: false,
+            memberships: [],
+            pending_invites: [
+                {
+                    invite_id: "invite-1",
+                    org_id: "org-1",
+                    org_name: "GENBA 本部",
+                    role: "member",
+                    email_normalized: "worker@example.com",
+                },
+            ],
+        });
+
+        render(<App />);
+
+        fireEvent.click(await screen.findByRole("button", { name: "参加する" }));
+
+        expect(await screen.findByText("ログイン中のメールアドレスを確認できません。別の方法でログインしてください。")).toBeInTheDocument();
+        expect(acceptOrgInvite).not.toHaveBeenCalled();
+    });
+
+    it("does not accept an invite when there is no pending invite", async () => {
+        getSession.mockResolvedValue({
+            data: {
+                session: {
+                    user: {
+                        id: "user-1",
+                        email: "worker@example.com",
+                    },
+                },
+            },
+        });
+        fetchAppEntryState.mockResolvedValue({
+            state: "needs_onboarding",
+            viewer_email: "worker@example.com",
+            bootstrap_allowed: false,
+            memberships: [],
+            pending_invites: [],
+        });
+
+        render(<App />);
+
+        expect(await screen.findByText("招待を受けて参加")).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "参加する" })).not.toBeInTheDocument();
+        expect(acceptOrgInvite).not.toHaveBeenCalled();
+    });
+
     it("stops on the password recovery screen until a new password is saved", async () => {
         getSession.mockResolvedValue({ data: { session: null } });
         fetchAppEntryState.mockResolvedValue({
@@ -517,7 +615,7 @@ describe("App entry gate", () => {
 
         render(<App />);
 
-        await screen.findByText("メールとパスワードでログイン");
+        await screen.findByText("Googleでログイン");
         await act(async () => {
             authStateCallback?.("PASSWORD_RECOVERY", {
                 user: {
