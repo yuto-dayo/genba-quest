@@ -11,6 +11,7 @@ import {
   LogOut,
   Loader2,
   Mail,
+  KeyRound,
   MapPinned,
   MessageSquareText,
   PlusCircle,
@@ -497,7 +498,7 @@ function AuthGate({ onUseDevAuth }: { onUseDevAuth?: () => void }) {
   const signupDisabled =
     Boolean(busyMode) || !normalizedEmail || !signupPassword || !signupPasswordConfirm;
   const magicDisabled = Boolean(busyMode) || !normalizedEmail || cooldownRemaining > 0;
-  const resetDisabled = Boolean(busyMode) || !normalizedEmail || cooldownRemaining > 0;
+  const resetDisabled = Boolean(busyMode) || cooldownRemaining > 0;
 
   useEffect(() => {
     if (!cooldownUntil) {
@@ -739,12 +740,12 @@ function AuthGate({ onUseDevAuth }: { onUseDevAuth?: () => void }) {
           </button>
           <button
             type="button"
-            className={`${styles.textButton} ${busyMode === "reset" ? styles.primaryButtonBusy : ""}`}
+            className={`${styles.textButton} ${styles.passwordResetButton} ${busyMode === "reset" ? styles.primaryButtonBusy : ""}`}
             disabled={resetDisabled}
             aria-busy={busyMode === "reset"}
             onClick={() => void requestPasswordReset()}
           >
-            {busyMode === "reset" ? <Loader2 size={16} className={styles.spinnerIcon} /> : null}
+            {busyMode === "reset" ? <Loader2 size={16} className={styles.spinnerIcon} /> : <KeyRound size={16} />}
             パスワードを忘れた
           </button>
         </div>

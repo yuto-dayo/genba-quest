@@ -493,6 +493,20 @@ describe("App entry gate", () => {
         expect(await screen.findByText("worker@example.com に確認リンクを送りました。メールから開くと続きに進めます。")).toBeInTheDocument();
     });
 
+    it("keeps the password reset action tappable before an email is entered", async () => {
+        getSession.mockResolvedValue({ data: { session: null } });
+
+        render(<App />);
+
+        const resetButton = await screen.findByRole("button", { name: "パスワードを忘れた" });
+        expect(resetButton).toBeEnabled();
+
+        fireEvent.click(resetButton);
+
+        expect(await screen.findByText("メールアドレスを入力してください。")).toBeInTheDocument();
+        expect(resetPasswordForEmail).not.toHaveBeenCalled();
+    });
+
     it("stops on the password recovery screen until a new password is saved", async () => {
         getSession.mockResolvedValue({ data: { session: null } });
         fetchAppEntryState.mockResolvedValue({

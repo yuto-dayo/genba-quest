@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `Supabase migration 20260506093000_add_accept_org_invite_rpc.sql を本番/対象Supabaseに適用し、実招待メールで初回登録→参加する→Today遷移を確認`
+- NEXT_CMD: `Deploy/push the login reset tap-target fix, then verify on an actual phone or mobile browser after Render deploy`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/local.md`
@@ -18,8 +18,8 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `abeb995`
-  - Updated: `2026-05-06T18:37:17+0900`
+  - HEAD: `4f829be`
+  - Updated: `2026-05-06T18:57:20+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
@@ -29,6 +29,7 @@
 - 2026-05-06 18:25:35 +0900 — ended by codex
 - 2026-05-06 18:36:25 +0900 — started by codex
 - 2026-05-06 18:37:35 +0900 — ended by codex
+- 2026-05-06 18:54:54 +0900 — started by codex
 <!-- HANDOFF_SESSION_EVENTS_END -->
 
 ---
@@ -36,28 +37,30 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `Supabase migration 20260506093000_add_accept_org_invite_rpc.sql を本番/対象Supabaseに適用し、実招待メールで初回登録→参加する→Today遷移を確認`. Source: realtime
+- [focus] NEXT_CMD: `Deploy/push the login reset tap-target fix, then verify on an actual phone or mobile browser after Render deploy`. Source: realtime
+- [H0003] Completed: made password reset action tappable on login screen before email entry and added a visible mobile tap target
+- [H0003] Remaining: Deploy/push the login reset tap-target fix, then verify on an actual phone or mobile browser after Render deploy
 - [H0002] Completed: ログイン修正を commit abeb995 として origin/master に直接 push
 - [H0002] Remaining: Supabase migration 20260506093000_add_accept_org_invite_rpc.sql を本番/対象Supabaseに適用し、実招待メールで初回登録→参加する→Today遷移を確認
-- [H0001] Completed: ログイン入口の実ブラウザ確認と招待参加フロー実装。パスワード忘れは送信成功表示まで確認、初回登録後にpending inviteをmembership化するaccept API/ボタンを追加
-- [H0001] Remaining: Supabaseに20260506093000_add_accept_org_invite_rpc.sqlを適用して、実招待メールで初回登録→参加する→Today遷移をスモーク確認
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0003] Auto-captured decision: made password reset action tappable on login screen before email entry and added a visible mobile tap target
 - [H0002] Auto-captured decision: ログイン修正を commit abeb995 として origin/master に直接 push
 - [H0001] Auto-captured decision: ログイン入口の実ブラウザ確認と招待参加フロー実装。パスワード忘れは送信成功表示まで確認、初回登録後にpending inviteをmembership化するaccept API/ボタンを追加
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0002] No new landmines reported in this chunk.
+- [H0003] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0003] Deploy/push the login reset tap-target fix, then verify on an actual phone or mobile browser after Render deploy
 - [H0002] Supabase migration 20260506093000_add_accept_org_invite_rpc.sql を本番/対象Supabaseに適用し、実招待メールで初回登録→参加する→Today遷移を確認
 - [H0001] Supabaseに20260506093000_add_accept_org_invite_rpc.sqlを適用して、実招待メールで初回登録→参加する→Today遷移をスモーク確認
 <!-- HANDOFF_L2_THREADS_END -->
@@ -66,7 +69,7 @@
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `2`
+- current_l3_entries: `3`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -97,13 +100,15 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] made password reset action tappable on login screen before email entry and added a visible mobile tap target
 - [x] ログイン修正を commit abeb995 として origin/master に直接 push
 - [x] ログイン入口の実ブラウザ確認と招待参加フロー実装。パスワード忘れは送信成功表示まで確認、初回登録後にpending inviteをmembership化するaccept API/ボタンを追加
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: Supabase migration 20260506093000_add_accept_org_invite_rpc.sql を本番/対象Supabaseに適用し、実招待メールで初回登録→参加する→Today遷移を確認
+- [ ] **P0**: Deploy/push the login reset tap-target fix, then verify on an actual phone or mobile browser after Render deploy
+- [ ] **P1**: Supabase migration 20260506093000_add_accept_org_invite_rpc.sql を本番/対象Supabaseに適用し、実招待メールで初回登録→参加する→Today遷移を確認
 - [ ] **P1**: Supabaseに20260506093000_add_accept_org_invite_rpc.sqlを適用して、実招待メールで初回登録→参加する→Today遷移をスモーク確認
 ---
 
@@ -111,6 +116,9 @@ Phase: A-0/A-1
 
 | File | What Changed |
 | ---- | ------------ |
+| `frontend/src/App.test.tsx` | cover tappable reset action before email entry |
+| `frontend/src/App.module.css` | give reset action a visible button surface |
+| `frontend/src/App.tsx` | keep password reset button enabled before email entry and add icon |
 | `supabase/migrations/20260506093000_add_accept_org_invite_rpc.sql` | accept invite RPC pushed to master |
 | `server/src/services/OrgInviteAcceptanceService.ts` | invite accept service pushed to master |
 | `frontend/src/App.tsx` | invite signup flow pushed to master |
@@ -202,5 +210,26 @@ cd frontend && npx eslint src/
   - Auto-captured decision: ログイン修正を commit abeb995 として origin/master に直接 push
 - Validation:
   - `git push origin HEAD:master=PASS (abeb995)`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-06 18:57:20 +0900
+
+- Entry-ID: `H0003`
+- Completed:
+  - [x] made password reset action tappable on login screen before email entry and added a visible mobile tap target
+- Remaining:
+  - [ ] Deploy/push the login reset tap-target fix, then verify on an actual phone or mobile browser after Render deploy
+- Changed Files:
+  - `frontend/src/App.tsx` - keep password reset button enabled before email entry and add icon
+  - `frontend/src/App.module.css` - give reset action a visible button surface
+  - `frontend/src/App.test.tsx` - cover tappable reset action before email entry
+- Working Context:
+  - Auto-captured decision: made password reset action tappable on login screen before email entry and added a visible mobile tap target
+- Validation:
+  - `frontend App.test.tsx => PASS (18 tests)`
+  - `frontend typecheck => PASS (npx tsc --noEmit)`
+  - `frontend lint => PASS (npm run lint -- src/App.tsx src/App.test.tsx)`
+  - `in-app browser reload => BLOCKED by Browser Use data URL security policy; no workaround attempted`
 - Landmines:
   - No new landmines reported in this chunk.

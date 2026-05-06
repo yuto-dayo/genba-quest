@@ -573,6 +573,12 @@
     color: var(--md-sys-color-primary);
 }
 
+.passwordResetButton {
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-primary) 18%, transparent);
+    background: color-mix(in srgb, var(--md-sys-color-primary-container) 42%, white);
+    color: var(--md-sys-color-on-primary-container);
+}
+
 .textButton:disabled {
     opacity: 0.7;
     cursor: not-allowed;
