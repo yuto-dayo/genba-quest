@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentProps, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
@@ -13,6 +13,11 @@ const fetchPathAiReviews = vi.fn();
 const getSession = vi.fn();
 const onAuthStateChange = vi.fn();
 const signInWithOtp = vi.fn();
+const signInWithPassword = vi.fn();
+const signUp = vi.fn();
+const resetPasswordForEmail = vi.fn();
+const updateUser = vi.fn();
+let authStateCallback: ((event: string, session: unknown) => void) | null = null;
 
 vi.mock("framer-motion", () => ({
     motion: new Proxy(
@@ -96,6 +101,10 @@ vi.mock("./lib/supabase", () => ({
             getSession: (...args: unknown[]) => getSession(...args),
             onAuthStateChange: (...args: unknown[]) => onAuthStateChange(...args),
             signInWithOtp: (...args: unknown[]) => signInWithOtp(...args),
+            signInWithPassword: (...args: unknown[]) => signInWithPassword(...args),
+            signUp: (...args: unknown[]) => signUp(...args),
+            resetPasswordForEmail: (...args: unknown[]) => resetPasswordForEmail(...args),
+            updateUser: (...args: unknown[]) => updateUser(...args),
         },
     },
 }));
@@ -103,6 +112,7 @@ vi.mock("./lib/supabase", () => ({
 describe("App entry gate", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        authStateCallback = null;
         window.localStorage.clear();
         useActiveOrgStore.setState({ activeOrgId: null, options: [] });
 
@@ -117,14 +127,21 @@ describe("App entry gate", () => {
                 },
             },
         });
-        onAuthStateChange.mockReturnValue({
-            data: {
-                subscription: {
-                    unsubscribe: vi.fn(),
+        onAuthStateChange.mockImplementation((callback: (event: string, session: unknown) => void) => {
+            authStateCallback = callback;
+            return {
+                data: {
+                    subscription: {
+                        unsubscribe: vi.fn(),
+                    },
                 },
-            },
+            };
         });
         signInWithOtp.mockResolvedValue({ error: null });
+        signInWithPassword.mockResolvedValue({ error: null });
+        signUp.mockResolvedValue({ data: { session: null }, error: null });
+        resetPasswordForEmail.mockResolvedValue({ error: null });
+        updateUser.mockResolvedValue({ error: null });
     });
 
     afterEach(() => {
@@ -314,7 +331,7 @@ describe("App entry gate", () => {
         expect(await screen.findByText("today-page")).toBeInTheDocument();
     });
 
-    it("sends returning users through the no-signup login flow", async () => {
+    it("signs returning users in with email and password", async () => {
         getSession.mockResolvedValue({ data: { session: null } });
 
         render(<App />);
@@ -322,20 +339,20 @@ describe("App entry gate", () => {
         fireEvent.change(await screen.findByLabelText("メールアドレス"), {
             target: { value: "Worker@Example.com" },
         });
-        fireEvent.click(screen.getByRole("button", { name: "再ログインリンクを送る" }));
+        fireEvent.change(screen.getByLabelText("パスワード"), {
+            target: { value: "password-1234" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "ログイン" }));
 
         await waitFor(() => {
-            expect(signInWithOtp).toHaveBeenCalledWith({
+            expect(signInWithPassword).toHaveBeenCalledWith({
                 email: "worker@example.com",
-                options: {
-                    emailRedirectTo: window.location.origin,
-                    shouldCreateUser: false,
-                },
+                password: "password-1234",
             });
         });
     });
 
-    it("keeps first registration on the explicit signup flow", async () => {
+    it("sets a password on the explicit first-registration flow", async () => {
         getSession.mockResolvedValue({ data: { session: null } });
 
         render(<App />);
@@ -343,14 +360,20 @@ describe("App entry gate", () => {
         fireEvent.change(await screen.findByLabelText("メールアドレス"), {
             target: { value: "new-worker@example.com" },
         });
-        fireEvent.click(screen.getByRole("button", { name: "初回登録リンクを送る" }));
+        fireEvent.change(screen.getByLabelText("初回登録用パスワード"), {
+            target: { value: "password-1234" },
+        });
+        fireEvent.change(screen.getByLabelText("初回登録用パスワード（確認）"), {
+            target: { value: "password-1234" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "初回登録して進む" }));
 
         await waitFor(() => {
-            expect(signInWithOtp).toHaveBeenCalledWith({
+            expect(signUp).toHaveBeenCalledWith({
                 email: "new-worker@example.com",
+                password: "password-1234",
                 options: {
                     emailRedirectTo: window.location.origin,
-                    shouldCreateUser: true,
                 },
             });
         });
@@ -367,9 +390,67 @@ describe("App entry gate", () => {
         fireEvent.change(await screen.findByLabelText("メールアドレス"), {
             target: { value: "worker@example.com" },
         });
-        fireEvent.click(screen.getByRole("button", { name: "再ログインリンクを送る" }));
+        fireEvent.click(screen.getByRole("button", { name: "非常用リンクを送る" }));
 
         expect(await screen.findByText("メール送信の上限に達しました。しばらく待ってから再度お試しください。")).toBeInTheDocument();
+    });
+
+    it("sends a password reset email for returning users", async () => {
+        getSession.mockResolvedValue({ data: { session: null } });
+
+        render(<App />);
+
+        fireEvent.change(await screen.findByLabelText("メールアドレス"), {
+            target: { value: "Worker@Example.com" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "パスワードを忘れた" }));
+
+        await waitFor(() => {
+            expect(resetPasswordForEmail).toHaveBeenCalledWith(
+                "worker@example.com",
+                {
+                    redirectTo: `${window.location.origin}/?auth=recovery`,
+                },
+            );
+        });
+        expect(await screen.findByText("worker@example.com に確認リンクを送りました。メールから開くと続きに進めます。")).toBeInTheDocument();
+    });
+
+    it("stops on the password recovery screen until a new password is saved", async () => {
+        getSession.mockResolvedValue({ data: { session: null } });
+        fetchAppEntryState.mockResolvedValue({
+            state: "ready",
+            active_org: { org_id: "org-1", org_name: "GENBA 本部", role: "admin" },
+            memberships: [{ org_id: "org-1", org_name: "GENBA 本部", role: "admin" }],
+        });
+
+        render(<App />);
+
+        await screen.findByText("メールとパスワードでログイン");
+        await act(async () => {
+            authStateCallback?.("PASSWORD_RECOVERY", {
+                user: {
+                    id: "user-1",
+                    email: "worker@example.com",
+                },
+            });
+        });
+
+        expect(await screen.findByText("新しいパスワードを設定")).toBeInTheDocument();
+        expect(screen.queryByText("today-page")).not.toBeInTheDocument();
+
+        fireEvent.change(screen.getByLabelText("新しいパスワード"), {
+            target: { value: "new-password-1234" },
+        });
+        fireEvent.change(screen.getByLabelText("新しいパスワード（確認）"), {
+            target: { value: "new-password-1234" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "パスワードを更新" }));
+
+        await waitFor(() => {
+            expect(updateUser).toHaveBeenCalledWith({ password: "new-password-1234" });
+        });
+        expect(await screen.findByText("today-page")).toBeInTheDocument();
     });
 
     it("allows local development to enter through dev auth without sending email", async () => {
@@ -386,5 +467,9 @@ describe("App entry gate", () => {
 
         expect(await screen.findByText("today-page")).toBeInTheDocument();
         expect(signInWithOtp).not.toHaveBeenCalled();
+        expect(signInWithPassword).not.toHaveBeenCalled();
+        expect(signUp).not.toHaveBeenCalled();
+        expect(resetPasswordForEmail).not.toHaveBeenCalled();
+        expect(updateUser).not.toHaveBeenCalled();
     });
 });

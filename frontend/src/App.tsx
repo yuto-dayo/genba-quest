@@ -55,6 +55,8 @@ import styles from "./App.module.css";
 
 const MONTHLY_EVALUATION_START_DAY = 25;
 const AUTH_RESEND_COOLDOWN_SECONDS = 60;
+const AUTH_RECOVERY_SEARCH_PARAM = "auth";
+const AUTH_RECOVERY_SEARCH_VALUE = "recovery";
 
 const NAV_ITEMS: ReadonlyArray<{ path: string; label: string; icon: LucideIcon }> = [
   { path: "/", label: "今日", icon: Home },
@@ -72,7 +74,7 @@ type ClientEntryState =
   | { state: "ready_client" }
   | AppEntryStateRecord;
 
-type AuthRequestMode = "login" | "signup";
+type AuthRequestMode = "login" | "signup" | "magic" | "reset" | "updatePassword";
 
 function buildDevAuthSession(): Session | null {
   const devUser = getDevAuthUserOption();
@@ -108,10 +110,14 @@ function buildDevAuthSession(): Session | null {
 }
 
 function getAuthErrorMessage(error: unknown, mode: AuthRequestMode): string {
-  const fallback =
-    mode === "login"
-      ? "再ログイン用リンクを送信できませんでした。"
-      : "初回登録用リンクを送信できませんでした。";
+  const fallbackByMode: Record<AuthRequestMode, string> = {
+    login: "ログインできませんでした。",
+    signup: "初回登録できませんでした。",
+    magic: "非常用リンクを送信できませんでした。",
+    reset: "パスワード再設定メールを送信できませんでした。",
+    updatePassword: "パスワードを更新できませんでした。",
+  };
+  const fallback = fallbackByMode[mode];
 
   if (!(error instanceof Error)) {
     return fallback;
@@ -130,6 +136,30 @@ function getAuthErrorMessage(error: unknown, mode: AuthRequestMode): string {
 
   if (
     mode === "login" &&
+    (normalizedMessage.includes("invalid login credentials") ||
+      normalizedMessage.includes("invalid credentials"))
+  ) {
+    return "メールアドレスまたはパスワードが違います。";
+  }
+
+  if (
+    mode === "signup" &&
+    (normalizedMessage.includes("already registered") ||
+      normalizedMessage.includes("already exists") ||
+      normalizedMessage.includes("user already registered"))
+  ) {
+    return "このメールアドレスは登録済みです。通常ログインで入ってください。";
+  }
+
+  if (
+    (mode === "signup" || mode === "updatePassword") &&
+    (normalizedMessage.includes("password") || normalizedMessage.includes("weak"))
+  ) {
+    return "パスワードは8文字以上で設定してください。";
+  }
+
+  if (
+    mode === "magic" &&
     (normalizedMessage.includes("signup") ||
       normalizedMessage.includes("signups") ||
       normalizedMessage.includes("user not found"))
@@ -138,6 +168,26 @@ function getAuthErrorMessage(error: unknown, mode: AuthRequestMode): string {
   }
 
   return message || fallback;
+}
+
+function buildPasswordRecoveryRedirectUrl() {
+  const redirectUrl = new URL(window.location.origin);
+  redirectUrl.searchParams.set(AUTH_RECOVERY_SEARCH_PARAM, AUTH_RECOVERY_SEARCH_VALUE);
+  return redirectUrl.toString();
+}
+
+function isPasswordRecoveryRedirect() {
+  return new URLSearchParams(window.location.search).get(AUTH_RECOVERY_SEARCH_PARAM) === AUTH_RECOVERY_SEARCH_VALUE;
+}
+
+function clearPasswordRecoveryRedirect() {
+  const url = new URL(window.location.href);
+  if (url.searchParams.get(AUTH_RECOVERY_SEARCH_PARAM) !== AUTH_RECOVERY_SEARCH_VALUE) {
+    return;
+  }
+
+  url.searchParams.delete(AUTH_RECOVERY_SEARCH_PARAM);
+  window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
 }
 
 function isMonthlyEvaluationWindow(date: Date) {
@@ -423,6 +473,9 @@ function EntryLayout({
 
 function AuthGate({ onUseDevAuth }: { onUseDevAuth?: () => void }) {
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [signupPassword, setSignupPassword] = useState("");
+  const [signupPasswordConfirm, setSignupPasswordConfirm] = useState("");
   const [busyMode, setBusyMode] = useState<AuthRequestMode | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -432,7 +485,11 @@ function AuthGate({ onUseDevAuth }: { onUseDevAuth?: () => void }) {
   const cooldownRemaining = cooldownUntil
     ? Math.max(0, Math.ceil((cooldownUntil - nowMs) / 1000))
     : 0;
-  const actionDisabled = Boolean(busyMode) || !normalizedEmail || cooldownRemaining > 0;
+  const loginDisabled = Boolean(busyMode) || !normalizedEmail || !password;
+  const signupDisabled =
+    Boolean(busyMode) || !normalizedEmail || !signupPassword || !signupPasswordConfirm;
+  const magicDisabled = Boolean(busyMode) || !normalizedEmail || cooldownRemaining > 0;
+  const resetDisabled = Boolean(busyMode) || !normalizedEmail || cooldownRemaining > 0;
 
   useEffect(() => {
     if (!cooldownUntil) {
@@ -448,10 +505,85 @@ function AuthGate({ onUseDevAuth }: { onUseDevAuth?: () => void }) {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    await requestLoginLink("login");
+    await signInWithPassword();
   };
 
-  const requestLoginLink = async (mode: AuthRequestMode) => {
+  const signInWithPassword = async () => {
+    if (!normalizedEmail) {
+      setError("メールアドレスを入力してください。");
+      return;
+    }
+
+    if (!password) {
+      setError("パスワードを入力してください。");
+      return;
+    }
+
+    try {
+      setBusyMode("login");
+      setError(null);
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
+
+      if (signInError) {
+        throw signInError;
+      }
+    } catch (submitError) {
+      setError(getAuthErrorMessage(submitError, "login"));
+    } finally {
+      setBusyMode(null);
+    }
+  };
+
+  const signUpWithPassword = async () => {
+    if (!normalizedEmail) {
+      setError("メールアドレスを入力してください。");
+      return;
+    }
+
+    if (!signupPassword) {
+      setError("パスワードを入力してください。");
+      return;
+    }
+
+    if (signupPassword.length < 8) {
+      setError("パスワードは8文字以上で設定してください。");
+      return;
+    }
+
+    if (signupPassword !== signupPasswordConfirm) {
+      setError("確認用パスワードが一致していません。");
+      return;
+    }
+
+    try {
+      setBusyMode("signup");
+      setError(null);
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: normalizedEmail,
+        password: signupPassword,
+        options: {
+          emailRedirectTo: window.location.origin,
+        },
+      });
+
+      if (signUpError) {
+        throw signUpError;
+      }
+
+      if (!data.session) {
+        setSentTo(normalizedEmail);
+      }
+    } catch (submitError) {
+      setError(getAuthErrorMessage(submitError, "signup"));
+    } finally {
+      setBusyMode(null);
+    }
+  };
+
+  const requestMagicLink = async () => {
     if (!normalizedEmail) {
       setError("メールアドレスを入力してください。");
       return;
@@ -463,13 +595,13 @@ function AuthGate({ onUseDevAuth }: { onUseDevAuth?: () => void }) {
     }
 
     try {
-      setBusyMode(mode);
+      setBusyMode("magic");
       setError(null);
       const { error: signInError } = await supabase.auth.signInWithOtp({
         email: normalizedEmail,
         options: {
           emailRedirectTo: window.location.origin,
-          shouldCreateUser: mode === "signup",
+          shouldCreateUser: false,
         },
       });
 
@@ -481,7 +613,47 @@ function AuthGate({ onUseDevAuth }: { onUseDevAuth?: () => void }) {
       setCooldownUntil(Date.now() + AUTH_RESEND_COOLDOWN_SECONDS * 1000);
       setNowMs(Date.now());
     } catch (submitError) {
-      setError(getAuthErrorMessage(submitError, mode));
+      setError(getAuthErrorMessage(submitError, "magic"));
+
+      if (
+        submitError instanceof Error &&
+        submitError.message.toLowerCase().includes("rate limit")
+      ) {
+        setCooldownUntil(Date.now() + AUTH_RESEND_COOLDOWN_SECONDS * 1000);
+        setNowMs(Date.now());
+      }
+    } finally {
+      setBusyMode(null);
+    }
+  };
+
+  const requestPasswordReset = async () => {
+    if (!normalizedEmail) {
+      setError("メールアドレスを入力してください。");
+      return;
+    }
+
+    if (cooldownRemaining > 0) {
+      setError(`${cooldownRemaining}秒後に再送できます。`);
+      return;
+    }
+
+    try {
+      setBusyMode("reset");
+      setError(null);
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+        redirectTo: buildPasswordRecoveryRedirectUrl(),
+      });
+
+      if (resetError) {
+        throw resetError;
+      }
+
+      setSentTo(normalizedEmail);
+      setCooldownUntil(Date.now() + AUTH_RESEND_COOLDOWN_SECONDS * 1000);
+      setNowMs(Date.now());
+    } catch (submitError) {
+      setError(getAuthErrorMessage(submitError, "reset"));
 
       if (
         submitError instanceof Error &&
@@ -498,8 +670,8 @@ function AuthGate({ onUseDevAuth }: { onUseDevAuth?: () => void }) {
   return (
     <EntryLayout
       badge="ログイン"
-      title="メールでログイン"
-      description="現場データはログイン後に読み込みます。招待済み、または管理者として許可されたメールアドレスを入力してください。"
+      title="メールとパスワードでログイン"
+      description="通常ログインはメールアドレスとパスワードを使います。初回登録では招待されたメールアドレスにパスワードを設定してください。"
     >
       <form className={styles.authForm} onSubmit={handleSubmit}>
         <label className={styles.entryField}>
@@ -520,9 +692,24 @@ function AuthGate({ onUseDevAuth }: { onUseDevAuth?: () => void }) {
           />
         </label>
 
+        <label className={styles.entryField}>
+          <span>パスワード</span>
+          <input
+            className={styles.entryInput}
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(event) => {
+              setPassword(event.target.value);
+              setError(null);
+            }}
+            required
+          />
+        </label>
+
         {sentTo && (
           <p className={styles.entrySuccess} aria-live="polite">
-            {sentTo} にログインリンクを送りました。メールから開くと続きに進めます。
+            {sentTo} に確認リンクを送りました。メールから開くと続きに進めます。
           </p>
         )}
         {cooldownRemaining > 0 && (
@@ -536,21 +723,82 @@ function AuthGate({ onUseDevAuth }: { onUseDevAuth?: () => void }) {
           <button
             type="submit"
             className={`${styles.primaryButton} ${busyMode === "login" ? styles.primaryButtonBusy : ""}`}
-            disabled={actionDisabled}
+            disabled={loginDisabled}
             aria-busy={busyMode === "login"}
           >
             {busyMode === "login" ? <Loader2 size={16} className={styles.spinnerIcon} /> : <LogIn size={16} />}
-            再ログインリンクを送る
+            ログイン
           </button>
           <button
             type="button"
-            className={`${styles.secondaryButton} ${busyMode === "signup" ? styles.primaryButtonBusy : ""}`}
-            disabled={actionDisabled}
-            aria-busy={busyMode === "signup"}
-            onClick={() => void requestLoginLink("signup")}
+            className={`${styles.textButton} ${busyMode === "reset" ? styles.primaryButtonBusy : ""}`}
+            disabled={resetDisabled}
+            aria-busy={busyMode === "reset"}
+            onClick={() => void requestPasswordReset()}
           >
-            {busyMode === "signup" ? <Loader2 size={16} className={styles.spinnerIcon} /> : <Mail size={16} />}
-            初回登録リンクを送る
+            {busyMode === "reset" ? <Loader2 size={16} className={styles.spinnerIcon} /> : null}
+            パスワードを忘れた
+          </button>
+        </div>
+
+        <div className={styles.signupPanel}>
+          <div className={styles.signupPanelHeader}>
+            <span className={styles.entryIconBadge}>
+              <Mail size={18} />
+            </span>
+            <div>
+              <h2>初回登録</h2>
+              <p>招待されたメールアドレスに、次回から使うパスワードを設定します。</p>
+            </div>
+          </div>
+          <label className={styles.entryField}>
+            <span>初回登録用パスワード</span>
+            <input
+              className={styles.entryInput}
+              type="password"
+              autoComplete="new-password"
+              value={signupPassword}
+              onChange={(event) => {
+                setSignupPassword(event.target.value);
+                setError(null);
+              }}
+            />
+          </label>
+          <label className={styles.entryField}>
+            <span>初回登録用パスワード（確認）</span>
+            <input
+              className={styles.entryInput}
+              type="password"
+              autoComplete="new-password"
+              value={signupPasswordConfirm}
+              onChange={(event) => {
+                setSignupPasswordConfirm(event.target.value);
+                setError(null);
+              }}
+            />
+          </label>
+          <button
+            type="button"
+            className={`${styles.secondaryButton} ${busyMode === "signup" ? styles.primaryButtonBusy : ""}`}
+            disabled={signupDisabled}
+            aria-busy={busyMode === "signup"}
+            onClick={() => void signUpWithPassword()}
+          >
+            {busyMode === "signup" ? <Loader2 size={16} className={styles.spinnerIcon} /> : <LogIn size={16} />}
+            初回登録して進む
+          </button>
+        </div>
+
+        <div className={styles.authActions}>
+          <button
+            type="button"
+            className={`${styles.secondaryButton} ${busyMode === "magic" ? styles.primaryButtonBusy : ""}`}
+            disabled={magicDisabled}
+            aria-busy={busyMode === "magic"}
+            onClick={() => void requestMagicLink()}
+          >
+            {busyMode === "magic" ? <Loader2 size={16} className={styles.spinnerIcon} /> : <Mail size={16} />}
+            非常用リンクを送る
           </button>
         </div>
         {onUseDevAuth && (
@@ -558,6 +806,102 @@ function AuthGate({ onUseDevAuth }: { onUseDevAuth?: () => void }) {
             開発用ユーザーで入る
           </button>
         )}
+      </form>
+    </EntryLayout>
+  );
+}
+
+function PasswordRecoveryGate({
+  viewerEmail,
+  onPasswordUpdated,
+}: {
+  viewerEmail: string | null;
+  onPasswordUpdated: () => void;
+}) {
+  const [newPassword, setNewPassword] = useState("");
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const submitDisabled = busy || !newPassword || !newPasswordConfirm;
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (newPassword.length < 8) {
+      setError("パスワードは8文字以上で設定してください。");
+      return;
+    }
+
+    if (newPassword !== newPasswordConfirm) {
+      setError("確認用パスワードが一致していません。");
+      return;
+    }
+
+    try {
+      setBusy(true);
+      setError(null);
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      onPasswordUpdated();
+    } catch (submitError) {
+      setError(getAuthErrorMessage(submitError, "updatePassword"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <EntryLayout
+      badge="再設定"
+      title="新しいパスワードを設定"
+      description="次回から使うパスワードを設定してください。設定後はそのまま現場データへ進みます。"
+    >
+      <form className={styles.authForm} onSubmit={handleSubmit}>
+        {viewerEmail && <p className={styles.entryInfoMeta}>対象メール: {viewerEmail}</p>}
+        <label className={styles.entryField}>
+          <span>新しいパスワード</span>
+          <input
+            className={styles.entryInput}
+            type="password"
+            autoComplete="new-password"
+            value={newPassword}
+            onChange={(event) => {
+              setNewPassword(event.target.value);
+              setError(null);
+            }}
+            required
+          />
+        </label>
+        <label className={styles.entryField}>
+          <span>新しいパスワード（確認）</span>
+          <input
+            className={styles.entryInput}
+            type="password"
+            autoComplete="new-password"
+            value={newPasswordConfirm}
+            onChange={(event) => {
+              setNewPasswordConfirm(event.target.value);
+              setError(null);
+            }}
+            required
+          />
+        </label>
+        {error && <p className={styles.entryError}>{error}</p>}
+        <button
+          type="submit"
+          className={`${styles.primaryButton} ${busy ? styles.primaryButtonBusy : ""}`}
+          disabled={submitDisabled}
+          aria-busy={busy}
+        >
+          {busy ? <Loader2 size={16} className={styles.spinnerIcon} /> : <LogIn size={16} />}
+          パスワードを更新
+        </button>
       </form>
     </EntryLayout>
   );
@@ -750,6 +1094,7 @@ function AppContent() {
   const [reviewAlertMemberId, setReviewAlertMemberId] = useState<string | null>(null);
   const [authSession, setAuthSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [passwordRecoveryActive, setPasswordRecoveryActive] = useState(false);
   const [signOutBusy, setSignOutBusy] = useState(false);
   const [entryState, setEntryState] = useState<ClientEntryState>({ state: "loading" });
   const [showInviteHelp, setShowInviteHelp] = useState(false);
@@ -821,6 +1166,7 @@ function AppContent() {
 
   const handleSignedOut = useCallback(() => {
     clearActiveOrg();
+    setPasswordRecoveryActive(false);
     setEntryState({ state: "loading" });
     setBootstrapError(null);
     setShowInviteHelp(false);
@@ -848,12 +1194,20 @@ function AppContent() {
 
       if (session) {
         clearDevAuthSession();
+        if (isPasswordRecoveryRedirect()) {
+          setPasswordRecoveryActive(true);
+          setEntryState({ state: "loading" });
+          return;
+        }
+
+        setPasswordRecoveryActive(false);
         void resolveEntryState();
         return;
       }
 
       if (isDevAuthSessionActive()) {
         setAuthSession(buildDevAuthSession());
+        setPasswordRecoveryActive(false);
         void resolveEntryState();
         return;
       }
@@ -864,7 +1218,7 @@ function AppContent() {
     void loadSession();
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) {
         return;
       }
@@ -872,14 +1226,28 @@ function AppContent() {
       setAuthSession(session);
       setAuthLoading(false);
 
+      if (event === "PASSWORD_RECOVERY") {
+        setPasswordRecoveryActive(Boolean(session));
+        setEntryState({ state: "loading" });
+        return;
+      }
+
       if (session) {
         clearDevAuthSession();
+        if (isPasswordRecoveryRedirect()) {
+          setPasswordRecoveryActive(true);
+          setEntryState({ state: "loading" });
+          return;
+        }
+
+        setPasswordRecoveryActive(false);
         void resolveEntryState();
         return;
       }
 
       if (isDevAuthSessionActive()) {
         setAuthSession(buildDevAuthSession());
+        setPasswordRecoveryActive(false);
         void resolveEntryState();
         return;
       }
@@ -1105,6 +1473,12 @@ function AppContent() {
     void resolveEntryState();
   }, [resolveEntryState]);
 
+  const handlePasswordUpdated = useCallback(() => {
+    clearPasswordRecoveryRedirect();
+    setPasswordRecoveryActive(false);
+    void resolveEntryState();
+  }, [resolveEntryState]);
+
   const renderEntryGate = () => {
     if (entryState.state === "loading") {
       return (
@@ -1185,6 +1559,15 @@ function AppContent() {
 
   if (!authSession) {
     return <AuthGate onUseDevAuth={isDevAuthUiEnabled() ? handleUseDevAuth : undefined} />;
+  }
+
+  if (passwordRecoveryActive) {
+    return (
+      <PasswordRecoveryGate
+        viewerEmail={viewerEmail}
+        onPasswordUpdated={handlePasswordUpdated}
+      />
+    );
   }
 
   return (

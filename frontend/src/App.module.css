@@ -434,7 +434,8 @@
 .entryListCard,
 .entrySelectButton,
 .entryInfoCard,
-.bootstrapCard {
+.bootstrapCard,
+.signupPanel {
     border-radius: 22px;
     background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 88%, white);
     border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 12%, transparent);
@@ -475,14 +476,16 @@
     flex: 0 0 auto;
 }
 
-.bootstrapCard {
+.bootstrapCard,
+.signupPanel {
     display: flex;
     flex-direction: column;
     gap: 14px;
     padding: 18px;
 }
 
-.bootstrapCardHeader {
+.bootstrapCardHeader,
+.signupPanelHeader {
     display: flex;
     gap: 12px;
     align-items: flex-start;
@@ -524,7 +527,8 @@
 }
 
 .primaryButton,
-.secondaryButton {
+.secondaryButton,
+.textButton {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -561,6 +565,17 @@
     border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 18%, transparent);
     background: white;
     color: var(--md-sys-color-on-surface);
+}
+
+.textButton {
+    border: none;
+    background: transparent;
+    color: var(--md-sys-color-primary);
+}
+
+.textButton:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
 }
 
 .entryInfoCard {
