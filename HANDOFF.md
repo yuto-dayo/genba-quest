@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `Commit staged drawing API changes, push to origin master for Render auto-deploy, then verify /health and authenticated /api/v1/sites/:id/drawings smoke path`
+- NEXT_CMD: `Push branch and verify deployed environment picks up the communications UI after deployment.`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/HANDOFF.md`
@@ -18,14 +18,14 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `0079be5`
-  - Updated: `2026-05-06T13:54:03+0900`
+  - HEAD: `1e344a6`
+  - Updated: `2026-05-06T14:31:17+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
 
 <!-- HANDOFF_SESSION_EVENTS_START -->
-- 2026-05-06 13:54:03 +0900 — started by codex
+- 2026-05-06 14:28:09 +0900 — started by codex
 <!-- HANDOFF_SESSION_EVENTS_END -->
 
 ---
@@ -33,16 +33,16 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `Commit staged drawing API changes, push to origin master for Render auto-deploy, then verify /health and authenticated /api/v1/sites/:id/drawings smoke path`. Source: realtime
-- [H0001] Completed: Prepared drawing API deploy commit with only site drawings files staged; Supabase Pro and private genba-drawings bucket already verified
-- [H0001] Remaining: Commit staged drawing API changes, push to origin master for Render auto-deploy, then verify /health and authenticated /api/v1/sites/:id/drawings smoke path
+- [focus] NEXT_CMD: `Push branch and verify deployed environment picks up the communications UI after deployment.`. Source: realtime
+- [H0001] Completed: Implemented messenger-style communications evidence ledger UI and metadata persistence for communication logs.
+- [H0001] Remaining: Push branch and verify deployed environment picks up the communications UI after deployment.
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
-- [H0001] Auto-captured decision: Prepared drawing API deploy commit with only site drawings files staged; Supabase Pro and private genba-drawings bucket already verified
+- [H0001] Auto-captured decision: Implemented messenger-style communications evidence ledger UI and metadata persistence for communication logs.
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
@@ -52,7 +52,7 @@
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
-- [H0001] Commit staged drawing API changes, push to origin master for Render auto-deploy, then verify /health and authenticated /api/v1/sites/:id/drawings smoke path
+- [H0001] Push branch and verify deployed environment picks up the communications UI after deployment.
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
@@ -90,22 +90,19 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
-- [x] Prepared drawing API deploy commit with only site drawings files staged; Supabase Pro and private genba-drawings bucket already verified
+- [x] Implemented messenger-style communications evidence ledger UI and metadata persistence for communication logs.
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: Commit staged drawing API changes, push to origin master for Render auto-deploy, then verify /health and authenticated /api/v1/sites/:id/drawings smoke path
+- [ ] **P0**: Push branch and verify deployed environment picks up the communications UI after deployment.
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
-| `frontend/src/lib/api.ts` | drawing API helpers/types partial staged only |
-| `server/src/routes/sites.ts` | drawings routes |
-| `server/src/services/SiteDrawingService.ts` | drawing Storage upload/list service |
-| `supabase/migrations/20260506043949_add_private_site_drawings.sql` | private drawing bucket and version metadata migration |
+| `(not recorded)` | No file list provided (use --file "path - semantic description") |
 ---
 
 ## 6. Locked Files（編集中 - 他エージェント触らない）
@@ -152,21 +149,18 @@ cd frontend && npx eslint src/
 
 ## 11. Incremental Updates
 
-### 2026-05-06 13:54:03 +0900
+### 2026-05-06 14:31:17 +0900
 
 - Entry-ID: `H0001`
 - Completed:
-  - [x] Prepared drawing API deploy commit with only site drawings files staged; Supabase Pro and private genba-drawings bucket already verified
+  - [x] Implemented messenger-style communications evidence ledger UI and metadata persistence for communication logs.
 - Remaining:
-  - [ ] Commit staged drawing API changes, push to origin master for Render auto-deploy, then verify /health and authenticated /api/v1/sites/:id/drawings smoke path
+  - [ ] Push branch and verify deployed environment picks up the communications UI after deployment.
 - Changed Files:
-  - `supabase/migrations/20260506043949_add_private_site_drawings.sql` - private drawing bucket and version metadata migration
-  - `server/src/services/SiteDrawingService.ts` - drawing Storage upload/list service
-  - `server/src/routes/sites.ts` - drawings routes
-  - `frontend/src/lib/api.ts` - drawing API helpers/types partial staged only
+  - No file list provided (use --file "path - semantic description")
 - Working Context:
-  - Auto-captured decision: Prepared drawing API deploy commit with only site drawings files staged; Supabase Pro and private genba-drawings bucket already verified
+  - Auto-captured decision: Implemented messenger-style communications evidence ledger UI and metadata persistence for communication logs.
 - Validation:
-  - `server npm run build PASS; frontend npm run build PASS; server npm test -- --runInBand --runTestsByPath src/__tests__/unit/sitesRoute.test.ts PASS; staged diff limited to drawing API/service/migration plus HANDOFF`
+  - `frontend communications Vitest passed; server communications Jest passed.`
 - Landmines:
   - No new landmines reported in this chunk.

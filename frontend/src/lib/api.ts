@@ -838,6 +838,7 @@ export interface CreateCommunicationConversationRequest {
     participant_email?: string | null;
     participant_phone?: string | null;
     log_kind?: Exclude<CommunicationLogKind, "proposal_link">;
+    metadata?: Record<string, unknown>;
 }
 
 export interface CreateCommunicationLogRequest {
@@ -851,6 +852,7 @@ export interface CreateCommunicationLogRequest {
     participant_email?: string | null;
     participant_phone?: string | null;
     log_kind?: Exclude<CommunicationLogKind, "proposal_link">;
+    metadata?: Record<string, unknown>;
 }
 
 export interface UpdateCommunicationConversationRequest {

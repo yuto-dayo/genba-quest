@@ -10,13 +10,17 @@ import {
     CalendarClock,
     ChevronRight,
     ClipboardList,
+    ClipboardPaste,
     Filter,
+    HardHat,
     Mail,
     MapPinned,
     MessageSquare,
+    Phone,
     Plus,
     RefreshCw,
     Search,
+    SendHorizontal,
     Sparkles,
     UserCircle2,
     Users,
@@ -34,6 +38,7 @@ import {
     type CommunicationChannel,
     type CommunicationConversationStatus,
     type CommunicationContactRiskFlag,
+    type CommunicationContactRecentLogRecord,
     type CommunicationContactStatus,
     type CommunicationContactStatusDetail,
     type CommunicationContactStatusRecord,
@@ -89,6 +94,58 @@ const DIRECTION_LABELS: Record<CommunicationDirection, string> = {
 };
 
 type TabId = "board" | "analyze";
+type CommunicationEvidenceType = "external_original" | "team_sent_copy" | "oral_note";
+type CommunicationEntryMode = "customer_paste" | "team_paste" | "phone_note" | "site_conversation";
+
+function getStringMetadata(metadata: Record<string, unknown> | null | undefined, key: string): string | null {
+    const value = metadata?.[key];
+    return typeof value === "string" ? value : null;
+}
+
+function getEvidenceType(log: CommunicationContactRecentLogRecord): CommunicationEvidenceType {
+    const value = getStringMetadata(log.metadata, "evidence_type");
+    if (value === "external_original" || value === "team_sent_copy" || value === "oral_note") {
+        return value;
+    }
+    if (log.direction === "outbound") {
+        return "team_sent_copy";
+    }
+    if (log.direction === "internal" || log.channel === "phone" || log.channel === "in_person") {
+        return "oral_note";
+    }
+    return "external_original";
+}
+
+function getEntryMode(log: CommunicationContactRecentLogRecord): CommunicationEntryMode | null {
+    const value = getStringMetadata(log.metadata, "entry_mode");
+    if (
+        value === "customer_paste" ||
+        value === "team_paste" ||
+        value === "phone_note" ||
+        value === "site_conversation"
+    ) {
+        return value;
+    }
+    return null;
+}
+
+function getEvidenceLabel(log: CommunicationContactRecentLogRecord): string {
+    const entryMode = getEntryMode(log);
+    if (entryMode === "site_conversation") {
+        return "現場会話";
+    }
+    if (entryMode === "phone_note") {
+        return "聞き取り";
+    }
+    const evidenceType = getEvidenceType(log);
+    if (evidenceType === "team_sent_copy") {
+        return "送信文";
+    }
+    if (evidenceType === "oral_note") {
+        return log.channel === "in_person" ? "現場会話" : "聞き取り";
+    }
+    return "コピペ原文";
+}
 
 function formatDateTime(value?: string | null): string {
     if (!value) {
@@ -404,6 +461,47 @@ function CommunicationContactRow({
                 </div>
             </div>
         </button>
+    );
+}
+
+function CommunicationTimelineLog({ log }: { log: CommunicationContactRecentLogRecord }) {
+    const evidenceType = getEvidenceType(log);
+    const entryMode = getEntryMode(log);
+    const isOutbound = evidenceType === "team_sent_copy" || log.direction === "outbound";
+    const isOral = evidenceType === "oral_note";
+    const Icon =
+        entryMode === "site_conversation"
+            ? HardHat
+            : entryMode === "phone_note" || log.channel === "phone"
+              ? Phone
+              : isOutbound
+                ? SendHorizontal
+                : ClipboardPaste;
+
+    return (
+        <article
+            className={`${styles.timelineItem} ${
+                isOral ? styles.timelineItemNote : isOutbound ? styles.timelineItemOutbound : styles.timelineItemInbound
+            }`}
+        >
+            <div className={styles.timelineBubble}>
+                <div className={styles.timelineMeta}>
+                    <span className={styles.evidenceBadge}>
+                        <Icon size={13} />
+                        {getEvidenceLabel(log)}
+                    </span>
+                    <span>{CHANNEL_LABELS[log.channel]}</span>
+                    <span>{DIRECTION_LABELS[log.direction]}</span>
+                    <span>{formatDateTime(log.occurred_at)}</span>
+                </div>
+                <strong>{log.subject || log.conversation_title}</strong>
+                <p>{log.summary || log.body}</p>
+                <div className={styles.timelineAudit}>
+                    <span>登録 {log.created_by_name || log.created_by_type}</span>
+                    <span>{formatDateTime(log.created_at)}</span>
+                </div>
+            </div>
+        </article>
     );
 }
 
@@ -929,6 +1027,20 @@ export function Communications() {
 
                                     <section className={styles.detailCard}>
                                         <div className={styles.sectionTitle}>
+                                            <Mail size={16} />
+                                            <h2>証跡タイムライン</h2>
+                                        </div>
+                                        <div className={styles.timelineList}>
+                                            {detail.recent_logs.length === 0 ? (
+                                                <p className={styles.smallMuted}>まだ記録はありません。</p>
+                                            ) : (
+                                                detail.recent_logs.map((log) => <CommunicationTimelineLog key={log.id} log={log} />)
+                                            )}
+                                        </div>
+                                    </section>
+
+                                    <section className={styles.detailCard}>
+                                        <div className={styles.sectionTitle}>
                                             <ClipboardList size={16} />
                                             <h2>関連 Proposal</h2>
                                         </div>
@@ -982,31 +1094,6 @@ export function Communications() {
                                         </div>
                                     </section>
 
-                                    <section className={styles.detailCard}>
-                                        <div className={styles.sectionTitle}>
-                                            <Mail size={16} />
-                                            <h2>直近 5 件ログ</h2>
-                                        </div>
-                                        <div className={styles.logList}>
-                                            {detail.recent_logs.map((log) => (
-                                                <article key={log.id} className={styles.logItem}>
-                                                    <div className={styles.logItemHeader}>
-                                                        <div className={styles.logBadges}>
-                                                            <span className={styles.channelBadge}>
-                                                                {CHANNEL_LABELS[log.channel]}
-                                                            </span>
-                                                            <span className={styles.directionBadge}>
-                                                                {DIRECTION_LABELS[log.direction]}
-                                                            </span>
-                                                        </div>
-                                                        <span>{formatDateTime(log.occurred_at)}</span>
-                                                    </div>
-                                                    <strong>{log.subject || log.conversation_title}</strong>
-                                                    <p>{log.summary || log.body}</p>
-                                                </article>
-                                            ))}
-                                        </div>
-                                    </section>
                                 </>
                             )}
                         </aside>

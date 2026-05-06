@@ -37,6 +37,7 @@ describe("communications router", () => {
   const listHandler = getHandler("get", "/");
   const detailHandler = getHandler("get", "/:conversationId");
   const createHandler = getHandler("post", "/");
+  const addLogHandler = getHandler("post", "/:conversationId/logs");
   const patchHandler = getHandler("patch", "/:conversationId");
   const mockFrom = (supabaseAdmin as unknown as { from: jest.Mock }).from;
 
@@ -335,6 +336,93 @@ describe("communications router", () => {
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith({ error: "title is required" });
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("POST / returns 400 when metadata is not an object", async () => {
+    const req = {
+      orgId: "org-1",
+      body: {
+        title: "LINEの確認",
+        channel: "line",
+        direction: "inbound",
+        body: "確認お願いします",
+        metadata: "invalid",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: "metadata must be an object" });
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("POST /:conversationId/logs stores evidence metadata", async () => {
+    const existingChain = createChain({ data: { id: "conv-1" }, error: null });
+    const insertLogChain = createChain({ data: { id: "log-1" }, error: null });
+    const updateConversationChain = createChain({ data: null, error: null });
+    const detailConversationChain = createChain({ data: null, error: null });
+    setupMockFromSequence(mockFrom, [
+      existingChain,
+      insertLogChain,
+      updateConversationChain,
+      detailConversationChain,
+    ]);
+
+    const metadata = {
+      entry_mode: "customer_paste",
+      capture_method: "paste_primary",
+      evidence_type: "external_original",
+      original_locked: true,
+      recorded_ui_version: "messenger_ledger_v1",
+    };
+    const req = {
+      orgId: "org-1",
+      userId: "user-1",
+      userName: "山田太郎",
+      params: { conversationId: "conv-1" },
+      body: {
+        channel: "line",
+        direction: "inbound",
+        body: "確認お願いします",
+        log_kind: "message",
+        metadata,
+      },
+    } as any;
+    const res = createMockRes();
+
+    await addLogHandler(req, res);
+
+    expect(insertLogChain.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversation_id: "conv-1",
+        channel: "line",
+        direction: "inbound",
+        log_kind: "message",
+        metadata,
+      })
+    );
+  });
+
+  it("POST /:conversationId/logs returns 400 when metadata is not an object", async () => {
+    const req = {
+      orgId: "org-1",
+      params: { conversationId: "conv-1" },
+      body: {
+        channel: "line",
+        direction: "inbound",
+        body: "確認お願いします",
+        metadata: ["invalid"],
+      },
+    } as any;
+    const res = createMockRes();
+
+    await addLogHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: "metadata must be an object" });
     expect(mockFrom).not.toHaveBeenCalled();
   });
 

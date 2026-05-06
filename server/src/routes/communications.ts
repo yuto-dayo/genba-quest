@@ -383,6 +383,16 @@ function normalizeLogKind(raw: unknown): CommunicationLogKind | null {
   return value as CommunicationLogKind;
 }
 
+function normalizeMetadata(raw: unknown): Record<string, unknown> | null {
+  if (raw === undefined || raw === null) {
+    return {};
+  }
+  if (typeof raw !== "object" || Array.isArray(raw)) {
+    return null;
+  }
+  return raw as Record<string, unknown>;
+}
+
 function normalizeDateOnly(raw: unknown): string | null {
   const value = normalizeString(raw);
   if (!value) {
@@ -1083,6 +1093,7 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
     const participantName = normalizeString(req.body?.participant_name);
     const participantEmail = normalizeNullableString(req.body?.participant_email);
     const participantPhone = normalizeNullableString(req.body?.participant_phone);
+    const metadata = normalizeMetadata(req.body?.metadata);
     const sourceChannel = channel && channel !== "system" ? channel : "manual";
 
     if (!title) {
@@ -1102,6 +1113,11 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
 
     if (!body) {
       res.status(400).json({ error: "body is required" });
+      return;
+    }
+
+    if (metadata === null) {
+      res.status(400).json({ error: "metadata must be an object" });
       return;
     }
 
@@ -1164,6 +1180,7 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
       createdByType: "human",
       createdByUserId: req.userId || null,
       createdByName: req.userName || null,
+      metadata,
     });
 
     if (participantName || participantEmail || participantPhone) {
@@ -1221,6 +1238,7 @@ router.post("/:conversationId/logs", async (req: AuthenticatedRequest, res: Resp
     const summary = normalizeNullableString(req.body?.summary);
     const logKind = normalizeLogKind(req.body?.log_kind) || "message";
     const occurredAt = normalizeOccurredAt(req.body?.occurred_at) || new Date().toISOString();
+    const metadata = normalizeMetadata(req.body?.metadata);
 
     if (!conversationId) {
       res.status(400).json({ error: "Invalid conversationId" });
@@ -1239,6 +1257,11 @@ router.post("/:conversationId/logs", async (req: AuthenticatedRequest, res: Resp
 
     if (!body) {
       res.status(400).json({ error: "body is required" });
+      return;
+    }
+
+    if (metadata === null) {
+      res.status(400).json({ error: "metadata must be an object" });
       return;
     }
 
@@ -1271,6 +1294,7 @@ router.post("/:conversationId/logs", async (req: AuthenticatedRequest, res: Resp
       createdByType: "human",
       createdByUserId: req.userId || null,
       createdByName: req.userName || null,
+      metadata,
     });
 
     const participantName = normalizeString(req.body?.participant_name);

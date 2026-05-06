@@ -94,6 +94,7 @@
 }
 
 .card,
+.modeCard,
 .previewCard,
 .emptyState {
     display: grid;
@@ -102,6 +103,121 @@
     border-radius: 24px;
     background: rgba(255, 255, 255, 0.84);
     border: 1px solid rgba(15, 118, 110, 0.12);
+}
+
+.modeCard {
+    background: rgba(255, 255, 255, 0.74);
+}
+
+.modeGrid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.modeOption {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    min-height: 52px;
+    padding: 10px 12px;
+    border-radius: 18px;
+    border: 1px solid rgba(15, 118, 110, 0.12);
+    background: rgba(255, 255, 255, 0.82);
+    color: #315f58;
+    text-align: left;
+    font: var(--md-sys-typescale-label-medium);
+}
+
+.modeOption span {
+    min-width: 0;
+}
+
+.modeOptionActive {
+    border-color: rgba(15, 118, 110, 0.32);
+    box-shadow: 0 12px 24px rgba(15, 118, 110, 0.1);
+}
+
+.entryPanel {
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+    border-radius: 20px;
+    border: 1px solid rgba(15, 118, 110, 0.12);
+}
+
+.entryPanelHeader {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.entryPanelHeader h3 {
+    margin: 8px 0 4px;
+    color: #123f3a;
+    font: var(--md-sys-typescale-title-large);
+}
+
+.entryPanelHeader p,
+.entryHelper {
+    margin: 0;
+    color: #536f69;
+    font: var(--md-sys-typescale-body-small);
+    line-height: 1.55;
+}
+
+.entryBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 28px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.78);
+    color: #24564f;
+    font: var(--md-sys-typescale-label-small);
+}
+
+.modeToneCustomer {
+    background: rgba(226, 239, 247, 0.82);
+    color: #1f4e68;
+}
+
+.modeToneTeam {
+    background: rgba(231, 247, 238, 0.9);
+    color: #17643d;
+}
+
+.modeTonePhone {
+    background: rgba(254, 243, 199, 0.78);
+    color: #7c4a03;
+}
+
+.modeToneSite {
+    background: rgba(255, 237, 213, 0.8);
+    color: #8a3c0d;
+}
+
+.lockedMeta {
+    display: grid;
+    gap: 7px;
+    min-height: 48px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    border: 1px solid rgba(15, 118, 110, 0.12);
+    background: rgba(255, 255, 255, 0.74);
+}
+
+.lockedMeta span {
+    color: #67807a;
+    font: var(--md-sys-typescale-label-medium);
+}
+
+.lockedMeta strong {
+    color: #153b37;
+    font: var(--md-sys-typescale-body-large);
 }
 
 .labelRow {
@@ -333,6 +449,7 @@
 
     .previewMeta,
     .inlineGrid,
+    .modeGrid,
     .emptyActions,
     .footer {
         grid-template-columns: 1fr;
