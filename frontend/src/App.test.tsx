@@ -157,7 +157,7 @@ describe("App entry gate", () => {
         expect(screen.getByRole("button", { name: "招待で参加" })).toBeInTheDocument();
     });
 
-    it("shows bootstrap form on onboarding when bootstrap is allowed", async () => {
+    it("hides bootstrap form on onboarding even when bootstrap is allowed", async () => {
         fetchAppEntryState.mockResolvedValue({
             state: "needs_onboarding",
             viewer_email: "worker@example.com",
@@ -168,12 +168,12 @@ describe("App entry gate", () => {
 
         render(<App />);
 
-        expect(await screen.findByText("参加方法を選択")).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "組織を作成" })).toBeInTheDocument();
-        expect(screen.getByText("新しい組織を作成")).toBeInTheDocument();
+        expect(await screen.findByText("招待を受けて参加")).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "組織を作成" })).not.toBeInTheDocument();
+        expect(screen.queryByText("新しい組織を作成")).not.toBeInTheDocument();
     });
 
-    it("shows bootstrap form when invite action state also allows bootstrap", async () => {
+    it("hides bootstrap form when invite action state also allows bootstrap", async () => {
         fetchAppEntryState.mockResolvedValue({
             state: "needs_invite_action",
             viewer_email: "worker@example.com",
@@ -194,8 +194,10 @@ describe("App entry gate", () => {
 
         expect(await screen.findByText("招待されている組織があります")).toBeInTheDocument();
         expect(screen.getByText("GENBA 本部")).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "組織を作成" })).toBeInTheDocument();
-        expect(screen.getByText("別の組織を作成")).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "組織を作成" })).not.toBeInTheDocument();
+        expect(screen.queryByText("別の組織を作成")).not.toBeInTheDocument();
+        expect(screen.queryByText("新しい組織を作成")).not.toBeInTheDocument();
+        expect(screen.getByText("このメールで招待を確認できました。参加できない場合は、管理者に参加設定の確認を依頼してください。")).toBeInTheDocument();
     });
 
     it("shows the unified communication FAB on today", async () => {
@@ -211,7 +213,7 @@ describe("App entry gate", () => {
         expect(screen.getByRole("button", { name: "連絡を記録" })).toBeInTheDocument();
     });
 
-    it("uses org bootstrap endpoint from onboarding state", async () => {
+    it("does not expose org bootstrap from onboarding state", async () => {
         fetchAppEntryState.mockResolvedValue({
             state: "needs_onboarding",
             viewer_email: "worker@example.com",
@@ -219,38 +221,14 @@ describe("App entry gate", () => {
             memberships: [],
             pending_invites: [],
         });
-        bootstrapOrg.mockResolvedValue({
-            active_org: {
-                id: "org-1",
-                name: "PATH.インテリア",
-                slug: "path-in",
-                status: "active",
-            },
-            membership: {
-                org_id: "org-1",
-                user_id: "user-1",
-                role: "admin",
-                status: "active",
-            },
-        });
 
         render(<App />);
 
-        fireEvent.change(await screen.findByPlaceholderText("例: GENBA 本部"), {
-            target: { value: "PATH.インテリア" },
-        });
-        fireEvent.change(screen.getByPlaceholderText("例: genba-hq"), {
-            target: { value: "path-in" },
-        });
-        fireEvent.click(screen.getByRole("button", { name: "組織を作成" }));
-
-        await waitFor(() => {
-            expect(bootstrapOrg).toHaveBeenCalledWith({
-                name: "PATH.インテリア",
-                slug: "path-in",
-            });
-        });
-
+        expect(await screen.findByText("招待を受けて参加")).toBeInTheDocument();
+        expect(screen.queryByPlaceholderText("例: GENBA 本部")).not.toBeInTheDocument();
+        expect(screen.queryByPlaceholderText("例: genba-hq")).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "組織を作成" })).not.toBeInTheDocument();
+        expect(bootstrapOrg).not.toHaveBeenCalled();
         expect(bootstrapFirstOrg).not.toHaveBeenCalled();
     });
 

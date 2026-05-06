@@ -63,6 +63,11 @@ const PATH_MODULE_ERROR_STATUS_MAP: Record<string, number> = {
   INVALID_DATE_FORMAT: 400,
   INVALID_CREDITED_UNIT: 400,
   INVALID_CREDITED_UNIT_INCREMENT: 400,
+  INVALID_PARTICIPATION_UNITS: 400,
+  INVALID_RESPONSIBILITY_LEVEL: 400,
+  INVALID_REWARD_INPUT_ID: 400,
+  INVALID_ROLE_PLAN_ID: 400,
+  INVALID_ROLE_SHARES: 400,
   INVALID_REWORK_UNITS: 400,
   INVALID_FIXED_TEMPLATE_KEY: 400,
   INVALID_FIXED_TEMPLATE_RATIO_TOTAL: 400,
@@ -71,6 +76,7 @@ const PATH_MODULE_ERROR_STATUS_MAP: Record<string, number> = {
   DAY_LOGS_REQUIRED: 400,
   DAY_LOGS_NOT_FOUND: 404,
   DAY_LOG_MEMBER_FORBIDDEN: 403,
+  SITE_NOT_FOUND: 404,
   SITE_COMPLETED_DAY_LOG_IMMUTABLE: 409,
   DAY_LOG_SITE_MISMATCH: 400,
   INVALID_SITE_CLOSE_STATUS: 400,
@@ -501,6 +507,50 @@ router.post("/day-logs", async (req: AuthenticatedRequest, res: Response) => {
   try {
     const log = await getPathV31Service(req).upsertDayLog(req.body, buildHumanActor(req));
     res.status(200).json({ log });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+router.get("/site-member-role-plans", async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const plans = await getPathV31Service(req).listSiteMemberRolePlans({
+      site_id: typeof req.query.site_id === "string" ? req.query.site_id : undefined,
+      member_id: typeof req.query.member_id === "string" ? req.query.member_id : undefined,
+      limit: normalizeLimit(req.query.limit),
+    });
+    res.json({ plans });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+router.post("/site-member-role-plans", async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const plan = await getPathV31Service(req).upsertSiteMemberRolePlan(req.body, buildHumanActor(req));
+    res.status(200).json({ plan });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+router.get("/site-member-reward-inputs", async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const inputs = await getPathV31Service(req).listSiteMemberRewardInputs({
+      site_id: typeof req.query.site_id === "string" ? req.query.site_id : undefined,
+      member_id: typeof req.query.member_id === "string" ? req.query.member_id : undefined,
+      limit: normalizeLimit(req.query.limit),
+    });
+    res.json({ inputs });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+router.post("/site-member-reward-inputs", async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const input = await getPathV31Service(req).upsertSiteMemberRewardInput(req.body, buildHumanActor(req));
+    res.status(200).json({ input });
   } catch (error) {
     handleError(res, error);
   }

@@ -34,7 +34,6 @@ import { FloatingActionButton } from "./components/FloatingActionButton";
 import { MonthlyEvaluationModal } from "./components/today/MonthlyEvaluationModal";
 import {
   bootstrapFirstOrg,
-  bootstrapOrg,
   fetchAppEntryState,
   fetchPathAiReviews,
   fetchPathForms,
@@ -505,108 +504,18 @@ function SystemBootstrapGate({
   );
 }
 
-function BootstrapCard({
-  title,
-  description,
-  bootstrapName,
-  bootstrapSlug,
-  bootstrapBusy,
-  bootstrapError,
-  onBootstrapNameChange,
-  onBootstrapSlugChange,
-  onBootstrapSubmit,
-}: {
-  title: string;
-  description: string;
-  bootstrapName: string;
-  bootstrapSlug: string;
-  bootstrapBusy: boolean;
-  bootstrapError: string | null;
-  onBootstrapNameChange: (value: string) => void;
-  onBootstrapSlugChange: (value: string) => void;
-  onBootstrapSubmit: () => void;
-}) {
-  return (
-    <div className={styles.bootstrapCard}>
-      <div className={styles.bootstrapCardHeader}>
-        <span className={styles.entryIconBadge}>
-          <PlusCircle size={18} />
-        </span>
-        <div>
-          <h2>{title}</h2>
-          <p>{description}</p>
-        </div>
-      </div>
-
-      <label className={styles.entryField}>
-        <span>組織名</span>
-        <input
-          className={styles.entryInput}
-          value={bootstrapName}
-          onChange={(event) => onBootstrapNameChange(event.target.value)}
-          placeholder="例: GENBA 本部"
-        />
-      </label>
-
-      <label className={styles.entryField}>
-        <span>slug（任意）</span>
-        <input
-          className={styles.entryInput}
-          value={bootstrapSlug}
-          onChange={(event) => onBootstrapSlugChange(event.target.value)}
-          placeholder="例: genba-hq"
-        />
-      </label>
-
-      {bootstrapError && <p className={styles.entryError}>{bootstrapError}</p>}
-
-      <button
-        type="button"
-        className={`${styles.primaryButton} ${bootstrapBusy ? styles.primaryButtonBusy : ""}`}
-        onClick={onBootstrapSubmit}
-        disabled={bootstrapBusy}
-        aria-busy={bootstrapBusy}
-      >
-        {bootstrapBusy ? <Loader2 size={16} className={styles.spinnerIcon} /> : <PlusCircle size={16} />}
-        組織を作成
-      </button>
-    </div>
-  );
-}
-
 function OnboardingGate({
   viewerEmail,
-  bootstrapAllowed,
-  bootstrapName,
-  bootstrapSlug,
-  bootstrapBusy,
-  bootstrapError,
   onOpenInviteHelp,
-  onBootstrapNameChange,
-  onBootstrapSlugChange,
-  onBootstrapSubmit,
 }: {
   viewerEmail: string | null;
-  bootstrapAllowed: boolean;
-  bootstrapName: string;
-  bootstrapSlug: string;
-  bootstrapBusy: boolean;
-  bootstrapError: string | null;
   onOpenInviteHelp: () => void;
-  onBootstrapNameChange: (value: string) => void;
-  onBootstrapSlugChange: (value: string) => void;
-  onBootstrapSubmit: () => void;
 }) {
-  const title = bootstrapAllowed ? "参加方法を選択" : "招待を受けて参加";
-  const description = bootstrapAllowed
-    ? "管理者からの招待で参加するか、新しい組織を作成して始められます。"
-    : "このアカウントは、まだどの組織にも参加していません。参加するには、管理者からの招待を受けてください。";
-
   return (
     <EntryLayout
       badge="未所属"
-      title={title}
-      description={description}
+      title="招待を受けて参加"
+      description="このアカウントは、まだどの組織にも参加していません。参加するには、管理者からの招待を受けてください。"
     >
       <div className={styles.entryActions}>
         <button type="button" className={styles.secondaryButton} onClick={onOpenInviteHelp}>
@@ -619,20 +528,6 @@ function OnboardingGate({
           <p>招待はメールアドレス単位で届きます。招待を受けたメールアドレスでログインしてください。</p>
           {viewerEmail && <p className={styles.entryInfoMeta}>現在のログインメール: {viewerEmail}</p>}
         </div>
-
-        {bootstrapAllowed && (
-          <BootstrapCard
-            title="新しい組織を作成"
-            description="管理者メールとして許可されているため、この場で新しい組織を作成できます。"
-            bootstrapName={bootstrapName}
-            bootstrapSlug={bootstrapSlug}
-            bootstrapBusy={bootstrapBusy}
-            bootstrapError={bootstrapError}
-            onBootstrapNameChange={onBootstrapNameChange}
-            onBootstrapSlugChange={onBootstrapSlugChange}
-            onBootstrapSubmit={onBootstrapSubmit}
-          />
-        )}
       </div>
     </EntryLayout>
   );
@@ -641,35 +536,15 @@ function OnboardingGate({
 function InviteActionGate({
   viewerEmail,
   pendingInvites,
-  bootstrapAllowed,
-  bootstrapName,
-  bootstrapSlug,
-  bootstrapBusy,
-  bootstrapError,
-  onBootstrapNameChange,
-  onBootstrapSlugChange,
-  onBootstrapSubmit,
 }: {
   viewerEmail: string | null;
   pendingInvites: AppEntryPendingInvite[];
-  bootstrapAllowed: boolean;
-  bootstrapName: string;
-  bootstrapSlug: string;
-  bootstrapBusy: boolean;
-  bootstrapError: string | null;
-  onBootstrapNameChange: (value: string) => void;
-  onBootstrapSlugChange: (value: string) => void;
-  onBootstrapSubmit: () => void;
 }) {
-  const description = bootstrapAllowed
-    ? "参加する組織を確認してください。必要なら新しい組織を作成して始めることもできます。"
-    : "参加する組織を確認してください。招待を受けたメールアドレスでログインすると、参加情報を確認できます。";
-
   return (
     <EntryLayout
       badge="招待待ち"
       title="招待されている組織があります"
-      description={description}
+      description="招待内容を確認しています。参加できない場合は、管理者に参加設定の確認を依頼してください。"
     >
       <div className={styles.entryList}>
         {pendingInvites.map((invite) => (
@@ -684,22 +559,9 @@ function InviteActionGate({
       </div>
       <div className={styles.entryInfoCard}>
         <h2>参加について</h2>
-        <p>招待を受けたメールアドレスでログインしてください。現在のアカウントでは参加情報を確認できません。</p>
+        <p>このメールで招待を確認できました。参加できない場合は、管理者に参加設定の確認を依頼してください。</p>
         {viewerEmail && <p className={styles.entryInfoMeta}>現在のログインメール: {viewerEmail}</p>}
       </div>
-      {bootstrapAllowed && (
-        <BootstrapCard
-          title="別の組織を作成"
-          description="招待待ちでも、管理者メールなら新しい組織を作成して始められます。"
-          bootstrapName={bootstrapName}
-          bootstrapSlug={bootstrapSlug}
-          bootstrapBusy={bootstrapBusy}
-          bootstrapError={bootstrapError}
-          onBootstrapNameChange={onBootstrapNameChange}
-          onBootstrapSlugChange={onBootstrapSlugChange}
-          onBootstrapSubmit={onBootstrapSubmit}
-        />
-      )}
     </EntryLayout>
   );
 }
@@ -1022,9 +884,7 @@ function AppContent() {
     try {
       setBootstrapBusy(true);
       setBootstrapError(null);
-      const bootstrapAction =
-        entryState.state === "needs_system_bootstrap" ? bootstrapFirstOrg : bootstrapOrg;
-      const result = await bootstrapAction({
+      const result = await bootstrapFirstOrg({
         name: bootstrapName,
         slug: bootstrapSlug || null,
       });
@@ -1056,7 +916,7 @@ function AppContent() {
     } finally {
       setBootstrapBusy(false);
     }
-  }, [bootstrapName, bootstrapSlug, entryState.state, formatBootstrapError, setActiveOrgId, setOrgOptions]);
+  }, [bootstrapName, bootstrapSlug, formatBootstrapError, setActiveOrgId, setOrgOptions]);
 
   const handleSelectOrg = useCallback((orgId: string) => {
     setActiveOrgId(orgId);
@@ -1106,15 +966,7 @@ function AppContent() {
       return (
         <OnboardingGate
           viewerEmail={entryState.viewer_email}
-          bootstrapAllowed={entryState.bootstrap_allowed}
-          bootstrapName={bootstrapName}
-          bootstrapSlug={bootstrapSlug}
-          bootstrapBusy={bootstrapBusy}
-          bootstrapError={bootstrapError}
           onOpenInviteHelp={() => setShowInviteHelp(true)}
-          onBootstrapNameChange={setBootstrapName}
-          onBootstrapSlugChange={setBootstrapSlug}
-          onBootstrapSubmit={() => void handleBootstrapSubmit()}
         />
       );
     }
@@ -1138,14 +990,6 @@ function AppContent() {
         <InviteActionGate
           viewerEmail={entryState.viewer_email}
           pendingInvites={entryState.pending_invites}
-          bootstrapAllowed={entryState.bootstrap_allowed}
-          bootstrapName={bootstrapName}
-          bootstrapSlug={bootstrapSlug}
-          bootstrapBusy={bootstrapBusy}
-          bootstrapError={bootstrapError}
-          onBootstrapNameChange={setBootstrapName}
-          onBootstrapSlugChange={setBootstrapSlug}
-          onBootstrapSubmit={() => void handleBootstrapSubmit()}
         />
       );
     }
