@@ -32,6 +32,14 @@
     gap: 12px;
 }
 
+.headerActions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    min-width: 0;
+}
+
 .logo {
     display: flex;
     align-items: center;
@@ -135,6 +143,47 @@
 
 .orgSelect:focus {
     outline: none;
+}
+
+.viewerBadge {
+    display: inline-flex;
+    align-items: center;
+    max-width: min(24vw, 220px);
+    min-height: 34px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 64%, white);
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-medium);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.signOutButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 38px;
+    padding: 0 12px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 16%, transparent);
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-lowest) 92%, white);
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-medium);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.signOutButton:disabled {
+    opacity: 0.72;
+    cursor: progress;
+}
+
+.signOutButton:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--md-sys-color-primary) 32%, transparent);
+    outline-offset: 2px;
 }
 
 /* ============================================================
@@ -374,7 +423,8 @@
 }
 
 .entryActions,
-.entryList {
+.entryList,
+.authForm {
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -521,6 +571,14 @@
     font: var(--md-sys-typescale-label-large);
 }
 
+.entrySuccess {
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--md-sys-color-primary-container) 62%, white);
+    color: var(--md-sys-color-on-primary-container);
+    font: var(--md-sys-typescale-label-large);
+}
+
 .entryLoading {
     display: inline-flex;
     align-items: center;
@@ -614,6 +672,10 @@
         gap: 10px;
     }
 
+    .headerActions {
+        gap: 6px;
+    }
+
     .logo {
         gap: 8px;
     }
@@ -654,6 +716,21 @@
 
     .orgSelect {
         max-width: 42vw;
+    }
+
+    .viewerBadge {
+        display: none;
+    }
+
+    .signOutButton {
+        width: 38px;
+        min-height: 38px;
+        padding: 0;
+        flex: 0 0 auto;
+    }
+
+    .signOutButtonText {
+        display: none;
     }
 
     .chipViewport {

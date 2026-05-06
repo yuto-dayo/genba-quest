@@ -7,6 +7,8 @@ import {
   CircleDollarSign,
   HardHat,
   Home,
+  LogIn,
+  LogOut,
   Loader2,
   Mail,
   MapPinned,
@@ -18,7 +20,8 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { type Session } from "@supabase/supabase-js";
 import { CommunicationRecordSheet } from "./components/CommunicationRecordSheet";
 import { Communications } from "./pages/Communications";
 import { Calendar } from "./pages/Calendar";
@@ -97,8 +100,11 @@ function Navigation({
   activeOrgId,
   orgLabel,
   orgTone,
+  viewerEmail,
+  signOutBusy,
   onChangeOrg,
   onOpenBell,
+  onSignOut,
 }: {
   bellEnabled: boolean;
   bellNeedsAttention: boolean;
@@ -109,8 +115,11 @@ function Navigation({
   activeOrgId: string | null;
   orgLabel: string;
   orgTone: "default" | "warning";
+  viewerEmail: string | null;
+  signOutBusy: boolean;
   onChangeOrg: (orgId: string) => void;
   onOpenBell: () => void;
+  onSignOut: () => void;
 }) {
   const location = useLocation();
   const activePath = location.pathname === "/luqo" ? "/path" : location.pathname;
@@ -182,37 +191,51 @@ function Navigation({
             <span className={styles.logoText}>GENBA QUEST</span>
           </span>
         </Link>
-        <div
-          className={`${styles.orgBadge} ${
-            orgTone === "warning" ? styles.orgBadgeWarning : ""
-          }`}
-          aria-live="polite"
-        >
-          <span className={styles.orgBadgeEyebrow}>
-            {canSwitchOrg ? "表示中の組織 / 切替" : "表示中の組織"}
-          </span>
-          {canSwitchOrg ? (
-            <label className={styles.orgSelectWrap}>
-              {orgTone === "warning" ? <TriangleAlert size={14} /> : <Building2 size={14} />}
-              <select
-                className={styles.orgSelect}
-                value={activeOrgId || ""}
-                onChange={(event) => onChangeOrg(event.target.value)}
-                aria-label="表示中の組織"
-              >
-                {orgOptions.map((option) => (
-                  <option key={option.org.id} value={option.org.id}>
-                    {option.org.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : (
-            <span className={styles.orgBadgeValue}>
-              {orgTone === "warning" ? <TriangleAlert size={14} /> : <Building2 size={14} />}
-              {orgLabel}
+        <div className={styles.headerActions}>
+          {viewerEmail && <span className={styles.viewerBadge}>{viewerEmail}</span>}
+          <div
+            className={`${styles.orgBadge} ${
+              orgTone === "warning" ? styles.orgBadgeWarning : ""
+            }`}
+            aria-live="polite"
+          >
+            <span className={styles.orgBadgeEyebrow}>
+              {canSwitchOrg ? "表示中の組織 / 切替" : "表示中の組織"}
             </span>
-          )}
+            {canSwitchOrg ? (
+              <label className={styles.orgSelectWrap}>
+                {orgTone === "warning" ? <TriangleAlert size={14} /> : <Building2 size={14} />}
+                <select
+                  className={styles.orgSelect}
+                  value={activeOrgId || ""}
+                  onChange={(event) => onChangeOrg(event.target.value)}
+                  aria-label="表示中の組織"
+                >
+                  {orgOptions.map((option) => (
+                    <option key={option.org.id} value={option.org.id}>
+                      {option.org.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <span className={styles.orgBadgeValue}>
+                {orgTone === "warning" ? <TriangleAlert size={14} /> : <Building2 size={14} />}
+                {orgLabel}
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            className={styles.signOutButton}
+            onClick={onSignOut}
+            disabled={signOutBusy}
+            aria-label={viewerEmail ? `${viewerEmail} からログアウト` : "ログアウト"}
+            title={viewerEmail ? `${viewerEmail} からログアウト` : "ログアウト"}
+          >
+            {signOutBusy ? <Loader2 size={16} className={styles.spinnerIcon} /> : <LogOut size={16} />}
+            <span className={styles.signOutButtonText}>ログアウト</span>
+          </button>
         </div>
       </div>
 
@@ -301,7 +324,7 @@ function EntryLayout({
   badge: string;
   title: string;
   description: string;
-  children?: React.ReactNode;
+  children?: ReactNode;
 }) {
   return (
     <div className={styles.entryShell}>
@@ -320,6 +343,92 @@ function EntryLayout({
         </div>
       </div>
     </div>
+  );
+}
+
+function AuthGate() {
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!normalizedEmail) {
+      setError("メールアドレスを入力してください。");
+      return;
+    }
+
+    try {
+      setBusy(true);
+      setError(null);
+      const { error: signInError } = await supabase.auth.signInWithOtp({
+        email: normalizedEmail,
+        options: {
+          emailRedirectTo: window.location.origin,
+        },
+      });
+
+      if (signInError) {
+        throw signInError;
+      }
+
+      setSentTo(normalizedEmail);
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : "ログインリンクを送信できませんでした。",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <EntryLayout
+      badge="ログイン"
+      title="メールでログイン"
+      description="現場データはログイン後に読み込みます。招待済み、または管理者として許可されたメールアドレスを入力してください。"
+    >
+      <form className={styles.authForm} onSubmit={handleSubmit}>
+        <label className={styles.entryField}>
+          <span>メールアドレス</span>
+          <input
+            className={styles.entryInput}
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            value={email}
+            onChange={(event) => {
+              setEmail(event.target.value);
+              setError(null);
+            }}
+            placeholder="you@example.com"
+            required
+          />
+        </label>
+
+        {sentTo && (
+          <p className={styles.entrySuccess} aria-live="polite">
+            {sentTo} にログインリンクを送りました。メールから開くと続きに進めます。
+          </p>
+        )}
+        {error && <p className={styles.entryError}>{error}</p>}
+
+        <button
+          type="submit"
+          className={`${styles.primaryButton} ${busy ? styles.primaryButtonBusy : ""}`}
+          disabled={busy || !normalizedEmail}
+          aria-busy={busy}
+        >
+          {busy ? <Loader2 size={16} className={styles.spinnerIcon} /> : <LogIn size={16} />}
+          ログインリンクを送る
+        </button>
+      </form>
+    </EntryLayout>
   );
 }
 
@@ -645,6 +754,9 @@ function AppContent() {
   const [monthlyEvaluationStatusLoading, setMonthlyEvaluationStatusLoading] = useState(false);
   const [reviewAlertCount, setReviewAlertCount] = useState(0);
   const [reviewAlertMemberId, setReviewAlertMemberId] = useState<string | null>(null);
+  const [authSession, setAuthSession] = useState<Session | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [signOutBusy, setSignOutBusy] = useState(false);
   const [entryState, setEntryState] = useState<ClientEntryState>({ state: "loading" });
   const [showInviteHelp, setShowInviteHelp] = useState(false);
   const [bootstrapName, setBootstrapName] = useState("");
@@ -667,6 +779,7 @@ function AppContent() {
   const appReady = entryState.state === "ready_client";
   const orgLabel = activeOrg?.org.name || "組織未選択";
   const orgTone = activeOrg ? "default" : "warning";
+  const viewerEmail = authSession?.user.email || null;
 
   const resolveEntryState = useCallback(async () => {
     setBootstrapError(null);
@@ -712,19 +825,65 @@ function AppContent() {
     }
   }, [clearActiveOrg, setActiveOrgId, setOrgOptions]);
 
-  useEffect(() => {
-    void resolveEntryState();
+  const handleSignedOut = useCallback(() => {
+    clearActiveOrg();
+    setEntryState({ state: "loading" });
+    setBootstrapError(null);
+    setShowInviteHelp(false);
+    setCommunicationSheetOpen(false);
+    setShowMonthlyEvaluationModal(false);
+    setMonthlyEvaluationSubmitted(false);
+    setReviewAlertCount(0);
+    setReviewAlertMemberId(null);
+  }, [clearActiveOrg]);
 
+  useEffect(() => {
+    let mounted = true;
+
+    const loadSession = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!mounted) {
+        return;
+      }
+
+      setAuthSession(session);
+      setAuthLoading(false);
+
+      if (session) {
+        void resolveEntryState();
+        return;
+      }
+
+      handleSignedOut();
+    };
+
+    void loadSession();
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      void resolveEntryState();
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) {
+        return;
+      }
+
+      setAuthSession(session);
+      setAuthLoading(false);
+
+      if (session) {
+        void resolveEntryState();
+        return;
+      }
+
+      handleSignedOut();
     });
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
-  }, [resolveEntryState]);
+  }, [handleSignedOut, resolveEntryState]);
 
   const loadMonthlyEvaluationStatus = useCallback(async () => {
     if (!appReady || !activeOrgId) {
@@ -904,6 +1063,22 @@ function AppContent() {
     setEntryState({ state: "ready_client" });
   }, [setActiveOrgId]);
 
+  const handleSignOut = useCallback(async () => {
+    try {
+      setSignOutBusy(true);
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        throw error;
+      }
+      setAuthSession(null);
+      handleSignedOut();
+    } catch (error) {
+      console.error("Failed to sign out:", error);
+    } finally {
+      setSignOutBusy(false);
+    }
+  }, [handleSignedOut]);
+
   const renderEntryGate = () => {
     if (entryState.state === "loading") {
       return (
@@ -987,6 +1162,21 @@ function AppContent() {
     return null;
   };
 
+  if (authLoading) {
+    return (
+      <EntryLayout badge="起動中" title="ログイン状態を確認しています" description="保存済みのセッションを確認しています。">
+        <div className={styles.entryLoading}>
+          <Loader2 size={20} className={styles.spinnerIcon} />
+          <span>少しだけお待ちください</span>
+        </div>
+      </EntryLayout>
+    );
+  }
+
+  if (!authSession) {
+    return <AuthGate />;
+  }
+
   return (
     <>
       {appReady ? (
@@ -1001,8 +1191,11 @@ function AppContent() {
             activeOrgId={activeOrgId}
             orgLabel={orgLabel}
             orgTone={orgTone}
+            viewerEmail={viewerEmail}
+            signOutBusy={signOutBusy}
             onChangeOrg={(orgId) => setActiveOrgId(orgId)}
             onOpenBell={openBell}
+            onSignOut={() => void handleSignOut()}
           />
           <main className={styles.main}>
             <div key={activeOrgId || "no-org"}>
