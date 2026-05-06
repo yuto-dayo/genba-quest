@@ -1081,6 +1081,22 @@ export const fetchSiteDocuments = (siteId: string) =>
     api<SiteDocument[]>(`/api/v1/sites/${siteId}/documents`);
 export const uploadSiteDocument = (siteId: string, data: { file_base64: string; mime_type: string; original_filename?: string }) =>
     api<SiteDocument>(`/api/v1/sites/${siteId}/documents`, { method: "POST", body: JSON.stringify(data) });
+export const fetchSiteDrawings = (siteId: string) =>
+    api<SiteDrawing[]>(`/api/v1/sites/${siteId}/drawings`);
+export const uploadSiteDrawing = (siteId: string, data: {
+    file_base64: string;
+    mime_type: string;
+    original_filename?: string;
+    title?: string;
+    drawing_no?: string;
+    discipline?: string;
+    change_note?: string;
+    drawing_id?: string;
+}) =>
+    api<SiteDrawing>(`/api/v1/sites/${siteId}/drawings`, {
+        method: "POST",
+        body: JSON.stringify(data),
+    });
 export const fetchSiteLineItems = (siteId: string) =>
     api<SiteLineItem[]>(`/api/v1/sites/${siteId}/line-items`);
 export const saveSiteLineItems = (siteId: string, items: SiteLineItemInput[]) =>
@@ -1439,6 +1455,42 @@ export interface SiteDocument {
     drive_file_url?: string;
     signed_url?: string;
     created_at: string;
+}
+
+export interface SiteDrawingVersion {
+    id: string;
+    org_id: string;
+    site_id: string;
+    drawing_id: string;
+    version_no: number;
+    storage_bucket: string;
+    storage_path: string;
+    original_filename: string;
+    mime_type: string;
+    file_size: number;
+    sha256: string;
+    uploaded_by: string | null;
+    change_note: string | null;
+    status: string;
+    supersedes_version_id: string | null;
+    created_at: string;
+    signed_url?: string | null;
+}
+
+export interface SiteDrawing {
+    id: string;
+    org_id: string;
+    site_id: string;
+    title: string;
+    drawing_no: string | null;
+    discipline: string | null;
+    status: string;
+    latest_version_no: number;
+    current_version_id: string | null;
+    created_by: string | null;
+    created_at: string;
+    updated_at: string;
+    current_version?: SiteDrawingVersion | null;
 }
 
 export interface SiteLineItem {

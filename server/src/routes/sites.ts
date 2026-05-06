@@ -15,6 +15,10 @@ import {
     type CompleteSiteWithCloseHttpResponse,
 } from "../services/SiteCompleteWithCloseService";
 import { SiteCompletionService } from "../services/SiteCompletionService";
+import {
+    listSiteDrawings,
+    uploadSiteDrawingVersion,
+} from "../services/SiteDrawingService";
 import { composeStructuredAddress, normalizePostalCode } from "../services/clientAddress";
 import { extractSiteDraftFromText } from "../services/SiteDraftTextService";
 
@@ -862,6 +866,95 @@ router.post("/:id/documents", async (req: AuthenticatedRequest, res: Response) =
             return;
         }
         console.error("Site document upload error:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+// 現場に紐づく図面一覧
+router.get("/:id/drawings", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const orgId = resolveOrgId(req.orgId);
+        const siteId = readParamId(req.params.id);
+        if (!siteId) {
+            res.status(400).json({ error: "site id is required" });
+            return;
+        }
+
+        await assertActiveSiteForOrg(siteId, orgId);
+        const drawings = await listSiteDrawings({ orgId, siteId });
+        res.json(drawings);
+    } catch (err: any) {
+        if (err instanceof Error && err.message === "SITE_NOT_FOUND") {
+            res.status(404).json({ error: "Site not found" });
+            return;
+        }
+        console.error("Site drawings list error:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+// 現場図面を新規作成、または既存図面に新しい版を追加
+router.post("/:id/drawings", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const orgId = resolveOrgId(req.orgId);
+        const siteId = readParamId(req.params.id);
+        if (!siteId) {
+            res.status(400).json({ error: "site id is required" });
+            return;
+        }
+
+        if (!req.userId) {
+            res.status(401).json({ error: "User context required" });
+            return;
+        }
+
+        await assertActiveSiteForOrg(siteId, orgId);
+
+        const {
+            file_base64,
+            mime_type,
+            original_filename,
+            title,
+            drawing_no,
+            discipline,
+            change_note,
+            drawing_id,
+        } = req.body;
+
+        if (!file_base64 || !mime_type) {
+            res.status(400).json({ error: "file_base64 and mime_type are required" });
+            return;
+        }
+
+        const drawing = await uploadSiteDrawingVersion({
+            orgId,
+            siteId,
+            userId: req.userId,
+            fileBase64: file_base64,
+            mimeType: mime_type,
+            originalFilename: original_filename,
+            title,
+            drawingNo: drawing_no,
+            discipline,
+            changeNote: change_note,
+            drawingId: drawing_id,
+        });
+
+        res.status(201).json(drawing);
+    } catch (err: any) {
+        if (err instanceof Error && err.message === "SITE_NOT_FOUND") {
+            res.status(404).json({ error: "Site not found" });
+            return;
+        }
+        if (err instanceof Error && err.message === "DRAWING_NOT_FOUND") {
+            res.status(404).json({ error: "Drawing not found" });
+            return;
+        }
+        if (err instanceof Error && err.message === "DRAWING_FILE_EMPTY") {
+            res.status(400).json({ error: "Drawing file is empty" });
+            return;
+        }
+        console.error("Site drawing upload error:", err);
         res.status(500).json({ error: "Internal server error" });
     }
 });
