@@ -4,6 +4,7 @@ import {
   Building2,
   CalendarDays,
   ChevronRight,
+  Chrome,
   CircleDollarSign,
   HardHat,
   Home,
@@ -76,7 +77,7 @@ type ClientEntryState =
   | { state: "ready_client" }
   | AppEntryStateRecord;
 
-type AuthRequestMode = "login" | "signup" | "magic" | "reset" | "updatePassword";
+type AuthRequestMode = "google" | "login" | "signup" | "magic" | "reset" | "updatePassword";
 
 function buildDevAuthSession(): Session | null {
   const devUser = getDevAuthUserOption();
@@ -113,6 +114,7 @@ function buildDevAuthSession(): Session | null {
 
 function getAuthErrorMessage(error: unknown, mode: AuthRequestMode): string {
   const fallbackByMode: Record<AuthRequestMode, string> = {
+    google: "Googleログインできませんでした。",
     login: "ログインできませんでした。",
     signup: "初回登録できませんでした。",
     magic: "非常用リンクを送信できませんでした。",
@@ -141,6 +143,10 @@ function getAuthErrorMessage(error: unknown, mode: AuthRequestMode): string {
     (normalizedMessage.includes("invalid") || normalizedMessage.includes("not valid"))
   ) {
     return "メールアドレスの形式を確認してください。";
+  }
+
+  if (mode === "google") {
+    return fallback;
   }
 
   if (
@@ -497,6 +503,7 @@ function AuthGate({ onUseDevAuth }: { onUseDevAuth?: () => void }) {
   const loginDisabled = Boolean(busyMode) || !normalizedEmail || !password;
   const signupDisabled =
     Boolean(busyMode) || !normalizedEmail || !signupPassword || !signupPasswordConfirm;
+  const googleDisabled = Boolean(busyMode);
   const magicDisabled = Boolean(busyMode) || !normalizedEmail || cooldownRemaining > 0;
   const resetDisabled = Boolean(busyMode) || cooldownRemaining > 0;
 
@@ -515,6 +522,28 @@ function AuthGate({ onUseDevAuth }: { onUseDevAuth?: () => void }) {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     await signInWithPassword();
+  };
+
+  const signInWithGoogle = async () => {
+    try {
+      setBusyMode("google");
+      setError(null);
+      setSentTo(null);
+      const { error: signInError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: window.location.origin,
+        },
+      });
+
+      if (signInError) {
+        throw signInError;
+      }
+    } catch (submitError) {
+      setError(getAuthErrorMessage(submitError, "google"));
+    } finally {
+      setBusyMode(null);
+    }
   };
 
   const signInWithPassword = async () => {
@@ -679,10 +708,27 @@ function AuthGate({ onUseDevAuth }: { onUseDevAuth?: () => void }) {
   return (
     <EntryLayout
       badge="ログイン"
-      title="メールとパスワードでログイン"
-      description="通常ログインはメールアドレスとパスワードを使います。初回登録では招待されたメールアドレスにパスワードを設定してください。"
+      title="Googleでログイン"
+      description="Googleアカウントで入れます。招待はメールアドレスで確認します。"
     >
       <form className={styles.authForm} onSubmit={handleSubmit}>
+        <button
+          type="button"
+          className={`${styles.googleButton} ${busyMode === "google" ? styles.primaryButtonBusy : ""}`}
+          disabled={googleDisabled}
+          aria-busy={busyMode === "google"}
+          onClick={() => void signInWithGoogle()}
+        >
+          {busyMode === "google" ? <Loader2 size={16} className={styles.spinnerIcon} /> : <Chrome size={16} />}
+          Googleで続ける
+        </button>
+
+        <div className={styles.authDivider} aria-hidden="true">
+          <span />
+          <strong>メールでログイン</strong>
+          <span />
+        </div>
+
         <label className={styles.entryField}>
           <span>メールアドレス</span>
           <input
@@ -1486,6 +1532,11 @@ function AppContent() {
   }, [bootstrapName, bootstrapSlug, formatBootstrapError, setActiveOrgId, setOrgOptions]);
 
   const handleAcceptInvite = useCallback(async (inviteId: string) => {
+    if (!viewerEmail) {
+      setInviteError("ログイン中のメールアドレスを確認できません。別の方法でログインしてください。");
+      return;
+    }
+
     try {
       setInviteBusyId(inviteId);
       setInviteError(null);
@@ -1513,7 +1564,7 @@ function AppContent() {
     } finally {
       setInviteBusyId(null);
     }
-  }, [formatInviteError, setActiveOrgId, setOrgOptions]);
+  }, [formatInviteError, setActiveOrgId, setOrgOptions, viewerEmail]);
 
   const handleSelectOrg = useCallback((orgId: string) => {
     setActiveOrgId(orgId);
