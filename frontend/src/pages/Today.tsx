@@ -793,22 +793,39 @@ export function Today() {
         try {
             setProposalActing(true);
             setActionError(null);
+            setActionNotice(null);
 
+            let updatedProposal: ProposalRecord | null = null;
             if (action === "approve") {
-                await approveProposal(proposalId, payload);
-                setActionNotice("承認待ち Proposal を承認しました");
+                const response = await approveProposal(proposalId, payload);
+                updatedProposal = response.proposal;
+                if (updatedProposal.status === "approved") {
+                    setActionNotice("承認しました。続けて実行できます。");
+                } else if (updatedProposal.status === "executed" || response.auto_executed) {
+                    setActionNotice("承認し、実行まで完了しました。");
+                } else {
+                    setActionNotice("承認しました。残りの承認を待っています。");
+                }
             } else if (action === "reject") {
-                await rejectProposal(proposalId, payload || "");
+                updatedProposal = await rejectProposal(proposalId, payload || "");
                 setActionNotice("承認待ち Proposal を却下しました");
             } else if (action === "instruct") {
-                await instructProposal(proposalId, payload || "");
+                const response = await instructProposal(proposalId, payload || "");
+                updatedProposal = response.proposal;
                 setActionNotice("修正指示を送りました");
             } else {
-                await executeProposal(proposalId);
-                setActionNotice("Proposal を実行しました");
+                updatedProposal = await executeProposal(proposalId);
+                setActionNotice("実行しました。EventとLedgerを更新しています。");
             }
 
-            await syncPendingProposals(proposalId);
+            if (action === "approve" && updatedProposal?.status === "approved") {
+                setSelectedProposal(updatedProposal);
+            } else {
+                setSelectedProposal(null);
+                clearProposalSearchParam();
+            }
+
+            await syncPendingProposals();
         } catch (err: unknown) {
             setActionError(getErrorMessage(err));
         } finally {

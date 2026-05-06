@@ -76,16 +76,24 @@ vi.mock("../components/ProposalDetailModal", () => ({
     ProposalDetailModal: ({
         proposal,
         onApprove,
+        onExecute,
         actionError,
     }: {
         proposal: ProposalRecord;
         onApprove: (proposalId: string, reason?: string) => void;
+        onExecute: (proposalId: string) => void;
         actionError?: string | null;
     }) => (
         <div role="dialog" aria-label="proposal detail">
-            <button type="button" onClick={() => onApprove(proposal.id, "確認しました")}>
-                承認する
-            </button>
+            {proposal.status === "approved" ? (
+                <button type="button" onClick={() => onExecute(proposal.id)}>
+                    実行する
+                </button>
+            ) : (
+                <button type="button" onClick={() => onApprove(proposal.id, "確認しました")}>
+                    承認する
+                </button>
+            )}
             {actionError && <div role="alert">{actionError}</div>}
         </div>
     ),
@@ -112,6 +120,18 @@ const pathProposal: ProposalRecord = {
     required_approvals: 1,
     created_at: "2026-05-05T00:00:00.000Z",
     updated_at: "2026-05-05T00:00:00.000Z",
+};
+
+const sherpaProposal: ProposalRecord = {
+    ...pathProposal,
+    id: "proposal-sherpa-1",
+    type: "communication.task",
+    created_by: { type: "ai", id: "sherpa", name: "Sherpa" },
+    payload: {
+        source_message_subject: "追加見積の確認",
+        source_message_from: "client@example.com",
+    },
+    description: "追加見積の返答を準備する",
 };
 
 function renderMoney() {
@@ -148,7 +168,7 @@ describe("Money PATH proposal queue", () => {
 
         renderMoney();
 
-        await screen.findByText("評価・支給の承認待ち");
+        await screen.findByText("承認待ち Proposal");
         fireEvent.click(screen.getByRole("button", { name: /PATH報酬を確定する/ }));
         fireEvent.click(screen.getByRole("button", { name: "承認する" }));
 
@@ -165,7 +185,7 @@ describe("Money PATH proposal queue", () => {
 
         renderMoney();
 
-        await screen.findByText("評価・支給の承認待ち");
+        await screen.findByText("承認待ち Proposal");
         fireEvent.click(screen.getByRole("button", { name: /PATH報酬を確定する/ }));
         fireEvent.click(screen.getByRole("button", { name: "承認する" }));
 
@@ -174,5 +194,37 @@ describe("Money PATH proposal queue", () => {
         expect(screen.getByText("承認結果の同期に失敗しました")).toBeInTheDocument();
         expect(screen.queryByText("読み込みに失敗しました")).not.toBeInTheDocument();
         expect(screen.getByText("お金の流れ")).toBeInTheDocument();
+    });
+
+    it("surfaces Sherpa and integration proposals in the Money approval queue", async () => {
+        fetchPendingProposals.mockResolvedValueOnce([sherpaProposal]);
+
+        renderMoney();
+
+        await screen.findByText("承認待ち Proposal");
+
+        expect(screen.getByText("追加見積の返答を準備する")).toBeInTheDocument();
+        expect(screen.getByText(/AI Sherpa/)).toBeInTheDocument();
+        expect(screen.getByText("メール対応タスク")).toBeInTheDocument();
+    });
+
+    it("keeps an approved proposal open so execution can happen from the same detail", async () => {
+        fetchPendingProposals.mockResolvedValueOnce([pathProposal]).mockResolvedValueOnce([]);
+        approveProposal.mockResolvedValueOnce({
+            proposal: { ...pathProposal, status: "approved", approvals: [{ actor: pathProposal.created_by, decision: "approve", at: "2026-05-05T00:00:00.000Z" }] },
+            is_fully_approved: true,
+            auto_executed: false,
+        });
+
+        renderMoney();
+
+        await screen.findByText("承認待ち Proposal");
+        fireEvent.click(screen.getByRole("button", { name: /PATH報酬を確定する/ }));
+        fireEvent.click(screen.getByRole("button", { name: "承認する" }));
+
+        expect(await screen.findByRole("button", { name: "実行する" })).toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "実行する" }));
+
+        await waitFor(() => expect(executeProposal).toHaveBeenCalledWith("proposal-path-1"));
     });
 });

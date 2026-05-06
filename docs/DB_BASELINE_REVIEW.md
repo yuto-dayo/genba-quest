@@ -100,6 +100,44 @@ Historical baseline adoption verification:
 | `supabase migration list` | FAIL | exact command now requires `SUPABASE_DB_PASSWORD`; remote history was verified by direct linked SQL query |
 | `supabase db lint --linked --schema public,private --fail-on error` | FAIL | exact command requires `SUPABASE_DB_PASSWORD`; local lint and targeted remote probes pass |
 
+2026-05-05 beta MVP Money approval E2E:
+
+| Check | Result | Notes |
+| --- | --- | --- |
+| `PROPOSAL_RPC_FALLBACK_MODE=disabled npm --prefix server run verify:beta-mvp` | FAIL | strict mode, local migration order, and link state passed; `SUPABASE_DB_PASSWORD` was unset, so linked migration/lint gates remain blocked |
+| `npm --prefix server run seed:money-e2e -- --apply` | PASS | inserted disposable pending `expense.create` Proposal `3ebba0fd-0473-4c11-9d2b-7d33f88eb364` for org `1920a92b-d091-46a9-90c9-9d3a6bcab6a0` |
+| Money browser smoke | PASS | `/money?proposal=3ebba0fd-0473-4c11-9d2b-7d33f88eb364` opened the detail modal, showed amount/actor/required approvals/ledger impact/risk, and approve completed execution |
+| Today browser smoke | PASS | `/?proposal=3ebba0fd-0473-4c11-9d2b-7d33f88eb364` opened the same detail modal from Today; approval copy now matches Money when auto-executed |
+| `npm --prefix server run seed:money-e2e -- --status` | PASS | final state: `proposal_status=executed`, `event_count=1`, `transaction_count=1`, `entry_count=2` |
+| `npm --prefix frontend test -- --run Today.test.tsx Money.test.tsx` | PASS | 8 tests passed |
+| `npm --prefix server test -- --runInBand src/__tests__/unit/PolicyEngine.test.ts src/__tests__/unit/ProposalService.test.ts` | PASS | 90 tests passed |
+| `npm --prefix server run test:integration:proposal-core` | PASS | 17 tests passed |
+| `npm --prefix server run build` | PASS | TypeScript build passed |
+| `npm --prefix frontend run build` | PASS | TypeScript + Vite build passed; existing chunk-size warning only |
+
+2026-05-06 beta MVP linked DB gate:
+
+| Check | Result | Notes |
+| --- | --- | --- |
+| `PROPOSAL_RPC_FALLBACK_MODE=disabled SUPABASE_DB_PASSWORD=... npm --prefix server run verify:beta-mvp` | PASS | strict RPC mode, local migration ordering, linked project state, `supabase migration list`, and linked `supabase db lint --linked --schema public,private --fail-on error` all passed |
+| `supabase migration list` | PASS | invoked by `verify:beta-mvp`; output connected to the remote database successfully |
+| `supabase db lint --linked --schema public,private --fail-on error` | PASS | invoked by `verify:beta-mvp`; output reported `No schema errors found` |
+
+2026-05-06 beta MVP Sherpa/Gmail entrance E2E:
+
+| Check | Result | Notes |
+| --- | --- | --- |
+| Sherpa proposal creation | PASS | `/api/v1/sherpa/proposals` created pending AI actor proposals `324d888e-addd-4900-bd9e-247e25e8a04b` and `f479b7a3-b074-4886-bd37-ce8f176765c7` |
+| Gmail integration proposal creation | PASS | `/api/v1/proposals/integration` with `source=gmail` created pending integration actor proposals `2376e871-3e02-4c9d-be9a-6af9dc9c60cd` and `cd834c3e-dfea-4ef7-9fc1-8d890fd855b7` |
+| Today pending queue browser smoke | PASS | all 4 Sherpa/Gmail proposals appeared in Today pending queue and opened the shared Proposal detail modal with amount, actor, approval count, ledger impact, and risk |
+| Sherpa approve path | PASS | `324d888e-addd-4900-bd9e-247e25e8a04b` approved from Today and ended as `executed` |
+| Sherpa reject path | PASS | `f479b7a3-b074-4886-bd37-ce8f176765c7` rejected from Today with reason `Sherpa入口E2Eの却下確認` |
+| Gmail approve path | PASS | `2376e871-3e02-4c9d-be9a-6af9dc9c60cd` approved from Today and ended as `executed` |
+| Gmail reject path | PASS | `cd834c3e-dfea-4ef7-9fc1-8d890fd855b7` rejected from Today with reason `Gmail入口E2Eの却下確認` |
+| `npm --prefix server run verify:gmail-manual-e2e -- --org-id 1920a92b-d091-46a9-90c9-9d3a6bcab6a0 --approve-id 2376e871-3e02-4c9d-be9a-6af9dc9c60cd --reject-id cd834c3e-dfea-4ef7-9fc1-8d890fd855b7` | PASS | `approve_origin`, `reject_origin`, `approve_status`, `reject_status`, and `reject_reason` all passed |
+| `RUN_DB_INTEGRATION_TESTS=1 npm --prefix server test -- --runInBand --runTestsByPath src/__tests__/integration/sherpaProposalApprovalPath.integration.test.ts src/__tests__/integration/webhookIntegrationProposalPath.integration.test.ts` | PASS | 5 tests passed; covers Sherpa AI self-approval block, human approve/reject, Gmail dedupe, integration actor approval prohibition, and human approve/reject |
+| DB ledger verification | PASS | approved Sherpa/Gmail proposals produced `events=2`, `transactions=2`, `entries=4`; rejected proposals produced no ledger event |
+
 ## Findings
 
 | ID | Status | Finding | Resolution / next action |
@@ -112,20 +150,20 @@ Historical baseline adoption verification:
 
 ## Remaining Work
 
-P0 final linked DB confirmation:
+P0 beta MVP linked DB confirmation is complete as of 2026-05-06. Re-run this gate before release cut, after new migrations, or after Supabase CLI upgrades:
 
 ```bash
-supabase link --project-ref ggnxplgngmcelkdqhgfx
-SUPABASE_DB_PASSWORD=... supabase migration list
-SUPABASE_DB_PASSWORD=... supabase db lint --linked --schema public,private --fail-on error
+PROPOSAL_RPC_FALLBACK_MODE=disabled SUPABASE_DB_PASSWORD=... npm --prefix server run verify:beta-mvp
 ```
 
-Remote migration history and targeted RLS/security probes are complete. If the exact Supabase lint command is required for audit, run it from a shell with the correct `SUPABASE_DB_PASSWORD`. Do not paste the password into docs, shell history, or chat.
+`20260504084000_seed_accounting_master_data.sql` が later migration より前に pending と表示された場合は、`--include-all` ではなく remote migration history を確認したうえで `supabase migration repair` による意図的な履歴修正を優先する。
+
+Remote migration history, targeted RLS/security probes, and exact linked lint are complete. Do not paste DB passwords into docs, shell history, or chat.
 
 P1 RLS hardening follow-up:
 
 - Local broad `USING (true)` / `WITH CHECK (true)` cleanup is complete.
-- Remote push is complete; exact linked lint still needs a password-backed shell if audit requires that specific CLI command.
+- Remote push and exact linked lint are complete.
 - Keep future write policies server/RPC-only unless a browser-direct Supabase path is explicitly required.
 
 P2 documentation cleanup:

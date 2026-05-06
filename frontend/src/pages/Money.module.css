@@ -139,6 +139,20 @@
     font-weight: 700;
 }
 
+.proposalNotice {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    padding: 12px 14px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-success) 28%, var(--md-sys-color-outline-variant));
+    border-radius: 16px;
+    background: var(--md-sys-color-success-container);
+    color: var(--md-sys-color-on-success-container);
+    font: var(--md-sys-typescale-body-medium);
+    font-weight: 700;
+}
+
 .pathQueueSection {
     margin-bottom: 20px;
     padding: 18px;

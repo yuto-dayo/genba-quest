@@ -18,7 +18,9 @@
         "drive:refresh-token": "ts-node src/scripts/generate-drive-refresh-token.ts",
         "verify:a1-migration": "ts-node src/scripts/verify-a1-migration.ts",
         "verify:a1-health": "ts-node src/scripts/verify-a1-health.ts",
+        "verify:beta-mvp": "ts-node src/scripts/verify-beta-mvp-gates.ts",
         "verify:gmail-manual-e2e": "ts-node src/scripts/verify-gmail-manual-e2e.ts",
+        "seed:money-e2e": "ts-node src/scripts/seed-money-approval-e2e.ts",
         "seed:path-vertical-slice": "ts-node src/scripts/seed-path-vertical-slice.ts"
     },
     "type": "commonjs",

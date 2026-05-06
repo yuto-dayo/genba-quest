@@ -1,4 +1,4 @@
-# Project Handoff Index - 2026-05-05
+# Project Handoff Index - 2026-05-06
 
 ## Active Domains
 
@@ -12,6 +12,11 @@
 | uiux/calm-cockpit-principles | `handoff/uiux/calm-cockpit-principles.md` | 2026-05-05 | Recommended next implementation target: audit the current... |
 | frontend/header | `handoff/frontend/header.md` | 2026-05-05 | 必要なら実機幅でヘッダーの横スクロール... |
 | repo/sync-to-origin | `handoff/repo/sync-to-origin.md` | 2026-05-05 | Money承認後の一時エラー調査、DB smoke、AIチ... |
+| beta-mvp-money-approval | `handoff/beta-mvp-money-approval.md` | 2026-05-05 | SUPABASE_DB_PASSWORDを持つshellで PROPOSAL_RPC_FALLBA... |
+| beta-mvp-money-e2e | `handoff/beta-mvp-money-e2e.md` | 2026-05-05 | Run PROPOSAL_RPC_FALLBACK_MODE=disabled SUPABASE_DB_PASSW... |
+| beta-mvp-linked-db-gate | `handoff/beta-mvp-linked-db-gate.md` | 2026-05-06 | Stage/commit current MVP work, then proceed to Sherpa/Gma... |
+| beta-mvp-commit-and-next-e2e | `handoff/beta-mvp-commit-and-next-e2e.md` | 2026-05-06 | Stage and commit beta MVP Money approval + linked DB gate... |
+| beta-mvp-commit-finalize | `handoff/beta-mvp-commit-finalize.md` | 2026-05-06 | active |
 
 ## Domain Selection Guide
 
