@@ -1,6 +1,8 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import fs from "node:fs";
+import path from "node:path";
 import { authMiddleware } from "./middleware/authMiddleware";
 import sitesRouter from "./routes/sites";
 import perksRouter from "./routes/perks";
@@ -29,6 +31,15 @@ const app = express();
 const PORT = Number(process.env.PORT) || 4001;
 const proposalRpcFallbackMode = (process.env.PROPOSAL_RPC_FALLBACK_MODE || "allow").toLowerCase();
 const isAtomicStrictMode = ["disabled", "deny", "off"].includes(proposalRpcFallbackMode);
+const frontendDistCandidates = [
+    path.resolve(__dirname, "../../frontend/dist"),
+    path.resolve(__dirname, "../frontend/dist"),
+    path.resolve(process.cwd(), "../frontend/dist"),
+    path.resolve(process.cwd(), "frontend/dist"),
+];
+const frontendDistPath = frontendDistCandidates.find((candidate) =>
+    fs.existsSync(path.join(candidate, "index.html"))
+);
 
 // CORS設定
 const configuredAllowedOrigins = process.env.ALLOWED_ORIGINS
@@ -85,6 +96,13 @@ app.use("/api/v1/webhooks", webhooksRouter);
 
 // 開発用プレビュー（認証不要・NODE_ENV!=productionでのみ動作）
 app.use("/api/v1/dev", devPreviewRouter);
+
+if (frontendDistPath) {
+    app.use(express.static(frontendDistPath));
+    app.get(/^\/(?!api(?:\/|$)).*/, (_req, res) => {
+        res.sendFile(path.join(frontendDistPath, "index.html"));
+    });
+}
 
 // 認証ミドルウェア
 app.use(authMiddleware);
