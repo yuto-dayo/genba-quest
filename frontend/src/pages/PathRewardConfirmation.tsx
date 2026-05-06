@@ -32,29 +32,28 @@ export default function PathRewardConfirmationPage() {
         window.location.reload();
     };
 
+    const devUserFilter = isDevAuthUiEnabled() && devUserKey ? (
+        <select
+            className={styles.devAuthSelect}
+            value={devUserKey}
+            onChange={handleDevUserChange}
+            aria-label="開発用ユーザーを選択"
+        >
+            {DEV_AUTH_USER_OPTIONS.map((option) => (
+                <option key={option.key} value={option.key}>
+                    {option.label}
+                </option>
+            ))}
+        </select>
+    ) : null;
+
     return (
         <div className={styles.container}>
-            {isDevAuthUiEnabled() && devUserKey && (
-                <div className={styles.devAuthBar}>
-                    <span className={styles.devAuthLabel}>開発用ユーザー</span>
-                    <select
-                        className={styles.devAuthSelect}
-                        value={devUserKey}
-                        onChange={handleDevUserChange}
-                        aria-label="開発用ユーザー"
-                    >
-                        {DEV_AUTH_USER_OPTIONS.map((option) => (
-                            <option key={option.key} value={option.key}>
-                                {option.label}
-                            </option>
-                        ))}
-                    </select>
-                </div>
-            )}
             <RewardConfirmationExperience
                 initialPeriod={period}
                 focusSiteId={siteId}
                 focusMemberId={memberId}
+                metaAction={devUserFilter}
             />
         </div>
     );

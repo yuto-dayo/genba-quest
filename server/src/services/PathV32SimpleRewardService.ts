@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "../lib/supabaseAdmin";
+import { DEV_AUTH_USERS, isDevAuthMode } from "../config/devAuthUsers";
 import { hashStableRecord } from "./PathPolicyBundleService";
 import { ActorRef, Proposal } from "./PolicyEngine";
 
@@ -412,37 +413,52 @@ export class PathV32SimpleRewardService {
 
     const proposalExecutionId = await this.ensureProposalExecutionRecord(proposal);
     const canonicalMonthCloseId = ensureUuid(String(payload.month_close_id ?? ""), "REWARD_CALCULATE_MONTH_CLOSE_REQUIRED");
-    const { data: canonicalRun, error: canonicalError } = await supabaseAdmin
+    const { data: existingCanonicalRun, error: existingCanonicalError } = await supabaseAdmin
       .from("reward_runs")
-      .upsert(
-        {
-          org_id: this.orgId,
-          run_kind: "calculation",
-          month_close_id: canonicalMonthCloseId,
-          proposal_execution_id: proposalExecutionId,
-          reward_rule_version_id: payload.reward_rule_version_id ?? canonicalMonthCloseId,
-          calculation_system: PATH_V32_SIMPLE_CALCULATION_SYSTEM,
-          status: "fixed",
-          fixed_at: proposal.executed_at ?? new Date().toISOString(),
-          policy_fingerprint: hashStableRecord(payload.calculation_snapshot ?? {}),
-          reward_engine_version: PATH_V32_SIMPLE_ENGINE_VERSION,
-          rounding_mode: "largest_remainder",
-          rounding_scale: 0,
-          rounding_minor_unit: 1,
-          input_hash: String(payload.input_hash ?? hashStableRecord(payload.calculation_snapshot ?? {})),
-          closed_profit: payload.site_profit_total ?? 0,
-          path_pool_amount: payload.monthly_pool ?? 0,
-          base_pool_amount: payload.monthly_pool ?? 0,
-          variable_pool_amount: 0,
-          guaranteed_total_amount: 0,
-        },
-        { onConflict: "proposal_execution_id" },
-      )
       .select("id")
-      .single();
+      .eq("org_id", this.orgId)
+      .eq("proposal_execution_id", proposalExecutionId)
+      .maybeSingle();
 
-    if (canonicalError) {
-      throw new Error(`Failed to sync PATH V3.2 reward run: ${canonicalError.message}`);
+    if (existingCanonicalError) {
+      throw new Error(`Failed to fetch PATH V3.2 reward run: ${existingCanonicalError.message}`);
+    }
+
+    let canonicalRunId = typeof existingCanonicalRun?.id === "string" ? existingCanonicalRun.id : null;
+    if (!canonicalRunId) {
+      const { data: canonicalRun, error: canonicalError } = await supabaseAdmin
+        .from("reward_runs")
+        .insert(
+          {
+            org_id: this.orgId,
+            run_kind: "calculation",
+            month_close_id: canonicalMonthCloseId,
+            proposal_execution_id: proposalExecutionId,
+            reward_rule_version_id: payload.reward_rule_version_id ?? canonicalMonthCloseId,
+            calculation_system: PATH_V32_SIMPLE_CALCULATION_SYSTEM,
+            status: "fixed",
+            fixed_at: proposal.executed_at ?? new Date().toISOString(),
+            policy_fingerprint: hashStableRecord(payload.calculation_snapshot ?? {}),
+            reward_engine_version: PATH_V32_SIMPLE_ENGINE_VERSION,
+            rounding_mode: "largest_remainder",
+            rounding_scale: 0,
+            rounding_minor_unit: 1,
+            input_hash: String(payload.input_hash ?? hashStableRecord(payload.calculation_snapshot ?? {})),
+            closed_profit: payload.site_profit_total ?? 0,
+            path_pool_amount: payload.monthly_pool ?? 0,
+            base_pool_amount: payload.monthly_pool ?? 0,
+            variable_pool_amount: 0,
+            guaranteed_total_amount: 0,
+          },
+        )
+        .select("id")
+        .single();
+
+      if (canonicalError) {
+        throw new Error(`Failed to sync PATH V3.2 reward run: ${canonicalError.message}`);
+      }
+
+      canonicalRunId = String(canonicalRun.id);
     }
 
     const { data: monthlyClose, error: monthlyCloseError } = await supabaseAdmin
@@ -524,10 +540,9 @@ export class PathV32SimpleRewardService {
       }
     }
 
-    const canonicalRunId = String(canonicalRun.id);
     const firstRevenueBasisId = await this.resolveAnyRevenueBasisId(payload.calculation_snapshot);
     if (firstRevenueBasisId && lines.length > 0) {
-      const lineInsertResult = await supabaseAdmin.from("reward_run_lines").insert(
+      const lineInsertResult = await supabaseAdmin.from("reward_run_lines").upsert(
         lines.map((row) => ({
           org_id: this.orgId,
           reward_run_id: canonicalRunId,
@@ -538,6 +553,7 @@ export class PathV32SimpleRewardService {
           payout_amount: row.total_pay_amount ?? row.final_pay ?? 0,
           formula_snapshot_json: row,
         })),
+        { onConflict: "reward_run_id,recipient_id", ignoreDuplicates: true },
       );
 
       if (lineInsertResult.error) {
@@ -638,11 +654,15 @@ export class PathV32SimpleRewardService {
       throw new Error(`Failed to fetch active members: ${error.message}`);
     }
 
-    const memberIds = Array.from(
-      new Set((data ?? []).map((row) => String(row.user_id ?? "")).filter((value) => UUID_PATTERN.test(value))),
-    );
-    const names = await this.loadMemberNames(memberIds);
-    return memberIds.map((memberId) => ({
+    const memberIds = (data ?? [])
+      .map((row) => String(row.user_id ?? ""))
+      .filter((value) => UUID_PATTERN.test(value));
+    if (isDevAuthMode()) {
+      memberIds.push(...DEV_AUTH_USERS.map((user) => user.id));
+    }
+    const uniqueMemberIds = Array.from(new Set(memberIds));
+    const names = await this.loadMemberNames(uniqueMemberIds);
+    return uniqueMemberIds.map((memberId) => ({
       member_id: memberId,
       member_name: names.get(memberId) ?? memberId,
     }));
@@ -662,12 +682,22 @@ export class PathV32SimpleRewardService {
       throw new Error(`Failed to fetch member profiles: ${error.message}`);
     }
 
-    return new Map(
+    const names = new Map(
       (data ?? []).map((row) => [
         String(row.id),
         String(row.full_name ?? row.username ?? row.id),
       ]),
     );
+
+    if (isDevAuthMode()) {
+      for (const user of DEV_AUTH_USERS) {
+        if (memberIds.includes(user.id)) {
+          names.set(user.id, user.name);
+        }
+      }
+    }
+
+    return names;
   }
 
   private async listMemberLevels(month: string): Promise<Map<string, { level: PathV32Level; source: LevelSource }>> {

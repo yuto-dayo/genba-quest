@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ProposalRecord } from "../lib/api";
 import { Today } from "./Today";
 
 const fetchFocusItems = vi.fn();
@@ -13,6 +14,10 @@ const fetchPathV31SiteMemberRewardInputs = vi.fn();
 const savePathV31DayLog = vi.fn();
 const savePathV31SiteMemberRolePlan = vi.fn();
 const savePathV31SiteMemberRewardInput = vi.fn();
+const approveProposal = vi.fn();
+const executeProposal = vi.fn();
+const instructProposal = vi.fn();
+const rejectProposal = vi.fn();
 
 vi.mock("framer-motion", () => ({
     motion: new Proxy(
@@ -35,12 +40,12 @@ vi.mock("../lib/api", () => ({
     savePathV31DayLog: (...args: unknown[]) => savePathV31DayLog(...args),
     savePathV31SiteMemberRolePlan: (...args: unknown[]) => savePathV31SiteMemberRolePlan(...args),
     savePathV31SiteMemberRewardInput: (...args: unknown[]) => savePathV31SiteMemberRewardInput(...args),
-    approveProposal: vi.fn(),
+    approveProposal: (...args: unknown[]) => approveProposal(...args),
     completeFocusItem: vi.fn(),
     createFocusItem: vi.fn(),
-    executeProposal: vi.fn(),
-    instructProposal: vi.fn(),
-    rejectProposal: vi.fn(),
+    executeProposal: (...args: unknown[]) => executeProposal(...args),
+    instructProposal: (...args: unknown[]) => instructProposal(...args),
+    rejectProposal: (...args: unknown[]) => rejectProposal(...args),
     updateFocusItem: vi.fn(),
 }));
 
@@ -91,7 +96,34 @@ vi.mock("../hooks/useCalendar", () => ({
 }));
 
 vi.mock("../components/ProposalDetailModal", () => ({
-    ProposalDetailModal: () => null,
+    ProposalDetailModal: ({
+        isActing,
+        onApprove,
+        onExecute,
+        proposal,
+    }: {
+        isActing?: boolean;
+        onApprove: (proposalId: string, reason?: string) => void;
+        onExecute: (proposalId: string) => void;
+        proposal: ProposalRecord;
+    }) => (
+        <div data-testid="proposal-detail-modal">
+            <p>{proposal.description}</p>
+            <button
+                type="button"
+                disabled={isActing}
+                onClick={() => {
+                    if (proposal.status === "approved") {
+                        onExecute(proposal.id);
+                    } else {
+                        onApprove(proposal.id, "確認しました");
+                    }
+                }}
+            >
+                {proposal.status === "approved" ? "実行する" : "承認する"}
+            </button>
+        </div>
+    ),
 }));
 
 vi.mock("../components/SiteDetailModal", () => ({
@@ -109,6 +141,20 @@ vi.mock("../components/today/PendingBadge", () => ({
         </button>
     ),
 }));
+
+const pendingProposal: ProposalRecord = {
+    id: "proposal-1",
+    org_id: "org-1",
+    type: "communication.task",
+    status: "pending",
+    created_by: { type: "ai", id: "sherpa", name: "Sherpa" },
+    payload: { source_message_subject: "追加見積" },
+    description: "追加見積の返答を準備する",
+    approvals: [],
+    required_approvals: 1,
+    created_at: "2026-05-05T00:00:00.000Z",
+    updated_at: "2026-05-05T00:00:00.000Z",
+};
 
 describe("Today page", () => {
     beforeEach(() => {
@@ -248,5 +294,44 @@ describe("Today page", () => {
                 }),
             );
         });
+    });
+
+    it("opens the pending proposal sheet from the proposal query param", async () => {
+        fetchPendingProposals.mockResolvedValueOnce([pendingProposal]);
+
+        render(
+            <MemoryRouter initialEntries={["/today?proposal=proposal-1"]}>
+                <Routes>
+                    <Route path="/today" element={<Today />} />
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        expect(await screen.findByRole("heading", { name: "承認待ち Proposal" })).toBeInTheDocument();
+        expect(screen.getAllByText("追加見積の返答を準備する").length).toBeGreaterThan(0);
+    });
+
+    it("shows execution-complete copy when approval auto-executes from Today", async () => {
+        fetchPendingProposals
+            .mockResolvedValueOnce([pendingProposal])
+            .mockResolvedValueOnce([]);
+        approveProposal.mockResolvedValueOnce({
+            proposal: { ...pendingProposal, status: "executed" },
+            is_fully_approved: true,
+            auto_executed: true,
+        });
+
+        render(
+            <MemoryRouter initialEntries={["/today?proposal=proposal-1"]}>
+                <Routes>
+                    <Route path="/today" element={<Today />} />
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        fireEvent.click(await screen.findByRole("button", { name: "承認する" }));
+
+        await waitFor(() => expect(approveProposal).toHaveBeenCalledWith("proposal-1", "確認しました"));
+        expect(await screen.findByText("承認し、実行まで完了しました。")).toBeInTheDocument();
     });
 });

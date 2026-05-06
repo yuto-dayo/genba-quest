@@ -137,6 +137,60 @@
     margin-bottom: 16px;
 }
 
+.decisionSummary {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding: 14px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-primary) 22%, var(--md-sys-color-outline-variant));
+    border-radius: var(--md-sys-shape-corner-large);
+    background: var(--md-sys-color-surface-container-low);
+}
+
+.decisionSummaryHeader {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.decisionSummaryHeader strong {
+    color: var(--md-sys-color-primary);
+    font: var(--md-sys-typescale-title-medium);
+    text-align: right;
+}
+
+.decisionSummaryKicker {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-medium);
+    font-weight: 700;
+}
+
+.decisionGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.decisionGrid div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.decisionGrid span {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-small);
+}
+
+.decisionGrid strong {
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-body-small);
+    font-weight: 700;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+
 .pathContextCard {
     margin-bottom: 16px;
     padding: 14px;
@@ -589,6 +643,10 @@
     }
 
     .actionButtons {
+        grid-template-columns: 1fr;
+    }
+
+    .decisionGrid {
         grid-template-columns: 1fr;
     }
 

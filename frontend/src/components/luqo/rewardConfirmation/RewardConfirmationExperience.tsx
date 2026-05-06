@@ -1,5 +1,16 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
-import { ChevronDown, ChevronUp, MessageSquareText, Send, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
+import {
+    BadgeCheck,
+    CalendarDays,
+    ChevronDown,
+    ChevronUp,
+    CircleDollarSign,
+    MessageSquareText,
+    Send,
+    TrendingUp,
+    UserRound,
+    X,
+} from "lucide-react";
 import { Link } from "react-router-dom";
 import {
     askPathRewardConfirmationQuestion,
@@ -300,10 +311,12 @@ export function RewardConfirmationExperience({
     initialPeriod,
     focusSiteId,
     focusMemberId,
+    metaAction,
 }: {
     initialPeriod?: string | null;
     focusSiteId?: string | null;
     focusMemberId?: string | null;
+    metaAction?: ReactNode;
 }) {
     const activeOrgId = useActiveOrgStore((state) => state.activeOrgId);
     const orgOptions = useActiveOrgStore((state) => state.options);
@@ -483,20 +496,39 @@ export function RewardConfirmationExperience({
                 <section className={styles.hero}>
                     <div className={styles.heroHeader}>
                         <div>
-                            <p className={styles.eyebrow}>PATH</p>
+                            <p className={styles.eyebrow}>PATH PAYOUT</p>
                             <h1>今月の精算額</h1>
-                            <p className={styles.subtitle}>対象: {summary.member_name}</p>
                         </div>
-                        <span className={styles.statusBadge}>{formatStatusLabel(summary.status)}</span>
+                    </div>
+                    <div className={styles.heroMetaRail} aria-label="精算情報">
+                        {metaAction}
+                        <span>
+                            <UserRound size={14} aria-hidden="true" />
+                            {summary.member_name}
+                        </span>
+                        <span>
+                            <CalendarDays size={14} aria-hidden="true" />
+                            {formatMonthLabel(summary.month)}
+                        </span>
+                        <span>
+                            <BadgeCheck size={14} aria-hidden="true" />
+                            {isConfirmed ? "操作なし" : "確認中"}
+                        </span>
                     </div>
                     <div className={styles.heroGrid}>
                         <div className={`${styles.heroCard} ${styles.amountCard}`}>
-                            <span>今月の分配額</span>
+                            <span>
+                                <CircleDollarSign size={15} aria-hidden="true" />
+                                今月の分配額
+                            </span>
                             <strong>{formatCurrency(summary.estimated_amount)}</strong>
-                            <p>{formatMonthLabel(summary.month)}</p>
+                            <p>{formatMonthLabel(summary.month)}の確定対象です。</p>
                         </div>
                         <div className={styles.heroCard}>
-                            <span>{isConfirmed ? "確認状態" : "確認状況"}</span>
+                            <span>
+                                <BadgeCheck size={15} aria-hidden="true" />
+                                {isConfirmed ? "確認状態" : "確認状況"}
+                            </span>
                             <strong className={styles.compactStrong}>
                                 {isConfirmed ? "確認済みです" : formatStatusLabel(summary.status)}
                             </strong>
@@ -504,7 +536,10 @@ export function RewardConfirmationExperience({
                         </div>
                         {summary.delta_amount !== null && (
                             <div className={styles.heroCard}>
-                                <span>先月比</span>
+                                <span>
+                                    <TrendingUp size={15} aria-hidden="true" />
+                                    先月比
+                                </span>
                                 <strong>{formatDelta(summary.delta_amount)}</strong>
                                 <p>{summary.delta_empty_state ?? "先月との差です。"}</p>
                             </div>

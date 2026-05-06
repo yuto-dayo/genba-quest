@@ -14,6 +14,7 @@ interface ProposalDetailModalProps {
     onInstruct: (proposalId: string, instruction: string) => Promise<void>;
     onExecute: (proposalId: string) => Promise<void>;
     isActing: boolean;
+    actionError?: string | null;
 }
 
 const PROPOSAL_TYPE_LABELS: Record<string, string> = {
@@ -110,6 +111,97 @@ function getPayloadText(payload: Record<string, unknown>, keys: string[]): strin
     return null;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function getNestedPayloadValue(payload: Record<string, unknown>, keys: string[]): unknown {
+    for (const key of keys) {
+        const direct = payload[key];
+        if (direct !== undefined && direct !== null && direct !== "") {
+            return direct;
+        }
+    }
+
+    for (const value of Object.values(payload)) {
+        if (!isRecord(value)) continue;
+        for (const key of keys) {
+            const nested = value[key];
+            if (nested !== undefined && nested !== null && nested !== "") {
+                return nested;
+            }
+        }
+    }
+
+    return null;
+}
+
+function formatAmount(value: unknown): string | null {
+    if (typeof value === "number" && Number.isFinite(value)) {
+        return `¥${Math.abs(value).toLocaleString()}`;
+    }
+    if (typeof value === "string") {
+        const normalized = value.replace(/[,\s¥￥]/g, "");
+        const num = Number(normalized);
+        if (Number.isFinite(num)) {
+            return `¥${Math.abs(num).toLocaleString()}`;
+        }
+    }
+    return null;
+}
+
+function getProposalAmountLabel(proposal: ProposalRecord): string {
+    const value = getNestedPayloadValue(proposal.payload, [
+        "amount_total",
+        "total_amount",
+        "amount",
+        "total",
+        "payout_amount",
+        "reward_amount",
+    ]);
+    return formatAmount(value) || "金額なし";
+}
+
+function getLedgerImpactLabel(proposal: ProposalRecord): string {
+    if (proposal.type.startsWith("expense.")) {
+        return "承認後、経費Eventと支出仕訳を追加";
+    }
+    if (proposal.type.startsWith("income.") || proposal.type.startsWith("invoice.")) {
+        return "承認後、売上/請求EventとLedgerへ反映";
+    }
+    if (proposal.type.startsWith("reward.") || proposal.type.startsWith("luqo.reward.")) {
+        return "承認後、報酬計算Eventと支給Ledgerへ反映";
+    }
+    if (proposal.type.startsWith("assignment.")) {
+        return "承認後、現場アサインのRead Modelへ反映";
+    }
+    if (proposal.type.startsWith("communication.")) {
+        return "承認後、メール由来の記録/対応タスクへ反映";
+    }
+    if (proposal.type.startsWith("site.")) {
+        return "承認後、現場状態と関連Eventへ反映";
+    }
+    return "承認後、Proposal実行でEventへ反映";
+}
+
+function getRiskLabel(proposal: ProposalRecord, amountLabel: string): string {
+    const explicitRisk = getPayloadText(proposal.payload, ["risk_level", "risk", "risk_reason"]);
+    if (explicitRisk) return explicitRisk;
+    if (proposal.created_by.type === "ai") {
+        return "AI作成。人間承認が必要";
+    }
+    if (proposal.created_by.type === "integration") {
+        return "外部連携。原本と内容を確認";
+    }
+    if (proposal.required_approvals > 1) {
+        return "高額または重要変更。複数承認";
+    }
+    if (amountLabel !== "金額なし") {
+        return "金額影響あり。Ledger反映前に確認";
+    }
+    return "通常リスク";
+}
+
 function formatPayloadValue(key: string, value: unknown): string {
     if (value === null || value === undefined) return "-";
     if (typeof value === "number" && AMOUNT_KEYS.has(key)) {
@@ -174,6 +266,7 @@ export function ProposalDetailModal({
     onInstruct,
     onExecute,
     isActing,
+    actionError,
 }: ProposalDetailModalProps) {
     const [reason, setReason] = useState("");
     const [showFullBody, setShowFullBody] = useState(false);
@@ -204,6 +297,9 @@ export function ProposalDetailModal({
     const isPathProposal = isPathModuleProposal(proposal);
     const pathContext = getPathProposalContext(proposal);
     const pathProposalHref = buildPathProposalHref(proposal);
+    const amountLabel = getProposalAmountLabel(proposal);
+    const riskLabel = getRiskLabel(proposal, amountLabel);
+    const actorLabel = `${proposal.created_by.name} / ${proposal.created_by.type}`;
 
     const handleApprove = async () => {
         await onApprove(proposal.id, reason.trim() || undefined);
@@ -267,6 +363,31 @@ export function ProposalDetailModal({
                 <span className={styles.date}>
                     {formatDate(proposal.created_at)}
                 </span>
+
+                <section className={styles.decisionSummary} aria-label="判断材料">
+                    <div className={styles.decisionSummaryHeader}>
+                        <span className={styles.decisionSummaryKicker}>判断材料</span>
+                        <strong>{amountLabel}</strong>
+                    </div>
+                    <div className={styles.decisionGrid}>
+                        <div>
+                            <span>作成者</span>
+                            <strong>{actorLabel}</strong>
+                        </div>
+                        <div>
+                            <span>必要承認</span>
+                            <strong>{requiredApprovals}名 / 現在 {approvedCount}名</strong>
+                        </div>
+                        <div>
+                            <span>反映先</span>
+                            <strong>{getLedgerImpactLabel(proposal)}</strong>
+                        </div>
+                        <div>
+                            <span>リスク</span>
+                            <strong>{riskLabel}</strong>
+                        </div>
+                    </div>
+                </section>
 
                 {isPathProposal && pathContext && pathProposalHref && (
                     <section className={styles.pathContextCard}>
@@ -523,6 +644,12 @@ export function ProposalDetailModal({
                                 承認
                             </button>
                         </div>
+                        {actionError && (
+                            <div className={`${styles.resultInfo} ${styles.resultRejected}`} role="alert">
+                                <XCircle size={16} aria-hidden="true" />
+                                <span>{actionError}</span>
+                            </div>
+                        )}
                     </section>
                 )}
 
@@ -540,6 +667,12 @@ export function ProposalDetailModal({
                                 実行
                             </button>
                         </div>
+                        {actionError && (
+                            <div className={`${styles.resultInfo} ${styles.resultRejected}`} role="alert">
+                                <XCircle size={16} aria-hidden="true" />
+                                <span>{actionError}</span>
+                            </div>
+                        )}
                     </section>
                 )}
             </motion.div>
