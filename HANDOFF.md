@@ -16,8 +16,9 @@
 | beta-mvp-money-e2e | `handoff/beta-mvp-money-e2e.md` | 2026-05-05 | Run PROPOSAL_RPC_FALLBACK_MODE=disabled SUPABASE_DB_PASSW... |
 | beta-mvp-linked-db-gate | `handoff/beta-mvp-linked-db-gate.md` | 2026-05-06 | Stage/commit current MVP work, then proceed to Sherpa/Gma... |
 | beta-mvp-commit-and-next-e2e | `handoff/beta-mvp-commit-and-next-e2e.md` | 2026-05-06 | Stage and commit beta MVP Money approval + linked DB gate... |
-| beta-mvp-commit-finalize | `handoff/beta-mvp-commit-finalize.md` | 2026-05-06 | active |
+| beta-mvp-commit-finalize | `handoff/beta-mvp-commit-finalize.md` | 2026-05-06 | MVP release is complete; if any external service has hard... |
 | server | `handoff/server.md` | 2026-05-06 | Run cd server && npm run dev; if it crashes again, captur... |
+| frontend/mobile-mvp | `handoff/frontend/mobile-mvp.md` | 2026-05-06 | active |
 
 ## Domain Selection Guide
 

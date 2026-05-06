@@ -220,6 +220,7 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
+    position: relative;
     min-height: 34px;
     padding: 0 12px;
     border-radius: 12px;
@@ -596,13 +597,54 @@
 }
 
 @media (max-width: 768px) {
+    .app {
+        min-height: 100dvh;
+    }
+
+    .header {
+        padding: 8px 12px 10px;
+        gap: 0;
+        box-shadow: 0 1px 0 rgba(28, 25, 23, 0.04);
+        backdrop-filter: none;
+    }
+
     .headerTop {
-        align-items: flex-start;
+        align-items: center;
+        min-height: 48px;
+        gap: 10px;
+    }
+
+    .logo {
+        gap: 8px;
+    }
+
+    .logoMark {
+        width: 34px;
+        height: 34px;
+        border-radius: 12px;
+    }
+
+    .logoKicker {
+        display: none;
+    }
+
+    .logoText {
+        max-width: 38vw;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font: var(--md-sys-typescale-title-small);
+        font-weight: 800;
     }
 
     .orgBadge {
         align-items: flex-start;
-        max-width: 58vw;
+        max-width: 50vw;
+        padding: 6px 9px;
+        border-radius: 14px;
+    }
+
+    .orgBadgeEyebrow {
+        display: none;
     }
 
     .orgBadgeValue {
@@ -612,6 +654,82 @@
 
     .orgSelect {
         max-width: 42vw;
+    }
+
+    .chipViewport {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 920;
+        margin: 0;
+        padding: 8px 10px max(8px, env(safe-area-inset-bottom));
+        background: color-mix(in srgb, var(--md-sys-color-surface-container-lowest) 96%, transparent);
+        border-top: 1px solid var(--md-sys-color-outline-variant);
+        box-shadow: 0 -12px 30px rgba(28, 25, 23, 0.08);
+        backdrop-filter: blur(18px);
+    }
+
+    .chipViewport::before,
+    .chipViewport::after {
+        width: 18px;
+    }
+
+    .chipViewport::before {
+        background: linear-gradient(90deg,
+                color-mix(in srgb, var(--md-sys-color-surface-container-lowest) 96%, transparent),
+                transparent);
+    }
+
+    .chipViewport::after {
+        background: linear-gradient(270deg,
+                color-mix(in srgb, var(--md-sys-color-surface-container-lowest) 96%, transparent),
+                transparent);
+    }
+
+    .chipRail {
+        gap: 4px;
+        padding: 0;
+        scroll-padding-inline: 12px;
+    }
+
+    .navChip {
+        min-height: 52px;
+        padding: 0;
+    }
+
+    .navChipSurface {
+        min-width: 56px;
+        min-height: 52px;
+        flex-direction: column;
+        gap: 3px;
+        padding: 6px 10px;
+        border-radius: 18px;
+    }
+
+    .navChipIcon {
+        width: 18px;
+        height: 18px;
+    }
+
+    .navChipLabel {
+        font: var(--md-sys-typescale-label-small);
+        line-height: 14px;
+    }
+
+    .navChipBadge {
+        position: absolute;
+        top: 4px;
+        right: 6px;
+        min-width: 16px;
+        height: 16px;
+        padding: 0 4px;
+        font-size: 10px;
+    }
+
+    .main {
+        min-height: 100dvh;
+        padding-bottom: calc(76px + env(safe-area-inset-bottom));
     }
 
     .entryShell {

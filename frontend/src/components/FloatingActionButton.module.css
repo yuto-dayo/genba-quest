@@ -232,6 +232,14 @@
 @media (max-width: 480px) {
     .fabContainer {
         right: 16px;
-        bottom: max(16px, env(safe-area-inset-bottom, 16px));
+        bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .fabMenu {
+        max-width: calc(100vw - 32px);
+    }
+
+    .fabMenuItem {
+        min-height: 48px;
     }
 }
