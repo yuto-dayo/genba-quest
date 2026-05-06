@@ -5,6 +5,7 @@
 | Domain | File | Last Updated | Status |
 | ------ | ---- | ------------ | ------ |
 | local | `handoff/local.md` | 2026-05-06 | Supabase migration 20260506093000_add_accept_org_invite_r... |
+| deploy/production | `handoff/deploy/production.md` | 2026-05-06 | active |
 
 ## Domain Selection Guide
 
