@@ -41,12 +41,20 @@ import {
   type AppEntryPendingInvite,
   type AppEntryStateRecord,
 } from "./lib/api";
+import {
+  clearDevAuthSession,
+  getDevAuthUserOption,
+  isDevAuthSessionActive,
+  isDevAuthUiEnabled,
+  setDevAuthSessionActive,
+} from "./lib/devAuth";
 import { supabase } from "./lib/supabase";
 import { useActiveOrgStore, type ActiveOrgOption } from "./stores/activeOrg";
 import "./styles/genba-quest.css";
 import styles from "./App.module.css";
 
 const MONTHLY_EVALUATION_START_DAY = 25;
+const AUTH_RESEND_COOLDOWN_SECONDS = 60;
 
 const NAV_ITEMS: ReadonlyArray<{ path: string; label: string; icon: LucideIcon }> = [
   { path: "/", label: "今日", icon: Home },
@@ -63,6 +71,74 @@ type ClientEntryState =
   | { state: "error"; message: string }
   | { state: "ready_client" }
   | AppEntryStateRecord;
+
+type AuthRequestMode = "login" | "signup";
+
+function buildDevAuthSession(): Session | null {
+  const devUser = getDevAuthUserOption();
+
+  if (!devUser) {
+    return null;
+  }
+
+  return {
+    access_token: "dev-auth-token",
+    refresh_token: "dev-auth-token",
+    expires_in: 3600,
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
+    token_type: "bearer",
+    user: {
+      id: devUser.id,
+      aud: "authenticated",
+      role: "authenticated",
+      email: devUser.email,
+      app_metadata: {
+        provider: "dev",
+        providers: ["dev"],
+        role: devUser.role,
+      },
+      user_metadata: {
+        name: devUser.label,
+      },
+      identities: [],
+      created_at: new Date(0).toISOString(),
+      updated_at: new Date(0).toISOString(),
+    },
+  } as Session;
+}
+
+function getAuthErrorMessage(error: unknown, mode: AuthRequestMode): string {
+  const fallback =
+    mode === "login"
+      ? "再ログイン用リンクを送信できませんでした。"
+      : "初回登録用リンクを送信できませんでした。";
+
+  if (!(error instanceof Error)) {
+    return fallback;
+  }
+
+  const message = error.message.trim();
+  const normalizedMessage = message.toLowerCase();
+
+  if (
+    normalizedMessage.includes("rate limit") ||
+    normalizedMessage.includes("too many") ||
+    normalizedMessage.includes("429")
+  ) {
+    return "メール送信の上限に達しました。しばらく待ってから再度お試しください。";
+  }
+
+  if (
+    mode === "login" &&
+    (normalizedMessage.includes("signup") ||
+      normalizedMessage.includes("signups") ||
+      normalizedMessage.includes("user not found"))
+  ) {
+    return "このメールアドレスはまだ登録されていません。招待済みの場合は「初回登録」で進めてください。";
+  }
+
+  return message || fallback;
+}
 
 function isMonthlyEvaluationWindow(date: Date) {
   return date.getDate() >= MONTHLY_EVALUATION_START_DAY;
@@ -345,28 +421,55 @@ function EntryLayout({
   );
 }
 
-function AuthGate() {
+function AuthGate({ onUseDevAuth }: { onUseDevAuth?: () => void }) {
   const [email, setEmail] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [busyMode, setBusyMode] = useState<AuthRequestMode | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const normalizedEmail = email.trim().toLowerCase();
+  const cooldownRemaining = cooldownUntil
+    ? Math.max(0, Math.ceil((cooldownUntil - nowMs) / 1000))
+    : 0;
+  const actionDisabled = Boolean(busyMode) || !normalizedEmail || cooldownRemaining > 0;
+
+  useEffect(() => {
+    if (!cooldownUntil) {
+      return undefined;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [cooldownUntil]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    await requestLoginLink("login");
+  };
 
+  const requestLoginLink = async (mode: AuthRequestMode) => {
     if (!normalizedEmail) {
       setError("メールアドレスを入力してください。");
       return;
     }
 
+    if (cooldownRemaining > 0) {
+      setError(`${cooldownRemaining}秒後に再送できます。`);
+      return;
+    }
+
     try {
-      setBusy(true);
+      setBusyMode(mode);
       setError(null);
       const { error: signInError } = await supabase.auth.signInWithOtp({
         email: normalizedEmail,
         options: {
           emailRedirectTo: window.location.origin,
+          shouldCreateUser: mode === "signup",
         },
       });
 
@@ -375,14 +478,20 @@ function AuthGate() {
       }
 
       setSentTo(normalizedEmail);
+      setCooldownUntil(Date.now() + AUTH_RESEND_COOLDOWN_SECONDS * 1000);
+      setNowMs(Date.now());
     } catch (submitError) {
-      setError(
-        submitError instanceof Error
-          ? submitError.message
-          : "ログインリンクを送信できませんでした。",
-      );
+      setError(getAuthErrorMessage(submitError, mode));
+
+      if (
+        submitError instanceof Error &&
+        submitError.message.toLowerCase().includes("rate limit")
+      ) {
+        setCooldownUntil(Date.now() + AUTH_RESEND_COOLDOWN_SECONDS * 1000);
+        setNowMs(Date.now());
+      }
     } finally {
-      setBusy(false);
+      setBusyMode(null);
     }
   };
 
@@ -404,6 +513,7 @@ function AuthGate() {
             onChange={(event) => {
               setEmail(event.target.value);
               setError(null);
+              setSentTo(null);
             }}
             placeholder="you@example.com"
             required
@@ -415,17 +525,39 @@ function AuthGate() {
             {sentTo} にログインリンクを送りました。メールから開くと続きに進めます。
           </p>
         )}
+        {cooldownRemaining > 0 && (
+          <p className={styles.entryInfoMeta} aria-live="polite">
+            次の送信まで {cooldownRemaining} 秒
+          </p>
+        )}
         {error && <p className={styles.entryError}>{error}</p>}
 
-        <button
-          type="submit"
-          className={`${styles.primaryButton} ${busy ? styles.primaryButtonBusy : ""}`}
-          disabled={busy || !normalizedEmail}
-          aria-busy={busy}
-        >
-          {busy ? <Loader2 size={16} className={styles.spinnerIcon} /> : <LogIn size={16} />}
-          ログインリンクを送る
-        </button>
+        <div className={styles.authActions}>
+          <button
+            type="submit"
+            className={`${styles.primaryButton} ${busyMode === "login" ? styles.primaryButtonBusy : ""}`}
+            disabled={actionDisabled}
+            aria-busy={busyMode === "login"}
+          >
+            {busyMode === "login" ? <Loader2 size={16} className={styles.spinnerIcon} /> : <LogIn size={16} />}
+            再ログインリンクを送る
+          </button>
+          <button
+            type="button"
+            className={`${styles.secondaryButton} ${busyMode === "signup" ? styles.primaryButtonBusy : ""}`}
+            disabled={actionDisabled}
+            aria-busy={busyMode === "signup"}
+            onClick={() => void requestLoginLink("signup")}
+          >
+            {busyMode === "signup" ? <Loader2 size={16} className={styles.spinnerIcon} /> : <Mail size={16} />}
+            初回登録リンクを送る
+          </button>
+        </div>
+        {onUseDevAuth && (
+          <button type="button" className={styles.secondaryButton} onClick={onUseDevAuth}>
+            開発用ユーザーで入る
+          </button>
+        )}
       </form>
     </EntryLayout>
   );
@@ -715,6 +847,13 @@ function AppContent() {
       setAuthLoading(false);
 
       if (session) {
+        clearDevAuthSession();
+        void resolveEntryState();
+        return;
+      }
+
+      if (isDevAuthSessionActive()) {
+        setAuthSession(buildDevAuthSession());
         void resolveEntryState();
         return;
       }
@@ -734,6 +873,13 @@ function AppContent() {
       setAuthLoading(false);
 
       if (session) {
+        clearDevAuthSession();
+        void resolveEntryState();
+        return;
+      }
+
+      if (isDevAuthSessionActive()) {
+        setAuthSession(buildDevAuthSession());
         void resolveEntryState();
         return;
       }
@@ -926,6 +1072,13 @@ function AppContent() {
   const handleSignOut = useCallback(async () => {
     try {
       setSignOutBusy(true);
+      if (isDevAuthSessionActive()) {
+        clearDevAuthSession();
+        setAuthSession(null);
+        handleSignedOut();
+        return;
+      }
+
       const { error } = await supabase.auth.signOut();
       if (error) {
         throw error;
@@ -938,6 +1091,19 @@ function AppContent() {
       setSignOutBusy(false);
     }
   }, [handleSignedOut]);
+
+  const handleUseDevAuth = useCallback(() => {
+    const devSession = buildDevAuthSession();
+
+    if (!devSession) {
+      return;
+    }
+
+    setDevAuthSessionActive();
+    setAuthSession(devSession);
+    setAuthLoading(false);
+    void resolveEntryState();
+  }, [resolveEntryState]);
 
   const renderEntryGate = () => {
     if (entryState.state === "loading") {
@@ -1018,7 +1184,7 @@ function AppContent() {
   }
 
   if (!authSession) {
-    return <AuthGate />;
+    return <AuthGate onUseDevAuth={isDevAuthUiEnabled() ? handleUseDevAuth : undefined} />;
   }
 
   return (

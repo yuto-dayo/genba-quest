@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement, type ComponentProps, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Calendar } from "./Calendar";
+import type { CalendarDay } from "../types/calendar";
 
 const fetchMembers = vi.fn();
 const fetchOrgContext = vi.fn();
@@ -14,7 +15,7 @@ const getSession = vi.fn();
 const reloadAssignments = vi.fn();
 const selectDate = vi.fn();
 
-const baseCalendarDay = {
+const baseCalendarDay: CalendarDay = {
     date: "2026-04-25",
     day: 25,
     assignments: [],
@@ -23,8 +24,8 @@ const baseCalendarDay = {
     isCurrentMonth: true,
     isWeekend: true,
 };
-let mockCalendarDays = [baseCalendarDay];
-let mockSelectedDate = baseCalendarDay;
+let mockCalendarDays: CalendarDay[] = [baseCalendarDay];
+let mockSelectedDate: CalendarDay = baseCalendarDay;
 
 vi.mock("framer-motion", () => ({
     motion: new Proxy(
@@ -198,7 +199,7 @@ describe("Calendar page", () => {
     });
 
     it("clears a persisted leave schedule from the personal availability panel", async () => {
-        const dayWithLeave = {
+        const dayWithLeave: CalendarDay = {
             ...baseCalendarDay,
             personal_schedules: [
                 {
@@ -237,7 +238,7 @@ describe("Calendar page", () => {
     });
 
     it("rejects a pending leave proposal when clearing it", async () => {
-        const dayWithPendingLeave = {
+        const dayWithPendingLeave: CalendarDay = {
             ...baseCalendarDay,
             personal_schedules: [
                 {

@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `明示stageしてcommit後、origin/codex/production-loginへpush`
+- NEXT_CMD: `Push current production-login branch commit to origin master so Render production can deploy.`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/HANDOFF.md`
@@ -18,14 +18,14 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `e193319`
-  - Updated: `2026-05-06T14:43:12+0900`
+  - HEAD: `7c37193`
+  - Updated: `2026-05-06T14:53:04+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
 
 <!-- HANDOFF_SESSION_EVENTS_START -->
-- 2026-05-06 14:43:02 +0900 — started by codex
+- 2026-05-06 14:51:38 +0900 — started by codex
 <!-- HANDOFF_SESSION_EVENTS_END -->
 
 ---
@@ -33,16 +33,16 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `明示stageしてcommit後、origin/codex/production-loginへpush`. Source: realtime
-- [H0001] Completed: 予定ページの休み解除修正をpush用に整理。今回のコミット対象はCalendar/API/calendar route/unit tests/HANDOFFのみ
-- [H0001] Remaining: 明示stageしてcommit後、origin/codex/production-loginへpush
+- [focus] NEXT_CMD: `Push current production-login branch commit to origin master so Render production can deploy.`. Source: realtime
+- [H0001] Completed: Fixed Calendar.test.tsx test data typing so frontend production build can complete.
+- [H0001] Remaining: Push current production-login branch commit to origin master so Render production can deploy.
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
-- [H0001] Auto-captured decision: 予定ページの休み解除修正をpush用に整理。今回のコミット対象はCalendar/API/calendar route/unit tests/HANDOFFのみ
+- [H0001] Auto-captured decision: Fixed Calendar.test.tsx test data typing so frontend production build can complete.
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
@@ -52,7 +52,7 @@
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
-- [H0001] 明示stageしてcommit後、origin/codex/production-loginへpush
+- [H0001] Push current production-login branch commit to origin master so Render production can deploy.
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
@@ -90,23 +90,19 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
-- [x] 予定ページの休み解除修正をpush用に整理。今回のコミット対象はCalendar/API/calendar route/unit tests/HANDOFFのみ
+- [x] Fixed Calendar.test.tsx test data typing so frontend production build can complete.
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: 明示stageしてcommit後、origin/codex/production-loginへpush
+- [ ] **P0**: Push current production-login branch commit to origin master so Render production can deploy.
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
-| `server/src/__tests__/unit/calendarRoute.test.ts` | delete endpoint test |
-| `frontend/src/pages/Calendar.test.tsx` | 解除UI tests |
-| `server/src/routes/calendar.ts` | 本人schedule削除endpoint |
-| `frontend/src/lib/api.ts` | personal schedule削除API client |
-| `frontend/src/pages/Calendar.tsx` | 休み解除UIの保存済み/提案中状態接続 |
+| `(not recorded)` | No file list provided (use --file "path - semantic description") |
 ---
 
 ## 6. Locked Files（編集中 - 他エージェント触らない）
@@ -153,22 +149,21 @@ cd frontend && npx eslint src/
 
 ## 11. Incremental Updates
 
-### 2026-05-06 14:43:12 +0900
+### 2026-05-06 14:53:04 +0900
 
 - Entry-ID: `H0001`
 - Completed:
-  - [x] 予定ページの休み解除修正をpush用に整理。今回のコミット対象はCalendar/API/calendar route/unit tests/HANDOFFのみ
+  - [x] Fixed Calendar.test.tsx test data typing so frontend production build can complete.
 - Remaining:
-  - [ ] 明示stageしてcommit後、origin/codex/production-loginへpush
+  - [ ] Push current production-login branch commit to origin master so Render production can deploy.
 - Changed Files:
-  - `frontend/src/pages/Calendar.tsx` - 休み解除UIの保存済み/提案中状態接続
-  - `frontend/src/lib/api.ts` - personal schedule削除API client
-  - `server/src/routes/calendar.ts` - 本人schedule削除endpoint
-  - `frontend/src/pages/Calendar.test.tsx` - 解除UI tests
-  - `server/src/__tests__/unit/calendarRoute.test.ts` - delete endpoint test
+  - No file list provided (use --file "path - semantic description")
 - Working Context:
-  - Auto-captured decision: 予定ページの休み解除修正をpush用に整理。今回のコミット対象はCalendar/API/calendar route/unit tests/HANDOFFのみ
+  - Auto-captured decision: Fixed Calendar.test.tsx test data typing so frontend production build can complete.
 - Validation:
-  - `前セッション: frontend Calendar.test.tsx/server calendarRoute.test.ts/tsc/eslint => PASS`
+  - `frontend npm run build: passed.`
+  - `frontend npm test -- App.test.tsx Calendar.test.tsx: passed (20 tests).`
+  - `frontend npm run lint: passed.`
+  - `server npm run build: passed.`
 - Landmines:
   - No new landmines reported in this chunk.

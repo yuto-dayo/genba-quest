@@ -12,6 +12,7 @@ const fetchPathForms = vi.fn();
 const fetchPathAiReviews = vi.fn();
 const getSession = vi.fn();
 const onAuthStateChange = vi.fn();
+const signInWithOtp = vi.fn();
 
 vi.mock("framer-motion", () => ({
     motion: new Proxy(
@@ -94,6 +95,7 @@ vi.mock("./lib/supabase", () => ({
         auth: {
             getSession: (...args: unknown[]) => getSession(...args),
             onAuthStateChange: (...args: unknown[]) => onAuthStateChange(...args),
+            signInWithOtp: (...args: unknown[]) => signInWithOtp(...args),
         },
     },
 }));
@@ -122,6 +124,7 @@ describe("App entry gate", () => {
                 },
             },
         });
+        signInWithOtp.mockResolvedValue({ error: null });
     });
 
     afterEach(() => {
@@ -309,5 +312,79 @@ describe("App entry gate", () => {
         });
 
         expect(await screen.findByText("today-page")).toBeInTheDocument();
+    });
+
+    it("sends returning users through the no-signup login flow", async () => {
+        getSession.mockResolvedValue({ data: { session: null } });
+
+        render(<App />);
+
+        fireEvent.change(await screen.findByLabelText("メールアドレス"), {
+            target: { value: "Worker@Example.com" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "再ログインリンクを送る" }));
+
+        await waitFor(() => {
+            expect(signInWithOtp).toHaveBeenCalledWith({
+                email: "worker@example.com",
+                options: {
+                    emailRedirectTo: window.location.origin,
+                    shouldCreateUser: false,
+                },
+            });
+        });
+    });
+
+    it("keeps first registration on the explicit signup flow", async () => {
+        getSession.mockResolvedValue({ data: { session: null } });
+
+        render(<App />);
+
+        fireEvent.change(await screen.findByLabelText("メールアドレス"), {
+            target: { value: "new-worker@example.com" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "初回登録リンクを送る" }));
+
+        await waitFor(() => {
+            expect(signInWithOtp).toHaveBeenCalledWith({
+                email: "new-worker@example.com",
+                options: {
+                    emailRedirectTo: window.location.origin,
+                    shouldCreateUser: true,
+                },
+            });
+        });
+    });
+
+    it("shows a local rate-limit message instead of the raw Supabase error", async () => {
+        getSession.mockResolvedValue({ data: { session: null } });
+        signInWithOtp.mockResolvedValue({
+            error: new Error("email rate limit exceeded"),
+        });
+
+        render(<App />);
+
+        fireEvent.change(await screen.findByLabelText("メールアドレス"), {
+            target: { value: "worker@example.com" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "再ログインリンクを送る" }));
+
+        expect(await screen.findByText("メール送信の上限に達しました。しばらく待ってから再度お試しください。")).toBeInTheDocument();
+    });
+
+    it("allows local development to enter through dev auth without sending email", async () => {
+        getSession.mockResolvedValue({ data: { session: null } });
+        fetchAppEntryState.mockResolvedValue({
+            state: "ready",
+            active_org: { org_id: "org-1", org_name: "GENBA 本部", role: "admin" },
+            memberships: [{ org_id: "org-1", org_name: "GENBA 本部", role: "admin" }],
+        });
+
+        render(<App />);
+
+        fireEvent.click(await screen.findByRole("button", { name: "開発用ユーザーで入る" }));
+
+        expect(await screen.findByText("today-page")).toBeInTheDocument();
+        expect(signInWithOtp).not.toHaveBeenCalled();
     });
 });
