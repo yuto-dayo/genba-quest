@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `Supabaseに20260506093000_add_accept_org_invite_rpc.sqlを適用して、実招待メールで初回登録→参加する→Today遷移をスモーク確認`
+- NEXT_CMD: `Supabase migration 20260506093000_add_accept_org_invite_rpc.sql を本番/対象Supabaseに適用し、実招待メールで初回登録→参加する→Today遷移を確認`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/local.md`
@@ -18,8 +18,8 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `675ceb5`
-  - Updated: `2026-05-06T18:25:11+0900`
+  - HEAD: `abeb995`
+  - Updated: `2026-05-06T18:37:17+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
@@ -28,6 +28,7 @@
 - 2026-05-06 18:15:53 +0900 — started by codex
 - 2026-05-06 18:25:35 +0900 — ended by codex
 - 2026-05-06 18:36:25 +0900 — started by codex
+- 2026-05-06 18:37:35 +0900 — ended by codex
 <!-- HANDOFF_SESSION_EVENTS_END -->
 
 ---
@@ -35,7 +36,9 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `Supabaseに20260506093000_add_accept_org_invite_rpc.sqlを適用して、実招待メールで初回登録→参加する→Today遷移をスモーク確認`. Source: realtime
+- [focus] NEXT_CMD: `Supabase migration 20260506093000_add_accept_org_invite_rpc.sql を本番/対象Supabaseに適用し、実招待メールで初回登録→参加する→Today遷移を確認`. Source: realtime
+- [H0002] Completed: ログイン修正を commit abeb995 として origin/master に直接 push
+- [H0002] Remaining: Supabase migration 20260506093000_add_accept_org_invite_rpc.sql を本番/対象Supabaseに適用し、実招待メールで初回登録→参加する→Today遷移を確認
 - [H0001] Completed: ログイン入口の実ブラウザ確認と招待参加フロー実装。パスワード忘れは送信成功表示まで確認、初回登録後にpending inviteをmembership化するaccept API/ボタンを追加
 - [H0001] Remaining: Supabaseに20260506093000_add_accept_org_invite_rpc.sqlを適用して、実招待メールで初回登録→参加する→Today遷移をスモーク確認
 <!-- HANDOFF_L1_END -->
@@ -44,16 +47,18 @@
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0002] Auto-captured decision: ログイン修正を commit abeb995 として origin/master に直接 push
 - [H0001] Auto-captured decision: ログイン入口の実ブラウザ確認と招待参加フロー実装。パスワード忘れは送信成功表示まで確認、初回登録後にpending inviteをmembership化するaccept API/ボタンを追加
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0001] No new landmines reported in this chunk.
+- [H0002] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0002] Supabase migration 20260506093000_add_accept_org_invite_rpc.sql を本番/対象Supabaseに適用し、実招待メールで初回登録→参加する→Today遷移を確認
 - [H0001] Supabaseに20260506093000_add_accept_org_invite_rpc.sqlを適用して、実招待メールで初回登録→参加する→Today遷移をスモーク確認
 <!-- HANDOFF_L2_THREADS_END -->
 
@@ -61,7 +66,7 @@
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `1`
+- current_l3_entries: `2`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -92,18 +97,23 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] ログイン修正を commit abeb995 として origin/master に直接 push
 - [x] ログイン入口の実ブラウザ確認と招待参加フロー実装。パスワード忘れは送信成功表示まで確認、初回登録後にpending inviteをmembership化するaccept API/ボタンを追加
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: Supabaseに20260506093000_add_accept_org_invite_rpc.sqlを適用して、実招待メールで初回登録→参加する→Today遷移をスモーク確認
+- [ ] **P0**: Supabase migration 20260506093000_add_accept_org_invite_rpc.sql を本番/対象Supabaseに適用し、実招待メールで初回登録→参加する→Today遷移を確認
+- [ ] **P1**: Supabaseに20260506093000_add_accept_org_invite_rpc.sqlを適用して、実招待メールで初回登録→参加する→Today遷移をスモーク確認
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
+| `supabase/migrations/20260506093000_add_accept_org_invite_rpc.sql` | accept invite RPC pushed to master |
+| `server/src/services/OrgInviteAcceptanceService.ts` | invite accept service pushed to master |
+| `frontend/src/App.tsx` | invite signup flow pushed to master |
 | `supabase/migrations/20260506093000_add_accept_org_invite_rpc.sql` | atomic invite acceptance RPC |
 | `server/src/services/OrgInviteAcceptanceService.ts` | pending invite acceptance service |
 | `server/src/routes/org.ts` | invite accept endpoint and error mapping |
@@ -127,10 +137,10 @@ cd frontend && npx eslint src/
 
 | Check | Result | Notes |
 | ----- | ------ | ----- |
-| server typecheck | PASS | run by session-end (2026-05-06 18:25) |
-| frontend typecheck | PASS | run by session-end (2026-05-06 18:25) |
-| lint | PASS | frontend eslint src/ at 2026-05-06 18:25 |
-| test | PASS | server npm test -- --runInBand at 2026-05-06 18:25 |
+| server typecheck | PASS | run by session-end (2026-05-06 18:37) |
+| frontend typecheck | PASS | run by session-end (2026-05-06 18:37) |
+| lint | PASS | frontend eslint src/ at 2026-05-06 18:37 |
+| test | PASS | server npm test -- --runInBand at 2026-05-06 18:37 |
 
 ---
 
@@ -174,5 +184,23 @@ cd frontend && npx eslint src/
   - Auto-captured decision: ログイン入口の実ブラウザ確認と招待参加フロー実装。パスワード忘れは送信成功表示まで確認、初回登録後にpending inviteをmembership化するaccept API/ボタンを追加
 - Validation:
   - `frontend npx tsc --noEmit=PASS; frontend App.test.tsx=PASS (17); frontend eslint=PASS; server npx tsc --noEmit=PASS; server org/appEntry tests=PASS (18); browser localhost login smoke=PASS`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-06 18:37:17 +0900
+
+- Entry-ID: `H0002`
+- Completed:
+  - [x] ログイン修正を commit abeb995 として origin/master に直接 push
+- Remaining:
+  - [ ] Supabase migration 20260506093000_add_accept_org_invite_rpc.sql を本番/対象Supabaseに適用し、実招待メールで初回登録→参加する→Today遷移を確認
+- Changed Files:
+  - `frontend/src/App.tsx` - invite signup flow pushed to master
+  - `server/src/services/OrgInviteAcceptanceService.ts` - invite accept service pushed to master
+  - `supabase/migrations/20260506093000_add_accept_org_invite_rpc.sql` - accept invite RPC pushed to master
+- Working Context:
+  - Auto-captured decision: ログイン修正を commit abeb995 として origin/master に直接 push
+- Validation:
+  - `git push origin HEAD:master=PASS (abeb995)`
 - Landmines:
   - No new landmines reported in this chunk.
