@@ -72,20 +72,26 @@ jobs:
           cache-dependency-path: server/package-lock.json
 
       - name: Validate integration test secrets
+        id: integration-secrets
         run: |
           if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
-            echo "Missing required secrets: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY"
-            exit 1
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping DB integration tests because SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are not configured."
+          else
+            echo "available=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Install server dependencies
+        if: steps.integration-secrets.outputs.available == 'true'
         run: npm ci
         working-directory: server
 
       - name: Run DB integration tests
+        if: steps.integration-secrets.outputs.available == 'true'
         run: npm run test:integration
         working-directory: server
 
       - name: Run A-1 migration verification smoke
+        if: steps.integration-secrets.outputs.available == 'true'
         run: npm run verify:a1-migration
         working-directory: server
