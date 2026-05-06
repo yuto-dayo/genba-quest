@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+    ArrowLeft,
     BadgeCheck,
     Building2,
     ChevronRight,
@@ -9,7 +10,6 @@ import {
     Plus,
     ReceiptText,
     Search,
-    Settings2,
     Sparkles,
     Users,
 } from "lucide-react";
@@ -45,15 +45,15 @@ import styles from "./Settings.module.css";
 const statusMeta = {
     unregistered: {
         label: "未登録",
-        helper: "通常請求書として発行します",
+        helper: "通常請求",
     },
     applied: {
         label: "申請中",
-        helper: "登録完了までは適格請求書を出せません",
+        helper: "登録待ち",
     },
     registered: {
         label: "登録済み",
-        helper: "適格請求書の発行条件を満たしています",
+        helper: "発行可",
     },
 } as const;
 
@@ -187,6 +187,8 @@ function formatSkillKeyLabel(value: string) {
     return value.replaceAll("_", " ");
 }
 
+type SettingPanel = "profile" | "invoice" | "clients";
+
 export function Settings() {
     const [loading, setLoading] = useState(true);
     const [showInvoiceSettingsModal, setShowInvoiceSettingsModal] = useState(false);
@@ -207,6 +209,8 @@ export function Settings() {
     const [skillQuery, setSkillQuery] = useState("");
     const [skillFilter, setSkillFilter] = useState<(typeof skillFilterOptions)[number]["value"]>("all");
     const [isSkillFinderOpen, setIsSkillFinderOpen] = useState(false);
+    const [settingsQuery, setSettingsQuery] = useState("");
+    const [selectedSetting, setSelectedSetting] = useState<SettingPanel | null>(null);
 
     const loadPage = async () => {
         try {
@@ -297,7 +301,7 @@ export function Settings() {
     const currentInvoiceStatus = invoiceSettings
         ? statusMeta[invoiceSettings.invoice_issuer_status]
         : statusMeta.unregistered;
-    const displayName = currentMember?.full_name || currentMember?.username || "プロフィール未設定";
+    const displayName = currentMember?.full_name || currentMember?.username || "未設定";
     const currentMonth = currentMonthValue();
     const currentLevel = currentFinalization?.current_level || currentProfile?.current_level;
     const monthlyStatus = buildMonthlyStatus({
@@ -328,6 +332,39 @@ export function Settings() {
         .sort((a, b) => toTimestamp(b.finalized_at) - toTimestamp(a.finalized_at))
         .slice(0, 3);
     const shouldShowSkillFinder = isSkillFinderOpen || skillQuery.trim().length > 0 || skillFilter !== "all";
+    const settingsSearch = settingsQuery.trim().toLowerCase();
+    const allSettingItems = [
+        {
+            id: "profile" as const,
+            group: "個人",
+            title: "状態と評価",
+            summary: `${currentMember ? displayName : "未設定"} / ${monthlyStatus.label}`,
+            icon: <Users size={20} />,
+        },
+        {
+            id: "invoice" as const,
+            group: "組織",
+            title: "請求書",
+            summary: `${currentInvoiceStatus.label} / ${invoiceSettings?.issuer_name || "未設定"}`,
+            icon: <FileText size={20} />,
+        },
+        {
+            id: "clients" as const,
+            group: "組織",
+            title: "取引先",
+            summary: `${clients.length}件`,
+            icon: <Building2 size={20} />,
+        },
+    ];
+    const settingItems = allSettingItems.filter((item) => {
+        if (!settingsSearch) {
+            return true;
+        }
+
+        return [item.group, item.title, item.summary].some((value) => value.toLowerCase().includes(settingsSearch));
+    });
+
+    const selectedSettingMeta = allSettingItems.find((item) => item.id === selectedSetting);
 
     if (loading) {
         return (
@@ -349,380 +386,395 @@ export function Settings() {
 
     return (
         <div className={styles.container}>
-            <section className={styles.hero}>
-                <div>
-                    <p className={styles.eyebrow}>Personal & Workspace Settings</p>
-                    <h1 className={styles.title}>設定</h1>
-                    <p className={styles.subtitle}>
-                        まずは自分の現在地を確認し、その下で請求書設定や取引先マスタを整える
-                    </p>
-                </div>
-                <div className={styles.heroBadge}>
-                    <Settings2 size={18} />
-                    個人 / 組織
-                </div>
-            </section>
-
-            <motion.section
-                className={styles.profileCard}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-            >
-                <div className={styles.profileHeader}>
-                    <div>
-                        <p className={styles.cardEyebrow}>マイプロフィール</p>
-                        <h2 className={styles.sectionTitle}>いまの状態</h2>
-                        <p className={styles.sectionDescription}>
-                            Level、今月の評価、認定技能をまとめて確認します
-                        </p>
-                    </div>
-                    <Link to="/luqo?tab=path" className={styles.secondaryButton}>
-                        今月の評価を開く
-                        <ChevronRight size={16} />
-                    </Link>
-                </div>
-
-                <div className={styles.profileHero}>
-                    <div className={styles.identityBlock}>
-                        <span className={styles.identityEyebrow}>本人プロフィール</span>
-                        <strong className={styles.identityName}>{displayName}</strong>
-                        <div className={styles.identityMeta}>
-                            <span className={styles.levelChip}>
-                                {currentLevel ? `Level ${currentLevel}` : "Level 未設定"}
-                            </span>
-                            <span
-                                className={`${styles.progressChip} ${
-                                    monthlyStatus.tone === "complete"
-                                        ? styles.progressComplete
-                                        : monthlyStatus.tone === "progress"
-                                          ? styles.progressActive
-                                          : styles.progressNeutral
-                                }`}
-                            >
-                                今月の評価: {monthlyStatus.label}
-                            </span>
-                        </div>
-                    </div>
-
-                    <div className={styles.progressPanel}>
-                        <span className={styles.infoLabel}>今月の評価状況</span>
-                        <strong>{monthlyStatus.label}</strong>
-                        <p>{monthlyStatus.helper}</p>
-                        <div className={styles.progressMeta}>
-                            <span>対象月: {formatMonthLabel(currentMonth)}</span>
-                            <span>
-                                前回確定:{" "}
-                                {recentFinalizations[0]
-                                    ? `${formatMonthLabel(recentFinalizations[0].month)} / ${formatDateLabel(recentFinalizations[0].finalized_at)}`
-                                    : "まだありません"}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
-                <div className={styles.profileGrid}>
-                    <div className={styles.infoCard}>
-                        <div className={styles.infoCardHeader}>
-                            <div>
-                                <h3 className={styles.infoCardTitle}>6つの主評価項目</h3>
-                                <p className={styles.infoCardDescription}>first view で現在値だけを確認できる形にする</p>
-                            </div>
-                            <Sparkles size={18} className={styles.infoCardIcon} />
-                        </div>
-
-                        <div className={styles.skillList}>
-                            {PATH_BIG_SKILL_KEYS.map((key) => {
-                                const profileValue = currentProfile?.[`${key}_status` as keyof PathSkillProfile];
-                                const status =
-                                    typeof profileValue === "string"
-                                        ? (profileValue as PathBigSkillState)
-                                        : currentFinalization?.confirmed_big_skill_states?.[key] || "unverified";
-
-                                return (
-                                    <div key={key} className={styles.skillRow}>
-                                        <span>{bigSkillLabels[key]}</span>
-                                        <strong>{bigSkillStateLabels[status]}</strong>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-
-                    <div className={styles.infoCard}>
-                        <div className={styles.infoCardHeader}>
-                            <div>
-                                <h3 className={styles.infoCardTitle}>認定技能</h3>
-                                <p className={styles.infoCardDescription}>件数と代表的な技能だけを first view に置く</p>
-                            </div>
-                            <BadgeCheck size={18} className={styles.infoCardIcon} />
-                        </div>
-
-                        <div className={styles.summaryRow}>
-                            <div className={styles.summaryBlock}>
-                                <span>認定済み</span>
-                                <strong>{verifiedCertifications.length}件</strong>
-                            </div>
-                            <div className={styles.summaryBlock}>
-                                <span>要レビュー</span>
-                                <strong>{certificationsNeedingReview.length}件</strong>
-                            </div>
-                        </div>
-
-                        <div className={styles.certificationPreview}>
-                            {recentCertificationHighlights.map((item) => (
-                                <span key={item.id} className={styles.previewChip}>
-                                    {formatSkillKeyLabel(item.skill_key)}
-                                </span>
-                            ))}
-                            {verifiedCertifications.length === 0 && (
-                                <span className={styles.previewEmpty}>まだ認定済み技能はありません</span>
-                            )}
-                        </div>
-                        {recentCertificationHighlights.length > 0 && (
-                            <p className={styles.summaryCaption}>
-                                最近の認定:{" "}
-                                {recentCertificationHighlights
-                                    .map((item) => `${formatSkillKeyLabel(item.skill_key)} (${formatDateLabel(item.verified_at)})`)
-                                    .join(" / ")}
-                            </p>
-                        )}
-                    </div>
-                </div>
-
-                <div className={styles.infoCard}>
-                    <div className={styles.finderHeader}>
-                        <div>
-                            <h3 className={styles.infoCardTitle}>技能を探す</h3>
-                            <p className={styles.infoCardDescription}>必要なときだけ展開して、認定済みや候補を検索します</p>
-                        </div>
-                        <button
-                            type="button"
-                            className={styles.secondaryButton}
-                            onClick={() => setIsSkillFinderOpen((value) => !value)}
-                        >
-                            {shouldShowSkillFinder ? "閉じる" : "技能を探す"}
-                        </button>
-                    </div>
-
-                    {shouldShowSkillFinder ? (
-                        <>
-                            <div className={styles.filterRow}>
-                                {skillFilterOptions.map((option) => (
-                                    <button
-                                        key={option.value}
-                                        type="button"
-                                        className={`${styles.filterChip} ${
-                                            skillFilter === option.value ? styles.filterChipActive : ""
-                                        }`}
-                                        onClick={() => setSkillFilter(option.value)}
-                                    >
-                                        {option.label}
-                                    </button>
-                                ))}
-                            </div>
-
-                            <label className={styles.searchField}>
-                                <Search size={16} />
+            <AnimatePresence mode="wait">
+                {!selectedSetting ? (
+                    <motion.div
+                        key="settings-list"
+                        className={styles.settingsView}
+                        initial={{ opacity: 0, x: -12 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -12 }}
+                        transition={{ duration: 0.18 }}
+                    >
+                        <section className={styles.searchHero}>
+                            <h1 className={styles.visuallyHidden}>設定</h1>
+                            <label className={styles.settingsSearch}>
+                                <Search size={18} />
                                 <input
-                                    type="text"
-                                    value={skillQuery}
-                                    onChange={(event) => setSkillQuery(event.target.value)}
-                                    placeholder="技能名やカテゴリで探す"
+                                    type="search"
+                                    value={settingsQuery}
+                                    onChange={(event) => setSettingsQuery(event.target.value)}
+                                    placeholder="設定を検索"
                                 />
                             </label>
+                        </section>
 
-                            <p className={styles.finderHint}>
-                                {skillFilter === "all"
-                                    ? "認定済み・候補・要レビューを切り替えて確認できます。"
-                                    : `${skillFilterOptions.find((option) => option.value === skillFilter)?.label || "技能"} を表示中`}
-                            </p>
+                        {settingItems.length === 0 ? (
+                            <div className={styles.emptyList}>該当なし</div>
+                        ) : (
+                            <section className={styles.sectionGrid}>
+                                {settingItems.map((item) => (
+                                    <motion.article
+                                        key={item.id}
+                                        className={styles.settingCard}
+                                        initial={{ opacity: 0, y: 12 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                    >
+                                        <button
+                                            type="button"
+                                            className={styles.settingRow}
+                                            onClick={() => setSelectedSetting(item.id)}
+                                        >
+                                            <span className={styles.settingIcon}>{item.icon}</span>
+                                            <span className={styles.settingCopy}>
+                                                <span className={styles.cardEyebrow}>{item.group}</span>
+                                                <strong>{item.title}</strong>
+                                                <span>{item.summary}</span>
+                                            </span>
+                                            <ChevronRight size={18} className={styles.settingChevron} />
+                                        </button>
+                                    </motion.article>
+                                ))}
+                            </section>
+                        )}
+                    </motion.div>
+                ) : (
+                    <motion.section
+                        key={`settings-detail-${selectedSetting}`}
+                        className={styles.detailPage}
+                        initial={{ opacity: 0, x: 18 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 18 }}
+                        transition={{ duration: 0.18 }}
+                    >
+                        <header className={styles.detailTopBar}>
+                            <button
+                                type="button"
+                                className={styles.backButton}
+                                onClick={() => setSelectedSetting(null)}
+                                aria-label="設定一覧へ戻る"
+                            >
+                                <ArrowLeft size={20} />
+                                戻る
+                            </button>
+                            <h1 className={styles.detailTitle}>{selectedSettingMeta?.title}</h1>
+                        </header>
 
-                            <div className={styles.certificationList}>
-                                {filteredCertifications.length === 0 ? (
-                                    <div className={styles.emptyList}>一致する技能がありません。</div>
-                                ) : (
-                                    filteredCertifications.map((item) => (
-                                        <div key={item.id} className={styles.certificationItem}>
-                                            <div>
-                                                <strong>{formatSkillKeyLabel(item.skill_key)}</strong>
-                                                <span>{item.category} / 根拠 {item.evidence_count} 件</span>
-                                            </div>
-                                            <span className={styles.certificationStatus}>
-                                                {certificationStatusLabels[item.status]}
+                        {selectedSetting === "profile" && (
+                            <>
+                                <div className={styles.detailActions}>
+                                    <Link to="/path?tab=reward" className={styles.secondaryButton}>
+                                        評価
+                                        <ChevronRight size={16} />
+                                    </Link>
+                                </div>
+
+                                <div className={styles.profileHero}>
+                                    <div className={styles.identityBlock}>
+                                        <span className={styles.identityEyebrow}>本人</span>
+                                        <strong className={styles.identityName}>
+                                            {currentMember ? displayName : "未設定"}
+                                        </strong>
+                                        <div className={styles.identityMeta}>
+                                            <span className={styles.levelChip}>
+                                                {currentLevel ? `Level ${currentLevel}` : "Level -"}
+                                            </span>
+                                            <span
+                                                className={`${styles.progressChip} ${
+                                                    monthlyStatus.tone === "complete"
+                                                        ? styles.progressComplete
+                                                        : monthlyStatus.tone === "progress"
+                                                          ? styles.progressActive
+                                                          : styles.progressNeutral
+                                                }`}
+                                            >
+                                                評価: {monthlyStatus.label}
                                             </span>
                                         </div>
-                                    ))
-                                )}
-                            </div>
-                        </>
-                    ) : (
-                        <p className={styles.finderHint}>
-                            認定済み技能の一覧、候補、要レビューはここからまとめて確認できます。
-                        </p>
-                    )}
-                </div>
-
-                <div className={styles.infoCard}>
-                    <div className={styles.infoCardHeader}>
-                        <div>
-                            <h3 className={styles.infoCardTitle}>最近の評価履歴</h3>
-                            <p className={styles.infoCardDescription}>first view では最新数件だけを見せる</p>
-                        </div>
-                    </div>
-
-                    <div className={styles.historyList}>
-                        {recentHistory.length === 0 ? (
-                            <div className={styles.emptyList}>まだ評価履歴はありません。</div>
-                        ) : (
-                            recentHistory.map((item, index) => (
-                                <div key={item.id} className={styles.historyItem}>
-                                    <div>
-                                        <strong>{formatMonthLabel(item.month)}</strong>
-                                        <span>確定 {formatDateLabel(item.finalized_at)}</span>
                                     </div>
-                                    <div className={styles.historyMeta}>
-                                        <strong>{buildHistorySummary(item, recentHistory[index + 1])}</strong>
-                                        <span>{truncateText(item.comment, 40) || `確定 ${formatDateLabel(item.finalized_at)}`}</span>
+
+                                    <div className={styles.progressPanel}>
+                                        <span className={styles.infoLabel}>今月</span>
+                                        <strong>{monthlyStatus.label}</strong>
+                                        <div className={styles.progressMeta}>
+                                            <span>月: {formatMonthLabel(currentMonth)}</span>
+                                            <span>
+                                                前回:{" "}
+                                                {recentFinalizations[0]
+                                                    ? `${formatMonthLabel(recentFinalizations[0].month)} / ${formatDateLabel(recentFinalizations[0].finalized_at)}`
+                                                    : "なし"}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
-                            ))
+
+                                <div className={styles.profileGrid}>
+                                    <div className={styles.infoCard}>
+                                        <div className={styles.infoCardHeader}>
+                                            <div>
+                                                <h3 className={styles.infoCardTitle}>主評価</h3>
+                                            </div>
+                                            <Sparkles size={18} className={styles.infoCardIcon} />
+                                        </div>
+
+                                        <div className={styles.skillList}>
+                                            {PATH_BIG_SKILL_KEYS.map((key) => {
+                                                const profileValue =
+                                                    currentProfile?.[`${key}_status` as keyof PathSkillProfile];
+                                                const status =
+                                                    typeof profileValue === "string"
+                                                        ? (profileValue as PathBigSkillState)
+                                                        : currentFinalization?.confirmed_big_skill_states?.[key] ||
+                                                          "unverified";
+
+                                                return (
+                                                    <div key={key} className={styles.skillRow}>
+                                                        <span>{bigSkillLabels[key]}</span>
+                                                        <strong>{bigSkillStateLabels[status]}</strong>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    <div className={styles.infoCard}>
+                                        <div className={styles.infoCardHeader}>
+                                            <div>
+                                                <h3 className={styles.infoCardTitle}>認定技能</h3>
+                                            </div>
+                                            <BadgeCheck size={18} className={styles.infoCardIcon} />
+                                        </div>
+
+                                        <div className={styles.summaryRow}>
+                                            <div className={styles.summaryBlock}>
+                                                <span>認定済み</span>
+                                                <strong>{verifiedCertifications.length}件</strong>
+                                            </div>
+                                            <div className={styles.summaryBlock}>
+                                                <span>要レビュー</span>
+                                                <strong>{certificationsNeedingReview.length}件</strong>
+                                            </div>
+                                        </div>
+
+                                        <div className={styles.certificationPreview}>
+                                            {recentCertificationHighlights.map((item) => (
+                                                <span key={item.id} className={styles.previewChip}>
+                                                    {formatSkillKeyLabel(item.skill_key)}
+                                                </span>
+                                            ))}
+                                            {verifiedCertifications.length === 0 && (
+                                                <span className={styles.previewEmpty}>なし</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className={styles.infoCard}>
+                                    <div className={styles.finderHeader}>
+                                        <div>
+                                            <h3 className={styles.infoCardTitle}>技能</h3>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className={styles.secondaryButton}
+                                            onClick={() => setIsSkillFinderOpen((value) => !value)}
+                                        >
+                                            {shouldShowSkillFinder ? "閉じる" : "探す"}
+                                        </button>
+                                    </div>
+
+                                    {shouldShowSkillFinder && (
+                                        <>
+                                            <div className={styles.filterRow}>
+                                                {skillFilterOptions.map((option) => (
+                                                    <button
+                                                        key={option.value}
+                                                        type="button"
+                                                        className={`${styles.filterChip} ${
+                                                            skillFilter === option.value ? styles.filterChipActive : ""
+                                                        }`}
+                                                        onClick={() => setSkillFilter(option.value)}
+                                                    >
+                                                        {option.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+
+                                            <label className={styles.searchField}>
+                                                <Search size={16} />
+                                                <input
+                                                    type="text"
+                                                    value={skillQuery}
+                                                    onChange={(event) => setSkillQuery(event.target.value)}
+                                                    placeholder="技能名やカテゴリで探す"
+                                                />
+                                            </label>
+
+                                            <p className={styles.finderHint}>
+                                                {skillFilter === "all"
+                                                    ? "表示: すべて"
+                                                    : `${skillFilterOptions.find((option) => option.value === skillFilter)?.label || "技能"} を表示中`}
+                                            </p>
+
+                                            <div className={styles.certificationList}>
+                                                {filteredCertifications.length === 0 ? (
+                                                    <div className={styles.emptyList}>該当なし</div>
+                                                ) : (
+                                                    filteredCertifications.map((item) => (
+                                                        <div key={item.id} className={styles.certificationItem}>
+                                                            <div>
+                                                                <strong>{formatSkillKeyLabel(item.skill_key)}</strong>
+                                                                <span>
+                                                                    {item.category} / 根拠 {item.evidence_count} 件
+                                                                </span>
+                                                            </div>
+                                                            <span className={styles.certificationStatus}>
+                                                                {certificationStatusLabels[item.status]}
+                                                            </span>
+                                                        </div>
+                                                    ))
+                                                )}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+
+                                <div className={styles.infoCard}>
+                                    <div className={styles.infoCardHeader}>
+                                        <div>
+                                            <h3 className={styles.infoCardTitle}>評価履歴</h3>
+                                        </div>
+                                    </div>
+
+                                    <div className={styles.historyList}>
+                                        {recentHistory.length === 0 ? (
+                                            <div className={styles.emptyList}>履歴なし</div>
+                                        ) : (
+                                            recentHistory.map((item, index) => (
+                                                <div key={item.id} className={styles.historyItem}>
+                                                    <div>
+                                                        <strong>{formatMonthLabel(item.month)}</strong>
+                                                        <span>確定 {formatDateLabel(item.finalized_at)}</span>
+                                                    </div>
+                                                    <div className={styles.historyMeta}>
+                                                        <strong>{buildHistorySummary(item, recentHistory[index + 1])}</strong>
+                                                        <span>
+                                                            {truncateText(item.comment, 40) ||
+                                                                `確定 ${formatDateLabel(item.finalized_at)}`}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            </>
                         )}
-                    </div>
-                </div>
-            </motion.section>
 
-            <section className={styles.sectionHeading}>
-                <div>
-                    <p className={styles.cardEyebrow}>組織の設定</p>
-                    <h2 className={styles.sectionTitle}>請求書と取引先</h2>
-                    <p className={styles.sectionDescription}>
-                        プロフィール確認の下に、これまでの請求書設定と取引先マスタを残す
-                    </p>
-                </div>
-            </section>
+                        {selectedSetting === "invoice" && (
+                            <>
+                                <div className={styles.detailHeader}>
+                                    <div className={styles.invoiceStatus}>
+                                        <span className={styles.statusChip}>{currentInvoiceStatus.label}</span>
+                                        <p>{currentInvoiceStatus.helper}</p>
+                                    </div>
+                                    <button className={styles.primaryButton} onClick={() => setShowInvoiceSettingsModal(true)}>
+                                        <FileText size={16} />
+                                        編集
+                                    </button>
+                                </div>
 
-            <section className={styles.sectionGrid}>
-                <motion.article
-                    className={styles.invoiceCard}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                >
-                    <div className={styles.cardHeader}>
-                        <div>
-                            <p className={styles.cardEyebrow}>請求書設定</p>
-                            <h2 className={styles.cardTitle}>発行者情報</h2>
-                        </div>
-                        <button className={styles.primaryButton} onClick={() => setShowInvoiceSettingsModal(true)}>
-                            <FileText size={16} />
-                            編集
-                        </button>
-                    </div>
+                                <div className={styles.invoicePreview}>
+                                    <div className={styles.previewRow}>
+                                        <Building2 size={16} />
+                                        <span>{invoiceSettings?.issuer_name || "発行者名未設定"}</span>
+                                    </div>
+                                    <div className={styles.previewRow}>
+                                        <ReceiptText size={16} />
+                                        <span>
+                                            {invoiceSettings?.qualified_invoice_registration_number || "登録番号未設定"}
+                                        </span>
+                                    </div>
+                                    <div className={styles.previewMeta}>
+                                        <span>{invoiceSettings?.issuer_address || "住所未設定"}</span>
+                                        <span>{invoiceSettings?.bank_account_text || "振込先未設定"}</span>
+                                    </div>
+                                </div>
+                            </>
+                        )}
 
-                    <div className={styles.invoiceStatus}>
-                        <span className={styles.statusChip}>{currentInvoiceStatus.label}</span>
-                        <p>{currentInvoiceStatus.helper}</p>
-                    </div>
-
-                    <div className={styles.invoicePreview}>
-                        <div className={styles.previewRow}>
-                            <Building2 size={16} />
-                            <span>{invoiceSettings?.issuer_name || "発行者名未設定"}</span>
-                        </div>
-                        <div className={styles.previewRow}>
-                            <ReceiptText size={16} />
-                            <span>
-                                {invoiceSettings?.qualified_invoice_registration_number || "登録番号未設定"}
-                            </span>
-                        </div>
-                        <div className={styles.previewMeta}>
-                            <span>{invoiceSettings?.issuer_address || "住所未設定"}</span>
-                            <span>{invoiceSettings?.bank_account_text || "振込先未設定"}</span>
-                        </div>
-                    </div>
-                </motion.article>
-
-                <motion.article
-                    className={styles.clientsCard}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.05 }}
-                >
-                    <div className={styles.cardHeader}>
-                        <div>
-                            <p className={styles.cardEyebrow}>取引先マスタ</p>
-                            <h2 className={styles.cardTitle}>請求先の自動反映元</h2>
-                        </div>
-                        <button
-                            className={styles.secondaryButton}
-                            onClick={() => {
-                                setEditingClient(null);
-                                setShowClientModal(true);
-                            }}
-                        >
-                            <Plus size={16} />
-                            新規取引先
-                        </button>
-                    </div>
-
-                    <div className={styles.clientList}>
-                        <div className={styles.clientListHeader}>
-                            <div className={styles.clientListSummary}>
-                                <Users size={16} />
-                                <span>{clients.length}件</span>
-                            </div>
-                            <span className={styles.clientHint}>取引先を選ぶと編集モーダルを開きます</span>
-                        </div>
-
-                        {clients.length === 0 ? (
-                            <div className={styles.emptyList}>取引先を追加すると請求先入力を省略できます。</div>
-                        ) : (
-                            <div className={styles.clientGrid}>
-                                {clients.map((client) => (
+                        {selectedSetting === "clients" && (
+                            <>
+                                <div className={styles.detailHeader}>
+                                    <div className={styles.clientListSummary}>
+                                        <Users size={16} />
+                                        <span>{clients.length}件</span>
+                                    </div>
                                     <button
-                                        key={client.id}
-                                        className={styles.clientListItem}
+                                        className={styles.secondaryButton}
                                         onClick={() => {
-                                            setEditingClient(client);
+                                            setEditingClient(null);
                                             setShowClientModal(true);
                                         }}
                                     >
-                                        <strong>{client.name}</strong>
-                                        <span>{client.billing_name || "請求書の宛名未設定"}</span>
-                                        <span>{client.billing_address || client.address || "住所未設定"}</span>
+                                        <Plus size={16} />
+                                        追加
                                     </button>
-                                ))}
-                            </div>
-                        )}
-
-                        {deletedClients.length > 0 && (
-                            <div className={styles.deletedSection}>
-                                <div className={styles.deletedHeader}>
-                                    <span className={styles.deletedTitle}>削除済み</span>
-                                    <span>{deletedClients.length}件</span>
                                 </div>
-
-                                <div className={styles.deletedList}>
-                                    {deletedClients.map((client) => (
-                                        <div key={client.id} className={styles.deletedItem}>
-                                            <div className={styles.deletedCopy}>
-                                                <strong>{client.name}</strong>
-                                                <span>{client.deletion_reason || "削除理由なし"}</span>
-                                            </div>
-                                            <button
-                                                className={styles.restoreButton}
-                                                onClick={() => void handleRestoreClient(client.id)}
-                                                disabled={restoringClientId === client.id}
-                                            >
-                                                {restoringClientId === client.id ? "復元中..." : "復元"}
-                                            </button>
+                                <div className={styles.clientList}>
+                                    {clients.length === 0 ? (
+                                        <div className={styles.emptyList}>取引先なし</div>
+                                    ) : (
+                                        <div className={styles.clientGrid}>
+                                            {clients.map((client) => (
+                                                <button
+                                                    key={client.id}
+                                                    className={styles.clientListItem}
+                                                    onClick={() => {
+                                                        setEditingClient(client);
+                                                        setShowClientModal(true);
+                                                    }}
+                                                >
+                                                    <strong>{client.name}</strong>
+                                                    <span>{client.billing_name || "請求書の宛名未設定"}</span>
+                                                    <span>{client.billing_address || client.address || "住所未設定"}</span>
+                                                </button>
+                                            ))}
                                         </div>
-                                    ))}
+                                    )}
+
+                                    {deletedClients.length > 0 && (
+                                        <div className={styles.deletedSection}>
+                                            <div className={styles.deletedHeader}>
+                                                <span className={styles.deletedTitle}>削除済み</span>
+                                                <span>{deletedClients.length}件</span>
+                                            </div>
+
+                                            <div className={styles.deletedList}>
+                                                {deletedClients.map((client) => (
+                                                    <div key={client.id} className={styles.deletedItem}>
+                                                        <div className={styles.deletedCopy}>
+                                                            <strong>{client.name}</strong>
+                                                            <span>{client.deletion_reason || "削除理由なし"}</span>
+                                                        </div>
+                                                        <button
+                                                            className={styles.restoreButton}
+                                                            onClick={() => void handleRestoreClient(client.id)}
+                                                            disabled={restoringClientId === client.id}
+                                                        >
+                                                            {restoringClientId === client.id ? "復元中..." : "復元"}
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
-                            </div>
+                            </>
                         )}
-                    </div>
-                </motion.article>
-            </section>
+                    </motion.section>
+                )}
+            </AnimatePresence>
 
             <AnimatePresence>
                 {showInvoiceSettingsModal && (
