@@ -122,11 +122,17 @@ Canonical protocol: `docs/AGENT_OPS.md`
 
 - Use the common workflow from `docs/AGENT_OPS.md` for Codex / Claude / Gemini.
 - Before implementation, always reference `docs/DESIGN_PHILOSOPHY.md` (at minimum `sed -n '1,120p' docs/DESIGN_PHILOSOPHY.md`).
-- Session end must always update `HANDOFF.md` automatically.
+- Session end must always update the active profile handoff automatically.
+- Root `HANDOFF.md` is the index/resume map. Detailed logs go to `handoff/local.md` for local work and `handoff/deploy/production.md` for production/deploy work.
 - Keep using:
-  - `scripts/session/session-start.sh --agent codex|claude|gemini [--baseline]`
+  - `scripts/session/session-start.sh --agent codex|claude|gemini --profile local [--baseline]`
+  - `scripts/session/session-start.sh --agent codex|claude|gemini --profile production [--baseline]`
+  - `scripts/session/session-start.sh --agent codex|claude|gemini [--baseline]` (legacy backward compatible only; not preferred)
   - `scripts/session/session-update.sh --done ... --next ... --validation ...`
   - `scripts/session/session-end.sh`
+- Profile-specific records:
+  - `local`: Branch, uncommitted count, local DB/migration state, local server status, typecheck/lint/test results, env names only, locks, next local command.
+  - `production`: deploy target, deployed branch/commit, Supabase project/ref and migration state, release/smoke check results, production config names only, rollback plan, incident/blocker status.
 - Keep pre-commit guard enabled (`.githooks/pre-commit`).
 - **v2: session-start/end は `## Session Events (audit log)` にのみ書き込む**。Completed や L1/L2/L3 を偽の "Session started" エントリで汚さない。Quality Gate 結果は `--quality-gate "key=result|notes"` で表に流し込む。
 
@@ -231,7 +237,7 @@ When asked to list available skills:
 | セキュリティ監査 | `$ln-621-security-auditor` | — |
 | コード品質監査 | `$ln-620-codebase-auditor` | — |
 | セッション引き継ぎ | `$handing-off-session` | — |
-| 作業完了ごとの引き継ぎ更新 | `$incremental-handoff` | `HANDOFF.md` |
+| 作業完了ごとの引き継ぎ更新 | `$incremental-handoff` | `handoff/local.md` / `handoff/deploy/production.md` |
 | dirty worktree 整理 | `$cleaning-dirty-worktrees` | `git status --short` |
 
 ### Audit Worker Skills (ln-*)
@@ -256,8 +262,8 @@ Orchestrator `$ln-620-codebase-auditor` coordinates 9 parallel workers:
 
 | Skill | Purpose |
 | ----- | ------- |
-| `handing-off-session` | セッション引き継ぎファイル生成 |
-| `incremental-handoff` | 作業完了ごとにHANDOFF.mdを更新 |
+| `handing-off-session` | セッション終了時にprofile handoffを生成 |
+| `incremental-handoff` | 作業完了ごとにprofile handoffを更新 |
 | `invoice-organizer` | 請求書整理・リネーム |
 | `skill-builder` | 新スキル作成 |
 | `searching-skills-marketplace` | スキルマーケットプレイス検索 |

@@ -8,3 +8,5 @@ tmp/
 .ai-memory/
 .claude/worktrees/
 tools/ai-memory/.ai-memory/
+.playwright-cli/
+output/

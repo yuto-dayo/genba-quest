@@ -1,11 +1,17 @@
 ---
 name: incremental-handoff
-description: 作業完了ごとにHANDOFF.mdを小刻みに更新し、Claude Code/Codex/Gemini間の引き継ぎを常に最新化する。タスク完了・リファクタ完了・検証完了のたびに進捗を追記する時に使う。
+description: 作業完了ごとにprofile handoff（handoff/local.md または handoff/deploy/production.md）を小刻みに更新し、Claude Code/Codex/Gemini間の引き継ぎを常に最新化する。タスク完了・リファクタ完了・検証完了のたびに進捗を追記する時に使う。
 ---
 
 # Incremental Handoff
 
-作業完了単位でHANDOFF.mdを更新するスキル。共通ルールは [`_shared/handoff-conventions.md`](../_shared/handoff-conventions.md) を参照。
+作業完了単位で対象profile handoffを更新するスキル。共通ルールは [`_shared/handoff-conventions.md`](../_shared/handoff-conventions.md) を参照。
+
+標準の対象:
+
+- Local work: `handoff/local.md`
+- Production/deploy work: `handoff/deploy/production.md`
+- Root `HANDOFF.md`: index/resume map only. profile運用の詳細ログは書かない。
 
 ## 使うタイミング
 
@@ -20,6 +26,7 @@ description: 作業完了ごとにHANDOFF.mdを小刻みに更新し、Claude Co
 
 ```bash
 .claude/skills/incremental-handoff/scripts/append-handoff-update.sh \
+  --handoff handoff/local.md \
   --done "approve()にatomic RPC優先パスを追加" \
   --next "P0: SQL関数をSupabaseにデプロイ" \
   --validation "cd server && npm test => 88/88 pass, 6 skip" \
@@ -32,6 +39,7 @@ description: 作業完了ごとにHANDOFF.mdを小刻みに更新し、Claude Co
 
 ```bash
 .claude/skills/incremental-handoff/scripts/append-handoff-update.sh \
+  --handoff handoff/deploy/production.md \
   --session-event "claude ended session" \
   --quality-gate "server typecheck=PASS|run by session-end" \
   --quality-gate "frontend typecheck=FAIL|3 errors in Today.tsx"
@@ -39,13 +47,26 @@ description: 作業完了ごとにHANDOFF.mdを小刻みに更新し、Claude Co
 
 L0/L1/L2/L3には一切触らず、`## Session Events (audit log)` に1行追記するだけ。
 
-### ドメイン指定
+### Profile / ドメイン指定
 
 ```bash
 .claude/skills/incremental-handoff/scripts/append-handoff-update.sh \
-  --handoff handoff/server.md \
+  --handoff handoff/local.md \
+  --done "..." --next "..."
+
+.claude/skills/incremental-handoff/scripts/append-handoff-update.sh \
+  --handoff handoff/deploy/production.md \
+  --done "..." --next "..."
+
+.claude/skills/incremental-handoff/scripts/append-handoff-update.sh \
+  --handoff handoff/frontend/today.md \
   --done "..." --next "..."
 ```
+
+Profile-specific record items:
+
+- `local`: Branch、未コミット数、local DB/migration状態、local API/frontend server状態、typecheck/lint/test結果、必要なenv名、ロック中ファイル、次のlocalコマンド
+- `production`: deploy対象、deploy済みbranch/commit、Supabase project/refとmigration状態、実行済みrelease手順、smoke check結果、変更したproduction設定名、rollback手順、incident/blocker状態
 
 ### 全オプション
 
@@ -60,7 +81,7 @@ L0/L1/L2/L3には一切触らず、`## Session Events (audit log)` に1行追記
 | `--context` | work | Working Context（未指定時は自動生成） |
 | `--landmine` | work | Landmines（未指定時はvalidationから自動補完） |
 | `--note` | work | その他メモ |
-| `--handoff <path>` | both | 対象ファイル（既定: `HANDOFF.md`） |
+| `--handoff <path>` | both | 対象ファイル（標準: `handoff/local.md` または `handoff/deploy/production.md`。root `HANDOFF.md` はindexのみ） |
 | `--session-event <label>` | event | 監査ログに1行追記。L1/L2/L3不変 |
 | `--quality-gate <k=r\|n>` | both | Quality Gateテーブル行を更新（複数可） |
 

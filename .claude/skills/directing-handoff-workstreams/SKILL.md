@@ -7,7 +7,7 @@ tags: [handoff, prioritization, work-allocation, direction, agent-ops]
 
 # Directing Handoff Workstreams
 
-分割された handoff（`HANDOFF.md` / `handoff/*.md`）を横断し、
+分割された handoff（`HANDOFF.md` / `handoff/**/*.md`）を横断し、
 「今どこが進んでいるか」と「誰が何を次に進めるべきか」をディレクター視点で提示する。
 
 生産性の目的: (1) 迷い時間を減らす (2) ブロッカー待ちの停滞を減らす (3) 同時進行の過多を防ぐ

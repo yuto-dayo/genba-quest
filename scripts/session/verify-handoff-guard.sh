@@ -10,12 +10,17 @@ FAIL_COUNT=0
 ACTIVE_SESSION_FILE=".session/active_session"
 ACTIVE_SESSION_BACKUP=""
 declare -a TEMP_FILES=()
+declare -a TEMP_DIRS=()
 
 cleanup() {
   local exit_code=$?
 
   for file in "${TEMP_FILES[@]-}"; do
     [[ -f "$file" ]] && rm -f "$file"
+  done
+
+  for dir in "${TEMP_DIRS[@]-}"; do
+    [[ -d "$dir" ]] && rm -rf "$dir"
   done
 
   if [[ -n "$ACTIVE_SESSION_BACKUP" && -f "$ACTIVE_SESSION_BACKUP" ]]; then
@@ -57,6 +62,13 @@ make_temp_file() {
   local tmp
   tmp="$(mktemp /tmp/verify-handoff-guard.XXXXXX)"
   TEMP_FILES+=("$tmp")
+  echo "$tmp"
+}
+
+make_temp_dir() {
+  local tmp
+  tmp="$(mktemp -d /tmp/verify-handoff-guard.XXXXXX)"
+  TEMP_DIRS+=("$tmp")
   echo "$tmp"
 }
 
@@ -121,11 +133,183 @@ fi
 if bash -n scripts/session/session-start.sh \
   && bash -n scripts/session/session-update.sh \
   && bash -n scripts/session/session-end.sh \
+  && bash -n scripts/session/verify-handoff-guard.sh \
+  && bash -n .githooks/pre-commit \
   && bash -n .claude/skills/incremental-handoff/scripts/append-handoff-update.sh; then
   record_pass "shell syntax checks"
 else
   record_fail "shell syntax checks"
 fi
+
+# 1b) pre-commit handoff guard accepts nested handoff markdown and keeps bypass rules explicit
+precommit_repo="$(make_temp_dir)"
+mkdir -p "$precommit_repo/.githooks" "$precommit_repo/.session"
+cp .githooks/pre-commit "$precommit_repo/.githooks/pre-commit"
+(
+  cd "$precommit_repo"
+  git init -q
+  git config user.email "verify@example.invalid"
+  git config user.name "Verify Handoff Guard"
+  mkdir -p src handoff/frontend
+  printf 'initial\n' > README.md
+  git add README.md
+  git commit -q -m "initial"
+)
+
+(
+  cd "$precommit_repo"
+  printf 'change\n' > src/app.ts
+  git add src/app.ts
+  mkdir -p .session
+  printf 'AGENT=codex\nHANDOFF_FILE=handoff/frontend/today.md\n' > .session/active_session
+)
+
+precommit_missing_log="$(make_temp_file)"
+if (cd "$precommit_repo" && .githooks/pre-commit >"$precommit_missing_log" 2>&1); then
+  record_fail "pre-commit blocks missing handoff markdown"
+else
+  if rg -q --fixed-strings -- "HANDOFF.md or handoff/**/*.md" "$precommit_missing_log"; then
+    record_pass "pre-commit blocks missing handoff markdown"
+  else
+    record_fail "pre-commit blocks missing handoff markdown"
+  fi
+fi
+
+(
+  cd "$precommit_repo"
+  printf 'nested handoff\n' > handoff/frontend/today.md
+  git add handoff/frontend/today.md
+)
+
+if (cd "$precommit_repo" && .githooks/pre-commit >/dev/null 2>&1); then
+  record_pass "pre-commit accepts nested staged handoff markdown"
+else
+  record_fail "pre-commit accepts nested staged handoff markdown"
+fi
+
+precommit_skip_missing_reason_log="$(make_temp_file)"
+if (cd "$precommit_repo" && SKIP_HANDOFF_GUARD=1 .githooks/pre-commit >"$precommit_skip_missing_reason_log" 2>&1); then
+  record_fail "pre-commit skip guard requires reason"
+else
+  if rg -q --fixed-strings -- "SKIP_HANDOFF_GUARD=1 requires SKIP_HANDOFF_REASON." "$precommit_skip_missing_reason_log"; then
+    record_pass "pre-commit skip guard requires reason"
+  else
+    record_fail "pre-commit skip guard requires reason"
+  fi
+fi
+
+if (cd "$precommit_repo" && SKIP_HANDOFF_GUARD=1 SKIP_HANDOFF_REASON="verified bypass" .githooks/pre-commit >/dev/null 2>&1); then
+  record_pass "pre-commit skip guard accepts explicit reason"
+else
+  record_fail "pre-commit skip guard accepts explicit reason"
+fi
+
+# 1c) session profile parsing and profile handoff routing
+profile_conflict_log="$(make_temp_file)"
+if scripts/session/session-start.sh --agent codex --profile local --domain local >"$profile_conflict_log" 2>&1; then
+  record_fail "session-start rejects profile/domain conflict"
+else
+  if rg -q --fixed-strings -- "Error: --profile and --domain are mutually exclusive." "$profile_conflict_log" \
+    && rg -q --fixed-strings -- "Use either --profile local|production or --domain <name>." "$profile_conflict_log"; then
+    record_pass "session-start rejects profile/domain conflict"
+  else
+    record_fail "session-start rejects profile/domain conflict"
+  fi
+fi
+
+profile_invalid_log="$(make_temp_file)"
+if scripts/session/session-start.sh --agent codex --profile staging >"$profile_invalid_log" 2>&1; then
+  record_fail "session-start rejects invalid profile"
+else
+  if rg -q --fixed-strings -- "Allowed profiles: local, production" "$profile_invalid_log"; then
+    record_pass "session-start rejects invalid profile"
+  else
+    record_fail "session-start rejects invalid profile"
+  fi
+fi
+
+profile_sandbox="$(make_temp_dir)"
+mkdir -p \
+  "$profile_sandbox/scripts" \
+  "$profile_sandbox/.claude/skills/incremental-handoff" \
+  "$profile_sandbox/docs" \
+  "$profile_sandbox/server/sql" \
+  "$profile_sandbox/frontend" \
+  "$profile_sandbox/server"
+cp -R scripts/session "$profile_sandbox/scripts/"
+cp -R .claude/skills/incremental-handoff/scripts "$profile_sandbox/.claude/skills/incremental-handoff/"
+cp docs/DESIGN_PHILOSOPHY.md "$profile_sandbox/docs/DESIGN_PHILOSOPHY.md"
+(
+  cd "$profile_sandbox"
+  git init -q
+  git config user.email "verify@example.invalid"
+  git config user.name "Verify Handoff Profiles"
+)
+
+profile_production_log="$(make_temp_file)"
+if (cd "$profile_sandbox" && scripts/session/session-start.sh --agent codex --profile production >"$profile_production_log" 2>&1); then
+  if [[ -f "$profile_sandbox/handoff/deploy/production.md" ]]; then
+    record_pass "profile production creates nested handoff"
+  else
+    record_fail "profile production creates nested handoff"
+  fi
+  if rg -q --fixed-strings -- "PROFILE=production" "$profile_sandbox/.session/active_session" \
+    && rg -q --fixed-strings -- "DOMAIN=deploy/production" "$profile_sandbox/.session/active_session" \
+    && rg -q --fixed-strings -- "HANDOFF_FILE=handoff/deploy/production.md" "$profile_sandbox/.session/active_session"; then
+    record_pass "profile production active_session fields"
+  else
+    record_fail "profile production active_session fields"
+  fi
+else
+  record_fail "profile production creates nested handoff"
+  record_fail "profile production active_session fields"
+fi
+
+if (cd "$profile_sandbox" && scripts/session/session-update.sh \
+    --done "profile smoke" \
+    --next "production smoke next" \
+    --validation "manual => PASS" >/dev/null 2>&1); then
+  if rg -q --fixed-strings -- "profile smoke" "$profile_sandbox/handoff/deploy/production.md"; then
+    record_pass "profile session-update uses active HANDOFF_FILE"
+  else
+    record_fail "profile session-update uses active HANDOFF_FILE"
+  fi
+else
+  record_fail "profile session-update uses active HANDOFF_FILE"
+fi
+
+if (cd "$profile_sandbox" && SESSION_END_SKIP_TESTS=1 scripts/session/session-end.sh --allow-incomplete-handoff >/dev/null 2>&1); then
+  if rg -q --fixed-strings -- "ended by codex" "$profile_sandbox/handoff/deploy/production.md"; then
+    record_pass "profile session-end uses active HANDOFF_FILE"
+  else
+    record_fail "profile session-end uses active HANDOFF_FILE"
+  fi
+  if rg -q --fixed-strings -- "# Project Handoff Profile / Domain Index" "$profile_sandbox/HANDOFF.md" \
+    && ! rg -q --fixed-strings -- "## 3. Completed" "$profile_sandbox/HANDOFF.md" \
+    && ! rg -q --fixed-strings -- "profile smoke" "$profile_sandbox/HANDOFF.md"; then
+    record_pass "profile keeps root HANDOFF as index"
+  else
+    record_fail "profile keeps root HANDOFF as index"
+  fi
+else
+  record_fail "profile session-end uses active HANDOFF_FILE"
+  record_fail "profile keeps root HANDOFF as index"
+fi
+
+profile_local_log="$(make_temp_file)"
+if (cd "$profile_sandbox" && scripts/session/session-start.sh --agent codex --profile local >"$profile_local_log" 2>&1); then
+  if [[ -f "$profile_sandbox/handoff/local.md" ]] \
+    && rg -q --fixed-strings -- "PROFILE=local" "$profile_sandbox/.session/active_session" \
+    && rg -q --fixed-strings -- "DOMAIN=local" "$profile_sandbox/.session/active_session" \
+    && rg -q --fixed-strings -- "HANDOFF_FILE=handoff/local.md" "$profile_sandbox/.session/active_session"; then
+    record_pass "profile local creates local handoff"
+  else
+    record_fail "profile local creates local handoff"
+  fi
+else
+  record_fail "profile local creates local handoff"
+fi
+rm -f "$profile_sandbox/.session/active_session"
 
 # 2) append-handoff-update summary sync
 handoff_sync="$(make_temp_file)"

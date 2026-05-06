@@ -214,7 +214,7 @@ if [[ -n "$session_domain" ]]; then
   if [[ -f "$root_index" ]] && grep -q '## Active Domains' "$root_index"; then
     tmp_index="$(mktemp)"
     LC_ALL=C awk -v dn="$session_domain" -v df="\`${handoff_file}\`" -v dt="$today" -v st="$domain_status" '
-      /^# Project Handoff Index/ { print "# Project Handoff Index - " dt; next }
+      /^# Project Handoff/ { print "# Project Handoff Profile / Domain Index - " dt; next }
       /^\|[[:space:]]*--/ { print; separator_seen = 1; next }
       separator_seen && /^\|/ {
         split($0, cols, "|")

@@ -1,12 +1,18 @@
 ---
 name: handing-off-session
-description: Use this skill when context is running low, approaching token limits, ending a work session, or need to hand off work to another agent (Claude Code / Codex) or team member. Creates a HANDOFF.md file with quality gate results, locked files, and instructions for seamless cross-agent continuation.
+description: Use this skill when context is running low, approaching token limits, ending a work session, or need to hand off work to another agent (Claude Code / Codex) or team member. Updates the active profile handoff with quality gate results, locked files, and instructions for seamless cross-agent continuation; root HANDOFF.md stays an index.
 ---
 
 # Session Handoff (Cross-Agent)
 
-セッション終了時にHANDOFF.mdを生成/更新するスキル。
+セッション終了時に対象profile handoffを生成/更新するスキル。
 共通ルール（L0-L3モデル、セマンティック記述、ドメイン運用、品質ゲート、Cross-Agent Rules）は [`_shared/handoff-conventions.md`](../_shared/handoff-conventions.md) を参照。
+
+標準の対象:
+
+- Local work: `handoff/local.md`
+- Production/deploy work: `handoff/deploy/production.md`
+- Root `HANDOFF.md`: index/resume map only. 詳細ログはprofile handoffに書く。
 
 ## When to Use
 
@@ -39,9 +45,13 @@ ls server/sql/*.sql | tail -1        # 最新のSQL migration
 6. **Working Context** - 次のエージェントが知るべきパターン・判断
 7. **Landmines** - 壊れて見えるが意図的、または触ると壊れるもの
 
-### Step 4: HANDOFF.md 生成
+### Step 4: Profile handoff 生成
 
-テンプレート `./handoff-template.md` を使い、プロジェクトルートに `HANDOFF.md` を作成。
+テンプレート `./handoff-template.md` を使い、作業種別に応じた対象ファイルを作成/更新する。
+
+- Local: `handoff/local.md`
+- Production/deploy: `handoff/deploy/production.md`
+- Root `HANDOFF.md`: 対象handoffへの導線だけを持つ index/resume map として維持する
 
 **構成**: L0-L3 Layered Memory + 番号付きセクション（1-12）。詳細は `_shared/handoff-conventions.md` 参照。
 
@@ -51,6 +61,11 @@ Quick Resume ルール:
 - `STATE` は必ず記載（Branch / Uncommitted / DB migrations / Tests / Lint）
 - `HOTSET` は最大7ファイル
 - `VERIFY_FIRST` は 1-2 コマンド
+
+Profile-specific record items:
+
+- `local`: Branch、未コミット数、local DB/migration状態、local API/frontend server状態、typecheck/lint/test結果、必要なenv名、ロック中ファイル、次のlocalコマンド
+- `production`: deploy対象、deploy済みbranch/commit、Supabase project/refとmigration状態、実行済みrelease手順、smoke check結果、変更したproduction設定名、rollback手順、incident/blocker状態
 
 ### Step 5: ドメイン別 / ブランチ運用
 
@@ -71,6 +86,7 @@ Quick Resume ルール:
 - ロックファイルの理由を明記
 - Working Contextに今の作業で使っているパターンを書く
 - Landminesに「意図的な異常状態」を書く
+- profileに応じた対象handoffを使う（localは `handoff/local.md`、productionは `handoff/deploy/production.md`）
 
 ### DON'T
 
@@ -78,3 +94,4 @@ Quick Resume ルール:
 - 曖昧な表現（「いろいろやった」「updated」など）
 - ロックファイルなしで途中のファイルを放置
 - NEXT_CMDに `session-start.sh` を書く
+- profile運用の詳細ログをroot `HANDOFF.md` に書く

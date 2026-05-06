@@ -4,11 +4,12 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/session/session-start.sh --agent <codex|claude|gemini> [--domain <name>] [--handoff HANDOFF.md] [--keep-handoff] [--force-restart] [--baseline]
+  scripts/session/session-start.sh --agent <codex|claude|gemini> [--profile local|production] [--domain <name>] [--handoff HANDOFF.md] [--keep-handoff] [--force-restart] [--baseline]
 
 Options:
   --agent          Required. Identifies the AI agent (codex|claude|gemini|...).
-  --domain         Use handoff/<domain>.md instead of HANDOFF.md.
+  --profile        Use a standard handoff profile (local|production).
+  --domain         Use handoff/<domain>.md instead of HANDOFF.md. Mutually exclusive with --profile.
   --handoff        Explicit handoff file path.
   --keep-handoff   Do not regenerate the template; keep the existing file as-is.
   --force-restart  Archive a stale active session marker and start fresh.
@@ -18,6 +19,8 @@ Options:
 
 Examples:
   scripts/session/session-start.sh --agent codex
+  scripts/session/session-start.sh --agent codex --profile local
+  scripts/session/session-start.sh --agent codex --profile production
   scripts/session/session-start.sh --agent claude --domain server
   scripts/session/session-start.sh --agent gemini --domain frontend/today
   scripts/session/session-start.sh --agent claude --baseline
@@ -27,7 +30,9 @@ EOF
 }
 
 agent=""
+profile=""
 domain=""
+domain_explicit=0
 handoff_file="HANDOFF.md"
 fresh_handoff=1
 force_restart=0
@@ -43,8 +48,13 @@ while [[ $# -gt 0 ]]; do
       agent="${2:-}"
       shift 2
       ;;
+    --profile)
+      profile="${2:-}"
+      shift 2
+      ;;
     --domain)
       domain="${2:-}"
+      domain_explicit=1
       shift 2
       ;;
     --handoff)
@@ -80,6 +90,34 @@ if [[ -z "$agent" ]]; then
   exit 1
 fi
 
+if [[ -n "$profile" && "$domain_explicit" -eq 1 ]]; then
+  echo "Error: --profile and --domain are mutually exclusive." >&2
+  echo "Use either --profile local|production or --domain <name>." >&2
+  exit 1
+fi
+
+if [[ -n "$profile" ]]; then
+  case "$profile" in
+    local)
+      domain="local"
+      if [[ "$handoff_file" == "HANDOFF.md" ]]; then
+        handoff_file="handoff/local.md"
+      fi
+      ;;
+    production)
+      domain="deploy/production"
+      if [[ "$handoff_file" == "HANDOFF.md" ]]; then
+        handoff_file="handoff/deploy/production.md"
+      fi
+      ;;
+    *)
+      echo "Invalid --profile: ${profile}" >&2
+      echo "Allowed profiles: local, production" >&2
+      exit 1
+      ;;
+  esac
+fi
+
 if [[ -n "$domain" ]]; then
   domain="${domain%.md}"
 
@@ -104,7 +142,7 @@ if [[ -n "$domain" ]]; then
   fi
 fi
 
-# --domain sets handoff_file to handoff/<domain>.md (unless --handoff was explicit)
+# --profile and --domain set handoff_file to handoff/<domain>.md (unless --handoff was explicit)
 if [[ -n "$domain" && "$handoff_file" == "HANDOFF.md" ]]; then
   handoff_file="handoff/${domain}.md"
 fi
@@ -147,7 +185,7 @@ update_domain_index() {
 
   if [[ ! -f "$root_index" ]] || ! grep -q '## Active Domains' "$root_index"; then
     cat > "$root_index" <<EOF
-# Project Handoff Index - ${today}
+# Project Handoff Profile / Domain Index - ${today}
 
 ## Active Domains
 
@@ -157,12 +195,15 @@ update_domain_index() {
 
 ## Domain Selection Guide
 
+- Standard local profile: \`--profile local\` -> \`handoff/local.md\`
+- Standard production profile: \`--profile production\` -> \`handoff/deploy/production.md\`
 - Server work (API, DB, SQL, services): \`handoff/server.md\`
 - Frontend shared work (routing/design system): \`handoff/frontend.md\`
 - Frontend page scope: \`--domain frontend/today\` -> \`handoff/frontend/today.md\`
 - Server feature scope: \`--domain server/proposals\` -> \`handoff/server/proposals.md\`
 - Integration scope: \`--domain integration/gmail\` -> \`handoff/integration/gmail.md\`
-- Full-stack: 両方のL0を読む。\`--domain\` 省略で従来通り単一HANDOFF.md運用も可
+- Active session details: see \`.session/active_session\`
+- Legacy single-file mode: omit both \`--profile\` and \`--domain\` to write \`HANDOFF.md\`
 EOF
     return
   fi
@@ -170,7 +211,7 @@ EOF
   local tmp_index
   tmp_index="$(mktemp)"
   LC_ALL=C awk -v dn="$domain_name" -v df="\`${domain_file}\`" -v dt="$today" -v st="$status" '
-    /^# Project Handoff Index/ { print "# Project Handoff Index - " dt; next }
+    /^# Project Handoff/ { print "# Project Handoff Profile / Domain Index - " dt; next }
     /^\|[[:space:]]*--/ { print; separator_seen = 1; next }
     separator_seen && /^\|/ {
       split($0, cols, "|")
@@ -623,6 +664,7 @@ started_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
   echo "AGENT=${agent}"
   echo "STARTED_AT=${started_at}"
   echo "HANDOFF_FILE=${handoff_file}"
+  echo "PROFILE=${profile}"
   echo "DOMAIN=${domain}"
   printf "NEXT_STEP=%q\n" "$next_step"
 } > "$session_file"

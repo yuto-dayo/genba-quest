@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `Choose a hosted deployment provider or use same-Wi-Fi URL http://192.168.1.11:4001 for immediate phone testing`
+- NEXT_CMD: `For public smartphone access, choose/deploy a Node hosting target and set production environment variables; same-Wi-Fi test is available at http://192.168.1.11:4001 while local server runs`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/frontend/mobile-mvp.md`
@@ -18,14 +18,15 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `bc7c630`
-  - Updated: `2026-05-06T12:14:21+0900`
+  - HEAD: `c3776bb`
+  - Updated: `2026-05-06T12:18:40+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
 
 <!-- HANDOFF_SESSION_EVENTS_START -->
 - 2026-05-06 12:04:21 +0900 — started by codex
+- 2026-05-06 12:19:04 +0900 — ended by codex
 <!-- HANDOFF_SESSION_EVENTS_END -->
 
 ---
@@ -33,7 +34,9 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `Choose a hosted deployment provider or use same-Wi-Fi URL http://192.168.1.11:4001 for immediate phone testing`. Source: realtime
+- [focus] NEXT_CMD: `For public smartphone access, choose/deploy a Node hosting target and set production environment variables; same-Wi-Fi test is available at http://192.168.1.11:4001 while local server runs`. Source: realtime
+- [H0002] Completed: Mobile MVP PR #2 merged into master; smartphone shell and single-origin Express serving are ready
+- [H0002] Remaining: For public smartphone access, choose/deploy a Node hosting target and set production environment variables; same-Wi-Fi test is available at http://192.168.1.11:4001 while local server runs
 - [H0001] Completed: Made GENBA QUEST usable on phone: compact mobile header, fixed bottom navigation, FAB clearance, iOS web app meta, and single-origin Express serving for frontend/dist
 - [H0001] Remaining: Choose a hosted deployment provider or use same-Wi-Fi URL http://192.168.1.11:4001 for immediate phone testing
 <!-- HANDOFF_L1_END -->
@@ -42,16 +45,18 @@
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0002] Auto-captured decision: Mobile MVP PR #2 merged into master; smartphone shell and single-origin Express serving are ready
 - [H0001] Auto-captured decision: Made GENBA QUEST usable on phone: compact mobile header, fixed bottom navigation, FAB clearance, iOS web app meta, and single-origin Express serving for frontend/dist
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0001] No new landmines reported in this chunk.
+- [H0002] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0002] For public smartphone access, choose/deploy a Node hosting target and set production environment variables; same-Wi-Fi test is available at http://192.168.1.11:4001 while local server runs
 - [H0001] Choose a hosted deployment provider or use same-Wi-Fi URL http://192.168.1.11:4001 for immediate phone testing
 <!-- HANDOFF_L2_THREADS_END -->
 
@@ -59,7 +64,7 @@
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `1`
+- current_l3_entries: `2`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -88,18 +93,21 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] Mobile MVP PR #2 merged into master; smartphone shell and single-origin Express serving are ready
 - [x] Made GENBA QUEST usable on phone: compact mobile header, fixed bottom navigation, FAB clearance, iOS web app meta, and single-origin Express serving for frontend/dist
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: Choose a hosted deployment provider or use same-Wi-Fi URL http://192.168.1.11:4001 for immediate phone testing
+- [ ] **P0**: For public smartphone access, choose/deploy a Node hosting target and set production environment variables; same-Wi-Fi test is available at http://192.168.1.11:4001 while local server runs
+- [ ] **P1**: Choose a hosted deployment provider or use same-Wi-Fi URL http://192.168.1.11:4001 for immediate phone testing
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
+| `(not recorded)` | No file list provided (use --file "path - semantic description") |
 | `handoff/frontend/mobile-mvp.md` | mobile MVP session log |
 | `server/src/index.ts` | serves frontend/dist as single-origin SPA for deployment |
 | `frontend/index.html` | iOS viewport and web app meta |
@@ -123,10 +131,10 @@ cd frontend && npx eslint src/
 
 | Check | Result | Notes |
 | ----- | ------ | ----- |
-| server typecheck | SKIP | not run yet |
-| frontend typecheck | SKIP | not run yet |
-| lint | SKIP | not run yet |
-| test | SKIP | optional |
+| server typecheck | PASS | run by session-end (2026-05-06 12:18) |
+| frontend typecheck | PASS | run by session-end (2026-05-06 12:18) |
+| lint | PASS | frontend eslint src/ at 2026-05-06 12:18 |
+| test | PASS | server npm test -- --runInBand at 2026-05-06 12:19 |
 
 ---
 
@@ -170,5 +178,21 @@ cd frontend && npx eslint src/
   - Auto-captured decision: Made GENBA QUEST usable on phone: compact mobile header, fixed bottom navigation, FAB clearance, iOS web app meta, and single-origin Express serving for frontend/dist
 - Validation:
   - `frontend npm run build => PASS; frontend npm run lint => PASS; server npm run build => PASS; Playwright 375x812 Today/Money/FAB screenshots => PASS; single-origin http://127.0.0.1:4001/money console errors => 0`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-06 12:18:40 +0900
+
+- Entry-ID: `H0002`
+- Completed:
+  - [x] Mobile MVP PR #2 merged into master; smartphone shell and single-origin Express serving are ready
+- Remaining:
+  - [ ] For public smartphone access, choose/deploy a Node hosting target and set production environment variables; same-Wi-Fi test is available at http://192.168.1.11:4001 while local server runs
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: Mobile MVP PR #2 merged into master; smartphone shell and single-origin Express serving are ready
+- Validation:
+  - `frontend build PASS; frontend lint PASS; server build PASS; GitHub Actions Typecheck and Lint PASS; GitHub Actions DB Integration Tests PASS; local Express health PASS`
 - Landmines:
   - No new landmines reported in this chunk.
