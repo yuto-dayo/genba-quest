@@ -56,6 +56,7 @@ describe("org router", () => {
   const listMembersHandler = getHandler("/members", "get");
   const contextHandler = getHandler("/context", "get");
   const bootstrapHandler = getPostHandler("/bootstrap");
+  const acceptInviteHandler = getPostHandler("/invites/:inviteId/accept");
   const mockFrom = (supabaseAdmin as unknown as { from: jest.Mock }).from;
   const mockRpc = (supabaseAdmin as unknown as { rpc: jest.Mock }).rpc;
 
@@ -357,6 +358,94 @@ describe("org router", () => {
         status: "active",
       },
     });
+  });
+
+  it("POST /invites/:inviteId/accept accepts a pending invite through the atomic RPC", async () => {
+    const profilesUpsertChain = createChain({
+      data: null,
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [profilesUpsertChain]);
+    mockRpc.mockResolvedValue({
+      data: {
+        org_id: "11111111-1111-4111-8111-111111111111",
+        org_name: "GENBA 本部",
+        org_slug: "genba-hq",
+        org_status: "active",
+        membership_org_id: "11111111-1111-4111-8111-111111111111",
+        membership_user_id: "user-1",
+        membership_role: "member",
+        membership_status: "active",
+      },
+      error: null,
+    });
+
+    const req = {
+      userId: "user-1",
+      userEmail: "Worker@Example.com",
+      params: {
+        inviteId: "invite-1",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await acceptInviteHandler(req, res);
+
+    expect(profilesUpsertChain.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "user-1",
+      }),
+      expect.objectContaining({
+        onConflict: "id",
+        ignoreDuplicates: true,
+      }),
+    );
+    expect(mockRpc).toHaveBeenCalledWith("accept_org_invite", {
+      p_invite_id: "invite-1",
+      p_user_id: "user-1",
+      p_email: "worker@example.com",
+    });
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({
+      active_org: {
+        id: "11111111-1111-4111-8111-111111111111",
+        name: "GENBA 本部",
+        slug: "genba-hq",
+        status: "active",
+      },
+      membership: {
+        org_id: "11111111-1111-4111-8111-111111111111",
+        user_id: "user-1",
+        role: "member",
+        status: "active",
+      },
+    });
+  });
+
+  it("POST /invites/:inviteId/accept maps invite email mismatch to 409", async () => {
+    const profilesUpsertChain = createChain({
+      data: null,
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [profilesUpsertChain]);
+    mockRpc.mockResolvedValue({
+      data: null,
+      error: { message: "ORG_INVITE_EMAIL_MISMATCH" },
+    });
+
+    const req = {
+      userId: "user-1",
+      userEmail: "wrong@example.com",
+      params: {
+        inviteId: "invite-1",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await acceptInviteHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({ error: "ORG_INVITE_EMAIL_MISMATCH" });
   });
 
   it("POST /bootstrap returns 409 when the user already has an active membership", async () => {

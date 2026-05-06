@@ -1243,6 +1243,21 @@ export interface OrgBootstrapResponse {
     };
 }
 
+export interface OrgInviteAcceptResponse {
+    active_org: {
+        id: string;
+        name: string;
+        slug: string | null;
+        status: "active";
+    };
+    membership: {
+        org_id: string;
+        user_id: string;
+        role: "admin" | "member";
+        status: "active";
+    };
+}
+
 export const fetchAppEntryState = () =>
     api<AppEntryStateRecord>("/api/v1/app-entry-state");
 
@@ -1256,6 +1271,11 @@ export const bootstrapOrg = (payload: OrgBootstrapRequest) =>
     api<OrgBootstrapResponse>("/api/v1/org/bootstrap", {
         method: "POST",
         body: JSON.stringify(payload),
+    });
+
+export const acceptOrgInvite = (inviteId: string) =>
+    api<OrgInviteAcceptResponse>(`/api/v1/org/invites/${encodeURIComponent(inviteId)}/accept`, {
+        method: "POST",
     });
 
 export interface Client {

@@ -10,6 +10,7 @@ const bootstrapFirstOrg = vi.fn();
 const bootstrapOrg = vi.fn();
 const fetchPathForms = vi.fn();
 const fetchPathAiReviews = vi.fn();
+const acceptOrgInvite = vi.fn();
 const getSession = vi.fn();
 const onAuthStateChange = vi.fn();
 const signInWithOtp = vi.fn();
@@ -92,6 +93,7 @@ vi.mock("./lib/api", async () => {
         bootstrapOrg: (...args: unknown[]) => bootstrapOrg(...args),
         fetchPathForms: (...args: unknown[]) => fetchPathForms(...args),
         fetchPathAiReviews: (...args: unknown[]) => fetchPathAiReviews(...args),
+        acceptOrgInvite: (...args: unknown[]) => acceptOrgInvite(...args),
     };
 });
 
@@ -118,6 +120,20 @@ describe("App entry gate", () => {
 
         fetchPathForms.mockResolvedValue({ forms: [] });
         fetchPathAiReviews.mockResolvedValue({ reviews: [] });
+        acceptOrgInvite.mockResolvedValue({
+            active_org: {
+                id: "org-1",
+                name: "GENBA 本部",
+                slug: "genba-hq",
+                status: "active",
+            },
+            membership: {
+                org_id: "org-1",
+                user_id: "user-1",
+                role: "member",
+                status: "active",
+            },
+        });
         getSession.mockResolvedValue({
             data: {
                 session: {
@@ -217,7 +233,45 @@ describe("App entry gate", () => {
         expect(screen.queryByRole("button", { name: "組織を作成" })).not.toBeInTheDocument();
         expect(screen.queryByText("別の組織を作成")).not.toBeInTheDocument();
         expect(screen.queryByText("新しい組織を作成")).not.toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "参加する" })).toBeInTheDocument();
         expect(screen.getByText("このメールで招待を確認できました。参加できない場合は、管理者に参加設定の確認を依頼してください。")).toBeInTheDocument();
+    });
+
+    it("accepts a pending invite and enters the app", async () => {
+        getSession.mockResolvedValue({
+            data: {
+                session: {
+                    user: {
+                        id: "user-1",
+                        email: "worker@example.com",
+                    },
+                },
+            },
+        });
+        fetchAppEntryState.mockResolvedValue({
+            state: "needs_invite_action",
+            viewer_email: "worker@example.com",
+            bootstrap_allowed: false,
+            memberships: [],
+            pending_invites: [
+                {
+                    invite_id: "invite-1",
+                    org_id: "org-1",
+                    org_name: "GENBA 本部",
+                    role: "member",
+                    email_normalized: "worker@example.com",
+                },
+            ],
+        });
+
+        render(<App />);
+
+        fireEvent.click(await screen.findByRole("button", { name: "参加する" }));
+
+        await waitFor(() => {
+            expect(acceptOrgInvite).toHaveBeenCalledWith("invite-1");
+        });
+        expect(await screen.findByText("today-page")).toBeInTheDocument();
     });
 
     it("shows the unified communication FAB on today", async () => {
@@ -377,6 +431,29 @@ describe("App entry gate", () => {
                 },
             });
         });
+    });
+
+    it("localizes invalid email errors on first registration", async () => {
+        getSession.mockResolvedValue({ data: { session: null } });
+        signUp.mockResolvedValue({
+            data: { session: null },
+            error: new Error('Email address "worker@example.com" is invalid'),
+        });
+
+        render(<App />);
+
+        fireEvent.change(await screen.findByLabelText("メールアドレス"), {
+            target: { value: "worker@example.com" },
+        });
+        fireEvent.change(screen.getByLabelText("初回登録用パスワード"), {
+            target: { value: "password-1234" },
+        });
+        fireEvent.change(screen.getByLabelText("初回登録用パスワード（確認）"), {
+            target: { value: "password-1234" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "初回登録して進む" }));
+
+        expect(await screen.findByText("メールアドレスの形式を確認してください。")).toBeInTheDocument();
     });
 
     it("shows a local rate-limit message instead of the raw Supabase error", async () => {

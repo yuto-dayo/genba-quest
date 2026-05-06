@@ -33,6 +33,7 @@ import { Today } from "./pages/Today";
 import { FloatingActionButton } from "./components/FloatingActionButton";
 import { MonthlyEvaluationModal } from "./components/today/MonthlyEvaluationModal";
 import {
+  acceptOrgInvite,
   bootstrapFirstOrg,
   fetchAppEntryState,
   fetchPathAiReviews,
@@ -132,6 +133,13 @@ function getAuthErrorMessage(error: unknown, mode: AuthRequestMode): string {
     normalizedMessage.includes("429")
   ) {
     return "メール送信の上限に達しました。しばらく待ってから再度お試しください。";
+  }
+
+  if (
+    normalizedMessage.includes("email") &&
+    (normalizedMessage.includes("invalid") || normalizedMessage.includes("not valid"))
+  ) {
+    return "メールアドレスの形式を確認してください。";
   }
 
   if (
@@ -1012,9 +1020,15 @@ function OnboardingGate({
 function InviteActionGate({
   viewerEmail,
   pendingInvites,
+  inviteBusyId,
+  inviteError,
+  onAcceptInvite,
 }: {
   viewerEmail: string | null;
   pendingInvites: AppEntryPendingInvite[];
+  inviteBusyId: string | null;
+  inviteError: string | null;
+  onAcceptInvite: (inviteId: string) => void;
 }) {
   return (
     <EntryLayout
@@ -1029,10 +1043,24 @@ function InviteActionGate({
               <strong>{invite.org_name}</strong>
               <p>{invite.role} として招待されています</p>
             </div>
-            <ChevronRight size={18} className={styles.entryListIcon} />
+            <button
+              type="button"
+              className={`${styles.secondaryButton} ${inviteBusyId === invite.invite_id ? styles.primaryButtonBusy : ""}`}
+              onClick={() => onAcceptInvite(invite.invite_id)}
+              disabled={Boolean(inviteBusyId)}
+              aria-busy={inviteBusyId === invite.invite_id}
+            >
+              {inviteBusyId === invite.invite_id ? (
+                <Loader2 size={16} className={styles.spinnerIcon} />
+              ) : (
+                <ChevronRight size={16} />
+              )}
+              参加する
+            </button>
           </article>
         ))}
       </div>
+      {inviteError && <p className={styles.entryError}>{inviteError}</p>}
       <div className={styles.entryInfoCard}>
         <h2>参加について</h2>
         <p>このメールで招待を確認できました。参加できない場合は、管理者に参加設定の確認を依頼してください。</p>
@@ -1102,6 +1130,8 @@ function AppContent() {
   const [bootstrapSlug, setBootstrapSlug] = useState("");
   const [bootstrapBusy, setBootstrapBusy] = useState(false);
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
+  const [inviteBusyId, setInviteBusyId] = useState<string | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
   const activeOrgId = useActiveOrgStore((state) => state.activeOrgId);
   const orgOptions = useActiveOrgStore((state) => state.options);
   const setOrgOptions = useActiveOrgStore((state) => state.setOptions);
@@ -1122,6 +1152,7 @@ function AppContent() {
 
   const resolveEntryState = useCallback(async () => {
     setBootstrapError(null);
+    setInviteError(null);
 
     try {
       const nextState = await fetchAppEntryState();
@@ -1169,6 +1200,7 @@ function AppContent() {
     setPasswordRecoveryActive(false);
     setEntryState({ state: "loading" });
     setBootstrapError(null);
+    setInviteError(null);
     setShowInviteHelp(false);
     setCommunicationSheetOpen(false);
     setShowMonthlyEvaluationModal(false);
@@ -1394,6 +1426,26 @@ function AppContent() {
     return code;
   }, []);
 
+  const formatInviteError = useCallback((code: string) => {
+    if (code === "ORG_INVITE_NOT_FOUND") {
+      return "招待が見つかりませんでした。管理者に再招待を依頼してください。";
+    }
+
+    if (code === "ORG_INVITE_NOT_PENDING") {
+      return "この招待はすでに処理済みです。再読み込みしてください。";
+    }
+
+    if (code === "ORG_INVITE_EXPIRED") {
+      return "招待の有効期限が切れています。管理者に再招待を依頼してください。";
+    }
+
+    if (code === "ORG_INVITE_EMAIL_MISMATCH") {
+      return "ログイン中のメールアドレスと招待先が一致していません。招待されたメールでログインしてください。";
+    }
+
+    return "招待への参加に失敗しました。時間を置いて再度お試しください。";
+  }, []);
+
   const handleBootstrapSubmit = useCallback(async () => {
     try {
       setBootstrapBusy(true);
@@ -1431,6 +1483,36 @@ function AppContent() {
       setBootstrapBusy(false);
     }
   }, [bootstrapName, bootstrapSlug, formatBootstrapError, setActiveOrgId, setOrgOptions]);
+
+  const handleAcceptInvite = useCallback(async (inviteId: string) => {
+    try {
+      setInviteBusyId(inviteId);
+      setInviteError(null);
+      const result = await acceptOrgInvite(inviteId);
+      setOrgOptions([
+        {
+          org: {
+            id: result.active_org.id,
+            name: result.active_org.name,
+            slug: result.active_org.slug,
+            status: result.active_org.status,
+          },
+          membership: {
+            org_id: result.membership.org_id,
+            user_id: result.membership.user_id,
+            role: result.membership.role,
+            status: result.membership.status,
+          },
+        },
+      ]);
+      setActiveOrgId(result.active_org.id);
+      setEntryState({ state: "ready_client" });
+    } catch (error) {
+      setInviteError(formatInviteError(error instanceof Error ? error.message : "ORG_INVITE_ACCEPT_FAILED"));
+    } finally {
+      setInviteBusyId(null);
+    }
+  }, [formatInviteError, setActiveOrgId, setOrgOptions]);
 
   const handleSelectOrg = useCallback((orgId: string) => {
     setActiveOrgId(orgId);
@@ -1530,6 +1612,9 @@ function AppContent() {
         <InviteActionGate
           viewerEmail={entryState.viewer_email}
           pendingInvites={entryState.pending_invites}
+          inviteBusyId={inviteBusyId}
+          inviteError={inviteError}
+          onAcceptInvite={(inviteId) => void handleAcceptInvite(inviteId)}
         />
       );
     }

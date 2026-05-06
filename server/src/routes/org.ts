@@ -3,6 +3,7 @@ import { resolveActiveOrgMembership } from "../lib/orgAccess";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import { supabaseAdmin } from "../lib/supabaseClient";
 import { OrgBootstrapService } from "../services/OrgBootstrapService";
+import { OrgInviteAcceptanceService } from "../services/OrgInviteAcceptanceService";
 import { listOrgMembers } from "../services/OrgMemberDirectoryService";
 
 const router = Router();
@@ -25,12 +26,31 @@ function handleOrgAccessError(res: Response, error: unknown): void {
         return;
     }
 
+    if (code === "ORG_INVITE_NOT_FOUND") {
+        res.status(404).json({ error: code });
+        return;
+    }
+
+    if (
+        code === "ORG_INVITE_NOT_PENDING" ||
+        code === "ORG_INVITE_EXPIRED" ||
+        code === "ORG_INVITE_EMAIL_MISMATCH"
+    ) {
+        res.status(409).json({ error: code });
+        return;
+    }
+
     if (code === "ORG_BOOTSTRAP_FORBIDDEN") {
         res.status(403).json({ error: code });
         return;
     }
 
-    if (code === "ORG_BOOTSTRAP_NAME_REQUIRED" || code === "ORG_BOOTSTRAP_RPC_EMPTY_RESULT") {
+    if (
+        code === "ORG_BOOTSTRAP_NAME_REQUIRED" ||
+        code === "ORG_BOOTSTRAP_RPC_EMPTY_RESULT" ||
+        code === "ORG_INVITE_EMAIL_REQUIRED" ||
+        code === "ORG_INVITE_ACCEPT_EMPTY_RESULT"
+    ) {
         res.status(400).json({ error: code });
         return;
     }
@@ -99,6 +119,34 @@ router.post("/bootstrap", async (req: AuthenticatedRequest, res: Response) => {
             userEmail: req.userEmail ?? null,
             name: typeof req.body?.name === "string" ? req.body.name : "",
             slug: typeof req.body?.slug === "string" ? req.body.slug : null,
+        });
+
+        res.status(201).json(result);
+    } catch (error) {
+        handleOrgAccessError(res, error);
+    }
+});
+
+router.post("/invites/:inviteId/accept", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        if (!req.userId) {
+            res.status(401).json({ error: "Unauthorized" });
+            return;
+        }
+
+        const inviteId = Array.isArray(req.params.inviteId)
+            ? req.params.inviteId[0]
+            : req.params.inviteId;
+        if (!inviteId) {
+            res.status(400).json({ error: "ORG_INVITE_NOT_FOUND" });
+            return;
+        }
+
+        const service = new OrgInviteAcceptanceService();
+        const result = await service.accept({
+            inviteId,
+            userId: req.userId,
+            userEmail: req.userEmail ?? null,
         });
 
         res.status(201).json(result);
