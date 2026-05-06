@@ -18,7 +18,8 @@
 | beta-mvp-commit-and-next-e2e | `handoff/beta-mvp-commit-and-next-e2e.md` | 2026-05-06 | Stage and commit beta MVP Money approval + linked DB gate... |
 | beta-mvp-commit-finalize | `handoff/beta-mvp-commit-finalize.md` | 2026-05-06 | MVP release is complete; if any external service has hard... |
 | server | `handoff/server.md` | 2026-05-06 | Run cd server && npm run dev; if it crashes again, captur... |
-| frontend/mobile-mvp | `handoff/frontend/mobile-mvp.md` | 2026-05-06 | active |
+| frontend/mobile-mvp | `handoff/frontend/mobile-mvp.md` | 2026-05-06 | For public smartphone access, choose/deploy a Node hostin... |
+| deploy/production | `handoff/deploy/production.md` | 2026-05-06 | active |
 
 ## Domain Selection Guide
 

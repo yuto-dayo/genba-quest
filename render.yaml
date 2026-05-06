@@ -1,0 +1,30 @@
+services:
+  - type: web
+    runtime: node
+    name: genba-quest
+    region: singapore
+    plan: free
+    branch: master
+    buildCommand: npm --prefix server ci --include=dev && npm --prefix frontend ci --include=dev && npm --prefix frontend run build && npm --prefix server run build
+    startCommand: npm --prefix server start
+    autoDeployTrigger: checksPass
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 22.12.0
+      - key: PROPOSAL_RPC_FALLBACK_MODE
+        value: disabled
+      - key: AI_PROVIDER
+        value: gemini
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      - key: ORG_BOOTSTRAP_ALLOWED_EMAILS
+        sync: false
