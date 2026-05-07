@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bot, Plus, X, ChevronLeft, ChevronRight } from "lucide-react";
 import styles from "./FloatingActionButton.module.css";
@@ -8,7 +8,7 @@ type DockSide = "left" | "right";
 const FAB_DRAG_THRESHOLD = 6;
 const FAB_EDGE_THRESHOLD = 8;
 const FAB_MARGIN_X = 8;
-const FAB_MARGIN_BOTTOM = 92;
+const FAB_MARGIN_BOTTOM = 16;
 const FAB_MIN_TOP = 88;
 const FAB_SIZE = 56;
 const FAB_STASHED_WIDTH = 40;
@@ -162,8 +162,8 @@ export function FloatingActionButton({
             }
 
             const rect = fabEl.getBoundingClientRect();
-            const width = fabDockSide ? FAB_STASHED_WIDTH : rect.width;
-            const height = rect.height;
+            const width = fabDockSide ? FAB_STASHED_WIDTH : rect.width || FAB_SIZE;
+            const height = rect.height || FAB_SIZE;
 
             setFabPosition((prev) => {
                 if (!prev) {
@@ -250,6 +250,8 @@ export function FloatingActionButton({
         }
 
         const rect = fabEl.getBoundingClientRect();
+        const width = rect.width || FAB_SIZE;
+        const height = rect.height || FAB_SIZE;
         const elapsed = Math.max(event.timeStamp - fabDragRef.current.lastTime, 1);
         fabDragRef.current.velocityX = ((event.clientX - fabDragRef.current.lastX) / elapsed) * 1000;
         fabDragRef.current.velocityY = ((event.clientY - fabDragRef.current.lastY) / elapsed) * 1000;
@@ -261,8 +263,8 @@ export function FloatingActionButton({
             clampFabPosition(
                 fabDragRef.current.originX + deltaX,
                 fabDragRef.current.originY + deltaY,
-                rect.width,
-                rect.height
+                width,
+                height
             )
         );
     };
@@ -283,8 +285,9 @@ export function FloatingActionButton({
         if (dragged && fabEl) {
             const rect = fabEl.getBoundingClientRect();
             const current = fabPosition ?? { x: rect.left, y: rect.top };
+            const width = rect.width || FAB_SIZE;
             const projectedX = current.x + getProjectedDistance(fabDragRef.current.velocityX);
-            const dockSide = getDockSide(projectedX, rect.width, window.innerWidth);
+            const dockSide = getDockSide(projectedX, width, window.innerWidth);
 
             if (dockSide) {
                 stashFabToDock(dockSide, current.y);
@@ -324,36 +327,33 @@ export function FloatingActionButton({
     };
 
     const fabStashed = Boolean(supportsDragging && fabDockSide && !open);
-    const fabButtonStyle = supportsDragging
+    const fabContainerStyle: CSSProperties | undefined = supportsDragging
         ? fabPosition
             ? {
                 left: `${fabPosition.x}px`,
                 top: `${fabPosition.y}px`,
                 width: fabDockSide ? `${FAB_STASHED_WIDTH}px` : `${FAB_SIZE}px`,
+                height: `${FAB_SIZE}px`,
             }
             : {
                 right: `${FAB_MARGIN_X}px`,
                 bottom: `${FAB_MARGIN_BOTTOM}px`,
                 width: `${FAB_SIZE}px`,
+                height: `${FAB_SIZE}px`,
             }
         : undefined;
-
-    const menuStyle = supportsDragging
-        ? {
-            position: "absolute" as const,
-            left: fabDockSide === "left" && fabPosition ? `${fabPosition.x}px` : undefined,
-            right:
-                fabDockSide !== "left"
-                    ? fabPosition
-                        ? `${window.innerWidth - fabPosition.x - FAB_SIZE}px`
-                        : `${FAB_MARGIN_X}px`
-                    : undefined,
-            bottom: fabPosition ? `${window.innerHeight - fabPosition.y + 16}px` : "80px",
-        }
-        : undefined;
+    const fabButtonStyle: CSSProperties | undefined = supportsDragging ? { width: "100%" } : undefined;
+    const menuAlignLeft = Boolean(
+        supportsDragging &&
+        fabPosition &&
+        fabPosition.x < window.innerWidth / 2
+    );
 
     return (
-        <div className={`${styles.fabContainer} ${supportsDragging ? styles.mobileFabDock : ""}`}>
+        <div
+            className={`${styles.fabContainer} ${supportsDragging ? styles.mobileFabDock : ""}`}
+            style={fabContainerStyle}
+        >
             <AnimatePresence>
                 {open && (
                     <>
@@ -364,11 +364,11 @@ export function FloatingActionButton({
                             exit={{ opacity: 0 }}
                             onClick={closeMenu}
                         />
-                        <div className={styles.fabMenu} style={menuStyle}>
+                        <div className={`${styles.fabMenu} ${menuAlignLeft ? styles.fabMenuLeft : ""}`}>
                             {items.map((item, index) => (
                                 <motion.button
                                     key={item.id}
-                                    className={`${styles.fabMenuItem} ${fabDockSide === "left" ? styles.fabMenuItemLeft : ""}`}
+                                    className={`${styles.fabMenuItem} ${menuAlignLeft ? styles.fabMenuItemLeft : ""}`}
                                     initial={{ opacity: 0, y: 10, scale: 0.8 }}
                                     animate={{ opacity: 1, y: 0, scale: 1 }}
                                     exit={{ opacity: 0, y: 10, scale: 0.8 }}
