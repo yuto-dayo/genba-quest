@@ -4,13 +4,10 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import {
     AlertCircle,
     Building2,
-    CalendarCheck2,
     Check,
     CheckCircle2,
     ClipboardCheck,
-    ListChecks,
     RefreshCw,
-    ShieldAlert,
     X,
 } from "lucide-react";
 import {
@@ -49,7 +46,6 @@ import { SiteDetailModal } from "../components/SiteDetailModal";
 import { TodayAssignments } from "../components/today/TodayAssignments";
 import type { SiteInputStatus } from "../components/today/TodayAssignments";
 import { MonthlySummary } from "../components/today/MonthlySummary";
-import { PendingBadge } from "../components/today/PendingBadge";
 import { getErrorMessage } from "../lib/error";
 import { buildPathProposalHref, getPathProposalContext, isPathModuleProposal } from "../lib/pathProposal";
 import { supabase } from "../lib/supabase";
@@ -260,7 +256,6 @@ export function Today() {
     const [todayDayLogsBySiteId, setTodayDayLogsBySiteId] = useState<Record<string, PathV31DayLog>>({});
     const [siteRolePlansBySiteId, setSiteRolePlansBySiteId] = useState<Record<string, PathV31SiteMemberRolePlan>>({});
     const [siteRewardInputsBySiteId, setSiteRewardInputsBySiteId] = useState<Record<string, PathV31SiteMemberRewardInput>>({});
-    const [pendingCount, setPendingCount] = useState(0);
     const [pendingProposals, setPendingProposals] = useState<ProposalRecord[]>([]);
     const [pendingSheetOpen, setPendingSheetOpen] = useState(false);
     const [selectedProposal, setSelectedProposal] = useState<ProposalRecord | null>(null);
@@ -325,7 +320,6 @@ export function Today() {
     const syncPendingProposals = useCallback(async (keepProposalId?: string | null) => {
         const nextPendingProposals = await fetchPendingProposals().catch(() => []);
         setPendingProposals(nextPendingProposals);
-        setPendingCount(nextPendingProposals.length);
 
         if (keepProposalId) {
             setSelectedProposal(
@@ -372,7 +366,6 @@ export function Today() {
             setFocusItems(focusItemsData);
             setSites(sitesData);
             setPendingProposals(pendingProposalsData);
-            setPendingCount(pendingProposalsData.length);
             if (nextCurrentUserId) {
                 const [, rolePlansResponse, rewardInputsResponse] = await Promise.all([
                     syncTodayDayLogs(nextCurrentUserId),
@@ -589,13 +582,6 @@ export function Today() {
         setPendingSheetOpen(true);
         setSelectedProposal(matchedProposal);
     }, [pendingProposals, targetProposalId]);
-
-    const openPendingSheet = () => {
-        if (pendingCount === 0) {
-            return;
-        }
-        setPendingSheetOpen(true);
-    };
 
     const closePendingSheet = () => {
         setPendingSheetOpen(false);
@@ -866,50 +852,8 @@ export function Today() {
             >
                 <div className={styles.heroIntro}>
                     <h1 className={styles.dateTitle}>{todayDateLabel}</h1>
-                    <p className={styles.heroLead}>
-                        現場 {todayAssignments.length}件 ・ 解決 {horizonCounts.today}件 ・ 承認待ち {pendingCount}件
-                    </p>
-                </div>
-                <div className={styles.heroActions}>
-                    <PendingBadge count={pendingCount} onClick={openPendingSheet} />
                 </div>
             </motion.header>
-
-            <motion.div
-                className={styles.todayBrief}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.02 }}
-                aria-label="今日の概要"
-            >
-                <article className={`${styles.briefItem} ${styles.briefItemPrimary}`}>
-                    <span className={styles.briefIcon}>
-                        <CalendarCheck2 size={18} />
-                    </span>
-                    <span className={styles.briefText}>
-                        <span className={styles.briefLabel}>今日の現場</span>
-                        <strong className={styles.briefValue}>{todayAssignments.length}件</strong>
-                    </span>
-                </article>
-                <article className={styles.briefItem}>
-                    <span className={styles.briefIcon}>
-                        <ListChecks size={18} />
-                    </span>
-                    <span className={styles.briefText}>
-                        <span className={styles.briefLabel}>解決すること</span>
-                        <strong className={styles.briefValue}>{horizonCounts.today}件</strong>
-                    </span>
-                </article>
-                <button type="button" className={styles.briefItemButton} onClick={openPendingSheet}>
-                    <span className={styles.briefIcon}>
-                        <ShieldAlert size={18} />
-                    </span>
-                    <span className={styles.briefText}>
-                        <span className={styles.briefLabel}>承認待ち</span>
-                        <strong className={styles.briefValue}>{pendingCount}件</strong>
-                    </span>
-                </button>
-            </motion.div>
 
             {actionError && (
                 <div className={styles.errorBanner}>
