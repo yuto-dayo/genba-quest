@@ -3,11 +3,12 @@ import { describe, expect, it, vi } from "vitest";
 import { TodayAssignments } from "./TodayAssignments";
 import type { Site } from "../../lib/api";
 
+const baseSiteAddress = "東京都渋谷区1-2-3";
 const baseSite: Site = {
     id: "site-1",
     name: "渋谷マンション",
     status: "active",
-    address: "東京都渋谷区1-2-3",
+    address: baseSiteAddress,
     created_at: "2026-04-22T00:00:00.000Z",
 };
 
@@ -92,9 +93,9 @@ describe("TodayAssignments", () => {
         expect(screen.queryByRole("link", { name: "地図" })).not.toBeInTheDocument();
         expect(screen.getByRole("link", { name: "地図を開く" })).toHaveAttribute(
             "href",
-            expect.stringContaining(encodeURIComponent(baseSite.address)),
+            expect.stringContaining(encodeURIComponent(baseSiteAddress)),
         );
-        expect(screen.getByText(baseSite.address)).toBeInTheDocument();
+        expect(screen.getByText(baseSiteAddress)).toBeInTheDocument();
         fireEvent.click(screen.getByRole("button", { name: "役割" }));
 
         expect(onPlanRole).toHaveBeenCalledWith(expect.objectContaining({ id: baseSite.id }));

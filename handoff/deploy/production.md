@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `Merge PR #4 after CI, then verify Render production`
+- NEXT_CMD: `Merge PR and retry Render deploy for master`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/private/tmp/genba-quest-prod-fab/handoff/deploy/production.md`
@@ -18,8 +18,8 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `8d0dbb2`
-  - Updated: `2026-05-07T23:41:29+0900`
+  - HEAD: `b2ab43d`
+  - Updated: `2026-05-08T01:40:23+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
@@ -33,7 +33,9 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `Merge PR #4 after CI, then verify Render production`. Source: realtime
+- [focus] NEXT_CMD: `Merge PR and retry Render deploy for master`. Source: realtime
+- [H0002] Completed: Fixed Render build failure from TodayAssignments test strict optional address typing
+- [H0002] Remaining: Merge PR and retry Render deploy for master
 - [H0001] Completed: Rebased FAB menu anchoring fix onto origin/master for production PR
 - [H0001] Remaining: Merge PR #4 after CI, then verify Render production
 <!-- HANDOFF_L1_END -->
@@ -42,16 +44,19 @@
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0002] Render buildCommand exits status 2 when frontend tsc fails before Vite/server build
 - [H0001] Auto-captured decision: Rebased FAB menu anchoring fix onto origin/master for production PR
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
+- [H0002] Main checkout still has unrelated dirty local work; this branch was prepared in a clean worktree from origin/master
 - [H0001] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0002] Merge PR and retry Render deploy for master
 - [H0001] Merge PR #4 after CI, then verify Render production
 <!-- HANDOFF_L2_THREADS_END -->
 
@@ -59,7 +64,7 @@
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `1`
+- current_l3_entries: `2`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -90,18 +95,21 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] Fixed Render build failure from TodayAssignments test strict optional address typing
 - [x] Rebased FAB menu anchoring fix onto origin/master for production PR
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: Merge PR #4 after CI, then verify Render production
+- [ ] **P0**: Merge PR and retry Render deploy for master
+- [ ] **P1**: Merge PR #4 after CI, then verify Render production
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
+| `frontend/src/components/today/TodayAssignments.test.tsx` | use baseSiteAddress string for URL/text assertions |
 | `(not recorded)` | No file list provided (use --file "path - semantic description") |
 ---
 
@@ -137,7 +145,7 @@ cd frontend && npx eslint src/
 
 ## 9. Risks / Blockers
 
-- 新規の blocker は未記録
+- Main checkout still has unrelated dirty local work; this branch was prepared in a clean worktree from origin/master
 ---
 
 ## 10. References
@@ -164,3 +172,19 @@ cd frontend && npx eslint src/
   - `frontend: npm test -- --run src/components/FloatingActionButton.test.tsx src/pages/Calendar.test.tsx = PASS; npm run build = PASS`
 - Landmines:
   - No new landmines reported in this chunk.
+
+### 2026-05-08 01:40:23 +0900
+
+- Entry-ID: `H0002`
+- Completed:
+  - [x] Fixed Render build failure from TodayAssignments test strict optional address typing
+- Remaining:
+  - [ ] Merge PR and retry Render deploy for master
+- Changed Files:
+  - `frontend/src/components/today/TodayAssignments.test.tsx` - use baseSiteAddress string for URL/text assertions
+- Working Context:
+  - Render buildCommand exits status 2 when frontend tsc fails before Vite/server build
+- Validation:
+  - `npm --prefix frontend run build => PASS; npm --prefix server run build => PASS; npm --prefix frontend test -- TodayAssignments.test.tsx => PASS (4 tests)`
+- Landmines:
+  - Main checkout still has unrelated dirty local work; this branch was prepared in a clean worktree from origin/master
