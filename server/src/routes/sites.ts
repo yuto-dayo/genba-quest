@@ -25,7 +25,7 @@ import { extractSiteDraftFromText } from "../services/SiteDraftTextService";
 const router = Router();
 const SITE_SELECT = `
     *,
-    client:clients(id, name)
+    client:clients(id, name, contact_person, phone)
 `;
 const SITE_SCHEDULE_MODES = ["continuous", "weekdays", "custom"] as const;
 const SITE_COMPLETION_ERROR_STATUS_MAP: Record<string, number> = {

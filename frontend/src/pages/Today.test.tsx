@@ -9,6 +9,7 @@ const fetchFocusItems = vi.fn();
 const fetchSites = vi.fn();
 const fetchMembers = vi.fn();
 const fetchSiteDocuments = vi.fn();
+const fetchSiteLineItems = vi.fn();
 const fetchPendingProposals = vi.fn();
 const fetchPathV31DayLogs = vi.fn();
 const fetchPathV31SiteMemberRolePlans = vi.fn();
@@ -37,6 +38,7 @@ vi.mock("../lib/api", () => ({
     fetchSites: (...args: unknown[]) => fetchSites(...args),
     fetchMembers: (...args: unknown[]) => fetchMembers(...args),
     fetchSiteDocuments: (...args: unknown[]) => fetchSiteDocuments(...args),
+    fetchSiteLineItems: (...args: unknown[]) => fetchSiteLineItems(...args),
     fetchPendingProposals: (...args: unknown[]) => fetchPendingProposals(...args),
     fetchPathV31DayLogs: (...args: unknown[]) => fetchPathV31DayLogs(...args),
     fetchPathV31SiteMemberRolePlans: (...args: unknown[]) => fetchPathV31SiteMemberRolePlans(...args),
@@ -134,8 +136,30 @@ vi.mock("../components/SiteDetailModal", () => ({
     SiteDetailModal: () => null,
 }));
 
+vi.mock("../components/SiteFormModal", () => ({
+    SiteFormModal: ({
+        initialAction,
+        onSuccess,
+        site,
+    }: {
+        initialAction?: string;
+        onSuccess: () => void;
+        site: { name: string };
+    }) => (
+        <div data-testid="site-form-modal">
+            <p>{site.name}</p>
+            <p>{initialAction}</p>
+            <button type="button" onClick={onSuccess}>
+                保存
+            </button>
+        </div>
+    ),
+}));
+
 vi.mock("../components/today/MonthlySummary", () => ({
-    MonthlySummary: () => <div data-testid="monthly-summary" />,
+    MonthlySummary: ({ sites }: { sites: Array<{ id: string; name: string }> }) => (
+        <div data-testid="monthly-summary">{sites.map((site) => site.name).join(",")}</div>
+    ),
 }));
 
 vi.mock("../components/today/PendingBadge", () => ({
@@ -190,6 +214,7 @@ describe("Today page", () => {
                 created_at: "2026-04-22T09:30:00.000Z",
             },
         ]);
+        fetchSiteLineItems.mockResolvedValue([]);
         fetchPendingProposals.mockResolvedValue([]);
         fetchPathV31DayLogs.mockResolvedValue({ logs: [] });
         fetchPathV31SiteMemberRolePlans.mockResolvedValue({ plans: [] });

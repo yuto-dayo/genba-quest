@@ -1365,6 +1365,8 @@ export interface Site {
     client?: {
         id: string;
         name: string;
+        contact_person?: string | null;
+        phone?: string | null;
         calendar_color_token?: string | null;
         calendar_color?: string | null;
     };

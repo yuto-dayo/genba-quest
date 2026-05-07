@@ -9,6 +9,7 @@ import {
     ClipboardCheck,
     FileText,
     Paperclip,
+    Plus,
     RefreshCw,
     X,
 } from "lucide-react";
@@ -23,6 +24,7 @@ import {
     fetchPendingProposals,
     fetchPathV31SiteMemberRewardInputs,
     fetchPathV31SiteMemberRolePlans,
+    fetchSiteLineItems,
     fetchSites,
     fetchSiteDocuments,
     instructProposal,
@@ -44,11 +46,13 @@ import {
     type ProposalRecord,
     type Site,
     type SiteDocument,
+    type SiteLineItem,
     updateFocusItem,
 } from "../lib/api";
 import { useCalendar } from "../hooks/useCalendar";
 import { ProposalDetailModal } from "../components/ProposalDetailModal";
 import { SiteDetailModal } from "../components/SiteDetailModal";
+import { SiteFormModal } from "../components/SiteFormModal";
 import { TodayAssignments } from "../components/today/TodayAssignments";
 import type { SiteInputStatus } from "../components/today/TodayAssignments";
 import { MonthlySummary } from "../components/today/MonthlySummary";
@@ -313,11 +317,11 @@ export function Today() {
     const [siteMemoError, setSiteMemoError] = useState<string | null>(null);
     const [siteRolePlansBySiteId, setSiteRolePlansBySiteId] = useState<Record<string, PathV31SiteMemberRolePlan>>({});
     const [siteRewardInputsBySiteId, setSiteRewardInputsBySiteId] = useState<Record<string, PathV31SiteMemberRewardInput>>({});
+    const [siteLineItemsBySiteId, setSiteLineItemsBySiteId] = useState<Record<string, SiteLineItem[]>>({});
     const [pendingProposals, setPendingProposals] = useState<ProposalRecord[]>([]);
     const [pendingSheetOpen, setPendingSheetOpen] = useState(false);
     const [selectedProposal, setSelectedProposal] = useState<ProposalRecord | null>(null);
     const [proposalActing, setProposalActing] = useState(false);
-    const [activeHorizon, setActiveHorizon] = useState<FocusItemHorizon>("today");
     const [composerOpen, setComposerOpen] = useState(false);
     const [composerMode, setComposerMode] = useState<"general" | "siteQuick">("general");
     const [composerPreset, setComposerPreset] = useState<string | null>(null);
@@ -335,6 +339,7 @@ export function Today() {
     const [rewardInputSubmitting, setRewardInputSubmitting] = useState(false);
     const [rewardInputForm, setRewardInputForm] = useState<SiteRewardInputFormState>(EMPTY_REWARD_INPUT_FORM);
     const [selectedSite, setSelectedSite] = useState<Site | null>(null);
+    const [constructionEditSite, setConstructionEditSite] = useState<Site | null>(null);
     const [actionNotice, setActionNotice] = useState<string | null>(null);
     const [actionError, setActionError] = useState<string | null>(null);
     const [completingId, setCompletingId] = useState<string | null>(null);
@@ -347,6 +352,35 @@ export function Today() {
     const todayAssignments = useMemo(
         () => calendarDays.find((day) => day.isToday)?.assignments || [],
         [calendarDays]
+    );
+    const todaySiteIds = useMemo(() => {
+        const ids = new Set<string>();
+        todayAssignments.forEach((assignment) => {
+            if (assignment.site_id) {
+                ids.add(assignment.site_id);
+                return;
+            }
+
+            const matchedSite = assignment.site_name
+                ? sites.find((site) => site.name === assignment.site_name)
+                : null;
+            if (matchedSite) {
+                ids.add(matchedSite.id);
+            }
+        });
+        return Array.from(ids).sort();
+    }, [sites, todayAssignments]);
+    const todaySiteIdsKey = todaySiteIds.join("|");
+    const todayNumberSites = useMemo(
+        () => todaySiteIds.map((siteId) => {
+            const site = sites.find((item) => item.id === siteId);
+            const assignment = todayAssignments.find((item) => item.site_id === siteId);
+            return {
+                id: siteId,
+                name: site?.name || assignment?.site_name || "現場未設定",
+            };
+        }),
+        [sites, todayAssignments, todaySiteIds]
     );
     const selectedComposerSite = useMemo(
         () => sites.find((site) => site.id === composerForm.site_id) || null,
@@ -422,6 +456,49 @@ export function Today() {
         return response.logs;
     }, [todayKey]);
 
+    const syncSiteLineItems = useCallback(async (siteIds: string[], replace = false) => {
+        if (siteIds.length === 0) {
+            if (replace) {
+                setSiteLineItemsBySiteId({});
+            }
+            return;
+        }
+
+        const entries = await Promise.all(
+            siteIds.map(async (siteId) => {
+                const items = await fetchSiteLineItems(siteId).catch(() => []);
+                return [siteId, items] as const;
+            })
+        );
+        const nextBySiteId = Object.fromEntries(entries);
+        setSiteLineItemsBySiteId((current) => replace ? nextBySiteId : { ...current, ...nextBySiteId });
+    }, []);
+
+    useEffect(() => {
+        const siteIds = todaySiteIdsKey ? todaySiteIdsKey.split("|") : [];
+        let cancelled = false;
+
+        if (siteIds.length === 0) {
+            setSiteLineItemsBySiteId({});
+            return;
+        }
+
+        Promise.all(
+            siteIds.map(async (siteId) => {
+                const items = await fetchSiteLineItems(siteId).catch(() => []);
+                return [siteId, items] as const;
+            })
+        ).then((entries) => {
+            if (!cancelled) {
+                setSiteLineItemsBySiteId(Object.fromEntries(entries));
+            }
+        });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [todaySiteIdsKey]);
+
     const loadData = useCallback(async () => {
         try {
             setLoading(true);
@@ -469,45 +546,30 @@ export function Today() {
         void loadData();
     }, [loadData]);
 
-    useEffect(() => {
-        const handleOpenComposer = () => {
-            setComposerMode("general");
-            setComposerPreset(null);
-            setEditingFocusItem(null);
-            setComposerForm((current) => ({
-                ...EMPTY_FORM,
-                scope: current.scope,
-                horizon: activeHorizon,
-            }));
-            setActionError(null);
-            setComposerOpen(true);
-        };
+    const openTodayFocusComposer = useCallback(() => {
+        setComposerMode("general");
+        setComposerPreset(null);
+        setEditingFocusItem(null);
+        setComposerForm((current) => ({
+            ...EMPTY_FORM,
+            scope: current.scope,
+            horizon: "today",
+        }));
+        setActionError(null);
+        setComposerOpen(true);
+    }, []);
 
+    useEffect(() => {
+        const handleOpenComposer = () => openTodayFocusComposer();
         window.addEventListener(TODAY_FOCUS_EVENT, handleOpenComposer);
         return () => window.removeEventListener(TODAY_FOCUS_EVENT, handleOpenComposer);
-    }, [activeHorizon]);
+    }, [openTodayFocusComposer]);
 
     const openComposerForEdit = (item: FocusItemRecord) => {
         setComposerMode("general");
         setComposerPreset(null);
         setEditingFocusItem(item);
         setComposerForm(buildFormFromItem(item));
-        setActionError(null);
-        setComposerOpen(true);
-    };
-
-    const openFocusItemQuickComposer = (site: Site) => {
-        setComposerMode("siteQuick");
-        setComposerPreset(null);
-        setEditingFocusItem(null);
-        setComposerForm({
-            ...EMPTY_FORM,
-            title: "",
-            note: "",
-            scope: "org",
-            horizon: "today",
-            site_id: site.id,
-        });
         setActionError(null);
         setComposerOpen(true);
     };
@@ -655,19 +717,9 @@ export function Today() {
         setRewardInputForm(EMPTY_REWARD_INPUT_FORM);
     };
 
-    const horizonCounts = useMemo(() => {
-        return focusItems.reduce<Record<FocusItemHorizon, number>>(
-            (acc, item) => {
-                acc[item.horizon] += 1;
-                return acc;
-            },
-            { today: 0, week: 0, later: 0 }
-        );
-    }, [focusItems]);
-
-    const activeHorizonItems = useMemo(
-        () => focusItems.filter((item) => item.horizon === activeHorizon),
-        [focusItems, activeHorizon]
+    const todayFocusItems = useMemo(
+        () => focusItems.filter((item) => item.horizon === "today"),
+        [focusItems]
     );
 
     const todayDateLabel = todayDate.toLocaleDateString("ja-JP", {
@@ -1004,13 +1056,12 @@ export function Today() {
                 <TodayAssignments
                     assignments={todayAssignments}
                     sites={sites}
-                    focusItems={focusItems}
-                    completingId={completingId}
-                    onCompleteFocusItem={(item) => void handleCompleteFocusItem(item)}
+                    members={members}
+                    siteLineItemsBySiteId={siteLineItemsBySiteId}
                     onViewSiteMemo={openDayLogReviewSheet}
                     onPlanRole={openRolePlanSheet}
                     onRecordRewardInput={openRewardInputSheet}
-                    onAddFocusItem={openFocusItemQuickComposer}
+                    onAddConstruction={setConstructionEditSite}
                     getDayLogStatus={getDayLogStatus}
                     getSiteInputStatus={getSiteInputStatus}
                 />
@@ -1023,35 +1074,26 @@ export function Today() {
                 transition={{ delay: 0.08 }}
             >
                 <div className={styles.sectionHeader}>
-                    <h2 className={styles.sectionTitle}>解決すること</h2>
-                    <div className={styles.horizonTabs} role="tablist" aria-label="期間">
-                        {(["today", "week", "later"] as FocusItemHorizon[]).map((horizon) => (
-                            <button
-                                key={horizon}
-                                type="button"
-                                className={`${styles.horizonTab} ${activeHorizon === horizon ? styles.horizonTabActive : ""}`}
-                                onClick={() => setActiveHorizon(horizon)}
-                                aria-pressed={activeHorizon === horizon}
-                            >
-                                {HORIZON_LABELS[horizon]}
-                                {horizonCounts[horizon] > 0 && (
-                                    <span className={styles.horizonCount}>
-                                        {horizonCounts[horizon]}
-                                    </span>
-                                )}
-                            </button>
-                        ))}
-                    </div>
+                    <h2 className={styles.sectionTitle}>今日やること</h2>
+                    <button
+                        type="button"
+                        className={styles.sectionAddButton}
+                        onClick={openTodayFocusComposer}
+                        aria-label="今日やることを追加"
+                    >
+                        <Plus size={16} />
+                        追加
+                    </button>
                 </div>
 
-                {activeHorizonItems.length === 0 ? (
+                {todayFocusItems.length === 0 ? (
                     <div className={styles.emptyState}>
-                        <p>{HORIZON_LABELS[activeHorizon]}の解決事項はありません</p>
-                        <span>右下の + から追加できます</span>
+                        <p>今日やることはありません</p>
+                        <span>追加から今日の作業を残せます</span>
                     </div>
                 ) : (
                     <div className={styles.focusList}>
-                        {activeHorizonItems.map((item) => (
+                        {todayFocusItems.map((item) => (
                             <article key={item.id} className={styles.focusItem}>
                                 <button
                                     type="button"
@@ -1103,9 +1145,9 @@ export function Today() {
                 transition={{ delay: 0.12 }}
             >
                 <div className={styles.sectionHeader}>
-                    <h2 className={styles.sectionTitle}>今月の数字</h2>
+                    <h2 className={styles.sectionTitle}>現場の数字</h2>
                 </div>
-                <MonthlySummary />
+                <MonthlySummary sites={todayNumberSites} />
             </motion.section>
 
             {pendingSheetOpen && (
@@ -1656,15 +1698,15 @@ export function Today() {
                             <div className={styles.sheetHeading}>
                                 <h3 className={styles.sheetTitle}>
                                     {editingFocusItem
-                                        ? "解決事項を編集"
+                                        ? "やることを編集"
                                         : composerMode === "siteQuick"
                                           ? "今日やることを追加"
-                                          : "解決事項を追加"}
+                                          : "やることを追加"}
                                 </h3>
                                 <p className={styles.sheetDescription}>
                                     {composerMode === "siteQuick"
                                         ? "この現場で今日やることだけ先にメモします。必要なら補足だけ一言入れてください。"
-                                        : "今日・今週・あとで解決したいことを記録します。"}
+                                        : "今日・今週・あとで残したいことを記録します。"}
                                 </p>
                             </div>
                             <button
@@ -1852,6 +1894,20 @@ export function Today() {
                     onUpdated={() => {
                         setSelectedSite(null);
                         void loadData();
+                    }}
+                />
+            )}
+
+            {constructionEditSite && (
+                <SiteFormModal
+                    site={constructionEditSite}
+                    initialAction="lineItem"
+                    onClose={() => setConstructionEditSite(null)}
+                    onSuccess={() => {
+                        const siteId = constructionEditSite.id;
+                        setConstructionEditSite(null);
+                        void loadData();
+                        void syncSiteLineItems([siteId]);
                     }}
                 />
             )}

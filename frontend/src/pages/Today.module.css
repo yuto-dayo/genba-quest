@@ -94,6 +94,29 @@
     background: linear-gradient(180deg, var(--md-sys-color-primary), var(--md-sys-color-tertiary));
 }
 
+.sectionAddButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 0 14px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-full);
+    background: var(--md-sys-color-surface-container-lowest);
+    color: var(--md-sys-color-primary);
+    font: var(--md-sys-typescale-label-large);
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(28, 25, 23, 0.06);
+    transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+
+.sectionAddButton:hover {
+    background: color-mix(in srgb, var(--md-sys-color-primary-container) 42%, white);
+    border-color: color-mix(in srgb, var(--md-sys-color-primary) 34%, var(--md-sys-color-outline-variant));
+    transform: translateY(-1px);
+}
+
 /* ---- Horizon tabs — compact pill group ---- */
 
 .horizonTabs {

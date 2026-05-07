@@ -175,11 +175,12 @@ async function uploadSiteAttachments(siteId: string, files: File[]) {
 
 interface SiteFormModalProps {
     site?: Site;
+    initialAction?: "lineItem";
     onClose: () => void;
     onSuccess: (created?: Site) => void | Promise<void>;
 }
 
-export function SiteFormModal({ site, onClose, onSuccess }: SiteFormModalProps) {
+export function SiteFormModal({ site, initialAction, onClose, onSuccess }: SiteFormModalProps) {
     const isEdit = !!site;
 
     const [name, setName] = useState(site?.name || "");
@@ -205,6 +206,7 @@ export function SiteFormModal({ site, onClose, onSuccess }: SiteFormModalProps) 
     const [customDateInput, setCustomDateInput] = useState("");
     const [lineItems, setLineItems] = useState<LineItemForm[]>([]);
     const [lineItemDraft, setLineItemDraft] = useState<LineItemForm | null>(null);
+    const [lineItemsLoaded, setLineItemsLoaded] = useState(!isEdit);
     const [lineItemError, setLineItemError] = useState<string | null>(null);
     const [clients, setClients] = useState<{ id: string; name: string }[]>([]);
     const [members, setMembers] = useState<Member[]>([]);
@@ -218,6 +220,8 @@ export function SiteFormModal({ site, onClose, onSuccess }: SiteFormModalProps) 
     const [showExpenseModal, setShowExpenseModal] = useState(false);
     const [expenseSaved, setExpenseSaved] = useState(false);
     const attachmentInputRef = useRef<HTMLInputElement>(null);
+    const lineItemsSectionRef = useRef<HTMLDivElement>(null);
+    const initialActionHandledRef = useRef(false);
     const canEditStatus = !isEdit || site.status === "active" || site.status === "tentative";
 
     useEffect(() => {
@@ -228,11 +232,32 @@ export function SiteFormModal({ site, onClose, onSuccess }: SiteFormModalProps) 
             .then(setMembers)
             .catch(() => {/* members list is optional */});
         if (isEdit) {
+            setLineItemsLoaded(false);
             fetchSiteLineItems(site.id)
                 .then((items) => setLineItems(items.map(lineItemFromDb)))
-                .catch(() => {});
+                .catch(() => {})
+                .finally(() => setLineItemsLoaded(true));
         }
     }, [isEdit, site?.id]);
+
+    useEffect(() => {
+        if (initialAction !== "lineItem" || initialActionHandledRef.current || !lineItemsLoaded) {
+            return;
+        }
+
+        initialActionHandledRef.current = true;
+        setLineItemDraft(createEmptyLineItem());
+    }, [initialAction, lineItemsLoaded]);
+
+    useEffect(() => {
+        if (initialAction !== "lineItem" || !lineItemDraft) {
+            return;
+        }
+
+        window.setTimeout(() => {
+            lineItemsSectionRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+        }, 0);
+    }, [initialAction, lineItemDraft]);
 
     const handleAddLineItem = () => {
         if (lineItemDraft) {
@@ -921,7 +946,7 @@ export function SiteFormModal({ site, onClose, onSuccess }: SiteFormModalProps) 
                     </div>
 
                     {/* 工事項目 */}
-                    <div className={styles.lineItemsSection}>
+                    <div className={styles.lineItemsSection} ref={lineItemsSectionRef}>
                         <div className={styles.lineItemsHeader}>
                             <label className={styles.label}>工事項目</label>
                             <button
