@@ -8,8 +8,7 @@ import { useActiveOrgStore } from "./stores/activeOrg";
 const fetchAppEntryState = vi.fn();
 const bootstrapFirstOrg = vi.fn();
 const bootstrapOrg = vi.fn();
-const fetchPathForms = vi.fn();
-const fetchPathAiReviews = vi.fn();
+const fetchNotifications = vi.fn();
 const acceptOrgInvite = vi.fn();
 const getSession = vi.fn();
 const onAuthStateChange = vi.fn();
@@ -81,10 +80,6 @@ vi.mock("./components/CommunicationRecordSheet", () => ({
     CommunicationRecordSheet: () => null,
 }));
 
-vi.mock("./components/today/MonthlyEvaluationModal", () => ({
-    MonthlyEvaluationModal: () => null,
-}));
-
 vi.mock("./lib/api", async () => {
     const actual = await vi.importActual<typeof import("./lib/api")>("./lib/api");
     return {
@@ -92,8 +87,7 @@ vi.mock("./lib/api", async () => {
         fetchAppEntryState: (...args: unknown[]) => fetchAppEntryState(...args),
         bootstrapFirstOrg: (...args: unknown[]) => bootstrapFirstOrg(...args),
         bootstrapOrg: (...args: unknown[]) => bootstrapOrg(...args),
-        fetchPathForms: (...args: unknown[]) => fetchPathForms(...args),
-        fetchPathAiReviews: (...args: unknown[]) => fetchPathAiReviews(...args),
+        fetchNotifications: (...args: unknown[]) => fetchNotifications(...args),
         acceptOrgInvite: (...args: unknown[]) => acceptOrgInvite(...args),
     };
 });
@@ -117,12 +111,12 @@ describe("App entry gate", () => {
     beforeEach(() => {
         vi.clearAllMocks();
         authStateCallback = null;
+        window.history.pushState({}, "", "/");
         window.localStorage.clear();
         document.cookie = "genba_quest_dev_auth_session=; Path=/; Max-Age=0";
         useActiveOrgStore.setState({ activeOrgId: null, options: [] });
 
-        fetchPathForms.mockResolvedValue({ forms: [] });
-        fetchPathAiReviews.mockResolvedValue({ reviews: [] });
+        fetchNotifications.mockResolvedValue([]);
         acceptOrgInvite.mockResolvedValue({
             active_org: {
                 id: "org-1",
@@ -290,6 +284,39 @@ describe("App entry gate", () => {
 
         expect(await screen.findByText("today-page")).toBeInTheDocument();
         expect(screen.getByRole("button", { name: "連絡を記録" })).toBeInTheDocument();
+    });
+
+    it("opens the completed site level draft task from the bell", async () => {
+        fetchNotifications.mockResolvedValue([
+            {
+                id: "notification-1",
+                user_id: "user-1",
+                type: "system_alert",
+                title: "現場完了: A棟クロス",
+                message: "現場内容を見ながら入力してください",
+                read: false,
+                created_at: "2026-05-08T00:00:00.000Z",
+                data: {
+                    task_type: "site_level_draft",
+                    site_id: "site-1",
+                    site_name: "A棟クロス",
+                    member_id: "user-1",
+                },
+            },
+        ]);
+        fetchAppEntryState.mockResolvedValue({
+            state: "ready",
+            active_org: { org_id: "org-1", org_name: "GENBA 本部", role: "admin" },
+            memberships: [{ org_id: "org-1", org_name: "GENBA 本部", role: "admin" }],
+        });
+
+        render(<App />);
+
+        const bell = await screen.findByRole("button", { name: "A棟クロスのレベル入力があります" });
+        fireEvent.click(bell);
+
+        expect(await screen.findByText("sites-page")).toBeInTheDocument();
+        expect(fetchNotifications).toHaveBeenCalledWith({ unread_only: true, limit: 50 });
     });
 
     it("does not expose org bootstrap from onboarding state", async () => {

@@ -66,6 +66,12 @@ export class SiteCompletionService {
     const rpcResult = await this.callCompleteSiteRpc(input);
     const site = await this.fetchSite(input.siteId);
 
+    if (!rpcResult.idempotent) {
+      await this.createSiteLevelDraftNotifications(site).catch((error) => {
+        console.warn("[SITE_COMPLETION] Failed to create site level draft notifications:", error);
+      });
+    }
+
     return {
       ...rpcResult,
       site,
@@ -181,6 +187,43 @@ export class SiteCompletionService {
     return data as SiteRecord;
   }
 
+  private async createSiteLevelDraftNotifications(site: SiteRecord): Promise<void> {
+    if (site.status !== "completed") {
+      return;
+    }
+
+    const assignedUserIds = normalizeStringArray(site.assigned_users);
+    if (assignedUserIds.length === 0) {
+      return;
+    }
+
+    const siteName = typeof site.name === "string" && site.name.trim()
+      ? site.name.trim()
+      : "完了した現場";
+    const completedAt = typeof site.completed_at === "string" ? site.completed_at : null;
+    const uniqueUserIds = Array.from(new Set(assignedUserIds));
+
+    const { error } = await supabaseAdmin.from("notifications").insert(
+      uniqueUserIds.map((userId) => ({
+        user_id: userId,
+        type: "system_alert",
+        title: `現場完了: ${siteName}`,
+        message: "現場内容を見ながら、自分の役割とPATHレベルを入力してください。",
+        data: {
+          task_type: "site_level_draft",
+          site_id: site.id,
+          site_name: siteName,
+          member_id: userId,
+          completed_at: completedAt,
+        },
+      })),
+    );
+
+    if (error) {
+      throw new Error(`Failed to create site level draft notifications: ${error.message}`);
+    }
+  }
+
   private normalizeRpcPayload<T>(data: unknown): T | null {
     if (!data) {
       return null;
@@ -221,4 +264,15 @@ export class SiteCompletionService {
 
     return new Error(safeMessage || "SITE_COMPLETION_RPC_FAILED");
   }
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }

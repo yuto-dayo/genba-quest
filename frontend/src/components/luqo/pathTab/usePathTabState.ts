@@ -345,10 +345,6 @@ export function usePathTabState({
     () => new Map(forms.map((form) => [form.member_id, form])),
     [forms],
   );
-  const reviewMap = useMemo(
-    () => new Map(reviews.map((review) => [review.member_id, review])),
-    [reviews],
-  );
   const finalizationMap = useMemo(
     () =>
       new Map(
@@ -1047,7 +1043,6 @@ export function usePathTabState({
   const getMemberWorkflow = useCallback(
     (memberId: string): MemberWorkflowSummary => {
       const form = formMap.get(memberId);
-      const review = reviewMap.get(memberId);
       const finalization = finalizationMap.get(memberId);
       const rewardDone = currentMonthRewardMemberIds.has(memberId);
 
@@ -1071,36 +1066,13 @@ export function usePathTabState({
         };
       }
 
-      if (review?.review_required_flag) {
-        return {
-          stage: "needs_finalize",
-          label: "確認待ち",
-          tone: "warn",
-          nextAction: "ベル確認",
-          description:
-            "AI下書きに未確認ポイントがあります。ベルからレビュー確認を開いて進めます。",
-        };
-      }
-
-      if (review) {
-        return {
-          stage: "needs_finalize",
-          label: "AI下書き済み",
-          tone: "info",
-          nextAction: "評価確定",
-          description:
-            "AIが下書きを整理済みです。内容を見て今月の評価を確定します。",
-        };
-      }
-
       if (form) {
         return {
           stage: "needs_ai",
           label: "入力済み",
           tone: "neutral",
-          nextAction: "AI下書き",
-          description:
-            "今月の入力は保存済みです。AI整理を作ると確認が進めやすくなります。",
+          nextAction: "評価確定",
+          description: "現場入力は保存済みです。必要な確定手続きへ進めます。",
         };
       }
 
@@ -1108,11 +1080,11 @@ export function usePathTabState({
         stage: "missing_form",
         label: "未入力",
         tone: "warn",
-        nextAction: "今月の入力",
-        description: "まずは今月の作業内容を入力して、評価の土台を作ります。",
+        nextAction: "現場入力",
+        description: "完了した現場の詳細から、役割とレベルの入力を行います。",
       };
     },
-    [currentMonthRewardMemberIds, finalizationMap, formMap, reviewMap],
+    [currentMonthRewardMemberIds, finalizationMap, formMap],
   );
 
   // ── comparison / derived ──
@@ -1395,29 +1367,6 @@ export function usePathTabState({
     setReviewWizardIndex(0);
     setReviewAnswers({});
   }, [selectedReviewQueueEntry]);
-
-  // ── URL params ──
-
-  useEffect(() => {
-    const shouldOpenReviewInbox = searchParams.get("review_inbox") === "1";
-    const requestedMemberId = searchParams.get("member");
-
-    if (!shouldOpenReviewInbox) {
-      return;
-    }
-
-    if (
-      requestedMemberId &&
-      reviewQueueMemberIds.includes(requestedMemberId) &&
-      requestedMemberId !== selectedMemberId
-    ) {
-      setSelectedMemberId(requestedMemberId);
-    }
-
-    if (reviewQueue.length > 0) {
-      setReviewWizardOpen(true);
-    }
-  }, [reviewQueue, reviewQueueMemberIds, searchParams, selectedMemberId]);
 
   // ── motion props ──
 

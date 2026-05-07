@@ -3471,6 +3471,23 @@ export const createPathV32SimpleMonthlyDistributionProposal = (month: string) =>
         body: JSON.stringify({ month }),
     });
 
+export const createPathV32SimpleLevelUpdateProposal = (data: {
+    member_id: string;
+    level: PathLevel;
+    effective_month: string;
+    reason: string;
+    evidence_snapshot?: Record<string, unknown>;
+}) =>
+    api<{
+        proposal: ProposalRecord;
+        auto_approved: boolean;
+        auto_executed: boolean;
+        payload: Record<string, unknown>;
+    }>("/api/v1/path/module/level-update-proposals", {
+        method: "POST",
+        body: JSON.stringify(data),
+    });
+
 export const fetchPathV31Experience = (memberId: string) =>
     api<{ experience: PathV31Experience }>(
         `/api/v1/path/module/members/${encodeURIComponent(memberId)}/experience`

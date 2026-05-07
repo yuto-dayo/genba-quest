@@ -33,16 +33,15 @@ import { Settings } from "./pages/Settings";
 import { Sites } from "./pages/Sites";
 import { Today } from "./pages/Today";
 import { FloatingActionButton } from "./components/FloatingActionButton";
-import { MonthlyEvaluationModal } from "./components/today/MonthlyEvaluationModal";
 import {
   acceptOrgInvite,
   bootstrapFirstOrg,
   fetchAppEntryState,
-  fetchPathAiReviews,
-  fetchPathForms,
+  fetchNotifications,
   type AppEntryMembershipRecord,
   type AppEntryPendingInvite,
   type AppEntryStateRecord,
+  type NotificationRecord,
 } from "./lib/api";
 import {
   clearDevAuthSession,
@@ -56,7 +55,6 @@ import { useActiveOrgStore, type ActiveOrgOption } from "./stores/activeOrg";
 import "./styles/genba-quest.css";
 import styles from "./App.module.css";
 
-const MONTHLY_EVALUATION_START_DAY = 25;
 const AUTH_RESEND_COOLDOWN_SECONDS = 60;
 const AUTH_RECOVERY_SEARCH_PARAM = "auth";
 const AUTH_RECOVERY_SEARCH_VALUE = "recovery";
@@ -205,16 +203,17 @@ function clearPasswordRecoveryRedirect() {
   window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
 }
 
-function isMonthlyEvaluationWindow(date: Date) {
-  return date.getDate() >= MONTHLY_EVALUATION_START_DAY;
+function getNotificationDataString(notification: NotificationRecord | undefined, key: string): string | null {
+  const value = notification?.data?.[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function formatMonthLabel(date: Date) {
-  return `${date.getFullYear()}年${String(date.getMonth() + 1).padStart(2, "0")}月`;
+function isSiteLevelDraftNotification(notification: NotificationRecord): boolean {
+  return getNotificationDataString(notification, "task_type") === "site_level_draft";
 }
 
-function formatMonthValue(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+function getSiteLevelDraftSiteName(notification: NotificationRecord | undefined): string {
+  return getNotificationDataString(notification, "site_name") || "完了現場";
 }
 
 function buildActiveOrgOptions(memberships: AppEntryMembershipRecord[]): ActiveOrgOption[] {
@@ -234,7 +233,6 @@ function Navigation({
   bellEnabled,
   bellNeedsAttention,
   bellBadgeLabel,
-  monthlyEvaluationPreviewMode,
   bellLabel,
   orgOptions,
   activeOrgId,
@@ -249,7 +247,6 @@ function Navigation({
   bellEnabled: boolean;
   bellNeedsAttention: boolean;
   bellBadgeLabel: string | null;
-  monthlyEvaluationPreviewMode: boolean;
   bellLabel: string;
   orgOptions: ActiveOrgOption[];
   activeOrgId: string | null;
@@ -412,7 +409,7 @@ function Navigation({
               }`}
               onClick={onOpenBell}
               aria-label={bellLabel}
-              title={monthlyEvaluationPreviewMode ? `${bellLabel}をプレビュー` : bellLabel}
+              title={bellLabel}
             >
               <span className={styles.navChipSurface}>
                 <Bell size={16} className={styles.navChipIcon} aria-hidden="true" />
@@ -1162,11 +1159,7 @@ function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
   const [communicationSheetOpen, setCommunicationSheetOpen] = useState(false);
-  const [showMonthlyEvaluationModal, setShowMonthlyEvaluationModal] = useState(false);
-  const [monthlyEvaluationSubmitted, setMonthlyEvaluationSubmitted] = useState(false);
-  const [monthlyEvaluationStatusLoading, setMonthlyEvaluationStatusLoading] = useState(false);
-  const [reviewAlertCount, setReviewAlertCount] = useState(0);
-  const [reviewAlertMemberId, setReviewAlertMemberId] = useState<string | null>(null);
+  const [siteLevelDraftNotifications, setSiteLevelDraftNotifications] = useState<NotificationRecord[]>([]);
   const [authSession, setAuthSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [passwordRecoveryActive, setPasswordRecoveryActive] = useState(false);
@@ -1184,13 +1177,6 @@ function AppContent() {
   const setOrgOptions = useActiveOrgStore((state) => state.setOptions);
   const setActiveOrgId = useActiveOrgStore((state) => state.setActiveOrgId);
   const clearActiveOrg = useActiveOrgStore((state) => state.clear);
-  const monthlyEvaluationPreviewMode =
-    new URLSearchParams(location.search).get("month_end_form_preview") === "1";
-  const monthlyEvaluationDate = new Date();
-  const monthlyEvaluationEnabled =
-    monthlyEvaluationPreviewMode || isMonthlyEvaluationWindow(monthlyEvaluationDate);
-  const monthlyEvaluationMonthLabel = formatMonthLabel(monthlyEvaluationDate);
-  const monthlyEvaluationMonthValue = formatMonthValue(monthlyEvaluationDate);
   const activeOrg = orgOptions.find((option) => option.org.id === activeOrgId) || null;
   const appReady = entryState.state === "ready_client";
   const orgLabel = activeOrg?.org.name || "組織未選択";
@@ -1250,10 +1236,7 @@ function AppContent() {
     setInviteError(null);
     setShowInviteHelp(false);
     setCommunicationSheetOpen(false);
-    setShowMonthlyEvaluationModal(false);
-    setMonthlyEvaluationSubmitted(false);
-    setReviewAlertCount(0);
-    setReviewAlertMemberId(null);
+    setSiteLevelDraftNotifications([]);
   }, [clearActiveOrg]);
 
   useEffect(() => {
@@ -1340,106 +1323,59 @@ function AppContent() {
     };
   }, [handleSignedOut, resolveEntryState]);
 
-  const loadMonthlyEvaluationStatus = useCallback(async () => {
+  const loadSiteLevelDraftNotifications = useCallback(async () => {
     if (!appReady || !activeOrgId) {
-      setMonthlyEvaluationSubmitted(false);
-      return;
-    }
-
-    if (!monthlyEvaluationEnabled) {
-      setMonthlyEvaluationSubmitted(false);
+      setSiteLevelDraftNotifications([]);
       return;
     }
 
     try {
-      setMonthlyEvaluationStatusLoading(true);
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const currentUserId = session?.user?.id || "";
-
-      if (!currentUserId) {
-        setMonthlyEvaluationSubmitted(false);
-        return;
-      }
-
-      const { forms } = await fetchPathForms({
-        month: monthlyEvaluationMonthValue,
-        member_id: currentUserId,
-        limit: 1,
-      });
-
-      setMonthlyEvaluationSubmitted(forms.length > 0);
+      const notifications = await fetchNotifications({ unread_only: true, limit: 50 });
+      setSiteLevelDraftNotifications(notifications.filter(isSiteLevelDraftNotification));
     } catch (error) {
-      console.error("Failed to load monthly evaluation status:", error);
-      setMonthlyEvaluationSubmitted(false);
-    } finally {
-      setMonthlyEvaluationStatusLoading(false);
+      console.error("Failed to load site level draft notifications:", error);
+      setSiteLevelDraftNotifications([]);
     }
-  }, [activeOrgId, appReady, monthlyEvaluationEnabled, monthlyEvaluationMonthValue]);
-
-  const loadReviewAlerts = useCallback(async () => {
-    if (!appReady || !activeOrgId) {
-      setReviewAlertCount(0);
-      setReviewAlertMemberId(null);
-      return;
-    }
-
-    try {
-      const { reviews } = await fetchPathAiReviews({
-        month: monthlyEvaluationMonthValue,
-        review_required_flag: true,
-        limit: 50,
-      });
-      setReviewAlertCount(reviews.length);
-      setReviewAlertMemberId(reviews[0]?.member_id || null);
-    } catch (error) {
-      console.error("Failed to load review alerts:", error);
-      setReviewAlertCount(0);
-      setReviewAlertMemberId(null);
-    }
-  }, [activeOrgId, appReady, monthlyEvaluationMonthValue]);
+  }, [activeOrgId, appReady]);
 
   useEffect(() => {
-    void loadMonthlyEvaluationStatus();
-  }, [loadMonthlyEvaluationStatus]);
+    void loadSiteLevelDraftNotifications();
+  }, [loadSiteLevelDraftNotifications]);
 
   useEffect(() => {
-    void loadReviewAlerts();
-  }, [loadReviewAlerts]);
+    window.addEventListener("site-level-draft-updated", loadSiteLevelDraftNotifications);
+    return () => {
+      window.removeEventListener("site-level-draft-updated", loadSiteLevelDraftNotifications);
+    };
+  }, [loadSiteLevelDraftNotifications]);
 
-  const monthlyEvaluationPending =
-    appReady &&
-    Boolean(activeOrgId) &&
-    monthlyEvaluationEnabled &&
-    !monthlyEvaluationStatusLoading &&
-    !monthlyEvaluationSubmitted;
-  const bellEnabled = appReady && Boolean(activeOrgId) && (monthlyEvaluationEnabled || reviewAlertCount > 0);
-  const bellNeedsAttention = monthlyEvaluationPending || reviewAlertCount > 0;
-  const bellBadgeLabel = reviewAlertCount > 0 ? String(reviewAlertCount) : bellNeedsAttention ? "!" : null;
-  const bellLabel = monthlyEvaluationPending
-    ? `${monthlyEvaluationMonthLabel}の月末フォームが未入力です`
-    : reviewAlertCount > 0
-      ? `レビュー確認が${reviewAlertCount}件あります`
-      : `${monthlyEvaluationMonthLabel}の確認ベルを開く`;
+  const siteLevelDraftCount = siteLevelDraftNotifications.length;
+  const bellEnabled = appReady && Boolean(activeOrgId) && siteLevelDraftCount > 0;
+  const bellNeedsAttention = siteLevelDraftCount > 0;
+  const bellBadgeLabel = siteLevelDraftCount > 0 ? String(siteLevelDraftCount) : null;
+  const bellLabel =
+    siteLevelDraftCount === 1
+      ? `${getSiteLevelDraftSiteName(siteLevelDraftNotifications[0])}のレベル入力があります`
+      : `完了現場のレベル入力が${siteLevelDraftCount}件あります`;
 
   const openBell = useCallback(() => {
     if (!activeOrgId) {
       return;
     }
 
-    if (reviewAlertCount > 0) {
-      const searchParams = new URLSearchParams();
-      searchParams.set("review_inbox", "1");
-      if (reviewAlertMemberId) {
-        searchParams.set("member", reviewAlertMemberId);
-      }
-      navigate(`/path?${searchParams.toString()}`);
+    const nextNotification = siteLevelDraftNotifications[0];
+    if (!nextNotification) {
       return;
     }
 
-    setShowMonthlyEvaluationModal(true);
-  }, [activeOrgId, navigate, reviewAlertCount, reviewAlertMemberId]);
+    const siteId = getNotificationDataString(nextNotification, "site_id");
+    const params = new URLSearchParams();
+    if (siteId) {
+      params.set("site", siteId);
+    }
+    params.set("levelDraft", nextNotification.id);
+    navigate(`/sites?${params.toString()}`);
+  }, [activeOrgId, navigate, siteLevelDraftNotifications]);
 
   const formatBootstrapError = useCallback((code: string) => {
     if (code === "SYSTEM_BOOTSTRAP_ALREADY_COMPLETED") {
@@ -1715,7 +1651,6 @@ function AppContent() {
             bellEnabled={bellEnabled}
             bellNeedsAttention={bellNeedsAttention}
             bellBadgeLabel={bellBadgeLabel}
-            monthlyEvaluationPreviewMode={monthlyEvaluationPreviewMode}
             bellLabel={bellLabel}
             orgOptions={orgOptions}
             activeOrgId={activeOrgId}
@@ -1741,16 +1676,6 @@ function AppContent() {
               </Routes>
             </div>
           </main>
-
-          {showMonthlyEvaluationModal && (
-            <MonthlyEvaluationModal
-              onClose={() => setShowMonthlyEvaluationModal(false)}
-              onSaved={() => {
-                setMonthlyEvaluationSubmitted(true);
-                setShowMonthlyEvaluationModal(false);
-              }}
-            />
-          )}
 
           {location.pathname === "/" && (
             <FloatingActionButton

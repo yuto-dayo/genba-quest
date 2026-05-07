@@ -174,7 +174,7 @@ export function PathOverviewSection({
     const levelSource = finalization
         ? "評価確定"
         : form
-          ? "今月の入力"
+          ? "現場入力"
           : profile?.current_level
             ? "現在プロフィール"
             : "未設定";
@@ -385,7 +385,7 @@ export function PathOverviewSection({
                                 <strong>{formatDateLabel(levelUpdatedAt)}</strong>
                             </div>
                             <div className={styles.levelDetailMetaCard}>
-                                <span className={styles.infoLabel}>今月の入力</span>
+                                <span className={styles.infoLabel}>現場入力</span>
                                 <strong>{monthlyInputStatus}</strong>
                             </div>
                             <div className={styles.levelDetailMetaCard}>
@@ -412,7 +412,7 @@ export function PathOverviewSection({
 
                         <div className={styles.levelDetailSection}>
                             <div className={styles.levelDetailSectionHeader}>
-                                <h4>月末入力メモ</h4>
+                                <h4>現場入力メモ</h4>
                                 <span className={styles.metaBadge}>{monthlyInputStatus}</span>
                             </div>
                             {form ? (
@@ -436,7 +436,7 @@ export function PathOverviewSection({
                                 </div>
                             ) : (
                                 <div className={styles.emptyCompareState}>
-                                    まだ今月の入力はありません。ここからそのまま入力を始められます。
+                                    まだ現場入力はありません。完了した現場の詳細から入力できます。
                                 </div>
                             )}
                         </div>

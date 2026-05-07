@@ -1,4 +1,4 @@
-import { createChain } from "../helpers/mockSupabase";
+import { createChain, setupMockFrom } from "../helpers/mockSupabase";
 
 jest.mock("../../lib/supabaseClient", () => ({
   supabaseAdmin: {
@@ -77,6 +77,101 @@ describe("SiteCompletionService", () => {
         completed_at: "2026-04-18T09:30:00.000Z",
       },
     });
+  });
+
+  it("completeSite creates site level draft notifications for assigned users on first completion", async () => {
+    const otherUserId = "44444444-4444-4444-8444-444444444444";
+    const siteQuery = createChain({
+      data: {
+        id: siteId,
+        org_id: orgId,
+        name: "A棟クロス",
+        status: "completed",
+        completed_at: "2026-04-18T09:30:00.000Z",
+        assigned_users: [userId, otherUserId, userId],
+      },
+      error: null,
+    });
+    const notificationQuery = createChain({ data: null, error: null });
+
+    mockRpc.mockResolvedValue({
+      data: {
+        site_id: siteId,
+        site_completion_event_id: "event-1",
+        revenue_basis_id: "basis-1",
+        income_proposal_id: "proposal-1",
+        idempotent: false,
+      },
+      error: null,
+    });
+    setupMockFrom(mockFrom, {
+      sites: siteQuery,
+      notifications: notificationQuery,
+    });
+
+    await service.completeSite({
+      siteId,
+      actorUserId: userId,
+      effectiveCompletedAt: "2026-04-18T09:30:00.000Z",
+    });
+
+    expect(notificationQuery.insert).toHaveBeenCalledWith([
+      expect.objectContaining({
+        user_id: userId,
+        type: "system_alert",
+        title: "現場完了: A棟クロス",
+        data: expect.objectContaining({
+          task_type: "site_level_draft",
+          site_id: siteId,
+          member_id: userId,
+          completed_at: "2026-04-18T09:30:00.000Z",
+        }),
+      }),
+      expect.objectContaining({
+        user_id: otherUserId,
+        data: expect.objectContaining({
+          task_type: "site_level_draft",
+          member_id: otherUserId,
+        }),
+      }),
+    ]);
+  });
+
+  it("completeSite skips site level draft notifications on idempotent rerun", async () => {
+    const siteQuery = createChain({
+      data: {
+        id: siteId,
+        org_id: orgId,
+        name: "A棟クロス",
+        status: "completed",
+        completed_at: "2026-04-18T09:30:00.000Z",
+        assigned_users: [userId],
+      },
+      error: null,
+    });
+    const notificationQuery = createChain({ data: null, error: null });
+
+    mockRpc.mockResolvedValue({
+      data: {
+        site_id: siteId,
+        site_completion_event_id: "event-1",
+        revenue_basis_id: "basis-1",
+        income_proposal_id: "proposal-1",
+        idempotent: true,
+      },
+      error: null,
+    });
+    setupMockFrom(mockFrom, {
+      sites: siteQuery,
+      notifications: notificationQuery,
+    });
+
+    await service.completeSite({
+      siteId,
+      actorUserId: userId,
+    });
+
+    expect(notificationQuery.insert).not.toHaveBeenCalled();
   });
 
   it("completeSite surfaces known RPC business errors", async () => {

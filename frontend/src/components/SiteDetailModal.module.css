@@ -444,6 +444,126 @@
     color: var(--md-sys-color-on-surface-variant);
 }
 
+.levelDraftSection {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-medium);
+    background: var(--md-sys-color-surface-container-low);
+}
+
+.levelDraftHeader {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.levelDraftTitle {
+    margin: 4px 0 0;
+    font: var(--md-sys-typescale-title-medium);
+    color: var(--md-sys-color-on-surface);
+}
+
+.levelDraftIcon {
+    flex-shrink: 0;
+    color: var(--md-sys-color-primary);
+}
+
+.roleChipRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.roleChip,
+.roleChipMuted {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 5px 10px;
+    border-radius: var(--md-sys-shape-corner-full);
+    font: var(--md-sys-typescale-label-medium);
+}
+
+.roleChip {
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
+}
+
+.roleChipMuted {
+    background: var(--md-sys-color-surface-container-high);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.levelDraftField {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font: var(--md-sys-typescale-label-medium);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.levelDraftSelect,
+.levelDraftTextarea {
+    width: 100%;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-small);
+    background: var(--md-sys-color-surface-container-lowest);
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.levelDraftSelect {
+    height: 42px;
+    padding: 0 12px;
+}
+
+.levelDraftTextarea {
+    resize: vertical;
+    min-height: 84px;
+    padding: 10px 12px;
+    line-height: 1.5;
+}
+
+.levelDraftSuccess {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: var(--md-sys-shape-corner-small);
+    background: var(--md-sys-color-success-container);
+    color: var(--md-sys-color-on-success-container);
+    font: var(--md-sys-typescale-body-small);
+}
+
+.levelDraftSubmit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 10px 16px;
+    border: none;
+    border-radius: var(--md-sys-shape-corner-full);
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+    font: var(--md-sys-typescale-label-large);
+    cursor: pointer;
+    transition: opacity var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard),
+        box-shadow var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+}
+
+.levelDraftSubmit:hover:not(:disabled) {
+    box-shadow: var(--md-sys-elevation-level2);
+}
+
+.levelDraftSubmit:disabled {
+    cursor: not-allowed;
+    opacity: 0.48;
+}
+
 .rewardLinkButton {
     display: inline-flex;
     align-items: center;
