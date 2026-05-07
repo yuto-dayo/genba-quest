@@ -7,6 +7,8 @@ import {
     Check,
     CheckCircle2,
     ClipboardCheck,
+    FileText,
+    Paperclip,
     RefreshCw,
     X,
 } from "lucide-react";
@@ -16,11 +18,13 @@ import {
     completeFocusItem,
     createFocusItem,
     executeProposal,
+    fetchMembers,
     fetchFocusItems,
     fetchPendingProposals,
     fetchPathV31SiteMemberRewardInputs,
     fetchPathV31SiteMemberRolePlans,
     fetchSites,
+    fetchSiteDocuments,
     instructProposal,
     rejectProposal,
     savePathV31SiteMemberRewardInput,
@@ -29,6 +33,7 @@ import {
     type FocusItemHorizon,
     type FocusItemRecord,
     type FocusItemScope,
+    type Member,
     type PathTradeFamily,
     type PathV31DayLog,
     type PathV31RewardRoleKey,
@@ -38,6 +43,7 @@ import {
     type PathV31SiteMemberRolePlan,
     type ProposalRecord,
     type Site,
+    type SiteDocument,
     updateFocusItem,
 } from "../lib/api";
 import { useCalendar } from "../hooks/useCalendar";
@@ -46,6 +52,7 @@ import { SiteDetailModal } from "../components/SiteDetailModal";
 import { TodayAssignments } from "../components/today/TodayAssignments";
 import type { SiteInputStatus } from "../components/today/TodayAssignments";
 import { MonthlySummary } from "../components/today/MonthlySummary";
+import { getDevAuthUserOption, isDevAuthSessionActive } from "../lib/devAuth";
 import { getErrorMessage } from "../lib/error";
 import { buildPathProposalHref, getPathProposalContext, isPathModuleProposal } from "../lib/pathProposal";
 import { supabase } from "../lib/supabase";
@@ -81,12 +88,10 @@ const DAY_LOG_TRADE_OPTIONS: Array<{ value: PathTradeFamily; label: string }> = 
     { value: "common_site_operations", label: "共通作業" },
 ] as const;
 
-const DAY_LOG_ROLE_OPTIONS: Array<{ value: PathV31RoleType; label: string }> = [
-    { value: "assist", label: "assist" },
-    { value: "lead", label: "lead" },
-    { value: "solo", label: "solo" },
-    { value: "support", label: "support" },
-] as const;
+const DAY_LOG_TRADE_SELECT_OPTIONS: Array<{ value: PathTradeFamily | ""; label: string }> = [
+    { value: "", label: "未指定" },
+    ...DAY_LOG_TRADE_OPTIONS,
+];
 
 const REWARD_ROLE_LABELS: Record<PathV31RewardRoleKey, string> = {
     planning: "段取り",
@@ -118,13 +123,17 @@ const EMPTY_FORM = {
 };
 
 type PathDayLogStatus = "none" | "saved" | "locked";
+type DayLogSheetMode = "write" | "review";
+type SiteMemoTimelineItem =
+    | { id: string; kind: "memo"; created_at: string; log: PathV31DayLog }
+    | { id: string; kind: "document"; created_at: string; document: SiteDocument };
 
 type DayLogFormState = {
     id?: string;
     date: string;
     site_id: string;
     member_id: string;
-    trade_families: PathTradeFamily[];
+    trade_family: PathTradeFamily | "";
     role_type: PathV31RoleType;
     credited_unit: number;
     memo: string;
@@ -150,7 +159,7 @@ const EMPTY_DAY_LOG_FORM: DayLogFormState = {
     date: "",
     site_id: "",
     member_id: "",
-    trade_families: ["wall_finish"],
+    trade_family: "",
     role_type: "assist",
     credited_unit: 1,
     memo: "",
@@ -198,12 +207,13 @@ function buildTodayKey(date: Date): string {
 }
 
 function buildDayLogForm(log: PathV31DayLog): DayLogFormState {
+    const tradeFamily = log.trade_families[0] || "";
     return {
         id: log.id,
         date: log.date,
         site_id: log.site_id,
         member_id: log.member_id,
-        trade_families: log.trade_families,
+        trade_family: tradeFamily === "common_site_operations" ? "" : tradeFamily,
         role_type: log.role_type,
         credited_unit: log.credited_unit,
         memo: log.memo || "",
@@ -235,6 +245,48 @@ function normalizeRoleShares(
     };
 }
 
+function getTradeLabel(value?: PathTradeFamily | null): string {
+    if (!value || value === "common_site_operations") {
+        return "工種未指定";
+    }
+    return DAY_LOG_TRADE_OPTIONS.find((option) => option.value === value)?.label || value;
+}
+
+function formatMemoDateTime(value: string): string {
+    return new Date(value).toLocaleString("ja-JP", {
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+}
+
+function formatMemoDate(value: string): string {
+    return new Date(value).toLocaleDateString("ja-JP", {
+        month: "2-digit",
+        day: "2-digit",
+    });
+}
+
+function getMemberName(memberId: string, members: Member[]): string {
+    const member = members.find((item) => item.id === memberId || item.user_id === memberId);
+    return member?.display_name || member?.full_name || member?.username || "メンバー";
+}
+
+function getDocumentUrl(document: SiteDocument): string | null {
+    return document.signed_url || document.drive_file_url || null;
+}
+
+function resolveCurrentUserId(sessionUserId?: string | null): string | null {
+    if (sessionUserId) {
+        return sessionUserId;
+    }
+    if (isDevAuthSessionActive()) {
+        return getDevAuthUserOption()?.id || null;
+    }
+    return null;
+}
+
 function getDayLogErrorMessage(error: unknown): string {
     const message = getErrorMessage(error);
     if (message === "DAY_LOG_LOCKED") {
@@ -252,8 +304,13 @@ export function Today() {
     const [todayDate] = useState(() => new Date());
     const [focusItems, setFocusItems] = useState<FocusItemRecord[]>([]);
     const [sites, setSites] = useState<Site[]>([]);
+    const [members, setMembers] = useState<Member[]>([]);
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
     const [todayDayLogsBySiteId, setTodayDayLogsBySiteId] = useState<Record<string, PathV31DayLog>>({});
+    const [siteMemoLogs, setSiteMemoLogs] = useState<PathV31DayLog[]>([]);
+    const [siteMemoDocuments, setSiteMemoDocuments] = useState<SiteDocument[]>([]);
+    const [siteMemoLoading, setSiteMemoLoading] = useState(false);
+    const [siteMemoError, setSiteMemoError] = useState<string | null>(null);
     const [siteRolePlansBySiteId, setSiteRolePlansBySiteId] = useState<Record<string, PathV31SiteMemberRolePlan>>({});
     const [siteRewardInputsBySiteId, setSiteRewardInputsBySiteId] = useState<Record<string, PathV31SiteMemberRewardInput>>({});
     const [pendingProposals, setPendingProposals] = useState<ProposalRecord[]>([]);
@@ -268,6 +325,7 @@ export function Today() {
     const [editingFocusItem, setEditingFocusItem] = useState<FocusItemRecord | null>(null);
     const [composerForm, setComposerForm] = useState(EMPTY_FORM);
     const [dayLogSheetOpen, setDayLogSheetOpen] = useState(false);
+    const [dayLogSheetMode, setDayLogSheetMode] = useState<DayLogSheetMode>("write");
     const [dayLogSubmitting, setDayLogSubmitting] = useState(false);
     const [dayLogForm, setDayLogForm] = useState<DayLogFormState>(EMPTY_DAY_LOG_FORM);
     const [rolePlanSheetOpen, setRolePlanSheetOpen] = useState(false);
@@ -305,6 +363,24 @@ export function Today() {
     const selectedRewardInputSite = useMemo(
         () => sites.find((site) => site.id === rewardInputForm.site_id) || null,
         [rewardInputForm.site_id, sites]
+    );
+    const siteMemoTimelineItems = useMemo<SiteMemoTimelineItem[]>(
+        () =>
+            [
+                ...siteMemoLogs.map((log) => ({
+                    id: log.id,
+                    kind: "memo" as const,
+                    created_at: log.created_at,
+                    log,
+                })),
+                ...siteMemoDocuments.map((document) => ({
+                    id: document.id,
+                    kind: "document" as const,
+                    created_at: document.created_at,
+                    document,
+                })),
+            ].sort((a, b) => b.created_at.localeCompare(a.created_at)),
+        [siteMemoDocuments, siteMemoLogs],
     );
 
     const clearProposalSearchParam = useCallback(() => {
@@ -354,17 +430,20 @@ export function Today() {
                 sessionResult,
                 focusItemsData,
                 sitesData,
+                membersData,
                 pendingProposalsData,
             ] = await Promise.all([
                 supabase.auth.getSession(),
                 fetchFocusItems({ status: "open" }),
                 fetchSites(),
+                fetchMembers().catch(() => []),
                 fetchPendingProposals().catch(() => []),
             ]);
-            const nextCurrentUserId = sessionResult.data.session?.user?.id || null;
+            const nextCurrentUserId = resolveCurrentUserId(sessionResult.data.session?.user?.id);
             setCurrentUserId(nextCurrentUserId);
             setFocusItems(focusItemsData);
             setSites(sitesData);
+            setMembers(membersData);
             setPendingProposals(pendingProposalsData);
             if (nextCurrentUserId) {
                 const [, rolePlansResponse, rewardInputsResponse] = await Promise.all([
@@ -451,18 +530,25 @@ export function Today() {
         return "role_missing";
     }, [siteRewardInputsBySiteId, siteRolePlansBySiteId, todayDayLogsBySiteId]);
 
-    const openDayLogSheet = (site: Site) => {
-        if (!currentUserId) {
-            setActionError("ログイン情報を確認できませんでした");
-            return;
+    const loadSiteMemoContext = useCallback(async (siteId: string) => {
+        try {
+            setSiteMemoLoading(true);
+            setSiteMemoError(null);
+            const [logsResponse, documentsResponse] = await Promise.all([
+                fetchPathV31DayLogs({ site_id: siteId, limit: 50 }),
+                fetchSiteDocuments(siteId).catch(() => []),
+            ]);
+            setSiteMemoLogs(logsResponse.logs);
+            setSiteMemoDocuments(documentsResponse);
+        } catch (err: unknown) {
+            setSiteMemoError(getErrorMessage(err));
+        } finally {
+            setSiteMemoLoading(false);
         }
+    }, []);
 
+    const prepareDayLogSheet = (site: Site, mode: DayLogSheetMode) => {
         const existingLog = todayDayLogsBySiteId[site.id];
-        if (existingLog?.locked_by_site_close_id) {
-            setActionError("この記録は現場締め後のため編集できません");
-            return;
-        }
-
         setDayLogForm(
             existingLog
                 ? buildDayLogForm(existingLog)
@@ -470,11 +556,38 @@ export function Today() {
                       ...EMPTY_DAY_LOG_FORM,
                       date: todayKey,
                       site_id: site.id,
-                      member_id: currentUserId,
+                      member_id: currentUserId || "",
                   }
         );
+        setDayLogSheetMode(mode);
+        setSiteMemoLogs([]);
+        setSiteMemoDocuments([]);
+        setSiteMemoError(null);
         setActionError(null);
         setDayLogSheetOpen(true);
+        void loadSiteMemoContext(site.id);
+    };
+
+    const openDayLogReviewSheet = (site: Site) => {
+        prepareDayLogSheet(site, "review");
+    };
+
+    const switchDayLogSheetMode = (mode: DayLogSheetMode) => {
+        if (mode === "write") {
+            if (!currentUserId) {
+                setActionError("ログイン情報を確認できませんでした");
+                return;
+            }
+
+            const existingLog = dayLogForm.site_id ? todayDayLogsBySiteId[dayLogForm.site_id] : null;
+            if (existingLog?.locked_by_site_close_id) {
+                setActionError("この記録は現場締め後のため編集できません");
+                return;
+            }
+        }
+
+        setActionError(null);
+        setDayLogSheetMode(mode);
     };
 
     const openRolePlanSheet = (site: Site) => {
@@ -525,7 +638,11 @@ export function Today() {
 
     const closeDayLogSheet = () => {
         setDayLogSheetOpen(false);
+        setDayLogSheetMode("write");
         setDayLogForm(EMPTY_DAY_LOG_FORM);
+        setSiteMemoLogs([]);
+        setSiteMemoDocuments([]);
+        setSiteMemoError(null);
     };
 
     const closeRolePlanSheet = () => {
@@ -677,8 +794,13 @@ export function Today() {
             setActionNotice(null);
 
             const { log } = await savePathV31DayLog({
-                ...dayLogForm,
+                id: dayLogForm.id,
+                date: dayLogForm.date,
+                site_id: dayLogForm.site_id,
                 member_id: currentUserId,
+                trade_families: [dayLogForm.trade_family || "common_site_operations"],
+                role_type: dayLogForm.role_type,
+                credited_unit: dayLogForm.credited_unit,
                 memo: dayLogForm.memo.trim() || undefined,
             });
 
@@ -686,7 +808,11 @@ export function Today() {
                 ...current,
                 [log.site_id]: log,
             }));
-            setActionNotice(wasEditing ? "今日の記録を更新しました" : "今日の記録を保存しました");
+            setSiteMemoLogs((current) => {
+                const next = current.filter((item) => item.id !== log.id);
+                return [log, ...next].sort((a, b) => b.created_at.localeCompare(a.created_at));
+            });
+            setActionNotice(wasEditing ? "現場メモを更新しました" : "現場メモを保存しました");
             closeDayLogSheet();
         } catch (err: unknown) {
             setActionError(getDayLogErrorMessage(err));
@@ -881,8 +1007,7 @@ export function Today() {
                     focusItems={focusItems}
                     completingId={completingId}
                     onCompleteFocusItem={(item) => void handleCompleteFocusItem(item)}
-                    onOpenSite={setSelectedSite}
-                    onRecordDayLog={openDayLogSheet}
+                    onViewSiteMemo={openDayLogReviewSheet}
                     onPlanRole={openRolePlanSheet}
                     onRecordRewardInput={openRewardInputSheet}
                     onAddFocusItem={openFocusItemQuickComposer}
@@ -1113,131 +1238,179 @@ export function Today() {
                         exit={{ opacity: 0, y: 20 }}
                         onClick={(event) => event.stopPropagation()}
                     >
-                        <div className={styles.sheetHeader}>
-                            <div className={styles.sheetHeading}>
-                                <h3 className={styles.sheetTitle}>今日の記録</h3>
-                                <p className={styles.sheetDescription}>
-                                    Today から自分の現場記録を保存します。1日・1現場・1人で1件だけ保持します。
-                                </p>
+                        <div
+                            className={styles.sheetHeader}
+                        >
+                            {selectedDayLogSite && (
+                                <div className={styles.sheetHeading}>
+                                    <h3 className={styles.sheetSiteTitle}>{selectedDayLogSite.name}</h3>
+                                </div>
+                            )}
+                            <div className={styles.sheetHeaderControls}>
+                                <div className={styles.sheetModeSwitch} aria-label="メモ表示切り替え" role="group">
+                                    <button
+                                        type="button"
+                                        className={`${styles.sheetModeButton} ${
+                                            dayLogSheetMode === "review" ? styles.sheetModeButtonActive : ""
+                                        }`}
+                                        onClick={() => switchDayLogSheetMode("review")}
+                                    >
+                                        一覧
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={`${styles.sheetModeButton} ${
+                                            dayLogSheetMode === "write" ? styles.sheetModeButtonActive : ""
+                                        }`}
+                                        onClick={() => switchDayLogSheetMode("write")}
+                                    >
+                                        追加
+                                    </button>
+                                </div>
+                                <button
+                                    type="button"
+                                    className={styles.closeButton}
+                                    onClick={closeDayLogSheet}
+                                    aria-label="閉じる"
+                                >
+                                    <X size={18} />
+                                </button>
                             </div>
-                            <button
-                                type="button"
-                                className={styles.closeButton}
-                                onClick={closeDayLogSheet}
-                                aria-label="閉じる"
-                            >
-                                <X size={18} />
-                            </button>
                         </div>
 
                         <form className={styles.sheetForm} onSubmit={handleSubmitDayLog}>
-                            {selectedDayLogSite && (
-                                <div className={styles.sheetSiteCard}>
-                                    <span className={styles.sheetSiteEyebrow}>
-                                        {dayLogForm.id ? "更新する記録" : "記録する現場"}
-                                    </span>
-                                    <strong>{selectedDayLogSite.name}</strong>
-                                    {selectedDayLogSite.address && (
-                                        <span>{selectedDayLogSite.address}</span>
-                                    )}
-                                </div>
-                            )}
-
-                            <div className={styles.segmentGroup}>
-                                <span className={styles.fieldCaption}>工種</span>
-                                <div className={styles.quickPresetGrid}>
-                                    {DAY_LOG_TRADE_OPTIONS.map((option) => (
-                                        <button
-                                            key={option.value}
-                                            type="button"
-                                            className={`${styles.quickPresetButton} ${
-                                                dayLogForm.trade_families[0] === option.value
-                                                    ? styles.quickPresetButtonActive
-                                                    : ""
-                                            }`}
-                                            onClick={() =>
+                            {dayLogSheetMode === "write" && (
+                                <>
+                                    <label className={styles.fieldLabel}>
+                                        工種（必要なら）
+                                        <select
+                                            className={styles.selectInput}
+                                            value={dayLogForm.trade_family}
+                                            onChange={(event) =>
                                                 setDayLogForm((current) => ({
                                                     ...current,
-                                                    trade_families: [option.value],
+                                                    trade_family: event.target.value as PathTradeFamily | "",
                                                 }))
                                             }
                                         >
-                                            {option.label}
+                                            {DAY_LOG_TRADE_SELECT_OPTIONS.map((option) => (
+                                                <option key={option.value} value={option.value}>
+                                                    {option.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </label>
+
+                                    <label className={styles.fieldLabel}>
+                                        メモ
+                                        <textarea
+                                            className={styles.textArea}
+                                            value={dayLogForm.memo}
+                                            onChange={(event) =>
+                                                setDayLogForm((current) => ({
+                                                    ...current,
+                                                    memo: event.target.value,
+                                                }))
+                                            }
+                                            placeholder="進み具合、注意点、引き継ぎを一言"
+                                            rows={4}
+                                        />
+                                    </label>
+
+                                    {selectedDayLogSite && (
+                                        <button
+                                            type="button"
+                                            className={styles.linkButton}
+                                            onClick={() => {
+                                                const site = selectedDayLogSite;
+                                                closeDayLogSheet();
+                                                setSelectedSite(site);
+                                            }}
+                                        >
+                                            <Paperclip size={16} />
+                                            画像・書類を添付
                                         </button>
-                                    ))}
+                                    )}
+                                </>
+                            )}
+
+                            {dayLogSheetMode === "review" && (
+                                <div className={styles.memoContextGrid}>
+                                    <section className={styles.memoContextSection}>
+                                        <div className={styles.memoContextHeader}>
+                                            <span>メモ・添付</span>
+                                            <span>{siteMemoTimelineItems.length}件</span>
+                                        </div>
+                                        {siteMemoLoading ? (
+                                            <div className={styles.memoContextEmpty}>読み込み中...</div>
+                                        ) : siteMemoError ? (
+                                            <div className={styles.memoContextError}>{siteMemoError}</div>
+                                        ) : siteMemoTimelineItems.length > 0 ? (
+                                            <div className={styles.memoList}>
+                                                {siteMemoTimelineItems.slice(0, 12).map((item) => {
+                                                    if (item.kind === "memo") {
+                                                        const log = item.log;
+                                                        return (
+                                                            <article key={item.id} className={styles.memoListItem}>
+                                                                <div className={styles.memoListMeta}>
+                                                                    <span>{formatMemoDateTime(log.created_at)}</span>
+                                                                    <span>{getMemberName(log.member_id, members)}</span>
+                                                                    <span>{getTradeLabel(log.trade_families[0])}</span>
+                                                                </div>
+                                                                <p>{log.memo || "メモ本文はありません。"}</p>
+                                                            </article>
+                                                        );
+                                                    }
+
+                                                    const url = getDocumentUrl(item.document);
+                                                    const content = (
+                                                        <>
+                                                            <FileText size={16} />
+                                                            <span className={styles.documentName}>
+                                                                {item.document.original_filename || "書類"}
+                                                            </span>
+                                                            <span className={styles.documentDate}>
+                                                                {formatMemoDate(item.document.created_at)}
+                                                            </span>
+                                                        </>
+                                                    );
+
+                                                    return url ? (
+                                                        <a
+                                                            key={item.id}
+                                                            className={styles.documentListItem}
+                                                            href={url}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                        >
+                                                            {content}
+                                                        </a>
+                                                    ) : (
+                                                        <div key={item.id} className={styles.documentListItem}>
+                                                            {content}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : (
+                                            <div className={styles.memoContextEmpty}>まだメモや添付はありません。</div>
+                                        )}
+                                    </section>
                                 </div>
-                            </div>
+                            )}
 
-                            <label className={styles.fieldLabel}>
-                                役割
-                                <select
-                                    className={styles.selectInput}
-                                    value={dayLogForm.role_type}
-                                    onChange={(event) =>
-                                        setDayLogForm((current) => ({
-                                            ...current,
-                                            role_type: event.target.value as PathV31RoleType,
-                                        }))
-                                    }
-                                >
-                                    {DAY_LOG_ROLE_OPTIONS.map((option) => (
-                                        <option key={option.value} value={option.value}>
-                                            {option.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
-
-                            <label className={styles.fieldLabel}>
-                                記録ユニット
-                                <input
-                                    className={styles.textInput}
-                                    type="number"
-                                    min={0.25}
-                                    step={0.25}
-                                    value={dayLogForm.credited_unit}
-                                    onChange={(event) =>
-                                        setDayLogForm((current) => ({
-                                            ...current,
-                                            credited_unit: Number(event.target.value) || 0,
-                                        }))
-                                    }
-                                />
-                            </label>
-
-                            <label className={styles.fieldLabel}>
-                                メモ
-                                <textarea
-                                    className={styles.textArea}
-                                    value={dayLogForm.memo}
-                                    onChange={(event) =>
-                                        setDayLogForm((current) => ({
-                                            ...current,
-                                            memo: event.target.value,
-                                        }))
-                                    }
-                                    placeholder="進み具合や気づいたことを一言"
-                                    rows={3}
-                                />
-                            </label>
-
-                            <div className={styles.sheetActions}>
-                                <button
-                                    type="button"
-                                    className={styles.secondaryButton}
-                                    onClick={closeDayLogSheet}
-                                >
-                                    キャンセル
-                                </button>
-                                <button
-                                    type="submit"
-                                    className={styles.primaryButton}
-                                    disabled={dayLogSubmitting}
-                                >
-                                    <ClipboardCheck size={16} />
-                                    {dayLogSubmitting ? "保存中..." : dayLogForm.id ? "更新" : "保存"}
-                                </button>
-                            </div>
+                            {dayLogSheetMode === "write" ? (
+                                <div className={`${styles.sheetActions} ${styles.sheetActionsSingle}`}>
+                                    <button
+                                        type="submit"
+                                        className={styles.primaryButton}
+                                        disabled={dayLogSubmitting}
+                                    >
+                                        <ClipboardCheck size={16} />
+                                        {dayLogSubmitting ? "保存中..." : dayLogForm.id ? "更新" : "保存"}
+                                    </button>
+                                </div>
+                            ) : null}
                         </form>
                     </motion.div>
                 </div>

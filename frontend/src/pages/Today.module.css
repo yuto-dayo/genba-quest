@@ -349,7 +349,7 @@
     align-items: flex-end;
     justify-content: center;
     padding: 16px 12px max(16px, env(safe-area-inset-bottom));
-    z-index: 90;
+    z-index: 1000;
 }
 
 .sheet {
@@ -375,8 +375,42 @@
 .sheetHeader {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: center;
     gap: 12px;
+}
+
+.sheetHeaderControls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sheetModeSwitch {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(48px, 1fr));
+    gap: 2px;
+    min-height: 36px;
+    padding: 2px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 999px;
+    background: var(--md-sys-color-surface-container-low);
+}
+
+.sheetModeButton {
+    min-height: 30px;
+    padding: 0 12px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: pointer;
+    font: var(--md-sys-typescale-label-medium);
+}
+
+.sheetModeButtonActive {
+    background: var(--md-sys-color-surface-container-lowest);
+    color: var(--md-sys-color-primary);
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
 }
 
 .sheetHeading {
@@ -388,6 +422,12 @@
     margin: 0;
     font: var(--md-sys-typescale-title-large);
     color: var(--md-sys-color-on-surface);
+}
+
+.sheetSiteTitle {
+    margin: 0;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-title-medium);
 }
 
 .sheetDescription {
@@ -599,6 +639,133 @@
     resize: vertical;
 }
 
+.memoContextGrid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+}
+
+.memoContextSection {
+    display: grid;
+    align-content: start;
+    gap: 10px;
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 72%, white);
+}
+
+.memoContextHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-large);
+}
+
+.memoContextHeader span:last-child {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-small);
+}
+
+.memoList,
+.documentList {
+    display: grid;
+    gap: 8px;
+}
+
+.memoListItem {
+    display: grid;
+    gap: 6px;
+    padding: 10px;
+    border-radius: 12px;
+    background: var(--md-sys-color-surface-container-lowest);
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 70%, transparent);
+}
+
+.memoListMeta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-small);
+}
+
+.memoListMeta span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 0 8px;
+    border-radius: 999px;
+    background: var(--md-sys-color-surface-container-low);
+}
+
+.memoListItem p {
+    margin: 0;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-body-small);
+    line-height: 1.5;
+}
+
+.documentListItem {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    min-height: 42px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: var(--md-sys-color-surface-container-lowest);
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 70%, transparent);
+    color: var(--md-sys-color-on-surface);
+    text-decoration: none;
+    font: var(--md-sys-typescale-body-small);
+}
+
+.documentName {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.documentDate {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-small);
+}
+
+.memoContextEmpty,
+.memoContextError {
+    padding: 14px 10px;
+    border-radius: 12px;
+    color: var(--md-sys-color-on-surface-variant);
+    background: var(--md-sys-color-surface-container-lowest);
+    font: var(--md-sys-typescale-body-small);
+    text-align: center;
+}
+
+.memoContextError {
+    color: var(--md-sys-color-on-error-container);
+    background: var(--md-sys-color-error-container);
+}
+
+.linkButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 0 12px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 999px;
+    background: var(--md-sys-color-surface-container-lowest);
+    color: var(--md-sys-color-primary);
+    cursor: pointer;
+    font: var(--md-sys-typescale-label-medium);
+}
+
 .segmentGroup {
     display: grid;
     gap: 8px;
@@ -672,6 +839,10 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
     margin-top: 4px;
+}
+
+.sheetActionsSingle {
+    grid-template-columns: 1fr;
 }
 
 .secondaryButton {
@@ -806,6 +977,10 @@
     }
 
     .roleShareGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .memoContextGrid {
         grid-template-columns: 1fr;
     }
 
