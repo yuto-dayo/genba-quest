@@ -7,30 +7,6 @@
     margin-bottom: 20px;
 }
 
-.assignmentsHeader {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 44px;
-    padding: 0 2px;
-    font: var(--md-sys-typescale-title-medium);
-    color: var(--md-sys-color-on-surface);
-}
-
-.assignmentsHeader svg {
-    color: var(--md-sys-color-primary);
-}
-
-.assignmentsCount {
-    margin-left: auto;
-    padding: 5px 11px;
-    border-radius: var(--md-sys-shape-corner-full);
-    background: color-mix(in srgb, var(--md-sys-color-primary-container) 78%, white);
-    color: var(--md-sys-color-on-primary-container);
-    font: var(--md-sys-typescale-label-small);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--md-sys-color-primary) 14%, transparent);
-}
-
 .emptyAssignments {
     display: flex;
     flex-direction: column;
@@ -87,12 +63,21 @@
 .assignmentHeading {
     display: grid;
     gap: 4px;
+    min-width: 0;
+}
+
+.siteTitleRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
 }
 
 .siteName {
     font: var(--md-sys-typescale-body-large);
     font-weight: 800;
     color: var(--md-sys-color-on-surface);
+    min-width: 0;
 }
 
 .clientName {
@@ -100,71 +85,28 @@
     color: var(--md-sys-color-on-surface-variant);
 }
 
-.assignmentStatus {
+.siteMapIconLink {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 4px 10px;
-    border-radius: var(--md-sys-shape-corner-full);
-    font: var(--md-sys-typescale-label-small);
-    white-space: nowrap;
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 12%, transparent);
+    flex: 0 0 auto;
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    color: var(--md-sys-color-primary);
+    text-decoration: none;
+    transition: background 0.15s, color 0.15s;
 }
 
-.assignmentStatusPending {
-    background: var(--md-sys-color-error-container);
-    color: var(--md-sys-color-on-error-container);
-}
-
-.assignmentStatusTentative {
-    background: var(--md-sys-color-tertiary-container);
-    color: var(--md-sys-color-on-tertiary-container);
-}
-
-.assignmentStatusConfirmed {
-    background: var(--md-sys-color-secondary-container);
-    color: var(--md-sys-color-on-secondary-container);
-}
-
-.assignmentStatusScheduled {
-    background: var(--md-sys-color-success-container);
-    color: var(--md-sys-color-on-success-container);
-}
-
-.assignmentStatusCompleted {
-    background: var(--md-sys-color-tertiary-container);
-    color: var(--md-sys-color-on-tertiary-container);
+.siteMapIconLink:hover {
+    background: color-mix(in srgb, var(--md-sys-color-primary-container) 62%, transparent);
+    color: var(--md-sys-color-on-primary-container);
 }
 
 .assignmentMetaRow {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-}
-
-.siteInputStateRow {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-
-.siteInputBadge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    width: fit-content;
-    padding: 6px 10px;
-    border-radius: var(--md-sys-shape-corner-full);
-    background: color-mix(in srgb, var(--md-sys-color-tertiary-container) 78%, white);
-    color: var(--md-sys-color-on-tertiary-container);
-    font: var(--md-sys-typescale-label-small);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--md-sys-color-tertiary) 14%, transparent);
-}
-
-.siteInputBadgeDone {
-    background: color-mix(in srgb, var(--md-sys-color-success-container) 78%, white);
-    color: var(--md-sys-color-on-success-container);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--md-sys-color-success) 14%, transparent);
 }
 
 .assignmentMeta {
@@ -180,9 +122,6 @@
 }
 
 .assignmentAddress {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
     color: var(--md-sys-color-on-surface-variant);
     font: var(--md-sys-typescale-body-small);
 }
@@ -467,10 +406,6 @@
 @media (max-width: 400px) {
     .assignmentTopRow {
         flex-direction: column;
-    }
-
-    .assignmentStatus {
-        align-self: flex-start;
     }
 
     .assignmentActionButton {

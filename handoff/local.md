@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `push後、残っている別作業の未コミット差分は別スコープで扱う。`
+- NEXT_CMD: `必要ならこの追加差分を前回push済みブランチにコミット/プッシュする。`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/local.md`
@@ -18,8 +18,8 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `9a576e3`
-  - Updated: `2026-05-08T01:13:41+0900`
+  - HEAD: `b46c276`
+  - Updated: `2026-05-08T01:24:24+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
@@ -46,6 +46,12 @@
 - 2026-05-08 01:05:30 +0900 — started by codex
 - 2026-05-08 01:11:35 +0900 — ended by codex
 - 2026-05-08 01:13:06 +0900 — started by codex
+- 2026-05-08 01:14:55 +0900 — ended by codex
+- 2026-05-08 01:17:42 +0900 — started by codex
+- 2026-05-08 01:21:11 +0900 — ended by codex
+- 2026-05-08 01:22:22 +0900 — started by codex
+- 2026-05-08 01:25:40 +0900 — ended by codex
+- 2026-05-08 01:28:48 +0900 — started by codex
 <!-- HANDOFF_SESSION_EVENTS_END -->
 
 ---
@@ -53,43 +59,43 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `push後、残っている別作業の未コミット差分は別スコープで扱う。`. Source: realtime
-- [H0013] Completed: TodayメモシートUI変更をコミット対象として整理。現場カードはメモ1本、シートは現場名 + 一覧/追加スイッチ、下部の閉じる/キャンセル重複ボタン削除までを対象にした。
-- [H0013] Remaining: push後、残っている別作業の未コミット差分は別スコープで扱う。
-- [H0012] Completed: Todayメモシート下部の重複導線を整理。一覧モードの下部『閉じる』と追加モードの『キャンセル』を削除し、追加モードは保存ボタンのみ1列表示に変更。
-- [H0012] Remaining: 必要ならスマホ実機で保存ボタンの位置と×の閉じやすさを確認する。
+- [focus] NEXT_CMD: `必要ならこの追加差分を前回push済みブランチにコミット/プッシュする。`. Source: realtime
+- [H0015] Completed: Today現場カードの地図チップを削除し、現場名横にアイコンのみの地図リンクを配置。住所は現場名の下へ移動して、アクション列はメモ/役割中心に整理。
+- [H0015] Remaining: 必要ならこの追加差分を前回push済みブランチにコミット/プッシュする。
+- [H0014] Completed: Today現場カードから見出し『今日の現場/件数』、ステータス『確定』、入力状態チップ『役割未入力』、人数『1名』、種別『現場稼働』を削除。役割/責任の内部状態判定と操作ボタンは維持。
+- [H0014] Remaining: 必要ならこの追加差分を前回push済みブランチにコミット/プッシュする。
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0015] Auto-captured decision: Today現場カードの地図チップを削除し、現場名横にアイコンのみの地図リンクを配置。住所は現場名の下へ移動して、アクション列はメモ/役割中心に整理。
+- [H0014] Auto-captured decision: Today現場カードから見出し『今日の現場/件数』、ステータス『確定』、入力状態チップ『役割未入力』、人数『1名』、種別『現場稼働』を削除。役割/責任の内部状態判定と操作ボタンは維持。
 - [H0013] Auto-captured decision: TodayメモシートUI変更をコミット対象として整理。現場カードはメモ1本、シートは現場名 + 一覧/追加スイッチ、下部の閉じる/キャンセル重複ボタン削除までを対象にした。
 - [H0012] Auto-captured decision: Todayメモシート下部の重複導線を整理。一覧モードの下部『閉じる』と追加モードの『キャンセル』を削除し、追加モードは保存ボタンのみ1列表示に変更。
 - [H0011] Auto-captured decision: Today現場カードのメモ導線を1本化し、シート上部に現場名 + 一覧/追加スイッチを追加。確認/追加カードと説明文、レビュー下部のメモ追加導線を削除し、画像・書類添付は追加モードに維持。
-- [H0010] Auto-captured decision: Todayメモ確認/追加シートから現場カードを削除。シート左上に現場名だけをタイトル表示するように変更し、住所や『メモする現場/確認する現場』ラベルを非表示化。
-- [H0009] Auto-captured decision: Todayメモ確認シートで、添付専用の『添付を追加・管理』ボタンを削除。メモと添付を作成日時順の単一リスト（メモ・添付）として扱うように変更し、確認側の説明文も削除。
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0013] No new landmines reported in this chunk.
+- [H0015] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0015] 必要ならこの追加差分を前回push済みブランチにコミット/プッシュする。
 - [H0013] push後、残っている別作業の未コミット差分は別スコープで扱う。
 - [H0012] 必要ならスマホ実機で保存ボタンの位置と×の閉じやすさを確認する。
 - [H0011] 必要ならスマホ実機幅で一覧/追加スイッチの余白とタップ感を微調整する。
 - [H0010] 必要ならメモ追加シートの添付ボタンを、保存ボタン横や入力欄内アクションへさらに圧縮する。
-- [H0009] 必要なら追加シート側で、メモ保存と添付アップロードを完全に同じ送信フローへ統合する。
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `13`
+- current_l3_entries: `15`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -120,6 +126,8 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] Today現場カードの地図チップを削除し、現場名横にアイコンのみの地図リンクを配置。住所は現場名の下へ移動して、アクション列はメモ/役割中心に整理。
+- [x] Today現場カードから見出し『今日の現場/件数』、ステータス『確定』、入力状態チップ『役割未入力』、人数『1名』、種別『現場稼働』を削除。役割/責任の内部状態判定と操作ボタンは維持。
 - [x] TodayメモシートUI変更をコミット対象として整理。現場カードはメモ1本、シートは現場名 + 一覧/追加スイッチ、下部の閉じる/キャンセル重複ボタン削除までを対象にした。
 - [x] Todayメモシート下部の重複導線を整理。一覧モードの下部『閉じる』と追加モードの『キャンセル』を削除し、追加モードは保存ボタンのみ1列表示に変更。
 - [x] Today現場カードのメモ導線を1本化し、シート上部に現場名 + 一覧/追加スイッチを追加。確認/追加カードと説明文、レビュー下部のメモ追加導線を削除し、画像・書類添付は追加モードに維持。
@@ -128,17 +136,15 @@ Phase: A-0/A-1
 - [x] Todayメモ確認シートのメモ一覧/添付書類の2分割を廃止し、単一の『メモ・添付』欄に統合。添付ファイルはメモと同じ確認リスト内に表示し、添付追加管理ボタンも同欄に維持。
 - [x] Todayメモ追加シートに、確認カードを戻さずに画像・書類添付の軽量ボタンを追加。ボタンは現場詳細の添付管理へ遷移する既存導線を利用。
 - [x] Today現場カードのメモ追加シートから確認カード、見出し、説明文を削除。追加は入力導線、確認は一覧/添付導線に分離したまま維持。
-- [x] Today現場カードのメモ導線を確認/メモ追加に分離し、確認シートは閲覧中心・追加シートは入力中心に整理
-- [x] Today現場メモの最終lint確認完了
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: push後、残っている別作業の未コミット差分は別スコープで扱う。
+- [ ] **P0**: 必要ならこの追加差分を前回push済みブランチにコミット/プッシュする。
+- [ ] **P1**: push後、残っている別作業の未コミット差分は別スコープで扱う。
 - [ ] **P1**: 必要ならスマホ実機で保存ボタンの位置と×の閉じやすさを確認する。
 - [ ] **P1**: 必要ならスマホ実機幅で一覧/追加スイッチの余白とタップ感を微調整する。
 - [ ] **P1**: 必要ならメモ追加シートの添付ボタンを、保存ボタン横や入力欄内アクションへさらに圧縮する。
-- [ ] **P1**: 必要なら追加シート側で、メモ保存と添付アップロードを完全に同じ送信フローへ統合する。
 ---
 
 ## 5. Changed Files
@@ -174,10 +180,10 @@ cd frontend && npx eslint src/
 
 | Check | Result | Notes |
 | ----- | ------ | ----- |
-| server typecheck | PASS | run by session-end (2026-05-08 01:10) |
-| frontend typecheck | PASS | run by session-end (2026-05-08 01:10) |
-| lint | PASS | frontend eslint src/ at 2026-05-08 01:10 |
-| test | PASS | server npm test -- --runInBand at 2026-05-08 01:11 |
+| server typecheck | PASS | run by session-end (2026-05-08 01:25) |
+| frontend typecheck | PASS | run by session-end (2026-05-08 01:25) |
+| lint | PASS | frontend eslint src/ at 2026-05-08 01:25 |
+| test | PASS | server npm test -- --runInBand at 2026-05-08 01:25 |
 
 ---
 
@@ -416,5 +422,37 @@ cd frontend && npx eslint src/
   - Auto-captured decision: TodayメモシートUI変更をコミット対象として整理。現場カードはメモ1本、シートは現場名 + 一覧/追加スイッチ、下部の閉じる/キャンセル重複ボタン削除までを対象にした。
 - Validation:
   - `commit scope: Today memo UI 5 frontend files plus handoff/local; previous quality gate pass`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-08 01:20:43 +0900
+
+- Entry-ID: `H0014`
+- Completed:
+  - [x] Today現場カードから見出し『今日の現場/件数』、ステータス『確定』、入力状態チップ『役割未入力』、人数『1名』、種別『現場稼働』を削除。役割/責任の内部状態判定と操作ボタンは維持。
+- Remaining:
+  - [ ] 必要ならこの追加差分を前回push済みブランチにコミット/プッシュする。
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: Today現場カードから見出し『今日の現場/件数』、ステータス『確定』、入力状態チップ『役割未入力』、人数『1名』、種別『現場稼働』を削除。役割/責任の内部状態判定と操作ボタンは維持。
+- Validation:
+  - `frontend npx tsc --noEmit: pass; npm test -- TodayAssignments.test.tsx Today.test.tsx: pass (9); npm run lint -- TodayAssignments/Today対象: pass; in-app browser: 指定5ラベルが0件`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-08 01:24:24 +0900
+
+- Entry-ID: `H0015`
+- Completed:
+  - [x] Today現場カードの地図チップを削除し、現場名横にアイコンのみの地図リンクを配置。住所は現場名の下へ移動して、アクション列はメモ/役割中心に整理。
+- Remaining:
+  - [ ] 必要ならこの追加差分を前回push済みブランチにコミット/プッシュする。
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: Today現場カードの地図チップを削除し、現場名横にアイコンのみの地図リンクを配置。住所は現場名の下へ移動して、アクション列はメモ/役割中心に整理。
+- Validation:
+  - `frontend npx tsc --noEmit: pass; npm test -- TodayAssignments.test.tsx Today.test.tsx: pass (9); npm run lint -- TodayAssignments/Today対象: pass; in-app browser: 地図テキスト0件、地図アイコンリンク1件、住所表示あり`
 - Landmines:
   - No new landmines reported in this chunk.
