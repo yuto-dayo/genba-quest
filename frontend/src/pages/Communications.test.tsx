@@ -8,8 +8,11 @@ const fetchCommunicationContacts = vi.fn();
 const fetchCommunicationContactDetail = vi.fn();
 const fetchMembers = vi.fn();
 const fetchSites = vi.fn();
+const fetchClients = vi.fn();
+const restoreClient = vi.fn();
 const addCommunicationLog = vi.fn();
 const createCommunicationConversation = vi.fn();
+const clientSettingsModalProps = vi.fn();
 
 vi.mock("framer-motion", () => ({
     motion: new Proxy(
@@ -24,6 +27,7 @@ vi.mock("framer-motion", () => ({
 vi.mock("../lib/api", () => ({
     fetchCommunicationContacts: (...args: unknown[]) => fetchCommunicationContacts(...args),
     fetchCommunicationContactDetail: (...args: unknown[]) => fetchCommunicationContactDetail(...args),
+    fetchClients: (...args: unknown[]) => fetchClients(...args),
     fetchMembers: (...args: unknown[]) => fetchMembers(...args),
     fetchSites: (...args: unknown[]) => fetchSites(...args),
     addCommunicationLog: (...args: unknown[]) => addCommunicationLog(...args),
@@ -32,7 +36,30 @@ vi.mock("../lib/api", () => ({
     executeProposal: vi.fn(),
     instructProposal: vi.fn(),
     rejectProposal: vi.fn(),
+    restoreClient: (...args: unknown[]) => restoreClient(...args),
     updateCommunicationConversation: vi.fn(),
+}));
+
+vi.mock("../components/ClientSettingsModal", () => ({
+    ClientSettingsModal: (props: {
+        client?: { name?: string } | null;
+        initialClient?: { name?: string } | null;
+        onSaved: (client: unknown) => void;
+        onDeleted: (clientId: string) => void;
+    }) => {
+        clientSettingsModalProps(props);
+        return (
+            <div role="dialog" aria-label="取引先マスタモーダル">
+                <span>{props.client?.name || props.initialClient?.name || "新規取引先"}</span>
+                <button type="button" onClick={() => props.onSaved({ id: "client-saved", name: "保存済み取引先" })}>
+                    モーダル保存
+                </button>
+                <button type="button" onClick={() => props.onDeleted("client-1")}>
+                    モーダル削除
+                </button>
+            </div>
+        );
+    },
 }));
 
 vi.mock("../components/ProposalDetailModal", () => ({
@@ -60,6 +87,42 @@ describe("Communications page", () => {
         vi.clearAllMocks();
         fetchMembers.mockResolvedValue([{ id: "member-1", full_name: "山田太郎", username: "yamada" }]);
         fetchSites.mockResolvedValue([{ id: "site-1", name: "渋谷ビル改修" }]);
+        fetchClients.mockImplementation((params?: { status?: string }) => {
+            if (params?.status === "deleted") {
+                return Promise.resolve([
+                    {
+                        id: "client-deleted",
+                        name: "削除済み商事",
+                        contact_person: "削除さん",
+                        email: "deleted@example.com",
+                        phone: null,
+                        address: null,
+                        billing_name: "削除済み商事",
+                        payment_terms: null,
+                        invoice_notes_default: null,
+                        created_at: "2026-04-01T00:00:00.000Z",
+                        deleted_at: "2026-04-22T00:00:00.000Z",
+                        deletion_reason: "重複",
+                    },
+                ]);
+            }
+            return Promise.resolve([
+                {
+                    id: "client-1",
+                    name: "田中工務店",
+                    contact_person: "田中さん",
+                    email: "tanaka@example.com",
+                    phone: "03-1234-5678",
+                    address: "東京都渋谷区1-2-3",
+                    billing_name: "田中工務店 御中",
+                    payment_terms: "月末締め翌月末払い",
+                    invoice_notes_default: "いつもありがとうございます。",
+                    created_at: "2026-04-01T00:00:00.000Z",
+                    deleted_at: null,
+                },
+            ]);
+        });
+        restoreClient.mockResolvedValue({ id: "client-deleted", name: "削除済み商事" });
         addCommunicationLog.mockResolvedValue({});
         createCommunicationConversation.mockResolvedValue({
             conversation: {
@@ -71,6 +134,7 @@ describe("Communications page", () => {
             items: [
                 {
                     contact_key: "tanaka@example.com",
+                    client_id: "client-1",
                     client_name: "田中工務店",
                     contact_name: "田中さん",
                     contact_email: "tanaka@example.com",
@@ -103,6 +167,7 @@ describe("Communications page", () => {
         fetchCommunicationContactDetail.mockResolvedValue({
             summary: {
                 contact_key: "tanaka@example.com",
+                client_id: "client-1",
                 client_name: "田中工務店",
                 contact_name: "田中さん",
                 contact_email: "tanaka@example.com",
@@ -160,7 +225,7 @@ describe("Communications page", () => {
                     conversation_id: "conv-1",
                     conversation_title: "見積の確認",
                     channel: "line",
-                    direction: "inbound",
+                    direction: "internal",
                     log_kind: "message",
                     subject: null,
                     body: "価格表を送ってください",
@@ -250,7 +315,7 @@ describe("Communications page", () => {
         expect(screen.queryByRole("heading", { name: "会社単位の俯瞰" })).not.toBeInTheDocument();
     });
 
-    it("renders a single FAB action for recording communication", async () => {
+    it("renders a recording action without the legacy log label", async () => {
         render(
             <MemoryRouter initialEntries={["/communications"]}>
                 <Routes>
@@ -259,7 +324,7 @@ describe("Communications page", () => {
             </MemoryRouter>,
         );
 
-        expect(await screen.findByRole("button", { name: "連絡を記録" })).toBeInTheDocument();
+        expect((await screen.findAllByRole("button", { name: "連絡を記録" })).length).toBeGreaterThan(0);
         expect(screen.queryByRole("button", { name: "ログ追加" })).not.toBeInTheDocument();
     });
 
@@ -273,13 +338,208 @@ describe("Communications page", () => {
         );
 
         expect(await screen.findByRole("heading", { name: "証跡タイムライン" })).toBeInTheDocument();
-        expect(screen.getByText("コピペ原文")).toBeInTheDocument();
-        expect(screen.getByText("送信文")).toBeInTheDocument();
-        expect(screen.getByText("聞き取り")).toBeInTheDocument();
+        expect(screen.getAllByText("メッセージ").length).toBeGreaterThan(0);
+        expect(screen.getAllByText("送信文").length).toBeGreaterThan(0);
+        expect(screen.getAllByText("電話").length).toBeGreaterThan(0);
         expect(screen.getByText("電話で納期を確認")).toBeInTheDocument();
+        expect(screen.getAllByLabelText("記録情報").length).toBeGreaterThan(0);
     });
 
-    it("records customer pasted text with evidence metadata after confirmation", async () => {
+    it("shows the client contact list from the client tab and opens detail before editing", async () => {
+        render(
+            <MemoryRouter initialEntries={["/communications"]}>
+                <Routes>
+                    <Route path="/communications" element={<Communications />} />
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        fireEvent.click((await screen.findAllByRole("tab", { name: "取引先" }))[0]);
+
+        const clientRow = await screen.findByRole("button", { name: /田中さん/ });
+        expect(clientRow).toBeInTheDocument();
+        expect(screen.queryByText("東京都渋谷区1-2-3")).not.toBeInTheDocument();
+
+        fireEvent.click(clientRow);
+        expect((await screen.findAllByText("取引先名")).length).toBeGreaterThan(0);
+        expect((await screen.findAllByText("支払条件")).length).toBeGreaterThan(0);
+        expect(screen.getAllByText("月末締め翌月末払い").length).toBeGreaterThan(0);
+
+        const clientCallsBeforeSave = fetchClients.mock.calls.length;
+        fireEvent.click(screen.getAllByRole("button", { name: "編集" })[0]);
+        expect(await screen.findByRole("dialog", { name: "取引先マスタモーダル" })).toBeInTheDocument();
+        expect(clientSettingsModalProps).toHaveBeenLastCalledWith(expect.objectContaining({
+            client: expect.objectContaining({ id: "client-1", name: "田中工務店" }),
+        }));
+
+        fireEvent.click(screen.getByRole("button", { name: "モーダル保存" }));
+        await waitFor(() => {
+            expect(fetchClients.mock.calls.length).toBeGreaterThan(clientCallsBeforeSave);
+            expect(fetchCommunicationContacts).toHaveBeenCalledTimes(2);
+        });
+    });
+
+    it("shows multiple people for the same registered client", async () => {
+        fetchCommunicationContacts.mockResolvedValueOnce({
+            items: [
+                {
+                    contact_key: "tanaka@example.com",
+                    client_id: "client-1",
+                    client_name: "田中工務店",
+                    contact_name: "田中さん",
+                    contact_email: "tanaka@example.com",
+                    owner: { id: "member-1", name: "山田太郎", username: "yamada", avatar_url: null },
+                    status: "waiting_internal",
+                    risk_flags: [],
+                    waiting_on: "internal",
+                    attention_score: 30,
+                    status_reason: "見積確認",
+                    status_reason_source: "last_message_preview",
+                    evidence_excerpt: "見積を確認します",
+                    latest_activity_at: "2026-04-22T09:00:00.000Z",
+                    last_external_activity_at: "2026-04-22T09:00:00.000Z",
+                    days_since_latest_activity: 0,
+                    last_inbound_at: "2026-04-22T09:00:00.000Z",
+                    last_outbound_at: null,
+                    days_since_client_response: 0,
+                    next_action: "確認する",
+                    next_action_due_date: null,
+                    has_next_action: true,
+                    relevant_conversation_id: "conv-1",
+                    site: null,
+                    conversation_count: 1,
+                    open_conversation_count: 1,
+                    in_flight_proposal_count: 0,
+                },
+                {
+                    contact_key: "suzuki@example.com",
+                    client_id: "client-1",
+                    client_name: "田中工務店",
+                    contact_name: "鈴木さん",
+                    contact_email: "suzuki@example.com",
+                    owner: { id: "member-1", name: "山田太郎", username: "yamada", avatar_url: null },
+                    status: "waiting_client",
+                    risk_flags: [],
+                    waiting_on: "client",
+                    attention_score: 10,
+                    status_reason: "返答待ち",
+                    status_reason_source: "last_message_preview",
+                    evidence_excerpt: "返答待ちです",
+                    latest_activity_at: "2026-04-22T10:00:00.000Z",
+                    last_external_activity_at: "2026-04-22T10:00:00.000Z",
+                    days_since_latest_activity: 0,
+                    last_inbound_at: "2026-04-22T10:00:00.000Z",
+                    last_outbound_at: null,
+                    days_since_client_response: 0,
+                    next_action: "待つ",
+                    next_action_due_date: null,
+                    has_next_action: true,
+                    relevant_conversation_id: "conv-2",
+                    site: null,
+                    conversation_count: 1,
+                    open_conversation_count: 1,
+                    in_flight_proposal_count: 0,
+                },
+            ],
+            total_count: 2,
+        });
+
+        render(
+            <MemoryRouter initialEntries={["/communications"]}>
+                <Routes>
+                    <Route path="/communications" element={<Communications />} />
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        fireEvent.click((await screen.findAllByRole("tab", { name: "取引先" }))[0]);
+
+        expect(await screen.findByRole("button", { name: /田中さん/ })).toBeInTheDocument();
+        expect(await screen.findByRole("button", { name: /鈴木さん/ })).toBeInTheDocument();
+        expect(screen.getAllByText("田中工務店").length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("opens unregistered communication contacts as client registration candidates", async () => {
+        fetchCommunicationContacts.mockResolvedValueOnce({
+            items: [
+                {
+                    contact_key: "candidate@example.com",
+                    client_id: null,
+                    client_name: "未登録内装",
+                    contact_name: "佐藤さん",
+                    contact_email: "candidate@example.com",
+                    owner: { id: "member-1", name: "山田太郎", username: "yamada", avatar_url: null },
+                    status: "waiting_internal",
+                    risk_flags: [],
+                    waiting_on: "internal",
+                    attention_score: 30,
+                    status_reason: "折り返し",
+                    status_reason_source: "last_message_preview",
+                    evidence_excerpt: "折り返しお願いします",
+                    latest_activity_at: "2026-04-22T09:00:00.000Z",
+                    last_external_activity_at: "2026-04-22T09:00:00.000Z",
+                    days_since_latest_activity: 0,
+                    last_inbound_at: "2026-04-22T09:00:00.000Z",
+                    last_outbound_at: null,
+                    days_since_client_response: 0,
+                    next_action: "登録する",
+                    next_action_due_date: null,
+                    has_next_action: true,
+                    relevant_conversation_id: "conv-candidate",
+                    site: null,
+                    conversation_count: 1,
+                    open_conversation_count: 1,
+                    in_flight_proposal_count: 0,
+                },
+            ],
+            total_count: 1,
+        });
+
+        render(
+            <MemoryRouter initialEntries={["/communications"]}>
+                <Routes>
+                    <Route path="/communications" element={<Communications />} />
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        fireEvent.click((await screen.findAllByRole("tab", { name: "取引先" }))[0]);
+        fireEvent.click(await screen.findByRole("button", { name: /未登録内装/ }));
+
+        expect((await screen.findAllByText("登録候補")).length).toBeGreaterThan(0);
+        fireEvent.click(screen.getAllByRole("button", { name: "登録" })[0]);
+
+        expect(await screen.findByRole("dialog", { name: "取引先マスタモーダル" })).toBeInTheDocument();
+        expect(clientSettingsModalProps).toHaveBeenLastCalledWith(expect.objectContaining({
+            initialClient: expect.objectContaining({
+                name: "未登録内装",
+                contact_person: "佐藤さん",
+                email: "candidate@example.com",
+            }),
+        }));
+    });
+
+    it("restores deleted clients from the deleted category", async () => {
+        render(
+            <MemoryRouter initialEntries={["/communications"]}>
+                <Routes>
+                    <Route path="/communications" element={<Communications />} />
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        fireEvent.click((await screen.findAllByRole("tab", { name: "取引先" }))[0]);
+        fireEvent.click(await screen.findByRole("button", { name: "削除済み" }));
+        fireEvent.click(await screen.findByRole("button", { name: /削除済み商事/ }));
+        fireEvent.click((await screen.findAllByRole("button", { name: "復元" }))[0]);
+
+        await waitFor(() => {
+            expect(restoreClient).toHaveBeenCalledWith("client-deleted");
+            expect(fetchClients).toHaveBeenCalledWith({ status: "deleted" });
+        });
+    });
+
+    it("records typed messages without copy confirmation", async () => {
         render(
             <MemoryRouter initialEntries={["/communications"]}>
                 <Routes>
@@ -289,19 +549,18 @@ describe("Communications page", () => {
         );
 
         await screen.findByRole("heading", { name: "証跡タイムライン" });
-        fireEvent.click(await screen.findByRole("button", { name: "連絡を記録" }));
-        expect(await screen.findByRole("tab", { name: /相手の文章を貼る/ })).toBeInTheDocument();
-        expect(screen.getByRole("tab", { name: /こちらの文章を貼る/ })).toBeInTheDocument();
-        expect(screen.getByRole("tab", { name: /電話メモを書く/ })).toBeInTheDocument();
-        expect(screen.getByRole("tab", { name: /現場会話を書く/ })).toBeInTheDocument();
+        expect(await screen.findByRole("radio", { name: "相手" })).toHaveAttribute("aria-checked", "true");
+        expect(screen.getByRole("radio", { name: "自分" })).toHaveAttribute("aria-checked", "false");
+        expect(await screen.findByPlaceholderText("相手の発言を入力")).toBeInTheDocument();
+        expect(screen.queryByRole("dialog", { name: "連絡を記録" })).not.toBeInTheDocument();
+        expect(await screen.findByRole("button", { name: "メッセージとして記録" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "電話として記録" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "会話として記録" })).toBeInTheDocument();
 
-        fireEvent.change(screen.getByPlaceholderText("LINE・メール・SMSからコピーした相手の文章を貼り付けます。"), {
+        fireEvent.change(screen.getByPlaceholderText("相手の発言を入力"), {
             target: { value: "価格表を送ってください" },
         });
-        fireEvent.click(screen.getByRole("button", { name: "相手文として記録" }));
-        expect(await screen.findByText("これは原文コピーとして記録されます。貼り付け元の文章と同じか確認してください。")).toBeInTheDocument();
-
-        fireEvent.click(screen.getByRole("button", { name: "このまま記録" }));
+        fireEvent.click(screen.getByRole("button", { name: "メッセージとして記録" }));
 
         await waitFor(() => {
             expect(addCommunicationLog).toHaveBeenCalledWith(
@@ -312,18 +571,20 @@ describe("Communications page", () => {
                     body: "価格表を送ってください",
                     log_kind: "message",
                     metadata: expect.objectContaining({
-                        entry_mode: "customer_paste",
-                        capture_method: "paste_primary",
-                        evidence_type: "external_original",
-                        original_locked: true,
-                        recorded_ui_version: "messenger_ledger_v1",
+                        entry_mode: "message",
+                        speaker_role: "client",
+                        speaker_label: "相手",
+                        capture_method: "typed_allowed",
+                        evidence_type: "user_entered_note",
+                        original_locked: false,
+                        recorded_ui_version: "messenger_chat_v2",
                     }),
                 }),
             );
         });
     });
 
-    it("records phone notes as typed oral evidence", async () => {
+    it("records phone notes from the phone send button", async () => {
         render(
             <MemoryRouter initialEntries={["/communications"]}>
                 <Routes>
@@ -333,25 +594,63 @@ describe("Communications page", () => {
         );
 
         await screen.findByRole("heading", { name: "証跡タイムライン" });
-        fireEvent.click(await screen.findByRole("button", { name: "連絡を記録" }));
-        fireEvent.click(await screen.findByRole("tab", { name: /電話メモを書く/ }));
-        fireEvent.change(await screen.findByPlaceholderText("誰が何を話したか、あとで確認できる粒度で書きます。"), {
+        fireEvent.change(await screen.findByPlaceholderText("相手の発言を入力"), {
             target: { value: "電話で納期を確認した" },
         });
-        fireEvent.click(screen.getByRole("button", { name: "電話メモを残す" }));
+        fireEvent.click(screen.getByRole("button", { name: "電話として記録" }));
 
         await waitFor(() => {
             expect(addCommunicationLog).toHaveBeenCalledWith(
                 "conv-1",
                 expect.objectContaining({
                     channel: "phone",
-                    direction: "internal",
+                    direction: "inbound",
                     body: "電話で納期を確認した",
                     log_kind: "note",
                     metadata: expect.objectContaining({
                         entry_mode: "phone_note",
+                        speaker_role: "client",
                         capture_method: "typed_allowed",
-                        evidence_type: "oral_note",
+                        evidence_type: "user_entered_note",
+                    }),
+                }),
+            );
+        });
+    });
+
+    it("records self-authored messages as outbound bubbles from the speaker switch", async () => {
+        render(
+            <MemoryRouter initialEntries={["/communications"]}>
+                <Routes>
+                    <Route path="/communications" element={<Communications />} />
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        await screen.findByRole("heading", { name: "証跡タイムライン" });
+        fireEvent.click(screen.getByRole("radio", { name: "自分" }));
+        expect(screen.getByRole("radio", { name: "自分" })).toHaveAttribute("aria-checked", "true");
+        expect(await screen.findByPlaceholderText("自分の発言を入力")).toBeInTheDocument();
+
+        fireEvent.change(screen.getByPlaceholderText("自分の発言を入力"), {
+            target: { value: "本日中に送ります" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "メッセージとして記録" }));
+
+        await waitFor(() => {
+            expect(addCommunicationLog).toHaveBeenCalledWith(
+                "conv-1",
+                expect.objectContaining({
+                    channel: "gmail",
+                    direction: "outbound",
+                    body: "本日中に送ります",
+                    log_kind: "message",
+                    metadata: expect.objectContaining({
+                        entry_mode: "message",
+                        speaker_role: "team",
+                        speaker_label: "自分",
+                        capture_method: "typed_allowed",
+                        evidence_type: "user_entered_note",
                     }),
                 }),
             );

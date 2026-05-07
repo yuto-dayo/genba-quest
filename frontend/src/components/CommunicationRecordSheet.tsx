@@ -5,11 +5,9 @@ import {
     ChevronDown,
     ChevronUp,
     CircleCheck,
-    ClipboardPaste,
     HardHat,
     MessageSquare,
     Phone,
-    SendHorizontal,
     UserCircle2,
     X,
 } from "lucide-react";
@@ -30,7 +28,7 @@ import { getErrorMessage } from "../lib/error";
 import styles from "./CommunicationRecordSheet.module.css";
 
 export type RecordTargetKind = "follow_up" | "new_topic";
-export type CommunicationEntryMode = "customer_paste" | "team_paste" | "phone_note" | "site_conversation";
+export type CommunicationEntryMode = "message" | "phone_note" | "site_conversation";
 
 export type RecordDraft = {
     targetKind: RecordTargetKind;
@@ -40,7 +38,6 @@ export type RecordDraft = {
     partnerEmail?: string;
     topicTitle?: string;
     body: string;
-    pasted: boolean;
     channel: Exclude<CommunicationChannel, "system">;
     direction: CommunicationDirection;
     ownerId?: string;
@@ -75,68 +72,49 @@ type BannerState =
 
 type EntryModeConfig = {
     label: string;
-    shortLabel: string;
     description: string;
     bodyLabel: string;
     placeholder: string;
     cta: string;
     badge: string;
-    icon: typeof ClipboardPaste;
+    icon: typeof MessageSquare;
     toneClass: string;
 };
 
 const ENTRY_MODE_CONFIG: Record<CommunicationEntryMode, EntryModeConfig> = {
-    customer_paste: {
-        label: "相手の文章を貼る",
-        shortLabel: "相手文",
-        description: "LINEやメールで届いた文章を、そのまま原文として残します。",
-        bodyLabel: "相手から届いた文章",
-        placeholder: "LINE・メール・SMSからコピーした相手の文章を貼り付けます。",
-        cta: "相手文として記録",
-        badge: "コピペ原文",
-        icon: ClipboardPaste,
+    message: {
+        label: "メッセージ",
+        description: "LINE、メール、SMSなどのやりとりをメモとして残します。",
+        bodyLabel: "メッセージ内容",
+        placeholder: "話したこと・送ったこと・受け取ったことを書く",
+        cta: "メッセージ",
+        badge: "メッセージ",
+        icon: MessageSquare,
         toneClass: "modeToneCustomer",
     },
-    team_paste: {
-        label: "こちらの文章を貼る",
-        shortLabel: "送信文",
-        description: "チームが送った文章を、送信済みコピーとして残します。",
-        bodyLabel: "こちらが送った文章",
-        placeholder: "送信済みのLINE・メール・SMS本文を貼り付けます。",
-        cta: "送信文として記録",
-        badge: "送信文",
-        icon: SendHorizontal,
-        toneClass: "modeToneTeam",
-    },
     phone_note: {
-        label: "電話メモを書く",
-        shortLabel: "電話",
-        description: "電話で聞いた内容を、聞き取りメモとして残します。",
-        bodyLabel: "電話で聞いた内容",
-        placeholder: "誰が何を話したか、あとで確認できる粒度で書きます。",
-        cta: "電話メモを残す",
-        badge: "聞き取り",
+        label: "電話",
+        description: "電話で決まったことや聞いたことを残します。",
+        bodyLabel: "電話の内容",
+        placeholder: "電話で話したことを書く",
+        cta: "電話",
+        badge: "電話",
         icon: Phone,
         toneClass: "modeTonePhone",
     },
     site_conversation: {
-        label: "現場会話を書く",
-        shortLabel: "現場",
-        description: "現場で話した内容を、現場会話メモとして残します。",
-        bodyLabel: "現場で話した内容",
-        placeholder: "現場で決まったこと、保留になったことを短く残します。",
-        cta: "現場会話を残す",
-        badge: "現場会話",
+        label: "会話",
+        description: "現場や対面で話した内容を残します。",
+        bodyLabel: "会話の内容",
+        placeholder: "現場や対面で話したことを書く",
+        cta: "会話",
+        badge: "会話",
         icon: HardHat,
         toneClass: "modeToneSite",
     },
 };
 
-const PASTE_CHANNELS: Array<Exclude<CommunicationChannel, "system">> = ["line", "gmail", "sms", "manual"];
-
-function isPasteEntryMode(entryMode: CommunicationEntryMode): boolean {
-    return entryMode === "customer_paste" || entryMode === "team_paste";
-}
+const MESSAGE_CHANNELS: Array<Exclude<CommunicationChannel, "system">> = ["line", "gmail", "sms", "manual"];
 
 export interface CommunicationRecordSheetSaveResult {
     contactKey: string | null;
@@ -203,7 +181,7 @@ function getDefaultChannel(
     if (
         activeConversation?.last_channel &&
         activeConversation.last_channel !== "system" &&
-        PASTE_CHANNELS.includes(activeConversation.last_channel)
+        MESSAGE_CHANNELS.includes(activeConversation.last_channel)
     ) {
         return activeConversation.last_channel;
     }
@@ -212,17 +190,11 @@ function getDefaultChannel(
 }
 
 function getDefaultDirection(entryMode: CommunicationEntryMode): CommunicationDirection {
-    if (entryMode === "team_paste") {
-        return "outbound";
-    }
-    if (entryMode === "phone_note" || entryMode === "site_conversation") {
-        return "internal";
-    }
-    return "inbound";
+    return entryMode === "message" ? "internal" : "internal";
 }
 
 function getLogKind(entryMode: CommunicationEntryMode): Exclude<CommunicationLogKind, "proposal_link"> {
-    return isPasteEntryMode(entryMode) ? "message" : "note";
+    return entryMode === "message" ? "message" : "note";
 }
 
 function getMetaBaseline(activeConversation?: CommunicationRecordSheetProps["activeConversationSummary"] | null) {
@@ -244,7 +216,7 @@ function buildInitialDraft({
     contactSeed?: ContactSeed;
 }): RecordDraft {
     const baseline = getMetaBaseline(activeConversation);
-    const entryMode: CommunicationEntryMode = "customer_paste";
+    const entryMode: CommunicationEntryMode = "message";
 
     return {
         targetKind,
@@ -254,7 +226,6 @@ function buildInitialDraft({
         partnerEmail: contactSeed?.partnerEmail || "",
         topicTitle: "",
         body: "",
-        pasted: false,
         channel: getDefaultChannel(activeConversation, entryMode),
         direction: getDefaultDirection(entryMode),
         ownerId: baseline.ownerId,
@@ -277,15 +248,10 @@ function buildMetaPayload(draft: RecordDraft) {
 function buildEvidenceMetadata(draft: RecordDraft): Record<string, unknown> {
     return {
         entry_mode: draft.entryMode,
-        capture_method: isPasteEntryMode(draft.entryMode) ? "paste_primary" : "typed_allowed",
-        evidence_type:
-            draft.entryMode === "customer_paste"
-                ? "external_original"
-                : draft.entryMode === "team_paste"
-                  ? "team_sent_copy"
-                  : "oral_note",
-        original_locked: isPasteEntryMode(draft.entryMode),
-        recorded_ui_version: "messenger_ledger_v1",
+        capture_method: "typed_allowed",
+        evidence_type: "user_entered_note",
+        original_locked: false,
+        recorded_ui_version: "messenger_chat_v2",
     };
 }
 
@@ -346,7 +312,7 @@ export function CommunicationRecordSheet({
     const [metaOpen, setMetaOpen] = useState(false);
     const [banner, setBanner] = useState<BannerState>(null);
     const [saving, setSaving] = useState(false);
-    const [pasteModeManualConfirmed, setPasteModeManualConfirmed] = useState(false);
+    const [savingEntryMode, setSavingEntryMode] = useState<CommunicationEntryMode | null>(null);
     const [retryingMeta, setRetryingMeta] = useState(false);
     const [metaRetryState, setMetaRetryState] = useState<MetaRetryState | null>(null);
     const [fetchedMembers, setFetchedMembers] = useState<Member[]>([]);
@@ -442,7 +408,6 @@ export function CommunicationRecordSheet({
     ].join(" / ");
 
     function updateDraft(next: Partial<RecordDraft>) {
-        setPasteModeManualConfirmed(false);
         setDraft((current) => {
             const merged = { ...current, ...next };
             const baseline =
@@ -464,18 +429,6 @@ export function CommunicationRecordSheet({
                     (merged.siteId || "") !== baseline.siteId,
             };
         });
-    }
-
-    function switchEntryMode(entryMode: CommunicationEntryMode) {
-        const channel = getDefaultChannel(activeConversationSummary, entryMode);
-        updateDraft({
-            entryMode,
-            channel,
-            direction: getDefaultDirection(entryMode),
-            body: "",
-            pasted: false,
-        });
-        setBanner(null);
     }
 
     function switchTargetKind(nextTargetKind: RecordTargetKind) {
@@ -569,7 +522,6 @@ export function CommunicationRecordSheet({
                 conversationId: nextTargetKind === "follow_up" ? current.conversationId : undefined,
                 topicTitle: "",
                 body: "",
-                pasted: false,
                 dirtyMeta:
                     (current.ownerId || "") !== baseline.ownerId ||
                     (current.nextAction || "") !== baseline.nextAction ||
@@ -577,7 +529,6 @@ export function CommunicationRecordSheet({
                     (current.siteId || "") !== baseline.siteId,
             };
         });
-        setPasteModeManualConfirmed(false);
         setMetaRetryState(null);
     }
 
@@ -603,29 +554,24 @@ export function CommunicationRecordSheet({
         }
     }
 
-    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-
+    async function saveDraft(entryMode: CommunicationEntryMode) {
         if (!draft.body.trim()) {
             setBanner({ tone: "error", message: "やりとり内容を入れてください。" });
             return;
         }
 
-        if (isPasteEntryMode(draft.entryMode) && !draft.pasted && !pasteModeManualConfirmed) {
-            setPasteModeManualConfirmed(true);
-            setBanner({
-                tone: "warning",
-                message: "これは原文コピーとして記録されます。貼り付け元の文章と同じか確認してください。",
-            });
-            return;
-        }
-
         setBanner(null);
-        const evidenceMetadata = buildEvidenceMetadata(draft);
-        const logKind = getLogKind(draft.entryMode);
+        const draftToSave: RecordDraft = {
+            ...draft,
+            entryMode,
+            channel: getDefaultChannel(activeConversationSummary, entryMode),
+            direction: getDefaultDirection(entryMode),
+        };
+        const evidenceMetadata = buildEvidenceMetadata(draftToSave);
+        const logKind = getLogKind(entryMode);
 
-        if (draft.targetKind === "follow_up") {
-            const conversationId = draft.conversationId || activeConversationSummary?.id;
+        if (draftToSave.targetKind === "follow_up") {
+            const conversationId = draftToSave.conversationId || activeConversationSummary?.id;
             if (!conversationId) {
                 setBanner({ tone: "error", message: "続きとして記録する話を選んでください。" });
                 return;
@@ -633,24 +579,25 @@ export function CommunicationRecordSheet({
 
             try {
                 setSaving(true);
+                setSavingEntryMode(entryMode);
                 await addCommunicationLog(conversationId, {
-                    channel: draft.channel,
-                    direction: draft.direction,
-                    body: draft.body.trim(),
-                    participant_name: draft.partnerName || null,
-                    participant_email: draft.partnerEmail || null,
+                    channel: draftToSave.channel,
+                    direction: draftToSave.direction,
+                    body: draftToSave.body.trim(),
+                    participant_name: draftToSave.partnerName || null,
+                    participant_email: draftToSave.partnerEmail || null,
                     log_kind: logKind,
                     metadata: evidenceMetadata,
                 });
 
-                if (draft.dirtyMeta) {
-                    const payload = buildMetaPayload(draft);
+                if (draftToSave.dirtyMeta) {
+                    const payload = buildMetaPayload(draftToSave);
                     try {
                         await updateCommunicationConversation(conversationId, payload);
                         await notifySaved({
                             contactKey: buildContactKey(
-                                draft.partnerName,
-                                draft.partnerEmail,
+                                draftToSave.partnerName,
+                                draftToSave.partnerEmail,
                                 activeConversationSummary?.client_name || contactSeed?.clientName,
                             ),
                             conversationId,
@@ -662,8 +609,8 @@ export function CommunicationRecordSheet({
                         setDraft((current) => ({ ...current, body: "" }));
                         await notifySaved({
                             contactKey: buildContactKey(
-                                draft.partnerName,
-                                draft.partnerEmail,
+                                draftToSave.partnerName,
+                                draftToSave.partnerEmail,
                                 activeConversationSummary?.client_name || contactSeed?.clientName,
                             ),
                             conversationId,
@@ -676,8 +623,8 @@ export function CommunicationRecordSheet({
                 } else {
                     await notifySaved({
                         contactKey: buildContactKey(
-                            draft.partnerName,
-                            draft.partnerEmail,
+                            draftToSave.partnerName,
+                            draftToSave.partnerEmail,
                             activeConversationSummary?.client_name || contactSeed?.clientName,
                         ),
                         conversationId,
@@ -689,6 +636,7 @@ export function CommunicationRecordSheet({
                 setBanner({ tone: "error", message: getErrorMessage(requestError) });
             } finally {
                 setSaving(false);
+                setSavingEntryMode(null);
             }
 
             return;
@@ -696,25 +644,26 @@ export function CommunicationRecordSheet({
 
         try {
             setSaving(true);
+            setSavingEntryMode(entryMode);
             const created = await createCommunicationConversation({
-                title: generateTopicTitle(draft),
-                channel: draft.channel,
-                direction: draft.direction,
-                body: draft.body.trim(),
-                assignee_user_id: draft.ownerId || null,
-                site_id: draft.siteId || null,
-                next_action: draft.nextAction || null,
-                next_action_due_date: draft.dueDate || null,
-                participant_name: draft.partnerName || null,
-                participant_email: draft.partnerEmail || null,
+                title: generateTopicTitle(draftToSave),
+                channel: draftToSave.channel,
+                direction: draftToSave.direction,
+                body: draftToSave.body.trim(),
+                assignee_user_id: draftToSave.ownerId || null,
+                site_id: draftToSave.siteId || null,
+                next_action: draftToSave.nextAction || null,
+                next_action_due_date: draftToSave.dueDate || null,
+                participant_name: draftToSave.partnerName || null,
+                participant_email: draftToSave.partnerEmail || null,
                 log_kind: logKind,
                 metadata: evidenceMetadata,
             });
 
             await notifySaved({
                 contactKey: buildContactKey(
-                    draft.partnerName,
-                    draft.partnerEmail,
+                    draftToSave.partnerName,
+                    draftToSave.partnerEmail,
                     created.conversation.client_name || contactSeed?.clientName,
                 ),
                 conversationId: created.conversation.id,
@@ -732,13 +681,14 @@ export function CommunicationRecordSheet({
             setBanner({ tone: "error", message: getErrorMessage(requestError) });
         } finally {
             setSaving(false);
+            setSavingEntryMode(null);
         }
     }
 
-    const modeConfig = ENTRY_MODE_CONFIG[draft.entryMode];
-    const ModeIcon = modeConfig.icon;
-    const pasteMode = isPasteEntryMode(draft.entryMode);
-    const submitLabel = saving ? "記録中..." : pasteModeManualConfirmed ? "このまま記録" : modeConfig.cta;
+    function handleSubmit(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        void saveDraft(draft.entryMode);
+    }
 
     return (
         <AnimatePresence>
@@ -881,90 +831,32 @@ export function CommunicationRecordSheet({
                             ) : (
                                 <>
                                     <section className={styles.modeCard}>
-                                        <div className={styles.modeGrid} role="tablist" aria-label="記録の種類">
-                                            {(Object.keys(ENTRY_MODE_CONFIG) as CommunicationEntryMode[]).map((entryMode) => {
-                                                const config = ENTRY_MODE_CONFIG[entryMode];
-                                                const EntryIcon = config.icon;
-                                                const selected = draft.entryMode === entryMode;
-                                                return (
-                                                    <button
-                                                        key={entryMode}
-                                                        type="button"
-                                                        role="tab"
-                                                        aria-selected={selected}
-                                                        className={`${styles.modeOption} ${selected ? styles.modeOptionActive : ""} ${
-                                                            styles[config.toneClass]
-                                                        }`}
-                                                        onClick={() => switchEntryMode(entryMode)}
-                                                    >
-                                                        <EntryIcon size={18} />
-                                                        <span>{config.label}</span>
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-
-                                        <div className={`${styles.entryPanel} ${styles[modeConfig.toneClass]}`}>
+                                        <div className={styles.entryPanel}>
                                             <div className={styles.entryPanelHeader}>
                                                 <div>
                                                     <span className={styles.entryBadge}>
-                                                        <ModeIcon size={14} />
-                                                        {modeConfig.badge}
+                                                        <MessageSquare size={14} />
+                                                        連絡記録
                                                     </span>
-                                                    <h3>{modeConfig.shortLabel}</h3>
-                                                    <p>{modeConfig.description}</p>
+                                                    <h3>内容を書く</h3>
+                                                    <p>原文コピーとは言い切らず、入力した連絡メモとして残します。</p>
                                                 </div>
                                             </div>
 
                                             <label className={styles.field}>
-                                                <span>{modeConfig.bodyLabel}</span>
+                                                <span>内容</span>
                                                 <textarea
                                                     ref={bodyRef}
                                                     rows={6}
                                                     value={draft.body}
-                                                    onPaste={() => updateDraft({ pasted: true })}
                                                     onChange={(event) => updateDraft({ body: event.target.value })}
-                                                    placeholder={modeConfig.placeholder}
+                                                    placeholder="話したこと・送ったこと・受け取ったことを書く"
                                                     aria-describedby="communication-entry-helper"
                                                 />
                                             </label>
                                             <p id="communication-entry-helper" className={styles.entryHelper}>
-                                                {pasteMode
-                                                    ? draft.pasted
-                                                        ? "貼り付けを検知しました。原文コピーとして残します。"
-                                                        : "貼り付けを主導線にしています。手入力した場合は保存前に確認します。"
-                                                    : "電話・現場会話だけは手入力できます。原文ではなく聞き取り記録として残ります。"}
+                                                下のボタンで、メッセージ・電話・会話のどれとして記録するか選びます。
                                             </p>
-
-                                            <div className={styles.inlineGrid}>
-                                                {pasteMode ? (
-                                                    <label className={styles.field}>
-                                                        <span>貼り付け元</span>
-                                                        <select
-                                                            value={draft.channel}
-                                                            onChange={(event) =>
-                                                                updateDraft({
-                                                                    channel: event.target.value as Exclude<CommunicationChannel, "system">,
-                                                                })
-                                                            }
-                                                        >
-                                                            <option value="line">LINE</option>
-                                                            <option value="gmail">メール</option>
-                                                            <option value="sms">SMS</option>
-                                                            <option value="manual">その他</option>
-                                                        </select>
-                                                    </label>
-                                                ) : (
-                                                    <div className={styles.lockedMeta}>
-                                                        <span>記録種別</span>
-                                                        <strong>{draft.entryMode === "phone_note" ? "電話" : "現場会話"}</strong>
-                                                    </div>
-                                                )}
-                                                <div className={styles.lockedMeta}>
-                                                    <span>扱い</span>
-                                                    <strong>{modeConfig.badge}</strong>
-                                                </div>
-                                            </div>
                                         </div>
                                     </section>
 
@@ -1074,22 +966,32 @@ export function CommunicationRecordSheet({
                                 <div className={styles.footerNote}>
                                     {draft.dirtyMeta
                                         ? "担当と次の動きも更新します。"
-                                        : `${modeConfig.badge}として本文だけ先に記録します。`}
+                                        : "本文だけ先に記録します。"}
                                 </div>
                                 <div className={styles.footerActions}>
                                     <button type="button" className={styles.secondaryButton} onClick={onClose}>
                                         閉じる
                                     </button>
-                                    <button
-                                        type="submit"
-                                        className={styles.primaryButton}
-                                        disabled={
+                                    {(Object.keys(ENTRY_MODE_CONFIG) as CommunicationEntryMode[]).map((entryMode) => {
+                                        const config = ENTRY_MODE_CONFIG[entryMode];
+                                        const EntryIcon = config.icon;
+                                        const disabled =
                                             saving ||
-                                            (draft.targetKind === "follow_up" && !activeConversationSummary && !draft.conversationId)
-                                        }
-                                    >
-                                        {submitLabel}
-                                    </button>
+                                            (draft.targetKind === "follow_up" && !activeConversationSummary && !draft.conversationId);
+                                        return (
+                                            <button
+                                                key={entryMode}
+                                                type="button"
+                                                className={`${styles.primaryButton} ${styles.sendModeButton} ${styles[config.toneClass]}`}
+                                                disabled={disabled}
+                                                onClick={() => void saveDraft(entryMode)}
+                                                aria-label={`${config.label}として記録`}
+                                            >
+                                                <EntryIcon size={16} />
+                                                {saving && savingEntryMode === entryMode ? "記録中..." : config.cta}
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         </form>

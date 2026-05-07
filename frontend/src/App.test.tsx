@@ -118,6 +118,7 @@ describe("App entry gate", () => {
         vi.clearAllMocks();
         authStateCallback = null;
         window.localStorage.clear();
+        document.cookie = "genba_quest_dev_auth_session=; Path=/; Max-Age=0";
         useActiveOrgStore.setState({ activeOrgId: null, options: [] });
 
         fetchPathForms.mockResolvedValue({ forms: [] });
@@ -165,6 +166,7 @@ describe("App entry gate", () => {
 
     afterEach(() => {
         window.localStorage.clear();
+        document.cookie = "genba_quest_dev_auth_session=; Path=/; Max-Age=0";
     });
 
     it("renders system bootstrap and does not mount app shell when entry state is needs_system_bootstrap", async () => {
@@ -660,5 +662,22 @@ describe("App entry gate", () => {
         expect(signUp).not.toHaveBeenCalled();
         expect(resetPasswordForEmail).not.toHaveBeenCalled();
         expect(updateUser).not.toHaveBeenCalled();
+    });
+
+    it("restores local development auth from the dev auth cookie", async () => {
+        getSession.mockResolvedValue({ data: { session: null } });
+        fetchAppEntryState.mockResolvedValue({
+            state: "ready",
+            active_org: { org_id: "org-1", org_name: "GENBA 本部", role: "admin" },
+            memberships: [{ org_id: "org-1", org_name: "GENBA 本部", role: "admin" }],
+        });
+        document.cookie = "genba_quest_dev_auth_session=true; Path=/";
+
+        render(<App />);
+
+        expect(await screen.findByText("today-page")).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "開発用ユーザーで入る" })).not.toBeInTheDocument();
+        expect(signInWithOtp).not.toHaveBeenCalled();
+        expect(signInWithPassword).not.toHaveBeenCalled();
     });
 });

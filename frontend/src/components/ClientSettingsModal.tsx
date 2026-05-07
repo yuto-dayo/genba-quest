@@ -32,6 +32,7 @@ import styles from "./ClientSettingsModal.module.css";
 
 interface ClientSettingsModalProps {
     client?: Client | null;
+    initialClient?: Partial<CreateClientRequest> | null;
     onClose: () => void;
     onSaved: (client: Client) => void | Promise<void>;
     onDeleted: (clientId: string) => void | Promise<void>;
@@ -60,9 +61,13 @@ const emptyClientForm: ClientFormState = {
     invoice_notes_default: "",
 };
 
-function toClientForm(client: Client | null): ClientFormState {
+function toClientForm(client: Client | null, initialClient?: Partial<CreateClientRequest> | null): ClientFormState {
     if (!client) {
-        return { ...emptyClientForm };
+        return {
+            ...emptyClientForm,
+            ...initialClient,
+            billing_name: initialClient?.billing_name || initialClient?.name || "",
+        };
     }
 
     const primaryAddress = getClientPrimaryAddress(client);
@@ -130,12 +135,13 @@ function fileToBase64(file: File): Promise<string> {
 
 export function ClientSettingsModal({
     client,
+    initialClient,
     onClose,
     onSaved,
     onDeleted,
 }: ClientSettingsModalProps) {
     const isEdit = Boolean(client);
-    const [form, setForm] = useState<ClientFormState>(() => toClientForm(client || null));
+    const [form, setForm] = useState<ClientFormState>(() => toClientForm(client || null, initialClient));
     const [billingSameAsPrimary, setBillingSameAsPrimary] = useState(true);
     const [saving, setSaving] = useState(false);
     const [deleting, setDeleting] = useState(false);
@@ -148,7 +154,7 @@ export function ClientSettingsModal({
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        const nextForm = toClientForm(client || null);
+        const nextForm = toClientForm(client || null, initialClient);
         const primaryAddress = getPrimaryAddress(nextForm);
         const billingAddress = getBillingAddress(nextForm);
 
@@ -161,7 +167,7 @@ export function ClientSettingsModal({
         setDeleteReason("");
         setError(null);
         setDeleteError(null);
-    }, [client]);
+    }, [client, initialClient]);
 
     useEffect(() => {
         if (!billingSameAsPrimary) {

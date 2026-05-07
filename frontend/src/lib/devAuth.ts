@@ -41,6 +41,7 @@ export const DEV_AUTH_USER_OPTIONS: DevAuthUserOption[] = [
 
 export const DEV_AUTH_USER_STORAGE_KEY = "genba-quest.dev-user-key";
 export const DEV_AUTH_SESSION_STORAGE_KEY = "genba-quest.dev-auth-session";
+const DEV_AUTH_SESSION_COOKIE_NAME = "genba_quest_dev_auth_session";
 
 function isKnownDevAuthUserKey(value: string | null): value is DevAuthUserKey {
     return DEV_AUTH_USER_OPTIONS.some((option) => option.key === value);
@@ -77,7 +78,13 @@ export function isDevAuthSessionActive(): boolean {
         return false;
     }
 
-    return window.localStorage.getItem(DEV_AUTH_SESSION_STORAGE_KEY) === "true";
+    return (
+        window.localStorage.getItem(DEV_AUTH_SESSION_STORAGE_KEY) === "true" ||
+        document.cookie
+            .split(";")
+            .map((cookie) => cookie.trim())
+            .some((cookie) => cookie === `${DEV_AUTH_SESSION_COOKIE_NAME}=true`)
+    );
 }
 
 export function setDevAuthSessionActive(): void {
@@ -86,6 +93,7 @@ export function setDevAuthSessionActive(): void {
     }
 
     window.localStorage.setItem(DEV_AUTH_SESSION_STORAGE_KEY, "true");
+    document.cookie = `${DEV_AUTH_SESSION_COOKIE_NAME}=true; Path=/; SameSite=Lax; Max-Age=2592000`;
 }
 
 export function clearDevAuthSession(): void {
@@ -94,4 +102,5 @@ export function clearDevAuthSession(): void {
     }
 
     window.localStorage.removeItem(DEV_AUTH_SESSION_STORAGE_KEY);
+    document.cookie = `${DEV_AUTH_SESSION_COOKIE_NAME}=; Path=/; SameSite=Lax; Max-Age=0`;
 }

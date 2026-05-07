@@ -416,6 +416,13 @@
     box-shadow: 0 18px 32px rgba(13, 148, 136, 0.22);
 }
 
+.sendModeButton {
+    min-width: 108px;
+    color: #153b37;
+    border: 1px solid rgba(15, 118, 110, 0.14);
+    box-shadow: none;
+}
+
 .secondaryButton {
     border: 1px solid rgba(15, 118, 110, 0.16);
     color: #13564f;
@@ -461,5 +468,17 @@
 
     .footerActions {
         grid-auto-flow: row;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .sendModeButton {
+        order: 1;
+        min-width: 0;
+        padding: 0 10px;
+    }
+
+    .footerActions .secondaryButton {
+        order: 2;
+        grid-column: 1 / -1;
     }
 }

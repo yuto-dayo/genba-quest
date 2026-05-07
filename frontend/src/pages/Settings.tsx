@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
+    bootstrapOrg,
     fetchClients,
     fetchInvoiceSettings,
     fetchMembers,
@@ -38,6 +39,7 @@ import {
 } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
 import { supabase } from "../lib/supabase";
+import { useActiveOrgStore, type ActiveOrgOption } from "../stores/activeOrg";
 import { InvoiceSettingsModal } from "../components/InvoiceSettingsModal";
 import { ClientSettingsModal } from "../components/ClientSettingsModal";
 import styles from "./Settings.module.css";
@@ -187,7 +189,25 @@ function formatSkillKeyLabel(value: string) {
     return value.replaceAll("_", " ");
 }
 
-type SettingPanel = "profile" | "invoice" | "clients";
+type SettingPanel = "profile" | "organization" | "invoice" | "clients";
+
+function formatOrgCreateError(error: unknown) {
+    const message = getErrorMessage(error);
+
+    if (message === "ORG_BOOTSTRAP_FORBIDDEN") {
+        return "このアカウントでは組織を作成できません。";
+    }
+
+    if (message === "ORG_BOOTSTRAP_NAME_REQUIRED") {
+        return "組織名を入力してください。";
+    }
+
+    if (message === "ORG_BOOTSTRAP_SLUG_CONFLICT") {
+        return "そのslugは使われています。別のslugにしてください。";
+    }
+
+    return message;
+}
 
 export function Settings() {
     const [loading, setLoading] = useState(true);
@@ -211,6 +231,15 @@ export function Settings() {
     const [isSkillFinderOpen, setIsSkillFinderOpen] = useState(false);
     const [settingsQuery, setSettingsQuery] = useState("");
     const [selectedSetting, setSelectedSetting] = useState<SettingPanel | null>(null);
+    const [orgName, setOrgName] = useState("");
+    const [orgSlug, setOrgSlug] = useState("");
+    const [orgCreateBusy, setOrgCreateBusy] = useState(false);
+    const [orgCreateError, setOrgCreateError] = useState<string | null>(null);
+    const [orgCreateMessage, setOrgCreateMessage] = useState<string | null>(null);
+    const activeOrgId = useActiveOrgStore((state) => state.activeOrgId);
+    const orgOptions = useActiveOrgStore((state) => state.options);
+    const setOrgOptions = useActiveOrgStore((state) => state.setOptions);
+    const setActiveOrgId = useActiveOrgStore((state) => state.setActiveOrgId);
 
     const loadPage = async () => {
         try {
@@ -301,6 +330,7 @@ export function Settings() {
     const currentInvoiceStatus = invoiceSettings
         ? statusMeta[invoiceSettings.invoice_issuer_status]
         : statusMeta.unregistered;
+    const activeOrg = orgOptions.find((option) => option.org.id === activeOrgId) || null;
     const displayName = currentMember?.full_name || currentMember?.username || "未設定";
     const currentMonth = currentMonthValue();
     const currentLevel = currentFinalization?.current_level || currentProfile?.current_level;
@@ -349,6 +379,13 @@ export function Settings() {
             icon: <FileText size={20} />,
         },
         {
+            id: "organization" as const,
+            group: "組織",
+            title: "組織",
+            summary: activeOrg?.org.name || "表示中の組織",
+            icon: <Building2 size={20} />,
+        },
+        {
             id: "clients" as const,
             group: "組織",
             title: "取引先",
@@ -365,6 +402,49 @@ export function Settings() {
     });
 
     const selectedSettingMeta = allSettingItems.find((item) => item.id === selectedSetting);
+    const orgCreateDisabled = orgCreateBusy || orgName.trim().length === 0;
+
+    const handleCreateOrg = async () => {
+        try {
+            setOrgCreateBusy(true);
+            setOrgCreateError(null);
+            setOrgCreateMessage(null);
+
+            const result = await bootstrapOrg({
+                name: orgName,
+                slug: orgSlug || null,
+            });
+
+            const nextOption: ActiveOrgOption = {
+                org: {
+                    id: result.active_org.id,
+                    name: result.active_org.name,
+                    slug: result.active_org.slug,
+                    status: result.active_org.status,
+                },
+                membership: {
+                    org_id: result.membership.org_id,
+                    user_id: result.membership.user_id,
+                    role: result.membership.role,
+                    status: result.membership.status,
+                },
+            };
+            const currentOptions = useActiveOrgStore.getState().options;
+            setOrgOptions([
+                ...currentOptions.filter((option) => option.org.id !== result.active_org.id),
+                nextOption,
+            ]);
+            setActiveOrgId(result.active_org.id);
+            setOrgName("");
+            setOrgSlug("");
+            setOrgCreateMessage(`${result.active_org.name} に切り替えました。`);
+            await loadPage();
+        } catch (error: unknown) {
+            setOrgCreateError(formatOrgCreateError(error));
+        } finally {
+            setOrgCreateBusy(false);
+        }
+    };
 
     if (loading) {
         return (
@@ -698,6 +778,102 @@ export function Settings() {
                                     <div className={styles.previewMeta}>
                                         <span>{invoiceSettings?.issuer_address || "住所未設定"}</span>
                                         <span>{invoiceSettings?.bank_account_text || "振込先未設定"}</span>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+
+                        {selectedSetting === "organization" && (
+                            <>
+                                <div className={styles.orgCurrentPanel}>
+                                    <div>
+                                        <span className={styles.infoLabel}>表示中</span>
+                                        <strong>{activeOrg?.org.name || "組織未選択"}</strong>
+                                        <p>{activeOrg?.membership.role === "admin" ? "admin" : "member"}</p>
+                                    </div>
+                                    <span className={styles.statusChip}>
+                                        {orgOptions.length}組織
+                                    </span>
+                                </div>
+
+                                <div className={styles.infoCard}>
+                                    <div className={styles.infoCardHeader}>
+                                        <div>
+                                            <h3 className={styles.infoCardTitle}>新しい組織</h3>
+                                            <p className={styles.infoCardDescription}>
+                                                作成後、このアカウントがadminとして所属します。
+                                            </p>
+                                        </div>
+                                        <Building2 size={18} className={styles.infoCardIcon} />
+                                    </div>
+
+                                    <div className={styles.orgCreateForm}>
+                                        <label className={styles.inputField}>
+                                            <span>組織名</span>
+                                            <input
+                                                value={orgName}
+                                                onChange={(event) => {
+                                                    setOrgName(event.target.value);
+                                                    setOrgCreateError(null);
+                                                }}
+                                                placeholder="例: 新会社"
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>slug（任意）</span>
+                                            <input
+                                                value={orgSlug}
+                                                onChange={(event) => {
+                                                    setOrgSlug(event.target.value);
+                                                    setOrgCreateError(null);
+                                                }}
+                                                placeholder="例: new-company"
+                                            />
+                                        </label>
+
+                                        {orgCreateError && <p className={styles.formError}>{orgCreateError}</p>}
+                                        {orgCreateMessage && <p className={styles.successMessage}>{orgCreateMessage}</p>}
+
+                                        <button
+                                            type="button"
+                                            className={styles.primaryButton}
+                                            onClick={() => void handleCreateOrg()}
+                                            disabled={orgCreateDisabled}
+                                            aria-busy={orgCreateBusy}
+                                        >
+                                            {orgCreateBusy ? <Loader2 size={16} className={styles.spinner} /> : <Plus size={16} />}
+                                            作成
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className={styles.infoCard}>
+                                    <div className={styles.infoCardHeader}>
+                                        <div>
+                                            <h3 className={styles.infoCardTitle}>参加中</h3>
+                                        </div>
+                                    </div>
+                                    <div className={styles.orgList}>
+                                        {orgOptions.map((option) => (
+                                            <button
+                                                key={option.org.id}
+                                                type="button"
+                                                className={`${styles.orgListItem} ${
+                                                    option.org.id === activeOrgId ? styles.orgListItemActive : ""
+                                                }`}
+                                                onClick={() => {
+                                                    setActiveOrgId(option.org.id);
+                                                    setOrgCreateMessage(`${option.org.name} に切り替えました。`);
+                                                    void loadPage();
+                                                }}
+                                            >
+                                                <span>
+                                                    <strong>{option.org.name}</strong>
+                                                    <small>{option.membership.role}</small>
+                                                </span>
+                                                {option.org.id === activeOrgId && <BadgeCheck size={18} />}
+                                            </button>
+                                        ))}
                                     </div>
                                 </div>
                             </>

@@ -202,6 +202,7 @@ export interface CommunicationContactWhyNowItem {
 
 export interface CommunicationContactStatusRecord {
   contact_key: string;
+  client_id: string | null;
   client_name: string | null;
   contact_name: string | null;
   contact_email: string | null;
@@ -993,6 +994,7 @@ function buildContactAggregate(
 
   const summary: CommunicationContactStatusRecord = {
     contact_key: contactKey,
+    client_id: rollupSiteClientId,
     client_name: relevantValues.client_name || latestNonNullClientName,
     contact_name: relevantValues.contact_name || latestNonNullContactName,
     contact_email: relevantValues.contact_email || latestNonNullContactEmail,

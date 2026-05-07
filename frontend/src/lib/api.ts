@@ -735,6 +735,7 @@ export type CommunicationStatusReasonSource =
 
 export interface CommunicationContactStatusRecord {
     contact_key: string;
+    client_id: string | null;
     client_name: string | null;
     contact_name: string | null;
     contact_email: string | null;
