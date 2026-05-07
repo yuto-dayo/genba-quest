@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `If record sheet remains for advanced entry, consider aligning its speaker/direction handling with inline composer`
+- NEXT_CMD: `必要ならこの未コミット差分をまとめてコミット/プッシュする`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/local.md`
@@ -13,7 +13,7 @@
   - `sed -n '1,120p' docs/DESIGN_PHILOSOPHY.md`
 - STATE:
   - Branch: `master`
-  - Uncommitted: `20 files`
+  - Uncommitted: `8 files`
   - DB migrations: `latest local: none found`
   - Tests: `not run yet`
   - Lint: `not run yet`
@@ -23,7 +23,7 @@
 ## Session Events (audit log)
 
 <!-- HANDOFF_SESSION_EVENTS_START -->
-- 2026-05-07 23:30:21 +0900 — started by codex
+- 2026-05-07 23:53:22 +0900 — started by codex
 <!-- HANDOFF_SESSION_EVENTS_END -->
 
 ---
@@ -71,7 +71,7 @@ Branch: master
 Phase: A-0/A-1
 ```
 
-> [carryover] Working tree was dirty at session start (20 files). Prior session may have unfinished work — verify NEXT_CMD before executing.
+> [carryover] Working tree was dirty at session start (8 files). Prior session may have unfinished work — verify NEXT_CMD before executing.
 
 1. `docs/DESIGN_PHILOSOPHY.md` の冒頭を確認
 2. このファイルを更新しながら実装を進める
@@ -93,7 +93,7 @@ Phase: A-0/A-1
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: If record sheet remains for advanced entry, consider aligning its speaker/direction handling with inline composer
+- [ ] **P0**: 必要ならこの未コミット差分をまとめてコミット/プッシュする
 - [ ] **P1**: 次の優先タスクを記載
 
 ---
@@ -103,24 +103,12 @@ Phase: A-0/A-1
 | File | What Changed |
 | ---- | ------------ |
 | `HANDOFF.md` | [dirty: M] |
-| `frontend/src/App.test.tsx` | [dirty: M] |
-| `frontend/src/components/ClientSettingsModal.tsx` | [dirty: M] |
-| `frontend/src/components/CommunicationRecordSheet.module.css` | [dirty: M] |
-| `frontend/src/components/CommunicationRecordSheet.tsx` | [dirty: M] |
-| `frontend/src/lib/api.ts` | [dirty: M] |
-| `frontend/src/lib/devAuth.ts` | [dirty: M] |
 | `frontend/src/pages/Communications.module.css` | [dirty: M] |
 | `frontend/src/pages/Communications.test.tsx` | [dirty: M] |
 | `frontend/src/pages/Communications.tsx` | [dirty: M] |
-| `frontend/src/pages/Settings.module.css` | [dirty: M] |
-| `frontend/src/pages/Settings.tsx` | [dirty: M] |
+| `handoff/deploy/production.md` | [dirty: M] |
 | `handoff/frontend/today-count-cleanup.md` | [dirty: M] |
 | `handoff/local.md` | [dirty: MM] |
-| `server/.env.example` | [dirty: M] |
-| `server/src/__tests__/unit/appEntryRoute.test.ts` | [dirty: M] |
-| `server/src/__tests__/unit/orgRoute.test.ts` | [dirty: M] |
-| `server/src/services/AppEntryService.ts` | [dirty: M] |
-| `server/src/services/communication-contact-read-model.ts` | [dirty: M] |
 | `handoff/frontend/local-app.md` | [dirty: ??] |
 
 ---

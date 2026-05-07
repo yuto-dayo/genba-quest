@@ -1694,18 +1694,6 @@
         color: #fff;
     }
 
-    .mobileTalkActionButton:first-child::after,
-    .mobileTalkActionButton:nth-child(2)::after {
-        content: "";
-        position: absolute;
-        top: -1px;
-        right: -1px;
-        width: 5px;
-        height: 5px;
-        border-radius: 999px;
-        background: #2fce63;
-    }
-
     .clientCategoryRail {
         display: flex;
         gap: 8px;

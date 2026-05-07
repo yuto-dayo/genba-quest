@@ -19,7 +19,6 @@ import {
     ScanLine,
     Search,
     SendHorizontal,
-    SmilePlus,
     Sparkles,
     UserCircle2,
     Users,
@@ -27,12 +26,11 @@ import {
 import {
     addCommunicationLog,
     approveProposal,
+    createCommunicationConversation,
     executeProposal,
     fetchClients,
     fetchCommunicationContactDetail,
     fetchCommunicationContacts,
-    fetchMembers,
-    fetchSites,
     instructProposal,
     rejectProposal,
     restoreClient,
@@ -45,13 +43,10 @@ import {
     type CommunicationContactStatusDetail,
     type CommunicationContactStatusRecord,
     type CreateClientRequest,
-    type Member,
     type ProposalRecord,
-    type Site,
 } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
 import { ClientSettingsModal } from "../components/ClientSettingsModal";
-import { CommunicationRecordSheet, type CommunicationRecordSheetSaveResult } from "../components/CommunicationRecordSheet";
 import { ProposalDetailModal } from "../components/ProposalDetailModal";
 import styles from "./Communications.module.css";
 
@@ -93,6 +88,11 @@ interface ClientDirectoryItem {
     client?: Client;
     contact?: CommunicationContactStatusRecord;
     initialClient?: Partial<CreateClientRequest>;
+}
+
+interface RecordSavedResult {
+    contactKey: string | null;
+    conversationId: string | null;
 }
 
 const CLIENT_DIRECTORY_FILTERS: Array<{ value: ClientDirectoryFilter; label: string }> = [
@@ -312,6 +312,70 @@ function buildContactSubtitle(contact: CommunicationContactStatusRecord, client?
         return companyName;
     }
     return contact.contact_email || client?.email || "取引先未設定";
+}
+
+function buildClientTalkContactKey(clientId: string): string {
+    return `client:${clientId}`;
+}
+
+function isClientTalkContactKey(contactKey: string): boolean {
+    return contactKey.startsWith("client:");
+}
+
+function getClientIdFromTalkContactKey(contactKey: string): string {
+    return contactKey.replace(/^client:/, "");
+}
+
+function buildClientTalkContact(client: Client): CommunicationContactStatusRecord {
+    return {
+        contact_key: buildClientTalkContactKey(client.id),
+        client_id: client.id,
+        client_name: client.name,
+        contact_name: client.contact_person || client.email || client.name,
+        contact_email: client.email || null,
+        owner: null,
+        status: "needs_review",
+        risk_flags: [],
+        waiting_on: "none",
+        attention_score: 0,
+        status_reason: "まだ会話はありません",
+        status_reason_source: "none",
+        evidence_excerpt: null,
+        latest_activity_at: null,
+        last_external_activity_at: null,
+        days_since_latest_activity: null,
+        last_inbound_at: null,
+        last_outbound_at: null,
+        days_since_client_response: null,
+        next_action: null,
+        next_action_due_date: null,
+        has_next_action: false,
+        relevant_conversation_id: null,
+        site: null,
+        conversation_count: 0,
+        open_conversation_count: 0,
+        in_flight_proposal_count: 0,
+    };
+}
+
+function buildClientTalkDetail(client: Client): CommunicationContactStatusDetail {
+    return {
+        summary: buildClientTalkContact(client),
+        why_now: [],
+        related_proposals: [],
+        conversations: [],
+        recent_logs: [],
+        default_conversation_id: null,
+    };
+}
+
+function buildConversationTitleFromSummary(summary: CommunicationContactStatusRecord): string {
+    const person = summary.contact_name || summary.contact_email || "担当未設定";
+    const company = summary.client_name;
+    if (company && company !== person) {
+        return `${person} / ${company}`;
+    }
+    return person;
 }
 
 function buildClientAddress(client: Client): string {
@@ -642,16 +706,12 @@ export function Communications() {
     const [searchParams] = useSearchParams();
     const proposalQuery = searchParams.get("proposal");
     const [contacts, setContacts] = useState<CommunicationContactStatusRecord[]>([]);
-    const [totalCount, setTotalCount] = useState(0);
     const [clients, setClients] = useState<Client[]>([]);
     const [deletedClients, setDeletedClients] = useState<Client[]>([]);
     const [selectedContactKey, setSelectedContactKey] = useState<string | null>(null);
     const [selectedClientKey, setSelectedClientKey] = useState<string | null>(null);
     const [detail, setDetail] = useState<CommunicationContactStatusDetail | null>(null);
     const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
-    const [members, setMembers] = useState<Member[]>([]);
-    const [sites, setSites] = useState<Site[]>([]);
-    const [recordSheetOpen, setRecordSheetOpen] = useState(false);
     const [composeBody, setComposeBody] = useState("");
     const [composeSpeaker, setComposeSpeaker] = useState<ChatComposeSpeaker>("client");
     const [composeError, setComposeError] = useState<string | null>(null);
@@ -720,6 +780,32 @@ export function Communications() {
         });
 
         return items;
+    }, [clients, contacts]);
+    const talkContacts = useMemo<CommunicationContactStatusRecord[]>(() => {
+        const representedClientIds = new Set(contacts.map((contact) => contact.client_id).filter(Boolean));
+        const representedEmails = new Set(contacts.map((contact) => normalizeMatchValue(contact.contact_email)).filter(Boolean));
+        const representedNames = new Set(
+            contacts
+                .flatMap((contact) => [contact.contact_name, contact.client_name])
+                .map((value) => normalizeMatchValue(value))
+                .filter(Boolean),
+        );
+        const clientContacts = clients
+            .filter((client) => {
+                if (representedClientIds.has(client.id)) {
+                    return false;
+                }
+                const email = normalizeMatchValue(client.email);
+                if (email && representedEmails.has(email)) {
+                    return false;
+                }
+                const person = normalizeMatchValue(client.contact_person);
+                const name = normalizeMatchValue(client.name);
+                return !(person && representedNames.has(person)) && !(name && representedNames.has(name));
+            })
+            .map(buildClientTalkContact);
+
+        return [...contacts, ...clientContacts];
     }, [clients, contacts]);
     const deletedClientItems = useMemo<ClientDirectoryItem[]>(
         () =>
@@ -807,7 +893,6 @@ export function Communications() {
                 pageSize: 200,
             });
             setContacts(response.items);
-            setTotalCount(response.total_count);
             setSelectedContactKey((current) => {
                 const candidate = keepSelectedKey ?? current;
                 if (candidate && response.items.some((item) => item.contact_key === candidate)) {
@@ -817,7 +902,6 @@ export function Communications() {
             });
         } catch (requestError: unknown) {
             setContacts([]);
-            setTotalCount(0);
             setSelectedContactKey(null);
             setError(getErrorMessage(requestError));
         } finally {
@@ -872,15 +956,13 @@ export function Communications() {
     }, [refreshClientDirectory]);
 
     useEffect(() => {
-        void Promise.all([fetchMembers(), fetchSites()])
-            .then(([memberData, siteData]) => {
-                setMembers(memberData);
-                setSites(siteData);
-            })
-            .catch((requestError) => {
-                console.error("failed to load communication references:", requestError);
-            });
-    }, []);
+        setSelectedContactKey((current) => {
+            if (current && talkContacts.some((contact) => contact.contact_key === current)) {
+                return current;
+            }
+            return talkContacts[0]?.contact_key || null;
+        });
+    }, [talkContacts]);
 
     useEffect(() => {
         if (!selectedContactKey) {
@@ -889,8 +971,21 @@ export function Communications() {
             setMobileChatOpen(false);
             return;
         }
+        if (isClientTalkContactKey(selectedContactKey)) {
+            const client = clients.find((candidate) => candidate.id === getClientIdFromTalkContactKey(selectedContactKey));
+            if (!client) {
+                setDetail(null);
+                setActiveConversationId(null);
+                return;
+            }
+            setDetail(buildClientTalkDetail(client));
+            setActiveConversationId(null);
+            setDetailError(null);
+            setDetailLoading(false);
+            return;
+        }
         void loadDetail(selectedContactKey);
-    }, [loadDetail, selectedContactKey]);
+    }, [clients, loadDetail, selectedContactKey]);
 
     useEffect(() => {
         setComposeBody("");
@@ -932,13 +1027,13 @@ export function Communications() {
 
     async function handleRefresh() {
         await Promise.all([refreshContacts(selectedContactKey), refreshClientDirectory()]);
-        if (selectedContactKey) {
+        if (selectedContactKey && !isClientTalkContactKey(selectedContactKey)) {
             await loadDetail(selectedContactKey);
         }
     }
 
     const handleRecordSaved = useCallback(
-        async ({ contactKey, conversationId }: CommunicationRecordSheetSaveResult) => {
+        async ({ contactKey, conversationId }: RecordSavedResult) => {
             const nextContactKey = contactKey || selectedContactKey;
 
             try {
@@ -959,8 +1054,8 @@ export function Communications() {
 
     const handleInlineRecord = useCallback(
         async (mode: ChatComposeMode) => {
-            if (!activeConversation) {
-                setComposeError("先に会話を選んでください。");
+            if (!detail) {
+                setComposeError("先に相手を選んでください。");
                 return;
             }
 
@@ -973,22 +1068,46 @@ export function Communications() {
             try {
                 setComposeSavingMode(mode);
                 setComposeError(null);
+                const channel = getComposeChannel(mode, activeConversation?.last_channel);
+                const direction = composeSpeaker === "team" ? "outbound" : "inbound";
+                const logKind = mode === "message" ? "message" : "note";
+                const metadata = {
+                    entry_mode: mode,
+                    speaker_role: composeSpeaker,
+                    speaker_label: composeSpeaker === "team" ? "自分" : "相手",
+                    capture_method: "typed_allowed",
+                    evidence_type: "user_entered_note",
+                    original_locked: false,
+                    recorded_ui_version: "messenger_chat_v2",
+                };
+
+                if (!activeConversation) {
+                    const created = await createCommunicationConversation({
+                        title: buildConversationTitleFromSummary(detail.summary),
+                        channel,
+                        direction,
+                        body,
+                        participant_name: detail.summary.contact_name || detail.summary.client_name || null,
+                        participant_email: detail.summary.contact_email || null,
+                        log_kind: logKind,
+                        metadata,
+                    });
+                    setComposeBody("");
+                    await handleRecordSaved({
+                        contactKey: detail.summary.contact_email || detail.summary.contact_key,
+                        conversationId: created.conversation.id,
+                    });
+                    return;
+                }
+
                 await addCommunicationLog(activeConversation.id, {
-                    channel: getComposeChannel(mode, activeConversation.last_channel),
+                    channel,
                     direction: composeSpeaker === "team" ? "outbound" : "inbound",
                     body,
                     participant_name: detail?.summary.contact_name || null,
                     participant_email: detail?.summary.contact_email || null,
-                    log_kind: mode === "message" ? "message" : "note",
-                    metadata: {
-                        entry_mode: mode,
-                        speaker_role: composeSpeaker,
-                        speaker_label: composeSpeaker === "team" ? "自分" : "相手",
-                        capture_method: "typed_allowed",
-                        evidence_type: "user_entered_note",
-                        original_locked: false,
-                        recorded_ui_version: "messenger_chat_v2",
-                    },
+                    log_kind: logKind,
+                    metadata,
                 });
                 setComposeBody("");
                 await handleRecordSaved({
@@ -1091,7 +1210,7 @@ export function Communications() {
 
     return (
         <div className={styles.container}>
-            <BoardHeader totalCount={totalCount} onRefresh={handleRefresh} refreshing={loading || detailLoading} />
+            <BoardHeader totalCount={talkContacts.length} onRefresh={handleRefresh} refreshing={loading || detailLoading} />
 
             {error && (
                 <div className={styles.errorBanner}>
@@ -1105,7 +1224,7 @@ export function Communications() {
                             <div className={styles.paneHeader}>
                                 <div>
                                     <span>{mobileContactView === "client" ? "取引先" : "スレッド"}</span>
-                                    <strong>{mobileContactView === "client" ? `${clientDirectoryItems.length}件` : `${totalCount}件`}</strong>
+                                    <strong>{mobileContactView === "client" ? `${clientDirectoryItems.length}件` : `${talkContacts.length}件`}</strong>
                                 </div>
                                 <div className={styles.paneHeaderActions}>
                                     <div className={styles.desktopViewSwitch} role="tablist" aria-label="連絡の表示切替">
@@ -1141,8 +1260,8 @@ export function Communications() {
                                     <button
                                         type="button"
                                         className={styles.iconButton}
-                                        onClick={() => mobileContactView === "client" ? openClientCreator() : setRecordSheetOpen(true)}
-                                        aria-label={mobileContactView === "client" ? "取引先を追加" : "連絡を記録"}
+                                        onClick={() => openClientCreator()}
+                                        aria-label={mobileContactView === "client" ? "取引先を追加" : "連絡相手を追加"}
                                     >
                                         <Plus size={18} />
                                     </button>
@@ -1181,17 +1300,11 @@ export function Communications() {
                                         </button>
                                     </div>
                                     <div className={styles.mobileTalkActions}>
-                                        <button type="button" className={styles.mobileTalkActionButton} aria-label="おすすめ">
-                                            <SmilePlus size={22} />
-                                        </button>
-                                        <button type="button" className={styles.mobileTalkActionButton} aria-label="連絡メニュー">
-                                            <MessageSquare size={22} />
-                                        </button>
                                         <button
                                             type="button"
                                             className={styles.mobileTalkActionButton}
-                                            onClick={() => mobileContactView === "client" ? openClientCreator() : setRecordSheetOpen(true)}
-                                            aria-label={mobileContactView === "client" ? "取引先を追加" : "連絡を記録"}
+                                            onClick={() => openClientCreator()}
+                                            aria-label={mobileContactView === "client" ? "取引先を追加" : "連絡相手を追加"}
                                         >
                                             <Plus size={25} />
                                         </button>
@@ -1218,10 +1331,6 @@ export function Communications() {
                                             <Search size={18} />
                                             <span>検索</span>
                                             <ScanLine size={18} />
-                                        </div>
-                                        <div className={styles.mobileAttentionStrip}>
-                                            <strong>今日見る連絡</strong>
-                                            <span>対応遅れと返答待ちを上から確認</span>
                                         </div>
                                     </>
                                 )}
@@ -1284,24 +1393,12 @@ export function Communications() {
                                 </>
                             ) : loading ? (
                                 <p className={styles.panelState}>連絡を読み込み中...</p>
-                            ) : contacts.length === 0 ? (
-                                <div className={styles.emptyPane}>
-                                    <MessageSquare size={36} />
-                                    <strong>まだ記録がありません</strong>
-                                    <span>メッセージ、電話、会話を残すと、ここに時系列で並びます。</span>
-                                    <button
-                                        type="button"
-                                        className={styles.primaryButton}
-                                        onClick={() => setRecordSheetOpen(true)}
-                                    >
-                                        <Plus size={16} />
-                                        連絡を記録
-                                    </button>
-                                </div>
+                            ) : talkContacts.length === 0 ? (
+                                null
                             ) : (
                                 <>
                                     <div className={styles.contactList}>
-                                        {contacts.map((contact) => (
+                                        {talkContacts.map((contact) => (
                                             <CommunicationContactRow
                                                 key={contact.contact_key}
                                                 contact={contact}
@@ -1448,7 +1545,7 @@ export function Communications() {
                                                         type="button"
                                                         className={styles.composeSendButton}
                                                         onClick={() => void handleInlineRecord(action.mode)}
-                                                        disabled={composeSavingMode !== null || !activeConversation}
+                                                        disabled={composeSavingMode !== null || !detail}
                                                         aria-label={action.ariaLabel}
                                                     >
                                                         <Icon size={16} />
@@ -1563,26 +1660,6 @@ export function Communications() {
                     />
                 )}
             </AnimatePresence>
-
-            <CommunicationRecordSheet
-                open={recordSheetOpen}
-                onClose={() => setRecordSheetOpen(false)}
-                initialTargetKind={activeConversation ? "follow_up" : "new_topic"}
-                activeConversationSummary={activeConversation}
-                contactSeed={
-                    detail
-                        ? {
-                              partnerName: detail.summary.contact_name,
-                              partnerEmail: detail.summary.contact_email,
-                              clientName: detail.summary.client_name,
-                          }
-                        : undefined
-                }
-                availableMembers={members}
-                availableSites={sites}
-                onSaved={handleRecordSaved}
-                onRequestPickContext={() => setRecordSheetOpen(false)}
-            />
 
             <AnimatePresence>
                 {clientModalOpen && (

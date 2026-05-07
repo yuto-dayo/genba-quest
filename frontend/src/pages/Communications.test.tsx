@@ -315,7 +315,7 @@ describe("Communications page", () => {
         expect(screen.queryByRole("heading", { name: "会社単位の俯瞰" })).not.toBeInTheDocument();
     });
 
-    it("renders a recording action without the legacy log label", async () => {
+    it("uses contact creation instead of the empty recording action", async () => {
         render(
             <MemoryRouter initialEntries={["/communications"]}>
                 <Routes>
@@ -324,8 +324,48 @@ describe("Communications page", () => {
             </MemoryRouter>,
         );
 
-        expect((await screen.findAllByRole("button", { name: "連絡を記録" })).length).toBeGreaterThan(0);
+        expect((await screen.findAllByRole("button", { name: "連絡相手を追加" })).length).toBeGreaterThan(0);
+        expect(screen.queryByRole("button", { name: "連絡を記録" })).not.toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "ログ追加" })).not.toBeInTheDocument();
+    });
+
+    it("shows registered client contacts in the talk list even before any communication log exists", async () => {
+        fetchCommunicationContacts.mockResolvedValueOnce({ items: [], total_count: 0 });
+
+        render(
+            <MemoryRouter initialEntries={["/communications"]}>
+                <Routes>
+                    <Route path="/communications" element={<Communications />} />
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        expect(await screen.findByRole("button", { name: /田中さん/ })).toBeInTheDocument();
+        expect(screen.getByText("まだ会話はありません")).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "連絡を記録" })).not.toBeInTheDocument();
+    });
+
+    it("keeps the empty talk view visually blank except for adding contacts", async () => {
+        fetchCommunicationContacts.mockResolvedValueOnce({ items: [], total_count: 0 });
+        fetchClients.mockResolvedValue([]);
+
+        render(
+            <MemoryRouter initialEntries={["/communications"]}>
+                <Routes>
+                    <Route path="/communications" element={<Communications />} />
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        expect((await screen.findAllByRole("tab", { name: "トーク" })).length).toBeGreaterThan(0);
+        await waitFor(() => expect(fetchClients).toHaveBeenCalled());
+
+        expect(screen.queryByRole("button", { name: "おすすめ" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "連絡メニュー" })).not.toBeInTheDocument();
+        expect(screen.queryByText("今日見る連絡")).not.toBeInTheDocument();
+        expect(screen.queryByText("対応遅れと返答待ちを上から確認")).not.toBeInTheDocument();
+        expect(screen.queryByText("連絡相手がありません")).not.toBeInTheDocument();
+        expect(screen.getAllByRole("button", { name: "連絡相手を追加" }).length).toBeGreaterThan(0);
     });
 
     it("renders messenger ledger badges in the communication timeline", async () => {
@@ -651,6 +691,42 @@ describe("Communications page", () => {
                         speaker_label: "自分",
                         capture_method: "typed_allowed",
                         evidence_type: "user_entered_note",
+                    }),
+                }),
+            );
+        });
+    });
+
+    it("creates the first conversation from a registered client contact", async () => {
+        fetchCommunicationContacts.mockResolvedValueOnce({ items: [], total_count: 0 });
+
+        render(
+            <MemoryRouter initialEntries={["/communications"]}>
+                <Routes>
+                    <Route path="/communications" element={<Communications />} />
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        await screen.findByRole("button", { name: /田中さん/ });
+        fireEvent.change(await screen.findByPlaceholderText("相手の発言を入力"), {
+            target: { value: "次回の打ち合わせをお願いします" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "メッセージとして記録" }));
+
+        await waitFor(() => {
+            expect(createCommunicationConversation).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    title: "田中さん / 田中工務店",
+                    channel: "line",
+                    direction: "inbound",
+                    body: "次回の打ち合わせをお願いします",
+                    participant_name: "田中さん",
+                    participant_email: "tanaka@example.com",
+                    log_kind: "message",
+                    metadata: expect.objectContaining({
+                        entry_mode: "message",
+                        speaker_role: "client",
                     }),
                 }),
             );
