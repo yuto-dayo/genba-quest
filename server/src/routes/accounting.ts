@@ -35,6 +35,7 @@ const DEFAULT_SALE_TAX_CATEGORY = "10_STANDARD";
 const DEFAULT_SALE_TAX_RATE = 0.1;
 const DEFAULT_SALE_UNIT_NAME = "式";
 const VOIDABLE_TRANSACTION_STATUSES = ["posted", "approved"] as const;
+const LEDGER_AGGREGATION_STATUSES = ["posted", "approved", "voided"] as const;
 
 type ExpenseCategory = typeof EXPENSE_CATEGORIES[number];
 type ExpenseTaxCategory = typeof EXPENSE_TAX_CATEGORIES[number];
@@ -167,6 +168,10 @@ function normalizeNetSubtotal(subtotal: number | null, taxAmount: number, total:
 
 function roundMoney(value: number): number {
     return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function isVoidableStatus(status: unknown): status is typeof VOIDABLE_TRANSACTION_STATUSES[number] {
+    return VOIDABLE_TRANSACTION_STATUSES.includes(status as typeof VOIDABLE_TRANSACTION_STATUSES[number]);
 }
 
 type ExpenseInsertPayload = {
@@ -2284,7 +2289,7 @@ router.post("/void/:id", async (req: AuthenticatedRequest, res: Response) => {
             return;
         }
 
-        if (!VOIDABLE_TRANSACTION_STATUSES.includes(original.status)) {
+        if (!isVoidableStatus(original.status)) {
             res.status(409).json({ error: "記帳済みまたは承認済みの取引のみ取消できます" });
             return;
         }
@@ -2315,48 +2320,28 @@ router.post("/void/:id", async (req: AuthenticatedRequest, res: Response) => {
             return;
         }
 
-        // 元の取引を voided に更新。status 条件を付けて多重実行を防ぐ。
-        const { data: voidedOriginal, error: updateError } = await supabaseAdmin
-            .from("accounting_transactions")
-            .update({
-                status: "voided",
-                voided_by: req.userId!,
-                voided_at: new Date().toISOString(),
-                void_reason: reason,
-            })
-            .eq("id", id)
-            .in("status", [...VOIDABLE_TRANSACTION_STATUSES])
-            .select("*")
-            .maybeSingle();
-
-        if (updateError && !isPostgrestNoRowsError(updateError)) {
-            throw updateError;
-        }
-
-        if (!voidedOriginal) {
-            res.status(409).json({ error: "この取引はすでに取消済みです" });
-            return;
-        }
-
-        // 逆仕訳（マイナス金額）を作成
+        // 元の取引は記帳済みのまま保持し、逆仕訳（マイナス金額）だけを追記する。
         const { data: reversal, error: reversalError } = await supabaseAdmin
             .from("accounting_transactions")
             .insert({
-                org_id: voidedOriginal.org_id || orgId,
-                kind: voidedOriginal.kind,
-                cost_center: voidedOriginal.cost_center,
-                site_id: voidedOriginal.site_id,
-                client_id: voidedOriginal.client_id,
-                vendor_name: voidedOriginal.vendor_name,
-                description: `【取消】${voidedOriginal.description || ""} - ${reason}`,
+                org_id: original.org_id || orgId,
+                kind: original.kind,
+                cost_center: original.cost_center,
+                site_id: original.site_id,
+                client_id: original.client_id,
+                vendor_name: original.vendor_name,
+                description: `【取消】${original.description || ""} - ${reason}`,
                 recorded_date: new Date().toISOString().split("T")[0],
-                amount_subtotal: -voidedOriginal.amount_subtotal,
-                tax_amount: -voidedOriginal.tax_amount,
-                amount_total: -voidedOriginal.amount_total,
-                category: voidedOriginal.category,
-                status: "posted",
+                amount_subtotal: -original.amount_subtotal,
+                tax_amount: -original.tax_amount,
+                amount_total: -original.amount_total,
+                category: original.category,
+                status: original.status,
                 voids_transaction_id: id,
-                tax_category: voidedOriginal.tax_category,
+                tax_category: original.tax_category,
+                voided_by: req.userId!,
+                voided_at: new Date().toISOString(),
+                void_reason: reason,
                 created_by: req.userId!,
             })
             .select()
@@ -2373,7 +2358,7 @@ router.post("/void/:id", async (req: AuthenticatedRequest, res: Response) => {
         // 逆仕訳の仕訳エントリ作成
         await createJournalEntry(reversal, req.userId!);
 
-        res.json({ original_voided: id, reversal_created: reversal.id });
+        res.json({ original_voided: id, original_reversed: id, reversal_created: reversal.id });
     } catch (err: any) {
         console.error("Void error:", err);
         res.status(500).json({ error: "Internal server error" });
@@ -2399,7 +2384,7 @@ router.get("/pl", async (req: AuthenticatedRequest, res: Response) => {
         let query = supabaseAdmin
             .from("accounting_transactions")
             .select("*")
-            .in("status", ["posted", "approved"])
+            .in("status", [...LEDGER_AGGREGATION_STATUSES])
             .gte("recorded_date", startDate)
             .lte("recorded_date", endDate);
 
@@ -2427,7 +2412,7 @@ router.get("/pl", async (req: AuthenticatedRequest, res: Response) => {
         }
 
         const profit = sales - expenses;
-        const distributable = profit * 0.7; // 会社留保30%
+        const distributable = Math.max(profit, 0) * 0.7; // 会社留保30%
 
         res.json({
             month: targetMonth,
@@ -2611,83 +2596,153 @@ async function createJournalEntry(transaction: any, userId: string) {
     const subtotal = Math.abs(transaction.amount_subtotal || 0);
     const taxAmount = Math.abs(transaction.tax_amount || 0);
     const total = Math.abs(transaction.amount_total || 0);
+    const isReversalAmount = Number(transaction.amount_total || 0) < 0;
 
     const taxRate = resolveTaxRate(transaction.tax_category);
     const taxType = resolveExpenseTaxType(transaction.tax_category);
 
     if (transaction.kind === "sale" || transaction.kind === "invoice") {
-        // 売上: 借方=売掛金、貸方=売上高+仮受消費税
-        lines.push({
-            entry_id: entry.id,
-            line_no: lineNo++,
-            account_code: "1200",
-            account_name: "売掛金",
-            debit: total,
-            credit: 0,
-        });
-
-        // 売上高（税抜）
         const salesAmount = normalizeNetSubtotal(subtotal, taxAmount, total);
-        lines.push({
-            entry_id: entry.id,
-            line_no: lineNo++,
-            account_code: "4100",
-            account_name: "売上高",
-            debit: 0,
-            credit: salesAmount,
-            tax_rate: taxRate,
-            tax_type: taxType,
-        });
 
-        // 仮受消費税（税額がある場合）
-        if (taxAmount > 0) {
+        if (isReversalAmount) {
+            // 売上取消: 借方=売上高+仮受消費税、貸方=売掛金
             lines.push({
                 entry_id: entry.id,
                 line_no: lineNo++,
-                account_code: "2500",
-                account_name: "仮受消費税",
-                debit: 0,
-                credit: taxAmount,
+                account_code: "4100",
+                account_name: "売上高",
+                debit: salesAmount,
+                credit: 0,
+                tax_rate: taxRate,
+                tax_type: taxType,
             });
+
+            if (taxAmount > 0) {
+                lines.push({
+                    entry_id: entry.id,
+                    line_no: lineNo++,
+                    account_code: "2500",
+                    account_name: "仮受消費税",
+                    debit: taxAmount,
+                    credit: 0,
+                });
+            }
+
+            lines.push({
+                entry_id: entry.id,
+                line_no: lineNo++,
+                account_code: "1200",
+                account_name: "売掛金",
+                debit: 0,
+                credit: total,
+            });
+        } else {
+            // 売上: 借方=売掛金、貸方=売上高+仮受消費税
+            lines.push({
+                entry_id: entry.id,
+                line_no: lineNo++,
+                account_code: "1200",
+                account_name: "売掛金",
+                debit: total,
+                credit: 0,
+            });
+
+            // 売上高（税抜）
+            lines.push({
+                entry_id: entry.id,
+                line_no: lineNo++,
+                account_code: "4100",
+                account_name: "売上高",
+                debit: 0,
+                credit: salesAmount,
+                tax_rate: taxRate,
+                tax_type: taxType,
+            });
+
+            // 仮受消費税（税額がある場合）
+            if (taxAmount > 0) {
+                lines.push({
+                    entry_id: entry.id,
+                    line_no: lineNo++,
+                    account_code: "2500",
+                    account_name: "仮受消費税",
+                    debit: 0,
+                    credit: taxAmount,
+                });
+            }
         }
     } else if (transaction.kind === "expense") {
         // 経費: 借方=経費+仮払消費税、貸方=現金
         const expenseAccount = resolveExpenseAccount(transaction.category);
-
-        // 経費（税抜）
         const expenseAmount = normalizeNetSubtotal(subtotal, taxAmount, total);
-        lines.push({
-            entry_id: entry.id,
-            line_no: lineNo++,
-            account_code: expenseAccount.code,
-            account_name: expenseAccount.name,
-            debit: expenseAmount,
-            credit: 0,
-            tax_rate: taxRate,
-            tax_type: taxType,
-        });
 
-        // 仮払消費税（税額がある場合）
-        if (taxAmount > 0) {
+        if (isReversalAmount) {
+            // 経費取消: 借方=現金、貸方=経費+仮払消費税
             lines.push({
                 entry_id: entry.id,
                 line_no: lineNo++,
-                account_code: "1500",
-                account_name: "仮払消費税",
-                debit: taxAmount,
+                account_code: "1100",
+                account_name: "現金",
+                debit: total,
                 credit: 0,
             });
-        }
 
-        // 現金（税込総額）
-        lines.push({
-            entry_id: entry.id,
-            line_no: lineNo++,
-            account_code: "1100",
-            account_name: "現金",
-            debit: 0,
-            credit: total,
-        });
+            lines.push({
+                entry_id: entry.id,
+                line_no: lineNo++,
+                account_code: expenseAccount.code,
+                account_name: expenseAccount.name,
+                debit: 0,
+                credit: expenseAmount,
+                tax_rate: taxRate,
+                tax_type: taxType,
+            });
+
+            if (taxAmount > 0) {
+                lines.push({
+                    entry_id: entry.id,
+                    line_no: lineNo++,
+                    account_code: "1500",
+                    account_name: "仮払消費税",
+                    debit: 0,
+                    credit: taxAmount,
+                });
+            }
+        } else {
+            // 経費（税抜）
+            lines.push({
+                entry_id: entry.id,
+                line_no: lineNo++,
+                account_code: expenseAccount.code,
+                account_name: expenseAccount.name,
+                debit: expenseAmount,
+                credit: 0,
+                tax_rate: taxRate,
+                tax_type: taxType,
+            });
+
+            // 仮払消費税（税額がある場合）
+            if (taxAmount > 0) {
+                lines.push({
+                    entry_id: entry.id,
+                    line_no: lineNo++,
+                    account_code: "1500",
+                    account_name: "仮払消費税",
+                    debit: taxAmount,
+                    credit: 0,
+                });
+            }
+
+            // 現金（税込総額）
+            lines.push({
+                entry_id: entry.id,
+                line_no: lineNo++,
+                account_code: "1100",
+                account_name: "現金",
+                debit: 0,
+                credit: total,
+            });
+        }
     }
 
     if (lines.length > 0) {

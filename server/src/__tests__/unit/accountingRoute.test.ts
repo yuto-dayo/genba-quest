@@ -88,6 +88,7 @@ describe("accounting router", () => {
   const createExpenseHandler = getPostHandler("/expenses");
   const createSaleHandler = getPostHandler("/sales");
   const getTransactionsHandler = getGetHandler("/transactions");
+  const getPlHandler = getGetHandler("/pl");
   const getInvoiceSettingsHandler = getGetHandler("/invoice-settings");
   const updateInvoiceSettingsHandler = getPutHandler("/invoice-settings");
   const getInvoiceEligibilityHandler = getGetHandler("/invoice-eligibility/:transactionId");
@@ -1549,7 +1550,48 @@ describe("accounting router", () => {
     expect(mockStorageFrom).not.toHaveBeenCalled();
   });
 
-  it("POST /void/:id voids a transaction only once and creates a reversal entry", async () => {
+  it("GET /pl nets original sale and reversal from the same signed source", async () => {
+    const plChain = createChain({
+      data: [
+        {
+          id: "tx-sale-1",
+          kind: "sale",
+          status: "voided",
+          amount_total: 110000,
+          recorded_date: "2026-05-07",
+          voids_transaction_id: null,
+        },
+        {
+          id: "tx-sale-reversal-1",
+          kind: "sale",
+          status: "posted",
+          amount_total: -110000,
+          recorded_date: "2026-05-07",
+          voids_transaction_id: "tx-sale-1",
+        },
+      ],
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [plChain]);
+
+    const req = {
+      query: { month: "2026-05" },
+    } as any;
+    const res = createMockRes();
+
+    await getPlHandler(req, res);
+
+    expect(plChain.in).toHaveBeenCalledWith("status", ["posted", "approved", "voided"]);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      sales: 0,
+      expenses: 0,
+      profit: 0,
+      distributable: 0,
+      transaction_count: 2,
+    }));
+  });
+
+  it("POST /void/:id keeps the original posted and creates a reversal entry", async () => {
     const originalFetchChain = createChain({
       data: {
         id: "tx-void-1",
@@ -1565,30 +1607,13 @@ describe("accounting router", () => {
         amount_total: 3410,
         category: "material",
         tax_category: "10_STANDARD",
+        voids_transaction_id: null,
       },
       error: null,
     });
     const invoiceSourceLinksChain = createChain({ data: [], error: null });
     const linkedInvoicesChain = createChain({ data: [], error: null });
     const existingReversalChain = createChain({ data: null, error: null });
-    const updateOriginalChain = createChain({
-      data: {
-        id: "tx-void-1",
-        kind: "expense",
-        status: "voided",
-        cost_center: "SITE",
-        site_id: "site-1",
-        client_id: null,
-        vendor_name: "RECEIPT SAMPLE",
-        description: "開発テスト",
-        amount_subtotal: 3100,
-        tax_amount: 310,
-        amount_total: 3410,
-        category: "material",
-        tax_category: "10_STANDARD",
-      },
-      error: null,
-    });
     const reversalInsertChain = createChain({
       data: {
         id: "tx-reversal-1",
@@ -1611,7 +1636,6 @@ describe("accounting router", () => {
       invoiceSourceLinksChain,
       linkedInvoicesChain,
       existingReversalChain,
-      updateOriginalChain,
       reversalInsertChain,
       existingEntryChain,
       entryInsertChain,
@@ -1628,15 +1652,23 @@ describe("accounting router", () => {
 
     await voidTransactionHandler(req, res);
 
-    expect(updateOriginalChain.in).toHaveBeenCalledWith("status", ["posted", "approved"]);
+    expect(mockFrom).toHaveBeenCalledTimes(8);
     expect(reversalInsertChain.insert).toHaveBeenCalledWith(expect.objectContaining({
+      status: "posted",
       voids_transaction_id: "tx-void-1",
       amount_total: -3410,
       tax_category: "10_STANDARD",
+      void_reason: "入力ミス",
       created_by: "user-1",
     }));
+    expect(lineInsertChain.insert).toHaveBeenCalledWith([
+      expect.objectContaining({ account_code: "1100", debit: 3410, credit: 0 }),
+      expect.objectContaining({ account_code: "5100", debit: 0, credit: 3100 }),
+      expect.objectContaining({ account_code: "1500", debit: 0, credit: 310 }),
+    ]);
     expect(res.json).toHaveBeenCalledWith({
       original_voided: "tx-void-1",
+      original_reversed: "tx-void-1",
       reversal_created: "tx-reversal-1",
     });
   });

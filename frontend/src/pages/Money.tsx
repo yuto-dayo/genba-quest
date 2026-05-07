@@ -54,6 +54,14 @@ const formatCurrency = (value: number) => {
     return `¥${Math.abs(value).toLocaleString()}`;
 };
 
+const getAccountingImpactSign = (tx: Pick<AccountingTransaction, "kind" | "amount_total">) => {
+    const isReversalAmount = tx.amount_total < 0;
+    if (tx.kind === "expense") {
+        return isReversalAmount ? "+" : "-";
+    }
+    return isReversalAmount ? "-" : "+";
+};
+
 const PROPOSAL_QUEUE_LABELS: Record<string, string> = {
     "expense.create": "経費登録",
     "expense.update": "経費更新",
@@ -1176,11 +1184,13 @@ function PLMetric({
     negative?: boolean;
     highlight?: boolean;
 }) {
+    const sign = negative && value > 0 ? "-" : value < 0 ? "-" : "";
+
     return (
         <div className={`${styles.plMetric} ${highlight ? styles.highlight : ""}`}>
             <span className={styles.metricLabel}>{label}</span>
             <span className={`${styles.metricValue} ${styles[color]}`}>
-                {negative && value > 0 && "-"}{formatCurrency(value)}
+                {sign}{formatCurrency(value)}
             </span>
             {badge && (
                 <span className={`${styles.metricBadge} ${styles[color]}`}>
@@ -1200,6 +1210,13 @@ function TransactionRow({
     onOpenDetail: () => void;
 }) {
     const getStatusMeta = () => {
+        if (tx.voids_transaction_id) {
+            return {
+                icon: <XCircle size={14} />,
+                label: "逆仕訳",
+                tone: "statusVoided",
+            };
+        }
         if (tx.status === "voided") {
             return {
                 icon: <XCircle size={14} />,
@@ -1245,6 +1262,7 @@ function TransactionRow({
     const isHighRisk = tx.risk_level === "HIGH";
     const isPending = tx.status === "pending_review";
     const statusMeta = getStatusMeta();
+    const amountSign = getAccountingImpactSign(tx);
     const kindToneClass =
         tx.kind === "expense"
             ? styles.expenseRow
@@ -1283,7 +1301,7 @@ function TransactionRow({
                 )}
             </div>
             <div className={`${styles.colAmount} ${tx.kind === "expense" ? styles.textExpense : styles.textIncome}`}>
-                {tx.kind === "expense" ? "-" : "+"}¥{Math.abs(tx.amount_total).toLocaleString()}
+                {amountSign}¥{Math.abs(tx.amount_total).toLocaleString()}
             </div>
             <div className={styles.colStatus}>
                 <span className={`${styles.statusBadge} ${styles[statusMeta.tone]}`}>

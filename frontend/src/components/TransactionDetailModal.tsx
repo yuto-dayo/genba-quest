@@ -80,7 +80,10 @@ function formatSignedCurrency(transaction: AccountingTransaction): string {
         return "未設定";
     }
 
-    const sign = transaction.kind === "expense" ? "-" : "+";
+    const isReversalAmount = transaction.amount_total < 0;
+    const sign = transaction.kind === "expense"
+        ? isReversalAmount ? "+" : "-"
+        : isReversalAmount ? "-" : "+";
     return `${sign}¥${Math.abs(transaction.amount_total).toLocaleString()}`;
 }
 
@@ -146,9 +149,11 @@ export function TransactionDetailModal({
     }, [transaction.id]);
 
     const activeKindMeta = kindMeta[transaction.kind];
-    const activeStatusMeta = statusMeta[transaction.status] || statusMeta.draft;
     const hasLinkedInvoices = relatedInvoices.length > 0 || transaction.kind === "invoice";
     const isReversalTransaction = Boolean(transaction.voids_transaction_id);
+    const activeStatusMeta = isReversalTransaction
+        ? { label: "逆仕訳", tone: "danger" as const }
+        : statusMeta[transaction.status] || statusMeta.draft;
     const canStartCorrection = !isReversalTransaction
         && transaction.status !== "voided"
         && (transaction.kind === "expense" || transaction.kind === "sale");
@@ -221,8 +226,10 @@ export function TransactionDetailModal({
     };
 
     const sourceDocument = transaction.source_document;
-    const totalLabel = transaction.status === "voided" ? "取消済み金額" : "合計";
-    const totalValue = transaction.status === "voided"
+    const totalLabel = isReversalTransaction
+        ? "逆仕訳額"
+        : transaction.status === "voided" ? "取消済み金額" : "合計";
+    const totalValue = transaction.status === "voided" || isReversalTransaction
         ? formatSignedCurrency(transaction)
         : formatCurrency(transaction.amount_total);
     const sourceDocumentMessage = getSourceDocumentMessage(sourceDocument);

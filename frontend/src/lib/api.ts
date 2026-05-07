@@ -1712,7 +1712,7 @@ export const downloadInvoicePdf = async (invoiceId: string): Promise<{ blob: Blo
 
 // 取消（逆仕訳）
 export const voidTransaction = (id: string, reason: string) =>
-    api<{ original_voided: string; reversal_created: string }>(`/api/v1/accounting/void/${id}`, {
+    api<{ original_voided: string; original_reversed?: string; reversal_created: string }>(`/api/v1/accounting/void/${id}`, {
         method: "POST",
         body: JSON.stringify({ reason }),
     });
