@@ -43,18 +43,20 @@
 }
 
 .mobileFabDock {
-    position: static;
+    position: fixed;
     inset: auto;
     pointer-events: none;
+    z-index: 800;
 }
 
 .mobileFab {
-    position: fixed;
+    position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     min-height: 56px;
-    width: 56px;
+    height: 56px;
+    width: 100%;
     padding: 0;
     border: none;
     border-radius: var(--md-sys-shape-corner-large);
@@ -178,12 +180,20 @@
 
 .fabMenu {
     position: absolute;
+    right: 0;
+    bottom: calc(100% + 16px);
     display: flex;
     flex-direction: column;
     gap: 12px;
     align-items: flex-end;
     z-index: 801;
     pointer-events: auto;
+}
+
+.fabMenuLeft {
+    right: auto;
+    left: 0;
+    align-items: flex-start;
 }
 
 .fabMenuItem {
@@ -232,14 +242,6 @@
 @media (max-width: 480px) {
     .fabContainer {
         right: 16px;
-        bottom: calc(92px + env(safe-area-inset-bottom, 0px));
-    }
-
-    .fabMenu {
-        max-width: calc(100vw - 32px);
-    }
-
-    .fabMenuItem {
-        min-height: 48px;
+        bottom: max(16px, env(safe-area-inset-bottom, 16px));
     }
 }
