@@ -81,10 +81,20 @@ describe("TodayAssignments", () => {
         expect(onAddFocusItem).toHaveBeenCalledWith(expect.objectContaining({ id: baseSite.id }));
     });
 
-    it("shows role status and opens role planning from the site card", () => {
+    it("opens role planning from the site card without showing status chips", () => {
         const { onPlanRole } = renderAssignments("none");
 
-        expect(screen.getByText("役割未入力")).toBeInTheDocument();
+        expect(screen.queryByText("今日の現場")).not.toBeInTheDocument();
+        expect(screen.queryByText("確定")).not.toBeInTheDocument();
+        expect(screen.queryByText("役割未入力")).not.toBeInTheDocument();
+        expect(screen.queryByText("1名")).not.toBeInTheDocument();
+        expect(screen.queryByText("現場稼働")).not.toBeInTheDocument();
+        expect(screen.queryByRole("link", { name: "地図" })).not.toBeInTheDocument();
+        expect(screen.getByRole("link", { name: "地図を開く" })).toHaveAttribute(
+            "href",
+            expect.stringContaining(encodeURIComponent(baseSite.address)),
+        );
+        expect(screen.getByText(baseSite.address)).toBeInTheDocument();
         fireEvent.click(screen.getByRole("button", { name: "役割" }));
 
         expect(onPlanRole).toHaveBeenCalledWith(expect.objectContaining({ id: baseSite.id }));
