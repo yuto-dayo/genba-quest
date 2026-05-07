@@ -1,13 +1,11 @@
-# Project Handoff Profile / Domain Index - 2026-05-07
+# Project Handoff Profile / Domain Index - 2026-05-08
 
 ## Active Domains
 
 | Domain | File | Last Updated | Status |
 | ------ | ---- | ------------ | ------ |
-| local | `handoff/local.md` | 2026-05-07 | active |
-| deploy/production | `handoff/deploy/production.md` | 2026-05-07 | active |
-| repo/handoff-infra-sync | `handoff/repo/handoff-infra-sync.md` | 2026-05-06 | active |
-| frontend/today-count-cleanup | `handoff/frontend/today-count-cleanup.md` | 2026-05-07 | Push current commit to origin/master |
+| deploy/production | `handoff/deploy/production.md` | 2026-05-07 | Open production /money in browser if visual smoke is needed |
+| local | `handoff/local.md` | 2026-05-08 | active |
 
 ## Domain Selection Guide
 

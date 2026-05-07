@@ -12,8 +12,7 @@ interface TodayAssignmentsProps {
     focusItems: FocusItemRecord[];
     completingId: string | null;
     onCompleteFocusItem: (item: FocusItemRecord) => void;
-    onOpenSite: (site: Site) => void;
-    onRecordDayLog: (site: Site) => void;
+    onViewSiteMemo: (site: Site) => void;
     onPlanRole: (site: Site) => void;
     onRecordRewardInput: (site: Site) => void;
     onAddFocusItem: (site: Site) => void;
@@ -84,8 +83,7 @@ export function TodayAssignments({
     focusItems,
     completingId,
     onCompleteFocusItem,
-    onOpenSite,
-    onRecordDayLog,
+    onViewSiteMemo,
     onPlanRole,
     onRecordRewardInput,
     onAddFocusItem,
@@ -145,16 +143,6 @@ export function TodayAssignments({
                 siteSummaries.map((site) => {
                     const dayLogStatus = site.site ? getDayLogStatus(site.site.id) : 'none';
                     const siteInputStatus = site.site ? getSiteInputStatus(site.site.id) : 'role_missing';
-                    const dayLogLabel =
-                        dayLogStatus === 'none'
-                            ? '記録'
-                            : dayLogStatus === 'saved'
-                              ? '編集'
-                              : '記録済み';
-                    const dayLogButtonClass =
-                        dayLogStatus === 'locked'
-                            ? styles.assignmentActionButton
-                            : `${styles.assignmentActionButton} ${styles.assignmentActionPrimary}`;
                     const showRewardAction =
                         siteInputStatus === 'role_saved' ||
                         siteInputStatus === 'reward_missing' ||
@@ -241,20 +229,13 @@ export function TodayAssignments({
                                     )}
                                     <button
                                         type="button"
-                                        className={styles.assignmentActionButton}
-                                        onClick={() => onOpenSite(site.site!)}
+                                        className={`${styles.assignmentActionButton} ${
+                                            dayLogStatus === 'none' ? styles.assignmentActionPrimary : ''
+                                        }`}
+                                        onClick={() => onViewSiteMemo(site.site!)}
                                     >
                                         <FileText size={14} />
-                                        書類・メモ
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className={dayLogButtonClass}
-                                        onClick={() => onRecordDayLog(site.site!)}
-                                        disabled={dayLogStatus === 'locked'}
-                                    >
-                                        <Plus size={14} />
-                                        {dayLogLabel}
+                                        メモ
                                     </button>
                                     <button
                                         type="button"

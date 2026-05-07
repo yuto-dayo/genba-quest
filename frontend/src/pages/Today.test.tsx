@@ -7,6 +7,8 @@ import { Today } from "./Today";
 
 const fetchFocusItems = vi.fn();
 const fetchSites = vi.fn();
+const fetchMembers = vi.fn();
+const fetchSiteDocuments = vi.fn();
 const fetchPendingProposals = vi.fn();
 const fetchPathV31DayLogs = vi.fn();
 const fetchPathV31SiteMemberRolePlans = vi.fn();
@@ -33,6 +35,8 @@ vi.mock("framer-motion", () => ({
 vi.mock("../lib/api", () => ({
     fetchFocusItems: (...args: unknown[]) => fetchFocusItems(...args),
     fetchSites: (...args: unknown[]) => fetchSites(...args),
+    fetchMembers: (...args: unknown[]) => fetchMembers(...args),
+    fetchSiteDocuments: (...args: unknown[]) => fetchSiteDocuments(...args),
     fetchPendingProposals: (...args: unknown[]) => fetchPendingProposals(...args),
     fetchPathV31DayLogs: (...args: unknown[]) => fetchPathV31DayLogs(...args),
     fetchPathV31SiteMemberRolePlans: (...args: unknown[]) => fetchPathV31SiteMemberRolePlans(...args),
@@ -168,6 +172,24 @@ describe("Today page", () => {
                 created_at: "2026-04-22T00:00:00.000Z",
             },
         ]);
+        fetchMembers.mockResolvedValue([
+            {
+                id: "user-1",
+                full_name: "山田 太郎",
+                username: "yamada",
+                avatar_url: null,
+            },
+        ]);
+        fetchSiteDocuments.mockResolvedValue([
+            {
+                id: "doc-1",
+                doc_type: "other",
+                original_filename: "工程写真.pdf",
+                mime_type: "application/pdf",
+                drive_file_url: "https://example.com/doc",
+                created_at: "2026-04-22T09:30:00.000Z",
+            },
+        ]);
         fetchPendingProposals.mockResolvedValue([]);
         fetchPathV31DayLogs.mockResolvedValue({ logs: [] });
         fetchPathV31SiteMemberRolePlans.mockResolvedValue({ plans: [] });
@@ -234,10 +256,29 @@ describe("Today page", () => {
             );
         });
 
-        const recordButton = await screen.findByRole("button", { name: "記録" });
-        fireEvent.click(recordButton);
+        const memoButton = await screen.findByRole("button", { name: "メモ" });
+        fireEvent.click(memoButton);
+        await waitFor(() => {
+            expect(document.body.textContent).toContain("メモ・添付");
+        });
+        expect(screen.queryByRole("button", { name: "確認" })).not.toBeInTheDocument();
 
-        expect(await screen.findByRole("heading", { name: "今日の記録" })).toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "追加" }));
+
+        await waitFor(() => {
+            expect(document.querySelector('textarea[placeholder="進み具合、注意点、引き継ぎを一言"]')).not.toBeNull();
+        });
+        expect(screen.getByRole("heading", { name: "渋谷マンション" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "一覧" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "追加" })).toBeInTheDocument();
+        expect(screen.queryByText("メモする現場")).not.toBeInTheDocument();
+        expect(screen.queryByText("テスト住所")).not.toBeInTheDocument();
+        expect(screen.queryByRole("heading", { name: "メモ追加" })).not.toBeInTheDocument();
+        expect(screen.queryByText("メモ一覧")).not.toBeInTheDocument();
+        expect(screen.queryByText("添付書類")).not.toBeInTheDocument();
+        expect(screen.queryByText("工程写真.pdf")).not.toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "画像・書類を添付" })).toBeInTheDocument();
+        expect(screen.queryByText("キャンセル")).not.toBeInTheDocument();
 
         fireEvent.click(screen.getByRole("button", { name: "保存" }));
 
@@ -252,8 +293,48 @@ describe("Today page", () => {
             );
         });
 
-        expect(await screen.findByRole("button", { name: "編集" })).toBeInTheDocument();
-        expect(screen.queryByRole("heading", { name: "今日の記録" })).not.toBeInTheDocument();
+        expect(await screen.findByRole("button", { name: "メモ" })).toBeInTheDocument();
+        expect(screen.queryByRole("heading", { name: "メモ追加" })).not.toBeInTheDocument();
+    });
+
+    it("opens memo review and switches to the add form from the sheet", async () => {
+        render(
+            <MemoryRouter initialEntries={["/today"]}>
+                <Routes>
+                    <Route path="/today" element={<Today />} />
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        const reviewButton = await screen.findByRole("button", { name: "メモ" });
+        fireEvent.click(reviewButton);
+
+        await waitFor(() => {
+            expect(screen.getByRole("heading", { name: "渋谷マンション" })).toBeInTheDocument();
+        });
+        expect(screen.getByRole("button", { name: "一覧" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "追加" })).toBeInTheDocument();
+        expect(screen.queryByText("確認する現場")).not.toBeInTheDocument();
+        expect(screen.queryByText("テスト住所")).not.toBeInTheDocument();
+        expect(screen.queryByRole("heading", { name: "メモ確認" })).not.toBeInTheDocument();
+        expect(screen.getByText("メモ・添付")).toBeInTheDocument();
+        expect(screen.queryByText("閉じる")).not.toBeInTheDocument();
+        expect(screen.queryByText("メモ一覧")).not.toBeInTheDocument();
+        expect(screen.queryByText("添付書類")).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "添付を追加・管理" })).not.toBeInTheDocument();
+        await waitFor(() => {
+            expect(document.body.textContent).toContain("工程写真.pdf");
+        });
+        expect(screen.queryByLabelText("メモ")).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: "追加" }));
+        await waitFor(() => {
+            expect(document.querySelector('textarea[placeholder="進み具合、注意点、引き継ぎを一言"]')).not.toBeNull();
+        });
+        fireEvent.click(screen.getByRole("button", { name: "一覧" }));
+        await waitFor(() => {
+            expect(screen.queryByLabelText("メモ")).not.toBeInTheDocument();
+        });
     });
 
     it("saves role plans and then opens responsibility input with planned role shares", async () => {

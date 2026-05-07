@@ -13,8 +13,7 @@ const baseSite: Site = {
 
 function renderAssignments(dayLogStatus: "none" | "saved" | "locked") {
     const onCompleteFocusItem = vi.fn();
-    const onOpenSite = vi.fn();
-    const onRecordDayLog = vi.fn();
+    const onViewSiteMemo = vi.fn();
     const onPlanRole = vi.fn();
     const onRecordRewardInput = vi.fn();
     const onAddFocusItem = vi.fn();
@@ -36,8 +35,7 @@ function renderAssignments(dayLogStatus: "none" | "saved" | "locked") {
             focusItems={[]}
             completingId={null}
             onCompleteFocusItem={onCompleteFocusItem}
-            onOpenSite={onOpenSite}
-            onRecordDayLog={onRecordDayLog}
+            onViewSiteMemo={onViewSiteMemo}
             onPlanRole={onPlanRole}
             onRecordRewardInput={onRecordRewardInput}
             onAddFocusItem={onAddFocusItem}
@@ -47,8 +45,7 @@ function renderAssignments(dayLogStatus: "none" | "saved" | "locked") {
     );
 
     return {
-        onOpenSite,
-        onRecordDayLog,
+        onViewSiteMemo,
         onPlanRole,
         onRecordRewardInput,
         onAddFocusItem,
@@ -56,29 +53,31 @@ function renderAssignments(dayLogStatus: "none" | "saved" | "locked") {
 }
 
 describe("TodayAssignments", () => {
-    it("shows a record CTA for sites without a saved log", () => {
-        const { onRecordDayLog } = renderAssignments("none");
+    it("opens the unified memo sheet from the site card", () => {
+        const { onViewSiteMemo } = renderAssignments("none");
 
-        fireEvent.click(screen.getByRole("button", { name: "記録" }));
+        fireEvent.click(screen.getByRole("button", { name: "メモ" }));
 
-        expect(onRecordDayLog).toHaveBeenCalledWith(expect.objectContaining({ id: baseSite.id }));
+        expect(onViewSiteMemo).toHaveBeenCalledWith(expect.objectContaining({ id: baseSite.id }));
+        expect(screen.queryByRole("button", { name: "確認" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "メモ追加" })).not.toBeInTheDocument();
     });
 
-    it("shows an edit CTA after a log has been saved", () => {
-        const { onRecordDayLog } = renderAssignments("saved");
+    it("keeps the memo CTA after a log has been saved", () => {
+        const { onViewSiteMemo } = renderAssignments("saved");
 
-        fireEvent.click(screen.getByRole("button", { name: "編集" }));
+        fireEvent.click(screen.getByRole("button", { name: "メモ" }));
 
-        expect(onRecordDayLog).toHaveBeenCalledWith(expect.objectContaining({ id: baseSite.id }));
+        expect(onViewSiteMemo).toHaveBeenCalledWith(expect.objectContaining({ id: baseSite.id }));
     });
 
-    it("disables day-log editing when the log is locked and keeps focus-item quick add available", () => {
-        const { onRecordDayLog, onAddFocusItem } = renderAssignments("locked");
+    it("keeps memo review and focus-item quick add available when the log is locked", () => {
+        const { onViewSiteMemo, onAddFocusItem } = renderAssignments("locked");
 
-        expect(screen.getByRole("button", { name: "記録済み" })).toBeDisabled();
+        fireEvent.click(screen.getByRole("button", { name: "メモ" }));
         fireEvent.click(screen.getByRole("button", { name: "今日やることを追加" }));
 
-        expect(onRecordDayLog).not.toHaveBeenCalled();
+        expect(onViewSiteMemo).toHaveBeenCalledWith(expect.objectContaining({ id: baseSite.id }));
         expect(onAddFocusItem).toHaveBeenCalledWith(expect.objectContaining({ id: baseSite.id }));
     });
 
