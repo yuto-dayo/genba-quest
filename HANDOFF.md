@@ -5,7 +5,7 @@
 | Domain | File | Last Updated | Status |
 | ------ | ---- | ------------ | ------ |
 | deploy/production | `handoff/deploy/production.md` | 2026-05-07 | Open production /money in browser if visual smoke is needed |
-| local | `handoff/local.md` | 2026-05-08 | active |
+| local | `handoff/local.md` | 2026-05-08 | git push origin master |
 
 ## Domain Selection Guide
 

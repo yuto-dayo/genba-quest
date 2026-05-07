@@ -58,6 +58,10 @@ import styles from "./App.module.css";
 const AUTH_RESEND_COOLDOWN_SECONDS = 60;
 const AUTH_RECOVERY_SEARCH_PARAM = "auth";
 const AUTH_RECOVERY_SEARCH_VALUE = "recovery";
+const HEADER_RESTORE_SCROLL_DISTANCE = 96;
+const HEADER_SCROLL_DELTA_THRESHOLD = 8;
+const HEADER_TOP_RESTORE_Y = 56;
+const HEADER_COLLAPSE_Y = 112;
 
 const NAV_ITEMS: ReadonlyArray<{ path: string; label: string; icon: LucideIcon }> = [
   { path: "/", label: "今日", icon: Home },
@@ -261,8 +265,11 @@ function Navigation({
   const location = useLocation();
   const activePath = location.pathname === "/luqo" ? "/path" : location.pathname;
   const chipRailRef = useRef<HTMLDivElement | null>(null);
+  const lastScrollYRef = useRef(0);
+  const upwardScrollDistanceRef = useRef(0);
   const [showLeftFade, setShowLeftFade] = useState(false);
   const [showRightFade, setShowRightFade] = useState(false);
+  const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const canSwitchOrg = orgOptions.length > 1;
 
   const syncChipRailState = useCallback(() => {
@@ -299,6 +306,65 @@ function Navigation({
   }, [syncChipRailState]);
 
   useEffect(() => {
+    lastScrollYRef.current = window.scrollY;
+    upwardScrollDistanceRef.current = 0;
+    const frameId = window.requestAnimationFrame(() => setHeaderCollapsed(false));
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    let frameId = 0;
+
+    const syncHeaderState = () => {
+      frameId = 0;
+      const currentScrollY = Math.max(window.scrollY, 0);
+      const delta = currentScrollY - lastScrollYRef.current;
+      lastScrollYRef.current = currentScrollY;
+
+      if (currentScrollY < HEADER_TOP_RESTORE_Y) {
+        upwardScrollDistanceRef.current = 0;
+        setHeaderCollapsed(false);
+        return;
+      }
+
+      if (delta > HEADER_SCROLL_DELTA_THRESHOLD && currentScrollY > HEADER_COLLAPSE_Y) {
+        upwardScrollDistanceRef.current = 0;
+        setHeaderCollapsed(true);
+        return;
+      }
+
+      if (delta < -HEADER_SCROLL_DELTA_THRESHOLD) {
+        upwardScrollDistanceRef.current += Math.abs(delta);
+      }
+
+      if (upwardScrollDistanceRef.current >= HEADER_RESTORE_SCROLL_DISTANCE) {
+        upwardScrollDistanceRef.current = 0;
+        setHeaderCollapsed(false);
+      }
+    };
+
+    const handleScroll = () => {
+      if (frameId !== 0) {
+        return;
+      }
+
+      frameId = window.requestAnimationFrame(syncHeaderState);
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (frameId !== 0) {
+        window.cancelAnimationFrame(frameId);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     const frameId = window.requestAnimationFrame(syncChipRailState);
     const activeChip = chipRailRef.current?.querySelector("[data-route-active='true']");
     if (
@@ -317,7 +383,10 @@ function Navigation({
   }, [location.pathname, bellEnabled, syncChipRailState]);
 
   return (
-    <header className={styles.header}>
+    <header
+      className={`${styles.header} ${headerCollapsed ? styles.headerCollapsed : ""}`}
+      onFocusCapture={() => setHeaderCollapsed(false)}
+    >
       <div className={styles.headerTop}>
         <Link to="/" className={styles.logo} aria-label="GENBA QUEST ホーム">
           <span className={styles.logoMark} aria-hidden="true">

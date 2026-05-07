@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { ComponentProps, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
+import styles from "./App.module.css";
 import { useActiveOrgStore } from "./stores/activeOrg";
 
 const fetchAppEntryState = vi.fn();
@@ -284,6 +285,44 @@ describe("App entry gate", () => {
 
         expect(await screen.findByText("today-page")).toBeInTheDocument();
         expect(screen.getByRole("button", { name: "連絡を記録" })).toBeInTheDocument();
+    });
+
+    it("collapses the shared header on downward scroll and restores it on upward scroll", async () => {
+        let scrollY = 0;
+        const scrollYSpy = vi.spyOn(window, "scrollY", "get").mockImplementation(() => scrollY);
+        fetchAppEntryState.mockResolvedValue({
+            state: "ready",
+            active_org: { org_id: "org-1", org_name: "GENBA 本部", role: "admin" },
+            memberships: [{ org_id: "org-1", org_name: "GENBA 本部", role: "admin" }],
+        });
+
+        render(<App />);
+
+        const header = await screen.findByRole("banner");
+        expect(header).not.toHaveClass(styles.headerCollapsed);
+
+        scrollY = 180;
+        fireEvent.scroll(window);
+
+        await waitFor(() => {
+            expect(header).toHaveClass(styles.headerCollapsed);
+        });
+
+        scrollY = 120;
+        fireEvent.scroll(window);
+
+        await waitFor(() => {
+            expect(header).toHaveClass(styles.headerCollapsed);
+        });
+
+        scrollY = 70;
+        fireEvent.scroll(window);
+
+        await waitFor(() => {
+            expect(header).not.toHaveClass(styles.headerCollapsed);
+        });
+
+        scrollYSpy.mockRestore();
     });
 
     it("opens the completed site level draft task from the bell", async () => {
