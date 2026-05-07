@@ -368,6 +368,28 @@ describe("Communications page", () => {
         expect(screen.getAllByRole("button", { name: "連絡相手を追加" }).length).toBeGreaterThan(0);
     });
 
+    it("keeps the empty client directory visually blank except for the header add action", async () => {
+        fetchCommunicationContacts.mockResolvedValueOnce({ items: [], total_count: 0 });
+        fetchClients.mockResolvedValue([]);
+
+        render(
+            <MemoryRouter initialEntries={["/communications"]}>
+                <Routes>
+                    <Route path="/communications" element={<Communications />} />
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        fireEvent.click((await screen.findAllByRole("tab", { name: "取引先" }))[0]);
+        await waitFor(() => expect(fetchClients).toHaveBeenCalled());
+
+        expect(screen.queryByRole("button", { name: "登録候補" })).not.toBeInTheDocument();
+        expect(screen.queryByText("連絡相手がありません")).not.toBeInTheDocument();
+        expect(screen.queryByText("追加すると、担当者ごとに連絡先を確認できます。")).not.toBeInTheDocument();
+        expect(screen.queryByText("取引先を追加")).not.toBeInTheDocument();
+        expect(screen.getAllByRole("button", { name: "取引先を追加" }).length).toBeGreaterThan(0);
+    });
+
     it("renders messenger ledger badges in the communication timeline", async () => {
         render(
             <MemoryRouter initialEntries={["/communications"]}>

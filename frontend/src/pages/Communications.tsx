@@ -98,7 +98,6 @@ interface RecordSavedResult {
 const CLIENT_DIRECTORY_FILTERS: Array<{ value: ClientDirectoryFilter; label: string }> = [
     { value: "all", label: "すべて" },
     { value: "active", label: "登録済み" },
-    { value: "candidate", label: "登録候補" },
     { value: "deleted", label: "削除済み" },
 ];
 
@@ -1346,19 +1345,7 @@ export function Communications() {
                                     {clientDirectoryLoading ? (
                                         <p className={styles.panelState}>取引先を読み込み中...</p>
                                     ) : clientDirectoryItems.length === 0 ? (
-                                        <div className={styles.emptyPane}>
-                                            <UserCircle2 size={36} />
-                                            <strong>連絡相手がありません</strong>
-                                            <span>追加すると、担当者ごとに連絡先を確認できます。</span>
-                                            <button
-                                                type="button"
-                                                className={styles.primaryButton}
-                                                onClick={() => openClientCreator()}
-                                            >
-                                                <Plus size={16} />
-                                                取引先を追加
-                                            </button>
-                                        </div>
+                                        null
                                     ) : (
                                         <div className={styles.clientDirectoryList}>
                                             {clientDirectoryItems.map((item) => (
