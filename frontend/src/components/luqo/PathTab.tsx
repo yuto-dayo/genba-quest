@@ -11,7 +11,6 @@ import {
   BIG_SKILL_STATE_LABELS,
   OPPORTUNITY_STATUS_LABELS,
   QUALITY_RESULT_LABELS,
-  REWORK_FLAG_LABELS,
   ROLE_TYPE_LABELS,
   TRADE_FAMILY_LABELS,
 } from "./pathTab/constants";
@@ -29,11 +28,7 @@ import {
 import { usePathTabState } from "./pathTab/usePathTabState";
 import type { PathTabProps } from "./pathTab/usePathTabState";
 import { getPathProposalContext } from "../../lib/pathProposal";
-import { ReviewWizardModal } from "./pathTab/ReviewWizardModal";
-import {
-  PathMonthlyFormSection,
-  PathOverviewSection,
-} from "./pathTab/PathWorkflowSections";
+import { PathOverviewSection } from "./pathTab/PathWorkflowSections";
 import { PathRewardOperationsSection } from "./pathTab/PathRewardSections";
 import styles from "./PathTab.module.css";
 
@@ -54,7 +49,6 @@ export function PathTab(props: PathTabProps) {
     selectedMemberId,
     setSelectedMemberId,
     selectedForm,
-    selectedReview,
     selectedFinalization,
     selectedProfile,
     selectedModuleCloseInput,
@@ -67,12 +61,6 @@ export function PathTab(props: PathTabProps) {
     selectedRewardCardNote,
     selectedRewardCardBreakdown,
     selectedRewardReasonCodes,
-    formInput,
-    setFormInput,
-    roleInput,
-    setRoleInput,
-    siteInput,
-    setSiteInput,
     rewardProfitInputs,
     setRewardProfitInputs,
     rewardMembers,
@@ -120,25 +108,11 @@ export function PathTab(props: PathTabProps) {
     latestModuleRewardRun,
     modulePendingProposals,
     focusedPendingProposal,
-    isMonthlyFormWizardOpen,
-    setIsMonthlyFormWizardOpen,
-    monthlyFormWizardStepIndex,
-    setMonthlyFormWizardStepIndex,
-    submittingForm,
-    submittingFinalize,
     submittingMonthClose,
     previewingReward,
     submittingReward,
     submittingCorrection,
     reviewingProposalId,
-    reviewWizardOpen,
-    reviewWizardIndex,
-    setReviewWizardIndex,
-    reviewAnswers,
-    setReviewAnswers,
-    selectedReviewQueueEntry,
-    selectedReviewItems,
-    activeReviewItem,
     loading,
     error,
     success,
@@ -152,15 +126,12 @@ export function PathTab(props: PathTabProps) {
     selectRewardMember,
     addRewardMember,
     removeRewardMember,
-    handleFormSubmit,
-    handleFinalizeSubmit,
     handleRewardPreview,
     handleRewardProposalSubmit,
     handleMonthCloseProposalSubmit,
     handleRewardCorrectionSubmit,
     handleApprovePendingProposal,
     handleRejectPendingProposal,
-    closeReviewWizard,
   } = state;
 
   const selectedMemberLabel = selectedMemberId
@@ -421,36 +392,11 @@ export function PathTab(props: PathTabProps) {
               buildSiteDetailHref={buildSiteDetailHref}
               onOpenRewardSection={handleOpenRewardSection}
               workflow={selectedMemberWorkflow}
-              review={selectedReview}
               form={selectedForm}
               finalization={selectedFinalization}
               profile={selectedProfile}
-              onOpenMonthlyInput={() => {
-                setMonthlyFormWizardStepIndex(0);
-                setIsMonthlyFormWizardOpen(true);
-              }}
               motionProps={motionProps}
             />
-
-            <PathMonthlyFormSection
-              styles={styles}
-              bigSkillLabels={BIG_SKILL_LABELS}
-              bigSkillStateLabels={BIG_SKILL_STATE_LABELS}
-              reworkFlagLabels={REWORK_FLAG_LABELS}
-              formInput={formInput}
-              setFormInput={setFormInput}
-              roleInput={roleInput}
-              setRoleInput={setRoleInput}
-              siteInput={siteInput}
-              setSiteInput={setSiteInput}
-              submittingForm={submittingForm}
-              onSubmit={() => void handleFormSubmit()}
-              wizardOpen={isMonthlyFormWizardOpen}
-              setWizardOpen={setIsMonthlyFormWizardOpen}
-              wizardStepIndex={monthlyFormWizardStepIndex}
-              setWizardStepIndex={setMonthlyFormWizardStepIndex}
-            />
-
           </>
         )}
       </section>
@@ -833,22 +779,6 @@ export function PathTab(props: PathTabProps) {
         </div>
       )}
 
-      {reviewWizardOpen && (
-        <ReviewWizardModal
-          styles={styles}
-          memberMap={memberMap}
-          selectedReviewQueueEntry={selectedReviewQueueEntry}
-          selectedReviewItems={selectedReviewItems}
-          activeReviewItem={activeReviewItem}
-          reviewWizardIndex={reviewWizardIndex}
-          setReviewWizardIndex={setReviewWizardIndex}
-          reviewAnswers={reviewAnswers}
-          setReviewAnswers={setReviewAnswers}
-          submittingFinalize={submittingFinalize}
-          onFinalizeSubmit={(memberId) => void handleFinalizeSubmit(memberId)}
-          onClose={closeReviewWizard}
-        />
-      )}
     </div>
   );
 }
