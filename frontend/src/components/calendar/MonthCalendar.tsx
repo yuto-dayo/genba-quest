@@ -7,7 +7,7 @@ interface MonthCalendarProps {
     days: CalendarDay[];
     onSelectDate: (date: CalendarDay) => void;
     selectedDate: CalendarDay | null;
-    onOpenDateActions?: (date: CalendarDay) => void;
+    onInspectDate?: (date: CalendarDay) => void;
     availabilityTokens?: Partial<Record<string, AvailabilityTokenKind>>;
     restInitialByUserId?: Record<string, string>;
     shortageSiteCountByDate?: Record<string, number>;
@@ -350,7 +350,7 @@ export function MonthCalendar({
     days,
     onSelectDate,
     selectedDate,
-    onOpenDateActions,
+    onInspectDate,
     availabilityTokens,
     restInitialByUserId,
     shortageSiteCountByDate,
@@ -379,13 +379,13 @@ export function MonthCalendar({
     const startLongPress = (day: CalendarDay) => {
         clearLongPressTimer();
         longPressTriggeredRef.current = false;
-        if (!onOpenDateActions) {
+        if (!onInspectDate) {
             return;
         }
 
         longPressTimerRef.current = window.setTimeout(() => {
             longPressTriggeredRef.current = true;
-            onOpenDateActions(day);
+            onInspectDate(day);
         }, 520);
     };
 
@@ -447,12 +447,12 @@ export function MonthCalendar({
                             onPointerLeave={clearLongPressTimer}
                             onPointerCancel={clearLongPressTimer}
                             onContextMenu={(event) => {
-                                if (!onOpenDateActions) {
+                                if (!onInspectDate) {
                                     return;
                                 }
                                 event.preventDefault();
                                 clearLongPressTimer();
-                                onOpenDateActions(day);
+                                onInspectDate(day);
                             }}
                             aria-label={`${day.day}日 配置${density.activeCount}件${
                                 availabilityLabel ? ` ${availabilityLabel}` : ''
