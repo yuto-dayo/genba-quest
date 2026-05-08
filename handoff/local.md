@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `User review for Calendar top-left month selector; commit/push combined Calendar UI changes if approved.`
+- NEXT_CMD: `Monitor deployment or continue UI review if user requests more polish.`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/local.md`
@@ -18,12 +18,15 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
+  - HEAD: `5b6c6d4`
+  - Updated: `2026-05-08T19:32:55+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
 
 <!-- HANDOFF_SESSION_EVENTS_START -->
 - 2026-05-08 19:32:09 +0900 — started by codex
+- 2026-05-08 19:33:09 +0900 — ended by codex
 <!-- HANDOFF_SESSION_EVENTS_END -->
 
 ---
@@ -31,32 +34,33 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [pending] No completed chunk recorded yet. Source: N/A
-- [pending] Use scripts/session/session-update.sh after each meaningful chunk. Source: N/A
-- [pending] NEXT_CMD in Quick Resume is the current executable action. Source: N/A
+- [focus] NEXT_CMD: `Monitor deployment or continue UI review if user requests more polish.`. Source: realtime
+- [H0001] Completed: Committed and pushed Calendar mobile control refinements to master.
+- [H0001] Remaining: Monitor deployment or continue UI review if user requests more polish.
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
-- [pending] No decision context recorded yet. Source: N/A
+- [H0001] Auto-captured decision: Committed and pushed Calendar mobile control refinements to master.
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [none] No landmines recorded. Source: N/A
+- [H0001] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
-- [pending] No unresolved thread recorded yet. Source: N/A
+- [H0001] Monitor deployment or continue UI review if user requests more polish.
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
+- current_l3_entries: `1`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -87,35 +91,24 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
-- [ ] まだ未着手
-
+- [x] Committed and pushed Calendar mobile control refinements to master.
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: User review for Calendar top-left month selector; commit/push combined Calendar UI changes if approved.
-- [ ] **P1**: 次の優先タスクを記載
-
+- [ ] **P0**: Monitor deployment or continue UI review if user requests more polish.
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
-| `HANDOFF.md` | [dirty: M] |
-| `frontend/src/hooks/useCalendar.ts` | [dirty: M] |
-| `frontend/src/pages/Calendar.module.css` | [dirty: M] |
-| `frontend/src/pages/Calendar.test.tsx` | [dirty: M] |
-| `frontend/src/pages/Calendar.tsx` | [dirty: M] |
-| `handoff/local.md` | [dirty: M] |
-| `frontend/public/yasumi-icon.png` | [dirty: ??] |
-
+| `(not recorded)` | No file list provided (use --file "path - semantic description") |
 ---
 
 ## 6. Locked Files（編集中 - 他エージェント触らない）
 
 > なし
-
 ---
 
 ## 7. Quality Gate
@@ -128,10 +121,10 @@ cd frontend && npx eslint src/
 
 | Check | Result | Notes |
 | ----- | ------ | ----- |
-| server typecheck | SKIP | not run yet |
-| frontend typecheck | SKIP | not run yet |
-| lint | SKIP | not run yet |
-| test | SKIP | optional |
+| server typecheck | PASS | run by session-end (2026-05-08 19:33) |
+| frontend typecheck | PASS | run by session-end (2026-05-08 19:33) |
+| lint | PASS | frontend eslint src/ at 2026-05-08 19:33 |
+| test | PASS | server npm test -- --runInBand at 2026-05-08 19:33 |
 
 ---
 
@@ -145,8 +138,7 @@ cd frontend && npx eslint src/
 
 ## 9. Risks / Blockers
 
-- `docs/DESIGN_PHILOSOPHY.md` 未参照で実装すると、Proposal中心設計から逸脱するリスクがある
-
+- 新規の blocker は未記録
 ---
 
 ## 10. References
@@ -157,3 +149,19 @@ cd frontend && npx eslint src/
 ---
 
 ## 11. Incremental Updates
+
+### 2026-05-08 19:32:55 +0900
+
+- Entry-ID: `H0001`
+- Completed:
+  - [x] Committed and pushed Calendar mobile control refinements to master.
+- Remaining:
+  - [ ] Monitor deployment or continue UI review if user requests more polish.
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: Committed and pushed Calendar mobile control refinements to master.
+- Validation:
+  - `commit 5b6c6d4 pushed to origin/master`
+- Landmines:
+  - No new landmines reported in this chunk.
