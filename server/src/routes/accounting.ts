@@ -9,9 +9,12 @@ import { ensureInvoicePdfStored, INVOICE_PDF_BUCKET } from "../services/InvoiceP
 import { buildInvoiceDisplayLineItems } from "../services/InvoiceLineItemsService";
 import { assertActiveClientForOrg } from "../services/ClientDirectoryService";
 import {
+    AccountingCommandError,
     createJournalEntry,
+    createVoidReversal,
     insertExpenseTransaction,
     insertSaleTransactionWithItems,
+    recordPaymentAllocation,
 } from "../services/AccountingCommandService";
 import {
     buildDefaultInvoiceSettings,
@@ -40,7 +43,6 @@ const INVOICE_SETTINGS_MANAGER_ROLES = new Set(["admin", "manager"]);
 const DEFAULT_SALE_TAX_CATEGORY = "10_STANDARD";
 const DEFAULT_SALE_TAX_RATE = 0.1;
 const DEFAULT_SALE_UNIT_NAME = "式";
-const VOIDABLE_TRANSACTION_STATUSES = ["posted", "approved"] as const;
 const LEDGER_AGGREGATION_STATUSES = ["posted", "approved", "voided"] as const;
 
 type ExpenseCategory = typeof EXPENSE_CATEGORIES[number];
@@ -217,10 +219,6 @@ function roundMoney(value: number): number {
     return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-function isVoidableStatus(status: unknown): status is typeof VOIDABLE_TRANSACTION_STATUSES[number] {
-    return VOIDABLE_TRANSACTION_STATUSES.includes(status as typeof VOIDABLE_TRANSACTION_STATUSES[number]);
-}
-
 function isMissingColumnError(error: unknown, columnName: string): boolean {
     if (!error || typeof error !== "object") {
         return false;
@@ -260,15 +258,6 @@ function isMissingFunctionError(error: unknown, functionName: string): boolean {
         || message.includes(`function ${functionName}`)
         || message.includes(`function public.${functionName}`)
         || message.includes(`Could not find the function`)
-    );
-}
-
-function isPostgrestNoRowsError(error: unknown): boolean {
-    return Boolean(
-        error
-        && typeof error === "object"
-        && "code" in error
-        && error.code === "PGRST116"
     );
 }
 
@@ -2800,25 +2789,16 @@ router.post("/payments/allocations", async (req: AuthenticatedRequest, res: Resp
             return;
         }
 
-        const { data, error } = await supabaseAdmin.rpc("rpc_record_accounting_payment_allocation", {
-            p_org_id: orgId,
-            p_invoice_id: invoiceId,
-            p_received_on: receivedOn,
-            p_amount: amount,
-            p_payment_method: paymentMethod,
-            p_payment_account: paymentAccount,
-            p_external_reference: externalReference,
-            p_created_by: req.userId!,
-            p_metadata_json: {
-                request_source: "accounting.payments.allocate",
-            },
+        const responseBody = await recordPaymentAllocation({
+            orgId,
+            invoiceId,
+            receivedOn,
+            amount,
+            paymentMethod,
+            paymentAccount,
+            externalReference,
+            createdBy: req.userId!,
         });
-
-        if (error) {
-            throw error;
-        }
-
-        const responseBody = data || {};
         await completeAccountingWriteIdempotency(idempotency, 201, responseBody);
         res.status(201).json(responseBody);
     } catch (err: any) {
@@ -2927,100 +2907,20 @@ router.post("/void/:id", async (req: AuthenticatedRequest, res: Response) => {
             return;
         }
 
-        // 元の取引を取得
-        const { data: original, error: fetchError } = await supabaseAdmin
-            .from("accounting_transactions")
-            .select("*")
-            .eq("id", id)
-            .eq("org_id", orgId)
-            .maybeSingle();
-
-        if (fetchError) {
-            throw fetchError;
-        }
-
-        if (!original) {
-            throw new AccountingRouteError(404, "Transaction not found");
-        }
-
-        if (original.voids_transaction_id) {
-            throw new AccountingRouteError(409, "取消で作成された逆仕訳は再度取消できません");
-        }
-
-        if (original.status === "voided") {
-            throw new AccountingRouteError(409, "この取引はすでに取消済みです");
-        }
-
-        if (!isVoidableStatus(original.status)) {
-            throw new AccountingRouteError(409, "記帳済みまたは承認済みの取引のみ取消できます");
-        }
-
-        if (original.kind === "invoice") {
-            throw new AccountingRouteError(409, "請求済み売上はこの画面から取消できません");
-        }
-
-        const linkedInvoices = await getExistingInvoicesForTransaction(id, orgId);
-        if (linkedInvoices.length > 0) {
-            throw new AccountingRouteError(409, "請求書に紐づく取引は取消できません");
-        }
-
-        const { data: existingReversal, error: existingReversalError } = await supabaseAdmin
-            .from("accounting_transactions")
-            .select("id")
-            .eq("voids_transaction_id", id)
-            .eq("org_id", orgId)
-            .maybeSingle();
-
-        if (existingReversalError && !isPostgrestNoRowsError(existingReversalError)) {
-            throw existingReversalError;
-        }
-
-        if (existingReversal) {
-            throw new AccountingRouteError(409, "この取引はすでに取消済みです");
-        }
-
-        // 元の取引は記帳済みのまま保持し、逆仕訳（マイナス金額）だけを追記する。
-        const { data: reversal, error: reversalError } = await supabaseAdmin
-            .from("accounting_transactions")
-            .insert({
-                org_id: original.org_id || orgId,
-                kind: original.kind,
-                cost_center: original.cost_center,
-                site_id: original.site_id,
-                client_id: original.client_id,
-                vendor_name: original.vendor_name,
-                description: `【取消】${original.description || ""} - ${reason}`,
-                recorded_date: new Date().toISOString().split("T")[0],
-                amount_subtotal: -original.amount_subtotal,
-                tax_amount: -original.tax_amount,
-                amount_total: -original.amount_total,
-                category: original.category,
-                status: original.status,
-                voids_transaction_id: id,
-                tax_category: original.tax_category,
-                voided_by: req.userId!,
-                voided_at: new Date().toISOString(),
-                void_reason: reason,
-                created_by: req.userId!,
-            })
-            .select()
-            .single();
-
-        if (reversalError) {
-            if (isDuplicateKeyError(reversalError)) {
-                throw new AccountingRouteError(409, "この取引はすでに取消済みです");
-            }
-            throw reversalError;
-        }
-
-        // 逆仕訳の仕訳エントリ作成
-        await createJournalEntry(reversal, req.userId!, orgId);
-
-        const responseBody = { original_voided: id, original_reversed: id, reversal_created: reversal.id };
+        const responseBody = await createVoidReversal({
+            orgId,
+            transactionId: id,
+            reason,
+            createdBy: req.userId!,
+        });
         await completeAccountingWriteIdempotency(idempotency, 200, responseBody);
         res.json(responseBody);
     } catch (err: any) {
         await failAccountingWriteIdempotency(idempotency, err instanceof Error ? err.message : "UNKNOWN_ERROR");
+        if (err instanceof AccountingCommandError) {
+            res.status(err.status).json({ error: err.code });
+            return;
+        }
         if (err instanceof AccountingRouteError) {
             res.status(err.status).json({ error: err.message });
             return;

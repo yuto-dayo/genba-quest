@@ -2,6 +2,7 @@ import { supabaseAdmin } from "../lib/supabaseClient";
 import { resolveTaxRate } from "./InvoiceEligibilityService";
 
 const EXPENSE_CATEGORIES = ["material", "tool", "travel", "food", "fuel", "utility", "other"] as const;
+const VOIDABLE_TRANSACTION_STATUSES = ["posted", "approved"] as const;
 const EXPENSE_ACCOUNT_MAP: Record<ExpenseCategory, { code: string; name: string }> = {
     material: { code: "5100", name: "材料費" },
     tool: { code: "5200", name: "工具備品費" },
@@ -13,6 +14,17 @@ const EXPENSE_ACCOUNT_MAP: Record<ExpenseCategory, { code: string; name: string 
 };
 
 type ExpenseCategory = typeof EXPENSE_CATEGORIES[number];
+
+export class AccountingCommandError extends Error {
+    status: number;
+    code: string;
+
+    constructor(status: number, code: string) {
+        super(code);
+        this.status = status;
+        this.code = code;
+    }
+}
 
 export type ExpenseInsertPayload = {
     org_id: string;
@@ -60,6 +72,24 @@ export type SaleItemCommandPayload = {
     unit_name: string;
     unit_price: number;
     quantity: number;
+};
+
+export type RecordPaymentAllocationInput = {
+    orgId: string;
+    invoiceId: string;
+    receivedOn: string;
+    amount: number;
+    paymentMethod: string | null;
+    paymentAccount: string | null;
+    externalReference: string | null;
+    createdBy: string;
+};
+
+export type CreateVoidReversalInput = {
+    orgId: string;
+    transactionId: string;
+    reason: string;
+    createdBy: string;
 };
 
 type AccountingTransactionForJournal = {
@@ -121,6 +151,10 @@ function resolveExpenseAccount(category: unknown): { code: string; name: string 
     return EXPENSE_ACCOUNT_MAP[normalizedCategory];
 }
 
+function isVoidableStatus(status: unknown): status is typeof VOIDABLE_TRANSACTION_STATUSES[number] {
+    return VOIDABLE_TRANSACTION_STATUSES.includes(status as typeof VOIDABLE_TRANSACTION_STATUSES[number]);
+}
+
 function normalizeNetSubtotal(subtotal: number | null, taxAmount: number, total: number): number {
     const tolerance = 1;
     const safeSubtotal = subtotal ?? 0;
@@ -165,6 +199,38 @@ function isMissingColumnError(error: unknown, columnName: string): boolean {
         message.includes(`Could not find the '${columnName}' column`) ||
         message.includes(`column "${columnName}"`) ||
         message.includes(`'${columnName}' column`)
+    );
+}
+
+function isMissingRelationError(error: unknown, relationName: string): boolean {
+    if (!error || typeof error !== "object") {
+        return false;
+    }
+
+    const message = "message" in error && typeof error.message === "string" ? error.message : "";
+    return (
+        message.includes(`relation "${relationName}" does not exist`)
+        || message.includes(`Could not find the table '${relationName}'`)
+        || message.includes(`Could not find a relationship between`)
+    );
+}
+
+function isDuplicateKeyError(error: unknown): boolean {
+    if (!error || typeof error !== "object") {
+        return false;
+    }
+
+    const code = "code" in error ? error.code : "";
+    const message = "message" in error && typeof error.message === "string" ? error.message : "";
+    return code === "23505" || message.includes("duplicate key value") || message.includes("23505");
+}
+
+function isPostgrestNoRowsError(error: unknown): boolean {
+    return Boolean(
+        error
+        && typeof error === "object"
+        && "code" in error
+        && error.code === "PGRST116"
     );
 }
 
@@ -240,6 +306,158 @@ export async function insertSaleTransactionWithItems(
     }
 
     return data;
+}
+
+export async function recordPaymentAllocation(input: RecordPaymentAllocationInput) {
+    const { data, error } = await supabaseAdmin.rpc("rpc_record_accounting_payment_allocation", {
+        p_org_id: input.orgId,
+        p_invoice_id: input.invoiceId,
+        p_received_on: input.receivedOn,
+        p_amount: input.amount,
+        p_payment_method: input.paymentMethod,
+        p_payment_account: input.paymentAccount,
+        p_external_reference: input.externalReference,
+        p_created_by: input.createdBy,
+        p_metadata_json: {
+            request_source: "accounting.payments.allocate",
+        },
+    });
+
+    if (error) {
+        throw error;
+    }
+
+    return data || {};
+}
+
+async function hasInvoiceLinkForTransaction(transactionId: string, orgId: string): Promise<boolean> {
+    const { data: sourceLinks, error: sourceLinksError } = await supabaseAdmin
+        .from("accounting_invoice_sources")
+        .select("invoice_id, source_transaction_id, source_transaction_date, sort_order, is_primary_document")
+        .eq("source_transaction_id", transactionId)
+        .eq("org_id", orgId)
+        .order("sort_order", { ascending: true });
+
+    if (sourceLinksError && !isMissingRelationError(sourceLinksError, "accounting_invoice_sources")) {
+        throw sourceLinksError;
+    }
+
+    const invoiceIds = Array.from(new Set(
+        Array.isArray(sourceLinks) ? sourceLinks.map((link) => link.invoice_id) : []
+    ));
+
+    const query = invoiceIds.length > 0
+        ? supabaseAdmin
+            .from("accounting_invoices")
+            .select("id, invoice_no, document_type, supplements_invoice_id")
+            .eq("org_id", orgId)
+            .in("id", invoiceIds)
+        : supabaseAdmin
+            .from("accounting_invoices")
+            .select("id, invoice_no, document_type, supplements_invoice_id")
+            .eq("org_id", orgId)
+            .in("source_transaction_id", [transactionId]);
+
+    const { data: invoices, error: invoicesError } = await query;
+
+    if (invoicesError) {
+        throw invoicesError;
+    }
+
+    return Boolean(invoices && invoices.length > 0);
+}
+
+export async function createVoidReversal(input: CreateVoidReversalInput) {
+    const { data: original, error: fetchError } = await supabaseAdmin
+        .from("accounting_transactions")
+        .select("*")
+        .eq("id", input.transactionId)
+        .eq("org_id", input.orgId)
+        .maybeSingle();
+
+    if (fetchError) {
+        throw fetchError;
+    }
+
+    if (!original) {
+        throw new AccountingCommandError(404, "Transaction not found");
+    }
+
+    if (original.voids_transaction_id) {
+        throw new AccountingCommandError(409, "取消で作成された逆仕訳は再度取消できません");
+    }
+
+    if (original.status === "voided") {
+        throw new AccountingCommandError(409, "この取引はすでに取消済みです");
+    }
+
+    if (!isVoidableStatus(original.status)) {
+        throw new AccountingCommandError(409, "記帳済みまたは承認済みの取引のみ取消できます");
+    }
+
+    if (original.kind === "invoice") {
+        throw new AccountingCommandError(409, "請求済み売上はこの画面から取消できません");
+    }
+
+    if (await hasInvoiceLinkForTransaction(input.transactionId, input.orgId)) {
+        throw new AccountingCommandError(409, "請求書に紐づく取引は取消できません");
+    }
+
+    const { data: existingReversal, error: existingReversalError } = await supabaseAdmin
+        .from("accounting_transactions")
+        .select("id")
+        .eq("voids_transaction_id", input.transactionId)
+        .eq("org_id", input.orgId)
+        .maybeSingle();
+
+    if (existingReversalError && !isPostgrestNoRowsError(existingReversalError)) {
+        throw existingReversalError;
+    }
+
+    if (existingReversal) {
+        throw new AccountingCommandError(409, "この取引はすでに取消済みです");
+    }
+
+    const { data: reversal, error: reversalError } = await supabaseAdmin
+        .from("accounting_transactions")
+        .insert({
+            org_id: original.org_id || input.orgId,
+            kind: original.kind,
+            cost_center: original.cost_center,
+            site_id: original.site_id,
+            client_id: original.client_id,
+            vendor_name: original.vendor_name,
+            description: `【取消】${original.description || ""} - ${input.reason}`,
+            recorded_date: new Date().toISOString().split("T")[0],
+            amount_subtotal: -original.amount_subtotal,
+            tax_amount: -original.tax_amount,
+            amount_total: -original.amount_total,
+            category: original.category,
+            status: original.status,
+            voids_transaction_id: input.transactionId,
+            tax_category: original.tax_category,
+            voided_by: input.createdBy,
+            voided_at: new Date().toISOString(),
+            void_reason: input.reason,
+            created_by: input.createdBy,
+        })
+        .select()
+        .single();
+
+    if (reversalError) {
+        if (isDuplicateKeyError(reversalError)) {
+            throw new AccountingCommandError(409, "この取引はすでに取消済みです");
+        }
+        throw reversalError;
+    }
+
+    await createJournalEntry(reversal, input.createdBy, input.orgId);
+
+    return {
+        original_voided: input.transactionId,
+        original_reversed: input.transactionId,
+        reversal_created: reversal.id,
+    };
 }
 
 export async function createJournalEntry(
