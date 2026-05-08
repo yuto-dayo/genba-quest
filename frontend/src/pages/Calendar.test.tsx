@@ -80,7 +80,7 @@ vi.mock("../components/calendar/CalendarScheduleModal", () => ({
             {(scope === "personal" || initialMode !== "assignment") && (
                 <button type="button">予定を入れる</button>
             )}
-            {scope === "organization" && initialMode !== "personal" && (
+            {scope === "organization" && initialMode === "assignment" && (
                 <button type="button">現場に入れる</button>
             )}
         </div>
@@ -287,7 +287,7 @@ describe("Calendar page", () => {
 
         fireEvent.click(screen.getByRole("button", { name: "予定の追加メニューを開く" }));
         expect(screen.getByRole("button", { name: "予定を入れる" })).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "現場に入れる" })).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "現場に入れる" })).not.toBeInTheDocument();
 
         fireEvent.click(screen.getByRole("button", { name: "予定を入れる" }));
 
@@ -296,18 +296,7 @@ describe("Calendar page", () => {
         expect(screen.queryByRole("button", { name: "現場に入れる" })).not.toBeInTheDocument();
     });
 
-    it("opens the assignment form from the calendar FAB", () => {
-        render(<Calendar />);
-
-        fireEvent.click(screen.getByRole("button", { name: "予定の追加メニューを開く" }));
-        fireEvent.click(screen.getByRole("button", { name: "現場に入れる" }));
-
-        expect(screen.getByRole("dialog")).toHaveTextContent("現場に入れる 2026-04-25");
-        expect(screen.queryByRole("button", { name: "予定を入れる" })).not.toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "現場に入れる" })).toBeInTheDocument();
-    });
-
-    it("opens the add menu from a date long-press shortcut", () => {
+    it("selects and inspects the date from a date long-press shortcut", () => {
         render(<Calendar />);
 
         fireEvent.contextMenu(screen.getByRole("button", { name: /25日/ }));
@@ -315,7 +304,9 @@ describe("Calendar page", () => {
         expect(selectDate).toHaveBeenCalledWith(
             expect.objectContaining({ date: "2026-04-25" }),
         );
-        expect(screen.getByRole("dialog")).toHaveTextContent("追加する 2026-04-25");
+        expect(screen.getByText("4/25(土) の現場")).toBeInTheDocument();
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "現場に入れる" })).not.toBeInTheDocument();
     });
 
     it("shows compact site cards with registered work content and worker chips", async () => {
@@ -536,7 +527,6 @@ describe("Calendar page", () => {
         fireEvent.click(screen.getByRole("button", { name: "自分" }));
         fireEvent.click(screen.getByRole("button", { name: "予定の追加メニューを開く" }));
 
-        expect(screen.getByRole("button", { name: "予定を入れる" })).toBeInTheDocument();
         expect(screen.getByRole("button", { name: "予定を入れる" })).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "現場に入れる" })).not.toBeInTheDocument();
 

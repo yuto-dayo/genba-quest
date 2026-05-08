@@ -32,7 +32,7 @@ import type {
 } from '../types/calendar';
 import styles from './Calendar.module.css';
 
-type CalendarAddMode = 'menu' | 'personal' | 'assignment';
+type CalendarAddMode = 'menu' | 'personal';
 type CalendarViewMode = 'month' | 'year';
 
 const ANNUAL_REST_TARGET_DAYS = 120;
@@ -318,6 +318,7 @@ export function Calendar() {
     const monthPickerRef = useRef<HTMLDivElement>(null);
     const activeYearOptionRef = useRef<HTMLButtonElement | null>(null);
     const activeMonthOptionRef = useRef<HTMLButtonElement | null>(null);
+    const selectedScheduleRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
         let active = true;
@@ -396,6 +397,20 @@ export function Calendar() {
         }
         setAddModalMode(scope === 'personal' ? 'personal' : mode);
         setShowAddModal(true);
+    };
+
+    const handleInspectDate = (day: CalendarDay) => {
+        const originalDay = calendarDays.find((candidate) => candidate.date === day.date) ?? day;
+        selectDate(originalDay);
+        setShowAddModal(false);
+
+        window.requestAnimationFrame(() => {
+            selectedScheduleRef.current?.scrollIntoView?.({
+                behavior: 'smooth',
+                block: 'start',
+            });
+            selectedScheduleRef.current?.focus?.({ preventScroll: true });
+        });
     };
 
     const visibleDays = useMemo(
@@ -940,7 +955,11 @@ export function Calendar() {
                 )}
 
                 {viewMode === 'month' && scope === 'personal' && visibleSelectedDate && (
-                    <section className={styles.personalAvailabilityPanel}>
+                    <section
+                        className={styles.personalAvailabilityPanel}
+                        ref={selectedScheduleRef}
+                        tabIndex={-1}
+                    >
                         <div className={styles.personalAvailabilityHeader}>
                             <div>
                                 <h3>空き・休み</h3>
@@ -1009,7 +1028,7 @@ export function Calendar() {
                         <MonthCalendar
                             days={visibleDays}
                             onSelectDate={handleSelectDate}
-                            onOpenDateActions={handleOpenAddMenu}
+                            onInspectDate={handleInspectDate}
                             selectedDate={visibleSelectedDate}
                             availabilityTokens={scope === 'personal' ? availabilityTokens : undefined}
                             restInitialByUserId={restInitialByUserId}
@@ -1023,15 +1042,17 @@ export function Calendar() {
                 </motion.div>
 
                 {viewMode === 'month' && scope === 'organization' && selectedDayBoard && (
-                    <DayScheduleBoard
-                        board={selectedDayBoard}
-                        members={members}
-                        lineItemsBySiteId={lineItemsBySiteId}
-                        selectedLineItemByDateSite={selectedLineItemByDateSite}
-                        busyWorkerKeys={assignmentToggleBusyKeys}
-                        onToggleWorker={handleToggleAssignment}
-                        onSelectLineItem={handleSelectLineItem}
-                    />
+                    <div ref={selectedScheduleRef} tabIndex={-1}>
+                        <DayScheduleBoard
+                            board={selectedDayBoard}
+                            members={members}
+                            lineItemsBySiteId={lineItemsBySiteId}
+                            selectedLineItemByDateSite={selectedLineItemByDateSite}
+                            busyWorkerKeys={assignmentToggleBusyKeys}
+                            onToggleWorker={handleToggleAssignment}
+                            onSelectLineItem={handleSelectLineItem}
+                        />
+                    </div>
                 )}
             </section>
 
@@ -1039,31 +1060,14 @@ export function Calendar() {
                 behavior="draggable"
                 openLabel="予定の追加メニューを開く"
                 closeLabel="予定の追加メニューを閉じる"
-                items={
-                    scope === 'personal'
-                        ? [
-                              {
-                                  id: 'personal-schedule',
-                                  label: '予定を入れる',
-                                  icon: <Plus size={18} />,
-                                  onClick: () => handleOpenAddMenu(undefined, 'personal'),
-                              },
-                          ]
-                        : [
-                              {
-                                  id: 'personal-schedule',
-                                  label: '予定を入れる',
-                                  icon: <Plus size={18} />,
-                                  onClick: () => handleOpenAddMenu(undefined, 'personal'),
-                              },
-                              {
-                                  id: 'assignment',
-                                  label: '現場に入れる',
-                                  icon: <Users size={18} />,
-                                  onClick: () => handleOpenAddMenu(undefined, 'assignment'),
-                              },
-                          ]
-                }
+                items={[
+                    {
+                        id: 'personal-schedule',
+                        label: '予定を入れる',
+                        icon: <Plus size={18} />,
+                        onClick: () => handleOpenAddMenu(undefined, 'personal'),
+                    },
+                ]}
             />
 
             <AnimatePresence>

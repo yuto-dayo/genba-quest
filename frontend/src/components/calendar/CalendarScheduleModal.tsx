@@ -11,7 +11,6 @@ import {
     Clock,
     Loader2,
     MapPin,
-    UserPlus,
     X,
 } from 'lucide-react';
 import {
@@ -429,11 +428,6 @@ export function CalendarScheduleModal({
         setMode('personal');
     };
 
-    const openAssignmentForm = () => {
-        setError(null);
-        setMode('assignment');
-    };
-
     const handleScheduleTypeChange = (nextType: PersonalScheduleType) => {
         setScheduleType(nextType);
         setVisibility((current) =>
@@ -832,15 +826,6 @@ export function CalendarScheduleModal({
                             <span>
                                 <strong>予定を入れる</strong>
                                 <small>予定やタスクを入れる</small>
-                            </span>
-                        </button>
-                        <button type="button" className={styles.actionButton} onClick={openAssignmentForm}>
-                            <span className={styles.actionIcon}>
-                                <UserPlus size={18} />
-                            </span>
-                            <span>
-                                <strong>現場に入れる</strong>
-                                <small>既存現場への人員配置</small>
                             </span>
                         </button>
                     </div>
