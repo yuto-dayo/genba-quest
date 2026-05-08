@@ -258,6 +258,41 @@ function buildRequestHash(body: unknown): string {
         .digest("hex");
 }
 
+function withAccountingCommandEnvelope<T extends Record<string, unknown>>(
+    legacyPayload: T,
+    input: {
+        endpointName: AccountingWriteEndpoint;
+        projection: Record<string, unknown>;
+        approvalStatus?: string;
+        postingStatus?: string;
+    },
+): T & {
+    proposal: null;
+    approval: Record<string, unknown>;
+    execution: Record<string, unknown>;
+    posting: Record<string, unknown>;
+    projection: Record<string, unknown>;
+} {
+    return {
+        ...legacyPayload,
+        proposal: null,
+        approval: {
+            status: input.approvalStatus || "legacy_direct",
+            mode: "legacy_direct",
+        },
+        execution: {
+            status: "succeeded",
+            mode: "legacy_direct",
+            endpoint_name: input.endpointName,
+        },
+        posting: {
+            status: input.postingStatus || "legacy_projection",
+            mode: "legacy_projection",
+        },
+        projection: input.projection,
+    };
+}
+
 function readIdempotencyKey(body: unknown): string {
     const value = body && typeof body === "object"
         ? (body as Record<string, unknown>).idempotency_key
@@ -1092,8 +1127,18 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
             await createJournalEntry(data, req.userId!, orgId);
         }
 
-        await completeAccountingWriteIdempotency(idempotency, 201, data);
-        res.status(201).json(data);
+        const responseBody = withAccountingCommandEnvelope(data, {
+            endpointName: "accounting.expenses.create",
+            approvalStatus: requiresReview ? "pending_review" : "not_required",
+            postingStatus: requiresReview ? "pending_review" : "posted",
+            projection: {
+                legacy_transaction_id: data.id,
+                legacy_transaction_kind: data.kind || "expense",
+            },
+        });
+
+        await completeAccountingWriteIdempotency(idempotency, 201, responseBody);
+        res.status(201).json(responseBody);
     } catch (err: any) {
         await failAccountingWriteIdempotency(idempotency, err instanceof Error ? err.message : "UNKNOWN_ERROR");
         if (err instanceof AccountingRouteError) {
@@ -1438,8 +1483,18 @@ router.post("/sales", async (req: AuthenticatedRequest, res: Response) => {
         // 仕訳作成
         await createJournalEntry(data, req.userId!, orgId);
 
-        await completeAccountingWriteIdempotency(idempotency, 201, data);
-        res.status(201).json(data);
+        const responseBody = withAccountingCommandEnvelope(data, {
+            endpointName: "accounting.sales.adjust",
+            approvalStatus: "not_required",
+            postingStatus: "posted",
+            projection: {
+                legacy_transaction_id: data.id,
+                legacy_transaction_kind: data.kind || "sale",
+            },
+        });
+
+        await completeAccountingWriteIdempotency(idempotency, 201, responseBody);
+        res.status(201).json(responseBody);
     } catch (err: any) {
         await failAccountingWriteIdempotency(idempotency, err instanceof Error ? err.message : "UNKNOWN_ERROR");
         if (err instanceof AccountingRouteError) {
@@ -2044,7 +2099,7 @@ router.post("/invoices", async (req: AuthenticatedRequest, res: Response) => {
             createdBy: req.userId!,
         });
 
-        const responseBody = {
+        const responseBody = withAccountingCommandEnvelope({
             ...data,
             source_summary: sourceSummary,
             eligibility: {
@@ -2053,7 +2108,16 @@ router.post("/invoices", async (req: AuthenticatedRequest, res: Response) => {
                 reason_messages: eligibility.reason_messages,
                 resolved_document_type: resolvedDocumentType,
             },
-        };
+        }, {
+            endpointName: "accounting.invoices.create",
+            approvalStatus: "not_required",
+            postingStatus: "invoice_issue_no_pl_journal",
+            projection: {
+                legacy_invoice_id: data.id,
+                legacy_transaction_id: representativeTransaction.id,
+                source_transaction_ids: sortedTransactions.map((transaction) => transaction.id),
+            },
+        });
 
         await completeAccountingWriteIdempotency(idempotency, 201, responseBody);
         res.status(201).json(responseBody);

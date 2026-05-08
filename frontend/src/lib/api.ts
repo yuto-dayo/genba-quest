@@ -112,13 +112,16 @@ function createClientIdempotencyKey(scope: string): string {
     return `${scope}:${randomPart}`;
 }
 
-function withIdempotencyKey<T extends { idempotency_key?: string }>(
+function withIdempotencyKey<T extends object>(
     scope: string,
     data: T,
 ): T & { idempotency_key: string } {
+    const idempotencyKey = "idempotency_key" in data && typeof data.idempotency_key === "string"
+        ? data.idempotency_key
+        : null;
     return {
         ...data,
-        idempotency_key: data.idempotency_key || createClientIdempotencyKey(scope),
+        idempotency_key: idempotencyKey || createClientIdempotencyKey(scope),
     };
 }
 
@@ -1850,7 +1853,15 @@ export interface OcrFields {
     [key: string]: OcrFieldValue | undefined | unknown;
 }
 
-export interface AccountingTransaction {
+export interface AccountingCommandEnvelope {
+    proposal?: unknown | null;
+    approval?: Record<string, unknown>;
+    execution?: Record<string, unknown>;
+    posting?: Record<string, unknown>;
+    projection?: Record<string, unknown>;
+}
+
+export interface AccountingTransaction extends AccountingCommandEnvelope {
     id: string;
     kind: "expense" | "sale" | "invoice";
     cost_center: "HQ" | "SITE";
@@ -2014,7 +2025,7 @@ export interface InvoiceSourceSummary {
     currency: string;
 }
 
-export interface AccountingInvoice {
+export interface AccountingInvoice extends AccountingCommandEnvelope {
     id: string;
     transaction_id: string;
     source_transaction_id?: string;
