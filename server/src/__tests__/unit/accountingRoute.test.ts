@@ -133,6 +133,7 @@ describe("accounting router", () => {
   const createInvoiceHandler = getPostHandler("/invoices");
   const correctInvoiceHandler = getPostHandler("/invoices/:id/correct");
   const createInvoiceSupplementHandler = getPostHandler("/invoices/:id/supplement");
+  const createPaymentAllocationHandler = getPostHandler("/payments/allocations");
   const downloadInvoiceHandler = getGetHandler("/invoices/:id/download");
   const voidTransactionHandler = getPostHandler("/void/:id");
   const mockFrom = (supabaseAdmin as unknown as { from: jest.Mock }).from;
@@ -1216,6 +1217,7 @@ describe("accounting router", () => {
       data: {
         id: "tx-1",
         kind: "sale",
+        site_id: "site-1",
         recorded_date: "2026-03-10",
         amount_subtotal: 100000,
         tax_amount: 10000,
@@ -1228,6 +1230,18 @@ describe("accounting router", () => {
     const settingsChain = createChain({ data: null, error: null });
     const sourceLinksChain = createChain({ data: [], error: null });
     const existingInvoicesFallbackChain = createChain({ data: [], error: null });
+    const revenueBasisPreflightChain = createChain({
+      data: [{
+        id: "rb-1",
+        site_id: "site-1",
+        recognition_date: "2026-03-10",
+        recognized_on: "2026-03-10",
+        amount_inc_tax: 220000,
+        receivable_account_type: "accounts_receivable",
+      }],
+      error: null,
+    });
+    const invoiceAllocationExistingChain = createChain({ data: [], error: null });
     const invoiceInsertChain = createChain({
       data: {
         id: "inv-2",
@@ -1238,14 +1252,30 @@ describe("accounting router", () => {
       error: null,
     });
     const invoiceSourcesInsertChain = createChain({ data: null, error: null });
+    const revenueBasisChain = createChain({
+      data: [{
+        id: "rb-1",
+        site_id: "site-1",
+        recognition_date: "2026-03-10",
+        recognized_on: "2026-03-10",
+        amount_inc_tax: 220000,
+        receivable_account_type: "accounts_receivable",
+      }],
+      error: null,
+    });
+    const invoiceAllocationInsertChain = createChain({ data: null, error: null });
     const txUpdateChain = createChain({ data: null, error: null });
     setupMockFromSequence(mockFrom, [
       transactionChain,
       settingsChain,
       sourceLinksChain,
       existingInvoicesFallbackChain,
+      revenueBasisPreflightChain,
+      invoiceAllocationExistingChain,
       invoiceInsertChain,
       invoiceSourcesInsertChain,
+      revenueBasisChain,
+      invoiceAllocationInsertChain,
       txUpdateChain,
     ]);
     mockRpc.mockResolvedValue({ data: "INV-2026-0002", error: null });
@@ -1283,7 +1313,27 @@ describe("accounting router", () => {
         is_primary_document: true,
       }),
     ]));
+    expect(revenueBasisPreflightChain.in).toHaveBeenCalledWith("site_id", ["site-1"]);
+    expect(invoiceAllocationExistingChain.in).toHaveBeenCalledWith("revenue_basis_id", ["rb-1"]);
+    expect(revenueBasisChain.in).toHaveBeenCalledWith("site_id", ["site-1"]);
+    expect(invoiceAllocationInsertChain.insert).toHaveBeenCalledWith([
+      expect.objectContaining({
+        org_id: "11111111-1111-4111-8111-111111111111",
+        invoice_id: "inv-2",
+        invoice_line_key: "source_transaction:tx-1",
+        revenue_basis_id: "rb-1",
+        allocation_amount_ex_tax: 100000,
+        tax_amount: 10000,
+        amount_inc_tax: 110000,
+        allocation_kind: "invoice_issue",
+        metadata_json: expect.objectContaining({
+          source_transaction_id: "tx-1",
+          posting_mode: "no_pl_journal",
+        }),
+      }),
+    ]);
     expect(txUpdateChain.in).toHaveBeenCalledWith("id", ["tx-1"]);
+    expect(mockFrom).not.toHaveBeenCalledWith("accounting_journal_entries");
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
       eligibility: expect.objectContaining({
@@ -1291,6 +1341,70 @@ describe("accounting router", () => {
         reason_codes: ["ISSUER_NOT_REGISTERED"],
       }),
     }));
+  });
+
+  it("POST /invoices rejects allocations that exceed the revenue basis uninvoiced balance before issuing a number", async () => {
+    const transactionChain = createChain({
+      data: {
+        id: "tx-1",
+        kind: "sale",
+        site_id: "site-1",
+        recorded_date: "2026-03-10",
+        amount_subtotal: 100000,
+        tax_amount: 10000,
+        amount_total: 110000,
+        tax_category: "10_STANDARD",
+        currency: "JPY",
+      },
+      error: null,
+    });
+    const settingsChain = createChain({ data: null, error: null });
+    const sourceLinksChain = createChain({ data: [], error: null });
+    const existingInvoicesFallbackChain = createChain({ data: [], error: null });
+    const revenueBasisPreflightChain = createChain({
+      data: [{
+        id: "rb-1",
+        site_id: "site-1",
+        recognition_date: "2026-03-10",
+        recognized_on: "2026-03-10",
+        amount_inc_tax: 110000,
+        receivable_account_type: "accounts_receivable",
+      }],
+      error: null,
+    });
+    const invoiceAllocationExistingChain = createChain({
+      data: [{
+        revenue_basis_id: "rb-1",
+        amount_inc_tax: 100000,
+      }],
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [
+      transactionChain,
+      settingsChain,
+      sourceLinksChain,
+      existingInvoicesFallbackChain,
+      revenueBasisPreflightChain,
+      invoiceAllocationExistingChain,
+    ]);
+
+    const req = {
+      userId: "user-1",
+      orgId: "11111111-1111-4111-8111-111111111111",
+      body: {
+        idempotency_key: "invoice-over-allocated-1",
+        transaction_id: "tx-1",
+        billing_name: "株式会社現場",
+        requested_document_type: "auto",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createInvoiceHandler(req, res);
+
+    expect(mockRpc).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({ error: "INVOICE_ALLOCATION_EXCEEDS_UNINVOICED_BALANCE" });
   });
 
   it("POST /invoices rejects explicit qualified invoice requests when eligibility fails", async () => {
@@ -1626,6 +1740,75 @@ describe("accounting router", () => {
       id: "inv-s1",
       document_type: "invoice_supplement",
     }));
+  });
+
+  it("POST /payments/allocations records payment allocation through the atomic RPC without PL journal writes", async () => {
+    setupMockFromSequence(mockFrom, []);
+    mockRpc.mockResolvedValue({
+      data: {
+        payment: { id: "payment-1", amount: 110000, status: "allocated" },
+        allocation: { id: "allocation-1", invoice_id: "inv-1", allocated_amount: 110000 },
+        invoice: { id: "inv-1", amount_total: 110000, allocated_total: 110000, uncollected_balance: 0 },
+      },
+      error: null,
+    });
+
+    const req = {
+      userId: "user-1",
+      orgId: "11111111-1111-4111-8111-111111111111",
+      body: {
+        idempotency_key: "payment-allocation-1",
+        invoice_id: "inv-1",
+        received_on: "2026-03-31",
+        amount: 110000,
+        payment_method: "bank_transfer",
+        payment_account: "main_bank",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createPaymentAllocationHandler(req, res);
+
+    expect(mockRpc).toHaveBeenCalledWith("rpc_record_accounting_payment_allocation", expect.objectContaining({
+      p_org_id: "11111111-1111-4111-8111-111111111111",
+      p_invoice_id: "inv-1",
+      p_received_on: "2026-03-31",
+      p_amount: 110000,
+      p_payment_method: "bank_transfer",
+      p_payment_account: "main_bank",
+      p_created_by: "user-1",
+    }));
+    expect(mockFrom).not.toHaveBeenCalledWith("accounting_journal_entries");
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      payment: expect.objectContaining({ id: "payment-1" }),
+      allocation: expect.objectContaining({ id: "allocation-1" }),
+    }));
+  });
+
+  it("POST /payments/allocations rejects over-collection without recording a payment", async () => {
+    setupMockFromSequence(mockFrom, []);
+    mockRpc.mockResolvedValue({
+      data: null,
+      error: { message: "PAYMENT_ALLOCATION_EXCEEDS_UNCOLLECTED_BALANCE" },
+    });
+
+    const req = {
+      userId: "user-1",
+      orgId: "11111111-1111-4111-8111-111111111111",
+      body: {
+        idempotency_key: "payment-over-allocated-1",
+        invoice_id: "inv-1",
+        received_on: "2026-03-31",
+        amount: 120000,
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createPaymentAllocationHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({ error: "PAYMENT_ALLOCATION_EXCEEDS_UNCOLLECTED_BALANCE" });
   });
 
   it("GET /invoices/:id/download streams the stored invoice PDF", async () => {
