@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `User review of full-bleed Calendar; optional tune grid contrast after edge-to-edge change`
+- NEXT_CMD: `User review for Calendar top-left month selector; commit/push combined Calendar UI changes if approved.`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/local.md`
@@ -13,7 +13,7 @@
   - `sed -n '1,120p' docs/DESIGN_PHILOSOPHY.md`
 - STATE:
   - Branch: `master`
-  - Uncommitted: `5 files`
+  - Uncommitted: `7 files`
   - DB migrations: `latest local: none found`
   - Tests: `not run yet`
   - Lint: `not run yet`
@@ -23,7 +23,7 @@
 ## Session Events (audit log)
 
 <!-- HANDOFF_SESSION_EVENTS_START -->
-- 2026-05-08 17:46:11 +0900 — started by codex
+- 2026-05-08 19:32:09 +0900 — started by codex
 <!-- HANDOFF_SESSION_EVENTS_END -->
 
 ---
@@ -71,7 +71,7 @@ Branch: master
 Phase: A-0/A-1
 ```
 
-> [carryover] Working tree was dirty at session start (5 files). Prior session may have unfinished work — verify NEXT_CMD before executing.
+> [carryover] Working tree was dirty at session start (7 files). Prior session may have unfinished work — verify NEXT_CMD before executing.
 
 1. `docs/DESIGN_PHILOSOPHY.md` の冒頭を確認
 2. このファイルを更新しながら実装を進める
@@ -93,7 +93,7 @@ Phase: A-0/A-1
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: User review of full-bleed Calendar; optional tune grid contrast after edge-to-edge change
+- [ ] **P0**: User review for Calendar top-left month selector; commit/push combined Calendar UI changes if approved.
 - [ ] **P1**: 次の優先タスクを記載
 
 ---
@@ -103,10 +103,12 @@ Phase: A-0/A-1
 | File | What Changed |
 | ---- | ------------ |
 | `HANDOFF.md` | [dirty: M] |
-| `frontend/src/components/calendar/CalendarComponents.module.css` | [dirty: M] |
-| `frontend/src/components/calendar/MonthCalendar.tsx` | [dirty: M] |
+| `frontend/src/hooks/useCalendar.ts` | [dirty: M] |
 | `frontend/src/pages/Calendar.module.css` | [dirty: M] |
+| `frontend/src/pages/Calendar.test.tsx` | [dirty: M] |
+| `frontend/src/pages/Calendar.tsx` | [dirty: M] |
 | `handoff/local.md` | [dirty: M] |
+| `frontend/public/yasumi-icon.png` | [dirty: ??] |
 
 ---
 

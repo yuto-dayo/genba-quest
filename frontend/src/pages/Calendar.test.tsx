@@ -14,6 +14,7 @@ const submitLeaveRequestProposal = vi.fn();
 const getSession = vi.fn();
 const reloadAssignments = vi.fn();
 const selectDate = vi.fn();
+const goToMonth = vi.fn();
 
 const baseCalendarDay: CalendarDay = {
     date: "2026-04-25",
@@ -93,6 +94,7 @@ vi.mock("../hooks/useCalendar", () => ({
         sites: [],
         nextMonth: vi.fn(),
         prevMonth: vi.fn(),
+        goToMonth,
         selectDate,
         reloadAssignments,
     }),
@@ -187,8 +189,33 @@ describe("Calendar page", () => {
 
         expect(screen.getByRole("button", { name: "今月" })).toHaveAttribute("aria-pressed", "true");
         expect(screen.getByRole("button", { name: /25日/ })).toBeInTheDocument();
-        expect(screen.getByText("今月の休み数")).toBeInTheDocument();
+        expect(screen.getByLabelText("4月の休み数")).toBeInTheDocument();
         expect(await screen.findByLabelText("ユート 1日")).toBeInTheDocument();
+    });
+
+    it("opens a collapsed month picker and jumps by year or month", () => {
+        render(<Calendar />);
+
+        expect(screen.queryByRole("dialog", { name: "表示月を選択" })).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: "2026/04 の月選択を開く" }));
+
+        expect(screen.getByRole("dialog", { name: "表示月を選択" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "2026/04 の月選択を閉じる" })).toHaveAttribute(
+            "aria-expanded",
+            "true"
+        );
+
+        fireEvent.click(screen.getByRole("button", { name: "2027" }));
+        expect(goToMonth).toHaveBeenCalledWith(2027, 4);
+        expect(screen.getByRole("dialog", { name: "表示月を選択" })).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: "02" }));
+        expect(goToMonth).toHaveBeenCalledWith(2026, 2);
+        expect(screen.getByRole("dialog", { name: "表示月を選択" })).toBeInTheDocument();
+
+        fireEvent.pointerDown(document.body);
+        expect(screen.queryByRole("dialog", { name: "表示月を選択" })).not.toBeInTheDocument();
     });
 
     it("switches to year view summary and back to the month calendar", async () => {
@@ -243,7 +270,7 @@ describe("Calendar page", () => {
         fireEvent.click(screen.getByRole("button", { name: "今月" }));
 
         expect(screen.getByRole("button", { name: "今月" })).toHaveAttribute("aria-pressed", "true");
-        expect(screen.getByText("今月の休み数")).toBeInTheDocument();
+        expect(screen.getByLabelText("4月の休み数")).toBeInTheDocument();
         expect(await screen.findByLabelText("ユート 1日")).toBeInTheDocument();
         expect(screen.getByRole("button", { name: /25日/ })).toBeInTheDocument();
     });

@@ -66,6 +66,8 @@
 }
 
 .navGroup {
+    position: relative;
+    justify-self: start;
     display: inline-flex;
     align-items: center;
     gap: 10px;
@@ -97,17 +99,125 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    gap: 6px;
     min-width: 104px;
     min-height: 40px;
-    padding: 0 16px;
+    padding: 0 4px;
+    border: none;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 76%, white);
+    background: transparent;
     color: var(--md-sys-color-on-surface);
     font: var(--md-sys-typescale-title-medium);
     font-weight: 800;
     font-variant-numeric: tabular-nums;
     letter-spacing: 0;
-    box-shadow: inset 0 1px 0 color-mix(in srgb, white 72%, transparent);
+    box-shadow: none;
+}
+
+.monthNavTrigger {
+    cursor: pointer;
+    transition:
+        background 180ms ease,
+        box-shadow 180ms ease,
+        transform 180ms ease;
+}
+
+.monthNavTrigger:hover {
+    background: transparent;
+    color: var(--md-sys-color-primary);
+    box-shadow: none;
+}
+
+.monthNavTrigger[aria-expanded='true'] {
+    background: transparent;
+    color: var(--md-sys-color-primary);
+    box-shadow: none;
+}
+
+.monthNavChevron {
+    flex: 0 0 auto;
+    transition: transform 180ms ease;
+}
+
+.monthNavTrigger[aria-expanded='true'] .monthNavChevron {
+    transform: rotate(180deg);
+}
+
+.monthPickerPanel {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    z-index: 20;
+    width: min(250px, calc(100vw - 32px));
+    padding: 8px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 64%, transparent);
+    border-radius: 24px;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 92%, white);
+    box-shadow:
+        var(--md-sys-elevation-level3),
+        inset 0 1px 0 color-mix(in srgb, white 82%, transparent);
+    transform-origin: top left;
+}
+
+.monthPickerColumns {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 8px;
+    align-items: stretch;
+}
+
+.monthPickerColumn {
+    display: grid;
+    gap: 4px;
+    max-height: 184px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scroll-snap-type: y proximity;
+    padding: 2px;
+    scrollbar-width: none;
+}
+
+.monthPickerColumn::-webkit-scrollbar {
+    display: none;
+}
+
+.monthPickerDivider {
+    width: 1px;
+    margin: 6px 0;
+    background: color-mix(in srgb, var(--md-sys-color-outline-variant) 72%, transparent);
+}
+
+.monthPickerOption {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    border: none;
+    border-radius: 16px;
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-large);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+    cursor: pointer;
+    scroll-snap-align: center;
+    transition:
+        background 160ms ease,
+        color 160ms ease,
+        transform 160ms ease,
+        box-shadow 160ms ease;
+}
+
+.monthPickerOption:hover {
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 78%, white);
+    color: var(--md-sys-color-on-surface);
+}
+
+.monthPickerOptionActive {
+    background: color-mix(in srgb, var(--md-sys-color-primary-container) 72%, white);
+    color: var(--md-sys-color-primary);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--md-sys-color-primary) 18%, transparent);
 }
 
 .mainPanel {
@@ -129,10 +239,6 @@
     box-shadow: inset 0 1px 0 color-mix(in srgb, white 84%, transparent);
 }
 
-.viewSegment {
-    flex: 0 0 auto;
-}
-
 .calendarControlsRow {
     display: inline-flex;
     flex-wrap: wrap;
@@ -140,16 +246,13 @@
     justify-content: center;
     gap: 10px;
     min-width: 0;
+    width: min(520px, 100%);
 }
 
-.viewSegment .segmentButton,
-.scopeSegment .segmentButton {
-    justify-content: center;
-    min-width: 68px;
-}
-
-.scopeSegment .segmentButton {
-    min-width: 74px;
+.calendarModeSegment {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    width: 100%;
 }
 
 .active {}
@@ -158,9 +261,10 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 6px;
     min-height: 36px;
-    padding: 0 14px;
+    min-width: 0;
+    padding: 0 10px;
     border: none;
     border-radius: 999px;
     background: transparent;
@@ -171,15 +275,30 @@
 }
 
 .segmentButton.active {
-    background: var(--md-sys-color-surface);
-    color: var(--md-sys-color-primary);
     box-shadow:
         var(--md-sys-elevation-level1),
         inset 0 0 0 1px color-mix(in srgb, var(--md-sys-color-primary) 14%, transparent);
 }
 
+.scopeActive {
+    background: color-mix(in srgb, var(--md-sys-color-primary-container) 76%, white);
+    color: var(--md-sys-color-primary);
+}
+
+.viewActive {
+    background: color-mix(in srgb, var(--md-sys-color-secondary-container) 68%, white);
+    color: var(--md-sys-color-on-secondary-container);
+    box-shadow:
+        var(--md-sys-elevation-level1),
+        inset 0 0 0 1px color-mix(in srgb, var(--md-sys-color-secondary) 20%, transparent);
+}
+
+.modeBoundary {
+    border-left: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 70%, transparent);
+}
+
 .segmentButton.active:hover {
-    background: var(--md-sys-color-surface);
+    filter: brightness(0.99);
 }
 
 .mainPanel {
@@ -222,13 +341,12 @@
     font: var(--md-sys-typescale-label-large);
 }
 
-.restSummaryTitle {
-    display: inline-flex;
-    align-items: center;
-    min-height: 30px;
-    color: var(--md-sys-color-on-surface);
-    font: var(--md-sys-typescale-label-large);
-    font-weight: 700;
+.restSummaryIcon {
+    display: block;
+    width: 34px;
+    height: 34px;
+    object-fit: contain;
+    opacity: 0.82;
 }
 
 .restSummaryToggle {
@@ -753,9 +871,6 @@
 
 @media (max-width: 420px) {
     .calendarControlsRow {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
         width: 100%;
     }
 
@@ -763,13 +878,9 @@
         width: 100%;
     }
 
-    .viewSegment {
-        width: 100%;
-    }
-
     .segmentButton {
         flex: 1 1 0;
-        padding: 0 10px;
+        padding: 0 8px;
     }
 
     .restSummaryBar {
@@ -798,6 +909,9 @@
 
 @media (prefers-reduced-motion: reduce) {
     .navBtn,
+    .monthNavTrigger,
+    .monthNavChevron,
+    .monthPickerOption,
     .segmentButton,
     .availabilityTokenButton,
     .restSummaryToggleButton {

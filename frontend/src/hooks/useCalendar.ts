@@ -921,6 +921,11 @@ export const useCalendar = () => {
         setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
     }, []);
 
+    const goToMonth = useCallback((nextYear: number, nextMonth: number) => {
+        setCurrentDate(new Date(nextYear, nextMonth - 1, 1));
+        setSelectedDateKey(null);
+    }, []);
+
     const goToToday = useCallback(() => {
         const now = new Date();
         setCurrentDate(now);
@@ -941,6 +946,7 @@ export const useCalendar = () => {
         sites,
         nextMonth,
         prevMonth,
+        goToMonth,
         goToToday,
         selectDate,
         reloadAssignments,

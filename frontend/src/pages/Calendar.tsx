@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-    ChevronLeft,
-    ChevronRight,
+    ChevronDown,
     Plus,
     UserRound,
     Users,
@@ -37,6 +36,7 @@ type CalendarAddMode = 'menu' | 'personal' | 'assignment';
 type CalendarViewMode = 'month' | 'year';
 
 const ANNUAL_REST_TARGET_DAYS = 120;
+const MONTH_OPTIONS = Array.from({ length: 12 }, (_, index) => index + 1);
 
 function filterDayAssignments(day: CalendarDay, userId: string | null): CalendarDay {
     if (!userId) {
@@ -293,8 +293,7 @@ export function Calendar() {
         annualRestDaysByUser,
         selectedDate,
         sites,
-        nextMonth,
-        prevMonth,
+        goToMonth,
         selectDate,
         reloadAssignments,
     } = useCalendar();
@@ -310,9 +309,13 @@ export function Calendar() {
         Partial<Record<string, AvailabilityTokenKind>>
     >({});
     const [viewMode, setViewMode] = useState<CalendarViewMode>('month');
+    const [monthPickerOpen, setMonthPickerOpen] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
     const [addModalMode, setAddModalMode] = useState<CalendarAddMode>('menu');
     const { drafts, addDraft, removeDraft, clearDrafts } = useDraftAssignmentCreates();
+    const monthPickerRef = useRef<HTMLDivElement>(null);
+    const activeYearOptionRef = useRef<HTMLButtonElement | null>(null);
+    const activeMonthOptionRef = useRef<HTMLButtonElement | null>(null);
 
     useEffect(() => {
         let active = true;
@@ -486,10 +489,70 @@ export function Calendar() {
           : null;
 
     const monthLabel = `${year}/${String(month).padStart(2, '0')}`;
+    const yearOptions = useMemo(() => {
+        const currentYear = new Date().getFullYear();
+        const start = Math.min(currentYear, year) - 3;
+        const end = Math.max(currentYear, year) + 3;
+        return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+    }, [year]);
     const modalInitialDate =
         visibleSelectedDate?.date ??
         selectedDate?.date ??
         `${year}-${String(month).padStart(2, '0')}-01`;
+
+    useEffect(() => {
+        if (!monthPickerOpen) {
+            return undefined;
+        }
+
+        const handlePointerDown = (event: PointerEvent) => {
+            if (
+                monthPickerRef.current &&
+                event.target instanceof Node &&
+                !monthPickerRef.current.contains(event.target)
+            ) {
+                setMonthPickerOpen(false);
+            }
+        };
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setMonthPickerOpen(false);
+            }
+        };
+
+        document.addEventListener('pointerdown', handlePointerDown);
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.removeEventListener('pointerdown', handlePointerDown);
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [monthPickerOpen]);
+
+    useEffect(() => {
+        if (viewMode !== 'month') {
+            setMonthPickerOpen(false);
+        }
+    }, [viewMode]);
+
+    useEffect(() => {
+        if (!monthPickerOpen) {
+            return;
+        }
+
+        const prefersReducedMotion =
+            typeof window.matchMedia === 'function' &&
+            window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        window.requestAnimationFrame(() => {
+            activeYearOptionRef.current?.scrollIntoView({
+                block: 'center',
+                behavior: prefersReducedMotion ? 'auto' : 'smooth',
+            });
+            activeMonthOptionRef.current?.scrollIntoView({
+                block: 'center',
+                behavior: prefersReducedMotion ? 'auto' : 'smooth',
+            });
+        });
+    }, [monthPickerOpen, month, year]);
 
     const setAvailabilityToken = (kind: AvailabilityTokenKind) => {
         if (!visibleSelectedDate) {
@@ -634,62 +697,130 @@ export function Calendar() {
             <section className={styles.mainPanel}>
                 <div className={styles.sectionHeader}>
                     <div className={styles.headerTools}>
-                        <div className={styles.navGroup}>
-                            {viewMode === 'month' && (
-                                <button
-                                    type="button"
-                                    className={styles.navBtn}
-                                    onClick={prevMonth}
-                                    aria-label="前月"
-                                >
-                                    <ChevronLeft size={20} />
-                                </button>
-                            )}
-                            <span className={styles.monthNavLabel} aria-live="polite">
-                                {viewMode === 'month' ? monthLabel : `${year}年`}
-                            </span>
-                            {viewMode === 'month' && (
-                                <button
-                                    type="button"
-                                    className={styles.navBtn}
-                                    onClick={nextMonth}
-                                    aria-label="翌月"
-                                >
-                                    <ChevronRight size={20} />
-                                </button>
+                        <div className={styles.navGroup} ref={monthPickerRef}>
+                            {viewMode === 'month' ? (
+                                <>
+                                    <button
+                                        type="button"
+                                        className={`${styles.monthNavLabel} ${styles.monthNavTrigger}`}
+                                        onClick={() => setMonthPickerOpen((open) => !open)}
+                                        aria-expanded={monthPickerOpen}
+                                        aria-haspopup="dialog"
+                                        aria-label={`${monthLabel} の月選択を${
+                                            monthPickerOpen ? '閉じる' : '開く'
+                                        }`}
+                                    >
+                                        <span>{monthLabel}</span>
+                                        <ChevronDown
+                                            size={16}
+                                            className={styles.monthNavChevron}
+                                            aria-hidden="true"
+                                        />
+                                    </button>
+                                    <AnimatePresence>
+                                        {monthPickerOpen && (
+                                            <motion.div
+                                                className={styles.monthPickerPanel}
+                                                role="dialog"
+                                                aria-label="表示月を選択"
+                                                initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                                                transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}
+                                            >
+                                                <div className={styles.monthPickerColumns}>
+                                                    <div
+                                                        className={styles.monthPickerColumn}
+                                                        aria-label="年を選択"
+                                                    >
+                                                        {yearOptions.map((option) => (
+                                                            <button
+                                                                type="button"
+                                                                key={option}
+                                                                className={`${styles.monthPickerOption} ${
+                                                                    option === year
+                                                                        ? styles.monthPickerOptionActive
+                                                                        : ''
+                                                                }`}
+                                                                ref={
+                                                                    option === year
+                                                                        ? activeYearOptionRef
+                                                                        : undefined
+                                                                }
+                                                                onClick={() => goToMonth(option, month)}
+                                                                aria-pressed={option === year}
+                                                            >
+                                                                {option}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                    <div
+                                                        className={styles.monthPickerDivider}
+                                                        aria-hidden="true"
+                                                    />
+                                                    <div
+                                                        className={styles.monthPickerColumn}
+                                                        aria-label="月を選択"
+                                                    >
+                                                        {MONTH_OPTIONS.map((option) => (
+                                                            <button
+                                                                type="button"
+                                                                key={option}
+                                                                className={`${styles.monthPickerOption} ${
+                                                                    option === month
+                                                                        ? styles.monthPickerOptionActive
+                                                                        : ''
+                                                                }`}
+                                                                ref={
+                                                                    option === month
+                                                                        ? activeMonthOptionRef
+                                                                        : undefined
+                                                                }
+                                                                onClick={() => goToMonth(year, option)}
+                                                                aria-pressed={option === month}
+                                                            >
+                                                                {String(option).padStart(2, '0')}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </>
+                            ) : (
+                                <span className={styles.monthNavLabel} aria-live="polite">
+                                    {year}年
+                                </span>
                             )}
                         </div>
                         <div className={styles.calendarControlsRow}>
                             <div
-                                className={`${styles.segment} ${styles.scopeSegment}`}
+                                className={`${styles.segment} ${styles.calendarModeSegment}`}
                                 role="group"
-                                aria-label="表示対象"
+                                aria-label="表示対象と期間"
                             >
                                 <button
                                     type="button"
-                                    className={`${styles.segmentButton} ${scope === 'organization' ? styles.active : ''}`}
+                                    className={`${styles.segmentButton} ${scope === 'organization' ? `${styles.active} ${styles.scopeActive}` : ''}`}
                                     onClick={() => setScope('organization')}
+                                    aria-pressed={scope === 'organization'}
                                 >
                                     <Users size={14} />
                                     全体
                                 </button>
                                 <button
                                     type="button"
-                                    className={`${styles.segmentButton} ${scope === 'personal' ? styles.active : ''}`}
+                                    className={`${styles.segmentButton} ${scope === 'personal' ? `${styles.active} ${styles.scopeActive}` : ''}`}
                                     onClick={() => setScope('personal')}
+                                    aria-pressed={scope === 'personal'}
                                 >
                                     <UserRound size={14} />
                                     自分
                                 </button>
-                            </div>
-                            <div
-                                className={`${styles.segment} ${styles.viewSegment}`}
-                                role="group"
-                                aria-label="カレンダー表示"
-                            >
                                 <button
                                     type="button"
-                                    className={`${styles.segmentButton} ${viewMode === 'month' ? styles.active : ''}`}
+                                    className={`${styles.segmentButton} ${styles.modeBoundary} ${viewMode === 'month' ? `${styles.active} ${styles.viewActive}` : ''}`}
                                     onClick={() => setViewMode('month')}
                                     aria-pressed={viewMode === 'month'}
                                 >
@@ -697,7 +828,7 @@ export function Calendar() {
                                 </button>
                                 <button
                                     type="button"
-                                    className={`${styles.segmentButton} ${viewMode === 'year' ? styles.active : ''}`}
+                                    className={`${styles.segmentButton} ${viewMode === 'year' ? `${styles.active} ${styles.viewActive}` : ''}`}
                                     onClick={() => setViewMode('year')}
                                     aria-pressed={viewMode === 'year'}
                                 >
@@ -714,7 +845,12 @@ export function Calendar() {
                         aria-label={`${month}月の休み数`}
                     >
                         <div className={styles.restSummaryHeader}>
-                            <span className={styles.restSummaryTitle}>今月の休み数</span>
+                            <img
+                                src="/yasumi-icon.png"
+                                alt=""
+                                aria-hidden="true"
+                                className={styles.restSummaryIcon}
+                            />
                         </div>
                         <div className={styles.restSummaryList}>
                             {monthlyRestSummaryItems.map((item) => (
