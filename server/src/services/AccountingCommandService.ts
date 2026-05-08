@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "../lib/supabaseClient";
-import { resolveTaxRate } from "./InvoiceEligibilityService";
+import { resolveTaxRate, type InvoiceTransaction } from "./InvoiceEligibilityService";
 
 const EXPENSE_CATEGORIES = ["material", "tool", "travel", "food", "fuel", "utility", "other"] as const;
 const VOIDABLE_TRANSACTION_STATUSES = ["posted", "approved"] as const;
@@ -89,6 +89,52 @@ export type CreateVoidReversalInput = {
     orgId: string;
     transactionId: string;
     reason: string;
+    createdBy: string;
+};
+
+type InvoiceRevenueBasisAnchor = {
+    id: string;
+    site_id: string;
+    recognition_date?: string | null;
+    recognized_on?: string | null;
+    amount_ex_tax?: number | null;
+    tax_amount?: number | null;
+    amount_inc_tax?: number | null;
+    receivable_account_type?: string | null;
+};
+
+type InvoiceRevenueAllocationInsertRow = {
+    org_id: string;
+    invoice_id: string;
+    invoice_line_key: string;
+    revenue_basis_id: string;
+    allocation_amount_ex_tax: number;
+    tax_amount: number;
+    amount_inc_tax: number;
+    allocation_kind: "invoice_issue";
+    created_by: string;
+    metadata_json: Record<string, unknown>;
+};
+
+export type CreateAccountingInvoiceInput = {
+    orgId: string;
+    transactions: InvoiceTransaction[];
+    representativeTransaction: InvoiceTransaction;
+    sourceTransactionIds: string[];
+    documentType: string;
+    issueDate: string;
+    dueDate: unknown;
+    sourceTransactionDate: string;
+    billingName: string;
+    billingAddress: string | null;
+    issuerRegistrationNo: string | null;
+    notes: string | null;
+    issuerSnapshot: Record<string, unknown>;
+    registrationNumberSnapshot: string | null;
+    registeredAtSnapshot: string | null;
+    taxSummary: Record<string, unknown>;
+    sourceSummary: Record<string, unknown>;
+    eligibilitySnapshot: Record<string, unknown>;
     createdBy: string;
 };
 
@@ -189,6 +235,10 @@ function normalizeNetSubtotal(subtotal: number | null, taxAmount: number, total:
     return safeSubtotal;
 }
 
+function roundMoney(value: number): number {
+    return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
 function isMissingColumnError(error: unknown, columnName: string): boolean {
     if (!error || typeof error !== "object") {
         return false;
@@ -212,6 +262,22 @@ function isMissingRelationError(error: unknown, relationName: string): boolean {
         message.includes(`relation "${relationName}" does not exist`)
         || message.includes(`Could not find the table '${relationName}'`)
         || message.includes(`Could not find a relationship between`)
+    );
+}
+
+function isMissingFunctionError(error: unknown, functionName: string): boolean {
+    if (!error || typeof error !== "object") {
+        return false;
+    }
+
+    const message = "message" in error && typeof error.message === "string" ? error.message : "";
+    const code = "code" in error && typeof error.code === "string" ? error.code : "";
+
+    return (
+        code === "PGRST202"
+        || message.includes(`function ${functionName}`)
+        || message.includes(`function public.${functionName}`)
+        || message.includes("Could not find the function")
     );
 }
 
@@ -303,6 +369,432 @@ export async function insertSaleTransactionWithItems(
         if (itemError) {
             throw itemError;
         }
+    }
+
+    return data;
+}
+
+export async function insertInvoiceSourceLinks(input: {
+    orgId: string;
+    invoiceId: string;
+    transactions: InvoiceTransaction[];
+    isPrimaryDocument: boolean;
+}) {
+    if (input.transactions.length === 0) {
+        return;
+    }
+
+    const rows = input.transactions.map((transaction, index) => ({
+        org_id: input.orgId,
+        invoice_id: input.invoiceId,
+        source_transaction_id: transaction.id,
+        source_transaction_date: transaction.recorded_date,
+        sort_order: index,
+        is_primary_document: input.isPrimaryDocument,
+    }));
+
+    const { error } = await supabaseAdmin
+        .from("accounting_invoice_sources")
+        .insert(rows);
+
+    if (error) {
+        if (isMissingRelationError(error, "accounting_invoice_sources")) {
+            return;
+        }
+        throw error;
+    }
+}
+
+async function getInvoiceRevenueBasisBySite(
+    transactions: InvoiceTransaction[],
+    orgId: string,
+): Promise<Map<string, InvoiceRevenueBasisAnchor>> {
+    const siteIds = Array.from(new Set(
+        transactions
+            .map((transaction) => transaction.site_id)
+            .filter((value): value is string => typeof value === "string" && value.length > 0)
+    ));
+
+    if (siteIds.length === 0) {
+        return new Map();
+    }
+
+    const fetchRows = async (selectColumns: string) => supabaseAdmin
+        .from("revenue_basis")
+        .select(selectColumns)
+        .eq("org_id", orgId)
+        .eq("status", "active")
+        .in("site_id", siteIds)
+        .order("recognition_date", { ascending: false });
+
+    let result = await fetchRows("id, site_id, recognition_date, recognized_on, amount_ex_tax, tax_amount, amount_inc_tax, receivable_account_type");
+
+    if (result.error && (
+        isMissingColumnError(result.error, "recognized_on")
+        || isMissingColumnError(result.error, "amount_ex_tax")
+        || isMissingColumnError(result.error, "amount_inc_tax")
+        || isMissingColumnError(result.error, "receivable_account_type")
+    )) {
+        result = await fetchRows("id, site_id, recognition_date");
+    }
+
+    if (result.error) {
+        if (isMissingRelationError(result.error, "revenue_basis")) {
+            return new Map();
+        }
+        throw result.error;
+    }
+
+    const bySite = new Map<string, InvoiceRevenueBasisAnchor>();
+    const rows = Array.isArray(result.data)
+        ? result.data as unknown as InvoiceRevenueBasisAnchor[]
+        : [];
+    for (const row of rows) {
+        if (!bySite.has(row.site_id)) {
+            bySite.set(row.site_id, row);
+        }
+    }
+
+    return bySite;
+}
+
+async function getInvoiceAllocationTotalsByRevenueBasis(
+    orgId: string,
+    revenueBasisIds: string[],
+): Promise<Map<string, number> | null> {
+    if (revenueBasisIds.length === 0) {
+        return new Map();
+    }
+
+    const { data, error } = await supabaseAdmin
+        .from("accounting_invoice_line_revenue_allocations")
+        .select("revenue_basis_id, amount_inc_tax")
+        .eq("org_id", orgId)
+        .in("revenue_basis_id", revenueBasisIds);
+
+    if (error) {
+        if (isMissingRelationError(error, "accounting_invoice_line_revenue_allocations")) {
+            return null;
+        }
+        throw error;
+    }
+
+    const totals = new Map<string, number>();
+    const rows = Array.isArray(data)
+        ? data as unknown as Array<{ revenue_basis_id: string; amount_inc_tax: number | string | null }>
+        : [];
+    for (const row of rows) {
+        const amount = Number(row.amount_inc_tax || 0);
+        if (!Number.isFinite(amount)) {
+            continue;
+        }
+        totals.set(row.revenue_basis_id, roundMoney((totals.get(row.revenue_basis_id) || 0) + amount));
+    }
+
+    return totals;
+}
+
+async function assertInvoiceRevenueAllocationCapacity(input: {
+    orgId: string;
+    revenueBasisById: Map<string, InvoiceRevenueBasisAnchor>;
+    allocations: Array<{ revenue_basis_id: string; amount_inc_tax: number }>;
+}) {
+    const existingTotals = await getInvoiceAllocationTotalsByRevenueBasis(
+        input.orgId,
+        Array.from(input.revenueBasisById.keys())
+    );
+
+    if (!existingTotals) {
+        return;
+    }
+
+    const requestedTotals = new Map<string, number>();
+    for (const row of input.allocations) {
+        requestedTotals.set(
+            row.revenue_basis_id,
+            roundMoney((requestedTotals.get(row.revenue_basis_id) || 0) + row.amount_inc_tax)
+        );
+    }
+
+    const tolerance = 1;
+    for (const [revenueBasisId, requestedAmount] of requestedTotals.entries()) {
+        const revenueBasis = input.revenueBasisById.get(revenueBasisId);
+        const cap = Number(revenueBasis?.amount_inc_tax);
+        if (!Number.isFinite(cap) || cap <= 0) {
+            continue;
+        }
+
+        const alreadyAllocated = existingTotals.get(revenueBasisId) || 0;
+        if (roundMoney(alreadyAllocated + requestedAmount) > cap + tolerance) {
+            throw new AccountingCommandError(409, "INVOICE_ALLOCATION_EXCEEDS_UNINVOICED_BALANCE");
+        }
+    }
+}
+
+async function assertInvoiceRevenueAllocationCapacityForTransactions(input: {
+    orgId: string;
+    transactions: InvoiceTransaction[];
+}) {
+    const revenueBasisBySite = await getInvoiceRevenueBasisBySite(input.transactions, input.orgId);
+    if (revenueBasisBySite.size === 0) {
+        return;
+    }
+
+    const allocations = input.transactions.flatMap((transaction) => {
+        const siteId = typeof transaction.site_id === "string" ? transaction.site_id : null;
+        const revenueBasis = siteId ? revenueBasisBySite.get(siteId) : null;
+        if (!siteId || !revenueBasis) {
+            return [];
+        }
+
+        return [{
+            revenue_basis_id: revenueBasis.id,
+            amount_inc_tax: Math.abs(Number(transaction.amount_total || 0)),
+        }];
+    });
+
+    if (allocations.length === 0) {
+        return;
+    }
+
+    const revenueBasisById = new Map(
+        Array.from(revenueBasisBySite.values()).map((revenueBasis) => [revenueBasis.id, revenueBasis])
+    );
+    await assertInvoiceRevenueAllocationCapacity({
+        orgId: input.orgId,
+        revenueBasisById,
+        allocations,
+    });
+}
+
+async function insertInvoiceRevenueAllocations(input: {
+    orgId: string;
+    invoiceId: string;
+    transactions: InvoiceTransaction[];
+    createdBy: string;
+}) {
+    const revenueBasisBySite = await getInvoiceRevenueBasisBySite(input.transactions, input.orgId);
+    if (revenueBasisBySite.size === 0) {
+        return;
+    }
+
+    const rows: InvoiceRevenueAllocationInsertRow[] = input.transactions.flatMap((transaction) => {
+        const siteId = typeof transaction.site_id === "string" ? transaction.site_id : null;
+        const revenueBasis = siteId ? revenueBasisBySite.get(siteId) : null;
+        if (!siteId || !revenueBasis) {
+            return [];
+        }
+
+        const total = Math.abs(Number(transaction.amount_total || 0));
+        const taxAmount = Math.abs(Number(transaction.tax_amount || 0));
+        const rawSubtotal = Math.abs(Number(transaction.amount_subtotal || 0));
+        const subtotal = normalizeNetSubtotal(rawSubtotal, taxAmount, total);
+
+        return [{
+            org_id: input.orgId,
+            invoice_id: input.invoiceId,
+            invoice_line_key: `source_transaction:${transaction.id}`,
+            revenue_basis_id: revenueBasis.id,
+            allocation_amount_ex_tax: subtotal,
+            tax_amount: taxAmount,
+            amount_inc_tax: total,
+            allocation_kind: "invoice_issue",
+            created_by: input.createdBy,
+            metadata_json: {
+                source_transaction_id: transaction.id,
+                source_transaction_kind: transaction.kind,
+                source_site_id: siteId,
+                recognition_date: revenueBasis.recognized_on || revenueBasis.recognition_date || null,
+                receivable_account_type: revenueBasis.receivable_account_type || "accounts_receivable",
+                posting_mode: "no_pl_journal",
+            },
+        }];
+    });
+
+    if (rows.length === 0) {
+        return;
+    }
+
+    const { error } = await supabaseAdmin
+        .from("accounting_invoice_line_revenue_allocations")
+        .insert(rows);
+
+    if (error) {
+        if (isMissingRelationError(error, "accounting_invoice_line_revenue_allocations")) {
+            return;
+        }
+        throw error;
+    }
+}
+
+export async function insertInvoiceRecord(row: Record<string, unknown>) {
+    let insertPayload = { ...row };
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+        const result = await supabaseAdmin
+            .from("accounting_invoices")
+            .insert(insertPayload)
+            .select()
+            .single();
+
+        if (!result.error) {
+            return result;
+        }
+
+        if ("source_summary_snapshot" in insertPayload && isMissingColumnError(result.error, "source_summary_snapshot")) {
+            const { source_summary_snapshot: _sourceSummarySnapshot, ...rest } = insertPayload;
+            insertPayload = rest;
+            continue;
+        }
+
+        return result;
+    }
+
+    return { data: null, error: new Error("Failed to insert invoice after compatibility retries") };
+}
+
+async function createInvoiceRecordAtomically(input: {
+    orgId: string;
+    sourceTransactionIds: string[];
+    representativeTransactionId: string;
+    documentType: string;
+    issueDate: string;
+    dueDate: unknown;
+    sourceTransactionDate: string;
+    billingName: string;
+    billingAddress: string | null;
+    issuerRegistrationNo: string | null;
+    notes: string | null;
+    issuerSnapshot: Record<string, unknown>;
+    registrationNumberSnapshot: string | null;
+    registeredAtSnapshot: string | null;
+    taxSummary: Record<string, unknown>;
+    sourceSummary: Record<string, unknown>;
+    eligibilitySnapshot: Record<string, unknown>;
+    createdBy: string;
+}): Promise<Record<string, unknown> | null> {
+    const { data, error } = await supabaseAdmin.rpc("rpc_create_accounting_invoice", {
+        p_org_id: input.orgId,
+        p_source_transaction_ids: input.sourceTransactionIds,
+        p_representative_transaction_id: input.representativeTransactionId,
+        p_document_type: input.documentType,
+        p_issue_date: input.issueDate,
+        p_due_date: input.dueDate || null,
+        p_source_transaction_date: input.sourceTransactionDate,
+        p_billing_name: input.billingName,
+        p_billing_address: input.billingAddress,
+        p_issuer_registration_no: input.issuerRegistrationNo,
+        p_notes: input.notes,
+        p_issuer_snapshot: input.issuerSnapshot,
+        p_registration_number_snapshot: input.registrationNumberSnapshot,
+        p_registered_at_snapshot: input.registeredAtSnapshot,
+        p_tax_summary_snapshot: input.taxSummary,
+        p_source_summary_snapshot: input.sourceSummary,
+        p_eligibility_snapshot: input.eligibilitySnapshot,
+        p_created_by: input.createdBy,
+    });
+
+    if (error) {
+        if (isMissingFunctionError(error, "rpc_create_accounting_invoice")) {
+            return null;
+        }
+        throw error;
+    }
+
+    const invoice = data && typeof data === "object" && "invoice" in data
+        ? (data as { invoice?: unknown }).invoice
+        : null;
+
+    return invoice && typeof invoice === "object"
+        ? invoice as Record<string, unknown>
+        : null;
+}
+
+export async function createAccountingInvoice(input: CreateAccountingInvoiceInput): Promise<Record<string, unknown>> {
+    await assertInvoiceRevenueAllocationCapacityForTransactions({
+        orgId: input.orgId,
+        transactions: input.transactions,
+    });
+
+    let data = await createInvoiceRecordAtomically({
+        orgId: input.orgId,
+        sourceTransactionIds: input.sourceTransactionIds,
+        representativeTransactionId: input.representativeTransaction.id,
+        documentType: input.documentType,
+        issueDate: input.issueDate,
+        dueDate: input.dueDate,
+        sourceTransactionDate: input.sourceTransactionDate,
+        billingName: input.billingName,
+        billingAddress: input.billingAddress,
+        issuerRegistrationNo: input.issuerRegistrationNo,
+        notes: input.notes,
+        issuerSnapshot: input.issuerSnapshot,
+        registrationNumberSnapshot: input.registrationNumberSnapshot,
+        registeredAtSnapshot: input.registeredAtSnapshot,
+        taxSummary: input.taxSummary,
+        sourceSummary: input.sourceSummary,
+        eligibilitySnapshot: input.eligibilitySnapshot,
+        createdBy: input.createdBy,
+    });
+
+    if (data) {
+        return data;
+    }
+
+    const { data: invoiceNo, error: seqError } = await supabaseAdmin.rpc("rpc_next_invoice_no", {
+        p_issue_date: input.issueDate,
+    });
+
+    if (seqError) throw seqError;
+
+    const result = await insertInvoiceRecord({
+        org_id: input.orgId,
+        transaction_id: input.representativeTransaction.id,
+        source_transaction_id: input.representativeTransaction.id,
+        invoice_no: invoiceNo,
+        document_type: input.documentType,
+        issue_date: input.issueDate,
+        due_date: input.dueDate,
+        source_transaction_date: input.sourceTransactionDate,
+        billing_name: input.billingName,
+        billing_address: input.billingAddress,
+        issuer_registration_no: input.issuerRegistrationNo,
+        notes: input.notes,
+        issuer_snapshot: input.issuerSnapshot,
+        registration_number_snapshot: input.registrationNumberSnapshot,
+        registered_at_snapshot: input.registeredAtSnapshot,
+        tax_summary_snapshot: input.taxSummary,
+        source_summary_snapshot: input.sourceSummary,
+        eligibility_snapshot: input.eligibilitySnapshot,
+        pdf_render_status: "pending",
+        created_by: input.createdBy,
+    });
+
+    if (result.error) throw result.error;
+    data = result.data as Record<string, unknown>;
+
+    await insertInvoiceSourceLinks({
+        orgId: input.orgId,
+        invoiceId: String(data.id),
+        transactions: input.transactions,
+        isPrimaryDocument: true,
+    });
+
+    await insertInvoiceRevenueAllocations({
+        orgId: input.orgId,
+        invoiceId: String(data.id),
+        transactions: input.transactions,
+        createdBy: input.createdBy,
+    });
+
+    const { error: txUpdateError } = await supabaseAdmin
+        .from("accounting_transactions")
+        .update({ kind: "invoice" })
+        .eq("org_id", input.orgId)
+        .in("id", input.sourceTransactionIds);
+
+    if (txUpdateError) {
+        throw txUpdateError;
     }
 
     return data;
