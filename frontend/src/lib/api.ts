@@ -1040,6 +1040,11 @@ export const createSite = (site: Partial<Site>) =>
     api<Site>("/api/v1/sites", { method: "POST", body: JSON.stringify(site) });
 export const updateSite = (id: string, site: Partial<Site>) =>
     api<Site>(`/api/v1/sites/${id}`, { method: "PUT", body: JSON.stringify(site) });
+export const updateSiteAssignedUsers = (id: string, assignedUsers: string[]) =>
+    api<Site>(`/api/v1/sites/${id}/assigned-users`, {
+        method: "PUT",
+        body: JSON.stringify({ assigned_users: assignedUsers }),
+    });
 export const completeSite = (id: string, payload?: { effective_completed_at?: string }) =>
     api<SiteCompletionResult>(`/api/v1/sites/${id}/complete`, {
         method: "POST",

@@ -9,6 +9,7 @@ const baseSite: Site = {
     name: "渋谷マンション",
     status: "active",
     address: baseSiteAddress,
+    assigned_users: ["member-1"],
     created_at: "2026-04-22T00:00:00.000Z",
     description: "床とクロスの補修",
     client: {

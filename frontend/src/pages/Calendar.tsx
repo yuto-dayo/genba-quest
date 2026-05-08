@@ -10,17 +10,17 @@ import { FloatingActionButton } from '../components/FloatingActionButton';
 import { useCalendar } from '../hooks/useCalendar';
 import { MonthCalendar } from '../components/calendar/MonthCalendar';
 import { DayScheduleBoard } from '../components/calendar/DayScheduleBoard';
-import { DraftAssignmentFooter } from '../components/calendar/DraftAssignmentFooter';
 import { CalendarScheduleModal } from '../components/calendar/CalendarScheduleModal';
-import { useDraftAssignmentCreates } from '../hooks/useDraftAssignmentCreates';
 import {
-    commitAssignmentCreateDrafts,
     deletePersonalSchedule,
     fetchMembers,
     fetchOrgContext,
+    fetchSiteLineItems,
     rejectProposal,
     submitLeaveRequestProposal,
+    updateSiteAssignedUsers,
     type Member,
+    type SiteLineItem,
 } from '../lib/api';
 import { buildDayScheduleBoard } from '../lib/dayScheduleBoard';
 import { supabase } from '../lib/supabase';
@@ -301,8 +301,6 @@ export function Calendar() {
     const [scope, setScope] = useState<CalendarScope>('organization');
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
     const [members, setMembers] = useState<Member[]>([]);
-    const [draftCommitMessage, setDraftCommitMessage] = useState<string | null>(null);
-    const [isDraftSubmitting, setIsDraftSubmitting] = useState(false);
     const [availabilityMessage, setAvailabilityMessage] = useState<string | null>(null);
     const [isAvailabilitySubmitting, setIsAvailabilitySubmitting] = useState(false);
     const [availabilityTokens, setAvailabilityTokens] = useState<
@@ -312,7 +310,11 @@ export function Calendar() {
     const [monthPickerOpen, setMonthPickerOpen] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
     const [addModalMode, setAddModalMode] = useState<CalendarAddMode>('menu');
-    const { drafts, addDraft, removeDraft, clearDrafts } = useDraftAssignmentCreates();
+    const [lineItemsBySiteId, setLineItemsBySiteId] = useState<Record<string, SiteLineItem[] | undefined>>({});
+    const [lineItemLoadStateBySiteId, setLineItemLoadStateBySiteId] = useState<Record<string, 'loading' | 'loaded' | 'error'>>({});
+    const [selectedLineItemByDateSite, setSelectedLineItemByDateSite] = useState<Record<string, string | null>>({});
+    const [assignedUserOverridesBySiteId, setAssignedUserOverridesBySiteId] = useState<Record<string, string[]>>({});
+    const [assignmentToggleBusyKeys, setAssignmentToggleBusyKeys] = useState<string[]>([]);
     const monthPickerRef = useRef<HTMLDivElement>(null);
     const activeYearOptionRef = useRef<HTMLButtonElement | null>(null);
     const activeMonthOptionRef = useRef<HTMLButtonElement | null>(null);
@@ -450,6 +452,20 @@ export function Calendar() {
         return initials;
     }, [members, monthlyRestSummaryItems]);
 
+    const visibleSites = useMemo(
+        () =>
+            sites.map((site) => {
+                const overrideAssignedUsers = assignedUserOverridesBySiteId[site.id];
+                return overrideAssignedUsers
+                    ? {
+                          ...site,
+                          assigned_users: overrideAssignedUsers,
+                      }
+                    : site;
+            }),
+        [assignedUserOverridesBySiteId, sites]
+    );
+
     const shortageSiteCountByDate = useMemo(() => {
         if (scope !== 'organization') {
             return {};
@@ -460,26 +476,73 @@ export function Calendar() {
                 return summary;
             }
 
-            const board = buildDayScheduleBoard({ day, sites, members, drafts });
+            const board = buildDayScheduleBoard({ day, sites: visibleSites, members, drafts: [] });
             if (board.shortage_site_count > 0) {
                 summary[day.date] = board.shortage_site_count;
             }
             return summary;
         }, {});
-    }, [drafts, members, scope, sites, visibleDays]);
+    }, [members, scope, visibleDays, visibleSites]);
 
     const selectedDayBoard = useMemo(
         () =>
             scope === 'organization' && visibleSelectedDate
                 ? buildDayScheduleBoard({
                       day: visibleSelectedDate,
-                      sites,
+                      sites: visibleSites,
                       members,
-                      drafts,
+                      drafts: [],
                   })
                 : null,
-        [drafts, members, scope, sites, visibleSelectedDate]
+        [members, scope, visibleSelectedDate, visibleSites]
     );
+
+    useEffect(() => {
+        if (!selectedDayBoard) {
+            return;
+        }
+
+        selectedDayBoard.sites.forEach((site) => {
+            if (lineItemLoadStateBySiteId[site.site_id]) {
+                return;
+            }
+
+            setLineItemLoadStateBySiteId((current) => ({
+                ...current,
+                [site.site_id]: 'loading',
+            }));
+
+            void fetchSiteLineItems(site.site_id)
+                .then((items) => {
+                    setLineItemsBySiteId((current) => ({
+                        ...current,
+                        [site.site_id]: items,
+                    }));
+                    setLineItemLoadStateBySiteId((current) => ({
+                        ...current,
+                        [site.site_id]: 'loaded',
+                    }));
+                })
+                .catch((error) => {
+                    console.error('Failed to load site line items:', error);
+                    setLineItemsBySiteId((current) => ({
+                        ...current,
+                        [site.site_id]: [],
+                    }));
+                    setLineItemLoadStateBySiteId((current) => ({
+                        ...current,
+                        [site.site_id]: 'error',
+                    }));
+                });
+        });
+    }, [lineItemLoadStateBySiteId, selectedDayBoard]);
+
+    const handleSelectLineItem = (date: string, siteId: string, lineItemId: string | null) => {
+        setSelectedLineItemByDateSite((current) => ({
+            ...current,
+            [`${date}:${siteId}`]: lineItemId,
+        }));
+    };
 
     const selectedLeaveSchedule = pickSelectedLeaveSchedule(visibleSelectedDate, currentUserId);
     const selectedAvailabilityToken = selectedLeaveSchedule
@@ -648,47 +711,50 @@ export function Calendar() {
         });
     };
 
-    const handleAddDraft = (
-        draft: Parameters<typeof addDraft>[0],
-        occupiedWorkerIdsForDate: string[]
-    ) => {
-        setDraftCommitMessage(null);
-        return addDraft(draft, { occupiedWorkerIdsForDate });
-    };
-
-    const handleSubmitDrafts = async () => {
-        if (drafts.length === 0 || isDraftSubmitting) {
-            return;
+    const handleToggleAssignment = async ({
+        date,
+        site,
+        member,
+        selected,
+    }: {
+        date: string;
+        site: { site_id: string; site_name: string };
+        member: Member;
+        selected: boolean;
+        workLabel: string | null;
+    }) => {
+        const busyKey = `${date}:${site.site_id}:${member.id}`;
+        const targetSite = visibleSites.find((item) => item.id === site.site_id);
+        if (!targetSite) {
+            return { ok: false, message: '現場を確認できませんでした。' };
         }
 
-        setIsDraftSubmitting(true);
-        setDraftCommitMessage(null);
+        const previousAssignedUsers = Array.from(new Set(targetSite.assigned_users ?? []));
+        const nextAssignedUsers = selected
+            ? previousAssignedUsers.filter((userId) => userId !== member.id)
+            : Array.from(new Set([...previousAssignedUsers, member.id]));
+
+        setAssignmentToggleBusyKeys((current) =>
+            current.includes(busyKey) ? current : [...current, busyKey]
+        );
+        setAssignedUserOverridesBySiteId((current) => ({
+            ...current,
+            [site.site_id]: nextAssignedUsers,
+        }));
 
         try {
-            const result = await commitAssignmentCreateDrafts(
-                drafts.map((draft) => ({
-                    id: draft.id,
-                    worker_id: draft.worker_id,
-                    site_id: draft.site_id,
-                    site_name: draft.site_name,
-                    date: draft.date,
-                }))
-            );
-
-            result.results
-                .filter((item) => item.success)
-                .forEach((item) => removeDraft(item.draft_id));
-
-            if (result.ok) {
-                await handleCommitted();
-            }
-
-            setDraftCommitMessage(result.message);
+            await updateSiteAssignedUsers(site.site_id, nextAssignedUsers);
+            await reloadAssignments();
+            return { ok: true };
         } catch (error) {
-            console.error('Failed to submit assignment drafts:', error);
-            setDraftCommitMessage('変更案を送れませんでした。もう一度お試しください。');
+            console.error('Failed to toggle site assignment:', error);
+            setAssignedUserOverridesBySiteId((current) => ({
+                ...current,
+                [site.site_id]: previousAssignedUsers,
+            }));
+            return { ok: false, message: '担当を変えられませんでした。もう一度お試しください。' };
         } finally {
-            setIsDraftSubmitting(false);
+            setAssignmentToggleBusyKeys((current) => current.filter((key) => key !== busyKey));
         }
     };
 
@@ -960,24 +1026,14 @@ export function Calendar() {
                     <DayScheduleBoard
                         board={selectedDayBoard}
                         members={members}
-                        onAddDraft={handleAddDraft}
+                        lineItemsBySiteId={lineItemsBySiteId}
+                        selectedLineItemByDateSite={selectedLineItemByDateSite}
+                        busyWorkerKeys={assignmentToggleBusyKeys}
+                        onToggleWorker={handleToggleAssignment}
+                        onSelectLineItem={handleSelectLineItem}
                     />
                 )}
             </section>
-
-            {scope === 'organization' && (
-                <DraftAssignmentFooter
-                    drafts={drafts}
-                    isSubmitting={isDraftSubmitting}
-                    message={draftCommitMessage}
-                    onRemove={removeDraft}
-                    onClear={() => {
-                        clearDrafts();
-                        setDraftCommitMessage(null);
-                    }}
-                    onSubmit={() => void handleSubmitDrafts()}
-                />
-            )}
 
             <FloatingActionButton
                 behavior="draggable"

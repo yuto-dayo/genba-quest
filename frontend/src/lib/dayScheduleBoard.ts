@@ -8,11 +8,15 @@ export interface DraftAssignmentCreate {
     site_name: string;
     worker_id: string;
     worker_name: string;
+    line_item_id?: string | null;
+    work_label?: string | null;
 }
 
 export interface WorkerSummary {
     id: string;
     name: string;
+    draft_id?: string;
+    work_label?: string | null;
 }
 
 export interface DayScheduleSiteBoard {
@@ -120,16 +124,18 @@ export function buildDayScheduleBoard({
             uniquePush(assignedWorkerIdsForDate, workerId);
         });
 
-        assignments.forEach((assignment) => {
-            if (
-                assignment.source === 'proposal' &&
-                assignment.proposal_type === 'assignment.create' &&
-                assignment.user_id !== 'site'
-            ) {
-                uniquePush(confirmedWorkerIds, assignment.user_id);
-                uniquePush(assignedWorkerIdsForDate, assignment.user_id);
-            }
-        });
+        if (!site) {
+            assignments.forEach((assignment) => {
+                if (
+                    assignment.source === 'proposal' &&
+                    assignment.proposal_type === 'assignment.create' &&
+                    assignment.user_id !== 'site'
+                ) {
+                    uniquePush(confirmedWorkerIds, assignment.user_id);
+                    uniquePush(assignedWorkerIdsForDate, assignment.user_id);
+                }
+            });
+        }
 
         const siteDrafts = isCompleted
             ? []
@@ -155,6 +161,8 @@ export function buildDayScheduleBoard({
             draft_workers: siteDrafts.map((draft) => ({
                 id: draft.worker_id,
                 name: draft.worker_name,
+                draft_id: draft.id,
+                work_label: draft.work_label ?? null,
             })),
             confirmed_count: confirmedWorkerIds.length,
             draft_count: siteDrafts.length,

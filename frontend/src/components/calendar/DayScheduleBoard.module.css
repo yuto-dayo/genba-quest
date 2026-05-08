@@ -9,18 +9,16 @@
 }
 
 .header,
-.siteHeader,
-.sheetHeader {
+.siteHeader {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: center;
     gap: 12px;
 }
 
 .header h3,
-.sheetHeader h4,
 .siteHeader h4 {
-    margin: 6px 0 0;
+    margin: 0;
     color: var(--md-sys-color-on-surface);
     font: var(--md-sys-typescale-title-large);
 }
@@ -29,10 +27,6 @@
     font: var(--md-sys-typescale-title-medium);
 }
 
-.header p,
-.sheetHeader p,
-.siteHeader p,
-.emptyWorkers,
 .emptyBoard {
     margin: 4px 0 0;
     color: var(--md-sys-color-on-surface-variant);
@@ -49,30 +43,6 @@
     background: color-mix(in srgb, var(--md-sys-color-primary-container) 78%, white);
     color: var(--md-sys-color-on-primary-container);
     font: var(--md-sys-typescale-label-small);
-}
-
-.shortageSummary,
-.shortageBadge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 30px;
-    padding: 0 10px;
-    border-radius: 999px;
-    font: var(--md-sys-typescale-label-medium);
-    white-space: nowrap;
-}
-
-.shortageWarn,
-.shortageBadgeWarn {
-    background: color-mix(in srgb, #ffd29a 82%, white);
-    color: #6b4600;
-}
-
-.shortageOk,
-.shortageBadgeNeutral {
-    background: color-mix(in srgb, var(--md-sys-color-primary-container) 82%, white);
-    color: var(--md-sys-color-on-primary-container);
 }
 
 .message,
@@ -95,21 +65,12 @@
 
 .siteCard {
     display: grid;
-    gap: 14px;
+    gap: 12px;
     min-width: 0;
     padding: 16px;
     border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 42%, transparent);
     border-radius: 18px;
     background: var(--md-sys-color-surface);
-}
-
-.siteCardShortage {
-    border-color: color-mix(in srgb, #f97316 44%, var(--md-sys-color-outline-variant));
-    background: linear-gradient(
-        180deg,
-        color-mix(in srgb, #fff5d6 56%, white),
-        var(--md-sys-color-surface)
-    );
 }
 
 .siteCardCompleted {
@@ -131,72 +92,61 @@
     white-space: nowrap;
 }
 
-.countGrid {
+.workContentField {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
-}
-
-.countGrid span {
-    display: grid;
-    gap: 2px;
-    min-height: 58px;
-    padding: 10px;
-    border-radius: 14px;
-    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 82%, white);
-    color: var(--md-sys-color-on-surface-variant);
-    font: var(--md-sys-typescale-label-small);
-}
-
-.countGrid strong {
-    color: var(--md-sys-color-on-surface);
-    font: var(--md-sys-typescale-title-large);
-}
-
-.workerSection {
-    display: grid;
-    gap: 8px;
-}
-
-.workerSectionHeader {
-    display: inline-flex;
-    align-items: center;
     gap: 6px;
+}
+
+.workContentField label {
     color: var(--md-sys-color-on-surface-variant);
     font: var(--md-sys-typescale-label-medium);
 }
 
-.workerList {
+.workContentSelect {
+    width: 100%;
+    min-height: 42px;
+    padding: 0 12px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 68%, transparent);
+    border-radius: 12px;
+    background: var(--md-sys-color-surface-container-lowest);
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.workContentSelect:focus {
+    outline: 2px solid var(--md-sys-color-primary);
+    outline-offset: 2px;
+}
+
+.missingWorkChip {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    min-height: 30px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 82%, white);
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-small);
+}
+
+.workerChipGrid {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
 }
 
-.workerChip,
-.workerChipDraft {
+.workerToggleChip {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    min-height: 30px;
-    padding: 0 10px;
+    min-height: 36px;
+    padding: 0 12px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 62%, transparent);
     border-radius: 999px;
-    background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 88%, white);
+    background: var(--md-sys-color-surface-container-lowest);
     color: var(--md-sys-color-on-surface);
-    font: var(--md-sys-typescale-label-small);
-}
-
-.workerChipDraft {
-    background: color-mix(in srgb, var(--md-sys-color-secondary-container) 82%, white);
-    color: var(--md-sys-color-on-secondary-container);
-}
-
-.workerChipDraft span {
-    color: var(--md-sys-color-on-surface-variant);
-}
-
-.addButton,
-.closeButton,
-.candidateButton {
+    font: var(--md-sys-typescale-label-medium);
     cursor: pointer;
     transition:
         background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
@@ -204,117 +154,48 @@
         transform var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
 }
 
-.addButton {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    min-height: 40px;
-    border: none;
-    border-radius: 999px;
+.workerToggleChip:hover:not(:disabled) {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--md-sys-color-primary) 54%, var(--md-sys-color-outline-variant));
+}
+
+.workerToggleChipSelected {
     background: var(--md-sys-color-primary);
     color: var(--md-sys-color-on-primary);
-    font: var(--md-sys-typescale-label-large);
+    border-color: var(--md-sys-color-primary);
 }
 
-.addButton:disabled,
-.candidateButton:disabled {
-    cursor: not-allowed;
-    opacity: 0.55;
+.workerToggleChipDraft {
+    background: var(--md-sys-color-secondary-container);
+    color: var(--md-sys-color-on-secondary-container);
+    border-color: color-mix(in srgb, var(--md-sys-color-secondary) 38%, var(--md-sys-color-outline-variant));
 }
 
-.addButton:not(:disabled):hover,
-.candidateButton:not(:disabled):hover,
-.closeButton:hover {
-    transform: translateY(-1px);
-}
-
-.sheetOverlay {
-    position: fixed;
-    inset: 0;
-    z-index: 80;
-    display: grid;
-    place-items: end center;
-    padding: 16px;
-    background: rgba(0, 0, 0, 0.36);
-}
-
-.sheet {
-    display: grid;
-    gap: 16px;
-    width: min(560px, 100%);
-    max-height: min(720px, calc(100vh - 32px));
-    overflow: auto;
-    padding: 20px;
-    border-radius: 24px;
-    background: var(--md-sys-color-surface);
-    box-shadow: var(--md-sys-elevation-level3);
-}
-
-.closeButton {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 38px;
-    height: 38px;
-    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 60%, transparent);
-    border-radius: 999px;
-    background: var(--md-sys-color-surface-container-low);
-    color: var(--md-sys-color-on-surface);
-}
-
-.candidateList {
-    display: grid;
-    gap: 8px;
-}
-
-.candidateButton {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    min-height: 48px;
-    padding: 10px 12px;
-    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 54%, transparent);
-    border-radius: 14px;
-    background: var(--md-sys-color-surface-container-low);
-    color: var(--md-sys-color-on-surface);
-    font: var(--md-sys-typescale-label-large);
-}
-
-.candidateButton small {
-    color: var(--md-sys-color-on-surface-variant);
+.workerToggleChip small {
+    color: currentColor;
+    opacity: 0.76;
     font: var(--md-sys-typescale-label-small);
+}
+
+.workerToggleChip:disabled {
+    cursor: not-allowed;
+    opacity: 0.54;
 }
 
 @media (max-width: 720px) {
     .header,
-    .siteHeader,
-    .sheetHeader {
+    .siteHeader {
         flex-direction: column;
+        align-items: stretch;
     }
 
-    .siteGrid,
-    .countGrid {
+    .siteGrid {
         grid-template-columns: 1fr;
-    }
-
-    .sheetOverlay {
-        padding: 0;
-    }
-
-    .sheet {
-        width: 100%;
-        max-height: calc(100vh - env(safe-area-inset-top, 0px));
-        border-radius: 24px 24px 0 0;
-        padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
     }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .addButton,
-    .closeButton,
-    .candidateButton {
+    .workerToggleChip {
         transition: none;
     }
 }

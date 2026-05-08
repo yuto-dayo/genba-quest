@@ -128,6 +128,22 @@ function readParamId(value: string | string[] | undefined): string | null {
     return value;
 }
 
+function normalizeAssignedUsers(value: unknown): string[] | null {
+    if (!Array.isArray(value)) {
+        return null;
+    }
+
+    const normalized = value
+        .map((item) => (typeof item === "string" ? item.trim() : null))
+        .filter((item): item is string => Boolean(item));
+
+    if (normalized.length !== value.length) {
+        return null;
+    }
+
+    return Array.from(new Set(normalized));
+}
+
 function normalizeOptionalTimestamp(value: unknown, errorCode: string): string | undefined {
     if (value === undefined || value === null || value === "") {
         return undefined;
@@ -1164,6 +1180,80 @@ router.put("/:id", async (req: AuthenticatedRequest, res: Response) => {
             res.status(404).json({ error: "Site not found" });
             return;
         }
+        res.json(data);
+    } catch (err: any) {
+        res.status(500).json({ error: err instanceof Error ? err.message : "Internal server error" });
+    }
+});
+
+// 現場担当のON/OFF（カレンダーの軽い担当切替用）
+router.put("/:id/assigned-users", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const orgId = resolveOrgId(req.orgId);
+        const siteId = readParamId(req.params.id);
+        if (!siteId) {
+            res.status(400).json({ error: "site id is required" });
+            return;
+        }
+
+        const assignedUsers = normalizeAssignedUsers(req.body?.assigned_users);
+        if (!assignedUsers) {
+            res.status(400).json({ error: "assigned_users must be an array of member ids" });
+            return;
+        }
+
+        const { data: currentSite, error: currentError } = await supabaseAdmin
+            .from("sites")
+            .select("id, assigned_users")
+            .eq("id", siteId)
+            .eq("org_id", orgId)
+            .is("deleted_at", null)
+            .maybeSingle();
+
+        if (currentError) throw currentError;
+        if (!currentSite) {
+            res.status(404).json({ error: "Site not found" });
+            return;
+        }
+
+        const previousAssignedUsers = Array.isArray(currentSite.assigned_users)
+            ? currentSite.assigned_users.filter((item): item is string => typeof item === "string")
+            : [];
+        const removedUsers = previousAssignedUsers.filter((userId) => !assignedUsers.includes(userId));
+        const addedUsers = assignedUsers.filter((userId) => !previousAssignedUsers.includes(userId));
+
+        const { data, error } = await supabaseAdmin
+            .from("sites")
+            .update({ assigned_users: assignedUsers })
+            .eq("id", siteId)
+            .eq("org_id", orgId)
+            .is("deleted_at", null)
+            .select(SITE_SELECT)
+            .maybeSingle();
+
+        if (error) throw error;
+        if (!data) {
+            res.status(404).json({ error: "Site not found" });
+            return;
+        }
+
+        if (addedUsers.length > 0) {
+            const { error: profileAssignError } = await supabaseAdmin
+                .from("profiles")
+                .update({ current_site_id: siteId })
+                .in("id", addedUsers);
+            if (profileAssignError) throw profileAssignError;
+        }
+
+        if (removedUsers.length > 0) {
+            const { error: profileUnassignError } = await supabaseAdmin
+                .from("profiles")
+                .update({ current_site_id: null })
+                .in("id", removedUsers)
+                .eq("current_site_id", siteId);
+            if (profileUnassignError) throw profileUnassignError;
+        }
+
         res.json(data);
     } catch (err: any) {
         res.status(500).json({ error: err instanceof Error ? err.message : "Internal server error" });

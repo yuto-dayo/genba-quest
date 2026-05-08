@@ -47,7 +47,10 @@ export function DraftAssignmentFooter({
                         <div key={draft.id} className={styles.draftRow}>
                             <div>
                                 <strong>{draft.worker_name}</strong>
-                                <span>{draft.site_name}</span>
+                                <span>
+                                    {draft.site_name}
+                                    {draft.work_label ? ` / ${draft.work_label}` : ''}
+                                </span>
                             </div>
                             <button
                                 type="button"

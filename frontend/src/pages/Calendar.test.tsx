@@ -4,10 +4,12 @@ import { createElement, type ComponentProps, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Calendar } from "./Calendar";
 import type { CalendarDay } from "../types/calendar";
+import type { Site } from "../lib/api";
 
 const fetchMembers = vi.fn();
 const fetchOrgContext = vi.fn();
-const commitAssignmentCreateDrafts = vi.fn();
+const fetchSiteLineItems = vi.fn();
+const updateSiteAssignedUsers = vi.fn();
 const deletePersonalSchedule = vi.fn();
 const rejectProposal = vi.fn();
 const submitLeaveRequestProposal = vi.fn();
@@ -28,6 +30,7 @@ const baseCalendarDay: CalendarDay = {
 let mockCalendarDays: CalendarDay[] = [baseCalendarDay];
 let mockSelectedDate: CalendarDay = baseCalendarDay;
 let mockAnnualRestDaysByUser: Record<string, number> = {};
+let mockSites: Site[] = [];
 
 vi.mock("framer-motion", () => ({
     motion: new Proxy(
@@ -91,7 +94,7 @@ vi.mock("../hooks/useCalendar", () => ({
         calendarDays: mockCalendarDays,
         annualRestDaysByUser: mockAnnualRestDaysByUser,
         selectedDate: mockSelectedDate,
-        sites: [],
+        sites: mockSites,
         nextMonth: vi.fn(),
         prevMonth: vi.fn(),
         goToMonth,
@@ -104,12 +107,13 @@ vi.mock("../lib/api", async () => {
     const actual = await vi.importActual<typeof import("../lib/api")>("../lib/api");
     return {
         ...actual,
-        commitAssignmentCreateDrafts: (...args: unknown[]) => commitAssignmentCreateDrafts(...args),
         deletePersonalSchedule: (...args: unknown[]) => deletePersonalSchedule(...args),
         fetchMembers: (...args: unknown[]) => fetchMembers(...args),
         fetchOrgContext: (...args: unknown[]) => fetchOrgContext(...args),
+        fetchSiteLineItems: (...args: unknown[]) => fetchSiteLineItems(...args),
         rejectProposal: (...args: unknown[]) => rejectProposal(...args),
         submitLeaveRequestProposal: (...args: unknown[]) => submitLeaveRequestProposal(...args),
+        updateSiteAssignedUsers: (...args: unknown[]) => updateSiteAssignedUsers(...args),
     };
 });
 
@@ -127,8 +131,11 @@ describe("Calendar page", () => {
         mockCalendarDays = [baseCalendarDay];
         mockSelectedDate = baseCalendarDay;
         mockAnnualRestDaysByUser = {};
+        mockSites = [];
         fetchMembers.mockResolvedValue([]);
         fetchOrgContext.mockResolvedValue({ membership: { user_id: "user-1" } });
+        fetchSiteLineItems.mockResolvedValue([]);
+        updateSiteAssignedUsers.mockResolvedValue({});
         deletePersonalSchedule.mockResolvedValue({ ok: true, id: "schedule-1" });
         rejectProposal.mockResolvedValue({ id: "proposal-1" });
         getSession.mockResolvedValue({
@@ -309,6 +316,218 @@ describe("Calendar page", () => {
             expect.objectContaining({ date: "2026-04-25" }),
         );
         expect(screen.getByRole("dialog")).toHaveTextContent("追加する 2026-04-25");
+    });
+
+    it("shows compact site cards with registered work content and worker chips", async () => {
+        const site: Site = {
+            id: "site-1",
+            name: "第一現場",
+            status: "active",
+            assigned_users: [],
+            required_worker_count: null,
+            created_at: "2026-04-01T00:00:00.000Z",
+        };
+        const dayWithSite: CalendarDay = {
+            ...baseCalendarDay,
+            assignments: [
+                {
+                    id: "site-row",
+                    user_id: "site",
+                    site_id: site.id,
+                    site_name: site.name,
+                    date: "2026-04-25",
+                    status: "scheduled",
+                    source: "site",
+                },
+            ],
+            personal_schedules: [
+                {
+                    id: "vacation-1",
+                    user_id: "worker-2",
+                    start_date: "2026-04-25",
+                    end_date: "2026-04-25",
+                    type: "vacation",
+                    title: "休み",
+                    blocks_assignment: true,
+                    visibility: "organization",
+                    approved: true,
+                    status: "approved",
+                    source: "personal_schedule",
+                },
+            ],
+        };
+        mockSites = [site];
+        mockCalendarDays = [dayWithSite];
+        mockSelectedDate = dayWithSite;
+        fetchMembers.mockResolvedValue([
+            {
+                id: "worker-1",
+                display_name: "田中 太郎",
+                full_name: null,
+                username: null,
+                avatar_url: null,
+                status: "active",
+            },
+            {
+                id: "worker-2",
+                display_name: "佐藤 花子",
+                full_name: null,
+                username: null,
+                avatar_url: null,
+                status: "active",
+            },
+        ]);
+        fetchSiteLineItems.mockResolvedValue([
+            {
+                id: "line-1",
+                site_id: site.id,
+                item_name: "床工事",
+                quantity: 12,
+                unit_name: "㎡",
+                unit_price: 1000,
+                sort_order: 0,
+                created_by: null,
+                created_at: "2026-04-01T00:00:00.000Z",
+                updated_by: null,
+                updated_at: "2026-04-01T00:00:00.000Z",
+            },
+        ]);
+
+        render(<Calendar />);
+
+        expect(screen.queryByText("Day Board")).not.toBeInTheDocument();
+        expect(screen.queryByText("不足がある現場だけ、職人を追加します。")).not.toBeInTheDocument();
+        expect(screen.queryByText("必要人数未設定")).not.toBeInTheDocument();
+        expect(screen.queryByText("対象外")).not.toBeInTheDocument();
+        expect(await screen.findByRole("combobox", { name: "工事内容" })).toHaveValue("line-1");
+        expect(screen.getByRole("option", { name: "床工事 12㎡" })).toBeInTheDocument();
+        expect(await screen.findByRole("button", { name: "田中 太郎" })).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "佐藤 花子" })).not.toBeInTheDocument();
+    });
+
+    it("toggles worker chips directly without showing the draft footer", async () => {
+        const site: Site = {
+            id: "site-1",
+            name: "第一現場",
+            status: "active",
+            assigned_users: [],
+            required_worker_count: null,
+            created_at: "2026-04-01T00:00:00.000Z",
+        };
+        const dayWithSite: CalendarDay = {
+            ...baseCalendarDay,
+            assignments: [
+                {
+                    id: "site-row",
+                    user_id: "site",
+                    site_id: site.id,
+                    site_name: site.name,
+                    date: "2026-04-25",
+                    status: "scheduled",
+                    source: "site",
+                },
+            ],
+        };
+        mockSites = [site];
+        mockCalendarDays = [dayWithSite];
+        mockSelectedDate = dayWithSite;
+        fetchMembers.mockResolvedValue([
+            {
+                id: "worker-1",
+                display_name: "田中 太郎",
+                full_name: null,
+                username: null,
+                avatar_url: null,
+                status: "active",
+            },
+        ]);
+        fetchSiteLineItems.mockResolvedValue([
+            {
+                id: "line-1",
+                site_id: site.id,
+                item_name: "床工事",
+                quantity: 12,
+                unit_name: "㎡",
+                unit_price: 1000,
+                sort_order: 0,
+                created_by: null,
+                created_at: "2026-04-01T00:00:00.000Z",
+                updated_by: null,
+                updated_at: "2026-04-01T00:00:00.000Z",
+            },
+        ]);
+
+        render(<Calendar />);
+
+        const workerChip = await screen.findByRole("button", { name: "田中 太郎" });
+        fireEvent.click(workerChip);
+
+        await waitFor(() => {
+            expect(updateSiteAssignedUsers).toHaveBeenCalledWith("site-1", ["worker-1"]);
+        });
+        expect(screen.queryByRole("button", { name: "変更案を送る" })).not.toBeInTheDocument();
+        const selectedWorkerChip = screen
+            .getAllByText("田中 太郎")
+            .map((element) => element.closest("button"))
+            .find((button) => button?.getAttribute("aria-pressed") === "true");
+        expect(selectedWorkerChip).toHaveAttribute("aria-pressed", "true");
+
+        fireEvent.click(selectedWorkerChip!);
+
+        await waitFor(() => {
+            expect(updateSiteAssignedUsers).toHaveBeenLastCalledWith("site-1", []);
+        });
+        expect(screen.getByRole("button", { name: "田中 太郎" })).toHaveAttribute("aria-pressed", "false");
+    });
+
+    it("shows a quiet missing-work chip while still allowing worker selection", async () => {
+        const site: Site = {
+            id: "site-1",
+            name: "第一現場",
+            status: "active",
+            assigned_users: [],
+            required_worker_count: null,
+            created_at: "2026-04-01T00:00:00.000Z",
+        };
+        const dayWithSite: CalendarDay = {
+            ...baseCalendarDay,
+            assignments: [
+                {
+                    id: "site-row",
+                    user_id: "site",
+                    site_id: site.id,
+                    site_name: site.name,
+                    date: "2026-04-25",
+                    status: "scheduled",
+                    source: "site",
+                },
+            ],
+        };
+        mockSites = [site];
+        mockCalendarDays = [dayWithSite];
+        mockSelectedDate = dayWithSite;
+        fetchMembers.mockResolvedValue([
+            {
+                id: "worker-1",
+                display_name: "田中 太郎",
+                full_name: null,
+                username: null,
+                avatar_url: null,
+                status: "active",
+            },
+        ]);
+        fetchSiteLineItems.mockResolvedValue([]);
+
+        render(<Calendar />);
+
+        expect(await screen.findByText("工事内容未登録")).toBeInTheDocument();
+        const workerChip = await screen.findByRole("button", { name: "田中 太郎" });
+        fireEvent.click(workerChip);
+
+        await waitFor(() => {
+            expect(updateSiteAssignedUsers).toHaveBeenCalledWith("site-1", ["worker-1"]);
+        });
+        expect(screen.getByRole("button", { name: "田中 太郎" })).toHaveAttribute("aria-pressed", "true");
     });
 
     it("opens only the personal schedule form entry in personal scope", () => {

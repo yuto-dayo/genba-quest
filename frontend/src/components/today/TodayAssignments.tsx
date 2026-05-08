@@ -99,11 +99,13 @@ function getTeamAssignees(site: Site | null, assignments: Assignment[], members:
         }
     });
 
-    assignments.forEach((assignment) => {
-        if (assignment.user_id && assignment.user_id !== 'site') {
-            memberIds.add(assignment.user_id);
-        }
-    });
+    if (!site) {
+        assignments.forEach((assignment) => {
+            if (assignment.user_id && assignment.user_id !== 'site') {
+                memberIds.add(assignment.user_id);
+            }
+        });
+    }
 
     return Array.from(memberIds).map((id) => {
         const member = members.find((item) => item.id === id || item.user_id === id);
@@ -118,6 +120,10 @@ function getTeamAssignees(site: Site | null, assignments: Assignment[], members:
 
 function getTeamAssigneeTotal(site: Site | null, assignments: Assignment[], assigneeCount: number) {
     const siteAssignedCount = site?.assigned_users?.length || 0;
+    if (site) {
+        return Math.max(assigneeCount, siteAssignedCount);
+    }
+
     const workerCount = assignments.reduce((max, assignment) => {
         return Math.max(max, assignment.worker_count || 0);
     }, 0);

@@ -71,7 +71,7 @@ describe('dayScheduleBoard', () => {
         expect(countMonthlyShortageDays([day], [site])).toBe(0);
     });
 
-    it('de-dupes site assigned users and approved assignment.create proposals by site and worker', () => {
+    it('uses site assigned users as the canonical worker toggle state when the site exists', () => {
         const site = makeSite({
             assigned_users: ['worker-1'],
             required_worker_count: 2,
@@ -112,8 +112,8 @@ describe('dayScheduleBoard', () => {
 
         const board = buildDayScheduleBoard({ day, sites: [site], members, drafts: [] });
 
-        expect(board.sites[0].confirmed_count).toBe(2);
-        expect(board.sites[0].shortage_count).toBe(0);
+        expect(board.sites[0].confirmed_count).toBe(1);
+        expect(board.sites[0].shortage_count).toBe(1);
     });
 
     it('ignores non-create assignment proposals for v1 projected staffing counts', () => {
