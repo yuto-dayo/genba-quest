@@ -290,6 +290,22 @@ function isMissingRelationError(error: unknown, relationName: string): boolean {
     );
 }
 
+function isMissingFunctionError(error: unknown, functionName: string): boolean {
+    if (!error || typeof error !== "object") {
+        return false;
+    }
+
+    const message = "message" in error && typeof error.message === "string" ? error.message : "";
+    const code = "code" in error && typeof error.code === "string" ? error.code : "";
+
+    return (
+        code === "PGRST202"
+        || message.includes(`function ${functionName}`)
+        || message.includes(`function public.${functionName}`)
+        || message.includes(`Could not find the function`)
+    );
+}
+
 function isPostgrestNoRowsError(error: unknown): boolean {
     return Boolean(
         error
@@ -1156,6 +1172,63 @@ async function insertInvoiceRecord(row: Record<string, unknown>) {
     }
 
     return { data: null, error: new Error("Failed to insert invoice after compatibility retries") };
+}
+
+async function createInvoiceRecordAtomically(input: {
+    orgId: string;
+    sourceTransactionIds: string[];
+    representativeTransactionId: string;
+    documentType: string;
+    issueDate: string;
+    dueDate: unknown;
+    sourceTransactionDate: string;
+    billingName: string;
+    billingAddress: string | null;
+    issuerRegistrationNo: string | null;
+    notes: string | null;
+    issuerSnapshot: Record<string, unknown>;
+    registrationNumberSnapshot: string | null;
+    registeredAtSnapshot: string | null;
+    taxSummary: Record<string, unknown>;
+    sourceSummary: Record<string, unknown>;
+    eligibilitySnapshot: Record<string, unknown>;
+    createdBy: string;
+}): Promise<Record<string, unknown> | null> {
+    const { data, error } = await supabaseAdmin.rpc("rpc_create_accounting_invoice", {
+        p_org_id: input.orgId,
+        p_source_transaction_ids: input.sourceTransactionIds,
+        p_representative_transaction_id: input.representativeTransactionId,
+        p_document_type: input.documentType,
+        p_issue_date: input.issueDate,
+        p_due_date: input.dueDate || null,
+        p_source_transaction_date: input.sourceTransactionDate,
+        p_billing_name: input.billingName,
+        p_billing_address: input.billingAddress,
+        p_issuer_registration_no: input.issuerRegistrationNo,
+        p_notes: input.notes,
+        p_issuer_snapshot: input.issuerSnapshot,
+        p_registration_number_snapshot: input.registrationNumberSnapshot,
+        p_registered_at_snapshot: input.registeredAtSnapshot,
+        p_tax_summary_snapshot: input.taxSummary,
+        p_source_summary_snapshot: input.sourceSummary,
+        p_eligibility_snapshot: input.eligibilitySnapshot,
+        p_created_by: input.createdBy,
+    });
+
+    if (error) {
+        if (isMissingFunctionError(error, "rpc_create_accounting_invoice")) {
+            return null;
+        }
+        throw error;
+    }
+
+    const invoice = data && typeof data === "object" && "invoice" in data
+        ? (data as { invoice?: unknown }).invoice
+        : null;
+
+    return invoice && typeof invoice === "object"
+        ? invoice as Record<string, unknown>
+        : null;
 }
 
 async function getInvoiceById(invoiceId: string, orgId: string) {
@@ -2420,77 +2493,108 @@ router.post("/invoices", async (req: AuthenticatedRequest, res: Response) => {
         const issueDate = issue_date || new Date().toISOString().split("T")[0];
         const notesValue = normalizeText(notes) || settings.invoice_notes_default || null;
         const sourceSummary = buildInvoiceSourceSummarySnapshot(sortedTransactions);
+        const eligibilitySnapshot = {
+            ...eligibility,
+            resolved_document_type: resolvedDocumentType,
+            evaluated_at: new Date().toISOString(),
+        };
 
         await assertInvoiceRevenueAllocationCapacityForTransactions({
             orgId,
             transactions: sortedTransactions,
         });
 
-        // 請求書番号を採番
-        const { data: invoiceNo, error: seqError } = await supabaseAdmin.rpc("rpc_next_invoice_no", {
-            p_issue_date: issueDate,
-        });
-
-        if (seqError) throw seqError;
-
-        const { data, error } = await insertInvoiceRecord({
-            org_id: orgId,
-            transaction_id: representativeTransaction.id,
-            source_transaction_id: representativeTransaction.id,
-            invoice_no: invoiceNo,
-            document_type: resolvedDocumentType,
-            issue_date: issueDate,
-            due_date,
-            source_transaction_date: sourceSummary.period_start || representativeTransaction.recorded_date,
-            billing_name: normalizedBillingName,
-            billing_address: normalizeText(billing_address),
-            issuer_registration_no: resolvedDocumentType === "qualified_invoice"
+        let data = await createInvoiceRecordAtomically({
+            orgId,
+            sourceTransactionIds: sortedTransactions.map((transaction) => transaction.id),
+            representativeTransactionId: representativeTransaction.id,
+            documentType: resolvedDocumentType,
+            issueDate,
+            dueDate: due_date,
+            sourceTransactionDate: sourceSummary.period_start || representativeTransaction.recorded_date,
+            billingName: normalizedBillingName,
+            billingAddress: normalizeText(billing_address),
+            issuerRegistrationNo: resolvedDocumentType === "qualified_invoice"
                 ? settings.qualified_invoice_registration_number
                 : null,
             notes: notesValue,
-            issuer_snapshot: buildIssuerSnapshot(settings),
-            registration_number_snapshot: resolvedDocumentType === "qualified_invoice"
+            issuerSnapshot: buildIssuerSnapshot(settings),
+            registrationNumberSnapshot: resolvedDocumentType === "qualified_invoice"
                 ? settings.qualified_invoice_registration_number
                 : null,
-            registered_at_snapshot: resolvedDocumentType === "qualified_invoice"
+            registeredAtSnapshot: resolvedDocumentType === "qualified_invoice"
                 ? settings.qualified_invoice_registered_at
                 : null,
-            tax_summary_snapshot: taxSummary,
-            source_summary_snapshot: sourceSummary,
-            eligibility_snapshot: {
-                ...eligibility,
-                resolved_document_type: resolvedDocumentType,
-                evaluated_at: new Date().toISOString(),
-            },
-            pdf_render_status: "pending",
-            created_by: req.userId!,
-        });
-
-        if (error) throw error;
-
-        await insertInvoiceSourceLinks({
-            orgId,
-            invoiceId: data.id,
-            transactions: sortedTransactions,
-            isPrimaryDocument: true,
-        });
-
-        await insertInvoiceRevenueAllocations({
-            orgId,
-            invoiceId: data.id,
-            transactions: sortedTransactions,
+            taxSummary: taxSummary as unknown as Record<string, unknown>,
+            sourceSummary: sourceSummary as unknown as Record<string, unknown>,
+            eligibilitySnapshot,
             createdBy: req.userId!,
         });
 
-        // Transaction の種別更新
-        const { error: txUpdateError } = await supabaseAdmin
-            .from("accounting_transactions")
-            .update({ kind: "invoice" })
-            .eq("org_id", orgId)
-            .in("id", uniqueTransactionIds);
+        if (!data) {
+            // Compatibility path for local/production DBs before the atomic invoice RPC migration is applied.
+            const { data: invoiceNo, error: seqError } = await supabaseAdmin.rpc("rpc_next_invoice_no", {
+                p_issue_date: issueDate,
+            });
 
-        if (txUpdateError) {
-            throw txUpdateError;
+            if (seqError) throw seqError;
+
+            const result = await insertInvoiceRecord({
+                org_id: orgId,
+                transaction_id: representativeTransaction.id,
+                source_transaction_id: representativeTransaction.id,
+                invoice_no: invoiceNo,
+                document_type: resolvedDocumentType,
+                issue_date: issueDate,
+                due_date,
+                source_transaction_date: sourceSummary.period_start || representativeTransaction.recorded_date,
+                billing_name: normalizedBillingName,
+                billing_address: normalizeText(billing_address),
+                issuer_registration_no: resolvedDocumentType === "qualified_invoice"
+                    ? settings.qualified_invoice_registration_number
+                    : null,
+                notes: notesValue,
+                issuer_snapshot: buildIssuerSnapshot(settings),
+                registration_number_snapshot: resolvedDocumentType === "qualified_invoice"
+                    ? settings.qualified_invoice_registration_number
+                    : null,
+                registered_at_snapshot: resolvedDocumentType === "qualified_invoice"
+                    ? settings.qualified_invoice_registered_at
+                    : null,
+                tax_summary_snapshot: taxSummary,
+                source_summary_snapshot: sourceSummary,
+                eligibility_snapshot: eligibilitySnapshot,
+                pdf_render_status: "pending",
+                created_by: req.userId!,
+            });
+
+            if (result.error) throw result.error;
+            data = result.data as Record<string, unknown>;
+
+            await insertInvoiceSourceLinks({
+                orgId,
+                invoiceId: String(data.id),
+                transactions: sortedTransactions,
+                isPrimaryDocument: true,
+            });
+
+            await insertInvoiceRevenueAllocations({
+                orgId,
+                invoiceId: String(data.id),
+                transactions: sortedTransactions,
+                createdBy: req.userId!,
+            });
+
+            // Transaction の種別更新
+            const { error: txUpdateError } = await supabaseAdmin
+                .from("accounting_transactions")
+                .update({ kind: "invoice" })
+                .eq("org_id", orgId)
+                .in("id", uniqueTransactionIds);
+
+            if (txUpdateError) {
+                throw txUpdateError;
+            }
         }
 
         const responseBody = {
@@ -2510,6 +2614,19 @@ router.post("/invoices", async (req: AuthenticatedRequest, res: Response) => {
         await failAccountingWriteIdempotency(idempotency, err instanceof Error ? err.message : "UNKNOWN_ERROR");
         if (err instanceof AccountingRouteError) {
             res.status(err.status).json({ error: err.message });
+            return;
+        }
+        const message = err instanceof Error ? err.message : String(err?.message || err || "UNKNOWN_ERROR");
+        if (message.includes("INVOICE_ALREADY_EXISTS") || message.includes("INVOICE_ALLOCATION_EXCEEDS_UNINVOICED_BALANCE")) {
+            res.status(409).json({ error: message.includes("INVOICE_ALREADY_EXISTS") ? "Invoice already exists" : "INVOICE_ALLOCATION_EXCEEDS_UNINVOICED_BALANCE" });
+            return;
+        }
+        if (message.includes("SOURCE_TRANSACTION_NOT_FOUND")) {
+            res.status(404).json({ error: "One or more transactions were not found" });
+            return;
+        }
+        if (message.includes("SOURCE_TRANSACTION_IDS_REQUIRED") || message.includes("BILLING_NAME_REQUIRED")) {
+            res.status(400).json({ error: message });
             return;
         }
         console.error("Invoice create error:", err);

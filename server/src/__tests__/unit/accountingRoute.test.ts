@@ -1212,6 +1212,87 @@ describe("accounting router", () => {
     expect(mockRpc).not.toHaveBeenCalled();
   });
 
+  it("POST /invoices creates standard invoice through the atomic RPC when available", async () => {
+    const transactionChain = createChain({
+      data: {
+        id: "tx-1",
+        kind: "sale",
+        site_id: "site-1",
+        recorded_date: "2026-03-10",
+        amount_subtotal: 100000,
+        tax_amount: 10000,
+        amount_total: 110000,
+        tax_category: "10_STANDARD",
+        currency: "JPY",
+      },
+      error: null,
+    });
+    const settingsChain = createChain({ data: null, error: null });
+    const sourceLinksChain = createChain({ data: [], error: null });
+    const existingInvoicesFallbackChain = createChain({ data: [], error: null });
+    const revenueBasisPreflightChain = createChain({
+      data: [{
+        id: "rb-1",
+        site_id: "site-1",
+        recognition_date: "2026-03-10",
+        recognized_on: "2026-03-10",
+        amount_inc_tax: 220000,
+        receivable_account_type: "accounts_receivable",
+      }],
+      error: null,
+    });
+    const invoiceAllocationExistingChain = createChain({ data: [], error: null });
+    setupMockFromSequence(mockFrom, [
+      transactionChain,
+      settingsChain,
+      sourceLinksChain,
+      existingInvoicesFallbackChain,
+      revenueBasisPreflightChain,
+      invoiceAllocationExistingChain,
+    ]);
+    mockRpc.mockResolvedValue({
+      data: {
+        invoice: {
+          id: "inv-atomic",
+          invoice_no: "INV-2026-0002",
+          document_type: "standard_invoice",
+          pdf_render_status: "pending",
+        },
+      },
+      error: null,
+    });
+
+    const req = {
+      userId: "user-1",
+      orgId: "11111111-1111-4111-8111-111111111111",
+      body: {
+        idempotency_key: "invoice-atomic-1",
+        transaction_id: "tx-1",
+        billing_name: "株式会社現場",
+        requested_document_type: "auto",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createInvoiceHandler(req, res);
+
+    expect(mockRpc).toHaveBeenCalledWith("rpc_create_accounting_invoice", expect.objectContaining({
+      p_org_id: "11111111-1111-4111-8111-111111111111",
+      p_source_transaction_ids: ["tx-1"],
+      p_representative_transaction_id: "tx-1",
+      p_document_type: "standard_invoice",
+      p_created_by: "user-1",
+    }));
+    expect(mockFrom).not.toHaveBeenCalledWith("accounting_journal_entries");
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      id: "inv-atomic",
+      eligibility: expect.objectContaining({
+        resolved_document_type: "standard_invoice",
+      }),
+    }));
+  });
+
   it("POST /invoices stores standard invoice snapshots when issuer is not registered", async () => {
     const transactionChain = createChain({
       data: {
@@ -1278,7 +1359,19 @@ describe("accounting router", () => {
       invoiceAllocationInsertChain,
       txUpdateChain,
     ]);
-    mockRpc.mockResolvedValue({ data: "INV-2026-0002", error: null });
+    mockRpc.mockImplementation((functionName: string) => {
+      if (functionName === "rpc_create_accounting_invoice") {
+        return Promise.resolve({
+          data: null,
+          error: {
+            code: "PGRST202",
+            message: "Could not find the function public.rpc_create_accounting_invoice",
+          },
+        });
+      }
+
+      return Promise.resolve({ data: "INV-2026-0002", error: null });
+    });
 
     const req = {
       userId: "user-1",
