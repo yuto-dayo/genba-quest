@@ -1,4 +1,4 @@
-import { createChain, setupMockFromSequence } from "../helpers/mockSupabase";
+import { createChain } from "../helpers/mockSupabase";
 
 jest.mock("../../lib/supabaseClient", () => ({
   supabaseAdmin: {
@@ -84,6 +84,43 @@ function getPutHandler(path: string) {
   return layer.route.stack[0].handle as (req: any, res: any) => Promise<void>;
 }
 
+function setupMockFromSequence(
+  mockFrom: jest.Mock,
+  chains: ReturnType<typeof createChain>[],
+  idempotencyChains: ReturnType<typeof createChain>[] = []
+): void {
+  let callIndex = 0;
+  let idempotencyIndex = 0;
+
+  mockFrom.mockImplementation((table: string) => {
+    if (table === "accounting_write_idempotency_keys") {
+      if (idempotencyChains.length > 0) {
+        return idempotencyChains.shift()!;
+      }
+
+      idempotencyIndex += 1;
+      if (idempotencyIndex % 2 === 1) {
+        return createChain({
+          data: {
+            id: `idem-${idempotencyIndex}`,
+            request_hash: null,
+            status: "in_progress",
+            response_status: 200,
+            response_json: null,
+          },
+          error: null,
+        });
+      }
+
+      return createChain({ data: null, error: null });
+    }
+
+    const chain = chains[callIndex] || createChain();
+    callIndex += 1;
+    return chain;
+  });
+}
+
 describe("accounting router", () => {
   const createExpenseHandler = getPostHandler("/expenses");
   const createSaleHandler = getPostHandler("/sales");
@@ -109,6 +146,7 @@ describe("accounting router", () => {
   });
 
   it("POST /expenses posts low-risk expense immediately and creates journal entries", async () => {
+    const siteChain = createChain({ data: { id: "site-1", status: "active" }, error: null });
     const txInsertChain = createChain({
       data: {
         id: "tx-1",
@@ -126,6 +164,7 @@ describe("accounting router", () => {
     const entryInsertChain = createChain({ data: { id: "entry-1" }, error: null });
     const lineInsertChain = createChain({ data: null, error: null });
     setupMockFromSequence(mockFrom, [
+      siteChain,
       txInsertChain,
       existingEntryChain,
       entryInsertChain,
@@ -134,7 +173,9 @@ describe("accounting router", () => {
 
     const req = {
       userId: "user-1",
+      orgId: "org-1",
       body: {
+        idempotency_key: "expense-low-risk-1",
         cost_center: "SITE",
         site_id: "site-1",
         vendor_name: "資材屋",
@@ -161,6 +202,7 @@ describe("accounting router", () => {
     }));
     expect(existingEntryChain.maybeSingle).toHaveBeenCalled();
     expect(entryInsertChain.insert).toHaveBeenCalledWith(expect.objectContaining({
+      org_id: "org-1",
       transaction_id: "tx-1",
       created_by: "user-1",
     }));
@@ -172,6 +214,67 @@ describe("accounting router", () => {
     expect(res.status).toHaveBeenCalledWith(201);
   });
 
+  it("POST /expenses requires an idempotency key for accounting writes", async () => {
+    const siteChain = createChain({ data: { id: "site-1", status: "active" }, error: null });
+    setupMockFromSequence(mockFrom, [siteChain]);
+
+    const req = {
+      userId: "user-1",
+      orgId: "org-1",
+      body: {
+        cost_center: "SITE",
+        site_id: "site-1",
+        amount_total: 1100,
+        category: "material",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createExpenseHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: "idempotency_key is required" });
+  });
+
+  it("POST /expenses replays a completed idempotent write without inserting another transaction", async () => {
+    const siteChain = createChain({ data: { id: "site-1", status: "active" }, error: null });
+    const txInsertChain = createChain({ data: { id: "tx-new" }, error: null });
+    const idempotencyInsertChain = createChain({
+      data: null,
+      error: { code: "23505", message: "duplicate key value violates unique constraint" },
+    });
+    const idempotencyExistingChain = createChain({
+      data: {
+        id: "idem-existing",
+        request_hash: null,
+        status: "succeeded",
+        response_status: 201,
+        response_json: { id: "tx-existing", kind: "expense" },
+      },
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [siteChain, txInsertChain], [idempotencyInsertChain, idempotencyExistingChain]);
+
+    const req = {
+      userId: "user-1",
+      orgId: "org-1",
+      body: {
+        idempotency_key: "expense-replay-1",
+        cost_center: "SITE",
+        site_id: "site-1",
+        amount_total: 1100,
+        category: "material",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createExpenseHandler(req, res);
+
+    expect(txInsertChain.insert).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({ id: "tx-existing", kind: "expense" });
+  });
+
   it("GET /transactions applies creator and month filters", async () => {
     const queryChain = createChain({
       data: [],
@@ -180,6 +283,7 @@ describe("accounting router", () => {
     setupMockFromSequence(mockFrom, [queryChain]);
 
     const req = {
+      orgId: "org-1",
       query: {
         kind: "expense",
         created_by: "user-42",
@@ -193,6 +297,7 @@ describe("accounting router", () => {
 
     await getTransactionsHandler(req, res);
 
+    expect(queryChain.eq).toHaveBeenCalledWith("org_id", "org-1");
     expect(queryChain.eq).toHaveBeenCalledWith("kind", "expense");
     expect(queryChain.eq).toHaveBeenCalledWith("created_by", "user-42");
     expect(queryChain.gte).toHaveBeenCalledWith("recorded_date", "2026-04-01");
@@ -201,6 +306,7 @@ describe("accounting router", () => {
   });
 
   it("POST /expenses stores misc expenses as tax-free when selected", async () => {
+    const siteChain = createChain({ data: { id: "site-1", status: "active" }, error: null });
     const txInsertChain = createChain({
       data: {
         id: "tx-misc",
@@ -218,6 +324,7 @@ describe("accounting router", () => {
     const entryInsertChain = createChain({ data: { id: "entry-misc" }, error: null });
     const lineInsertChain = createChain({ data: null, error: null });
     setupMockFromSequence(mockFrom, [
+      siteChain,
       txInsertChain,
       existingEntryChain,
       entryInsertChain,
@@ -226,7 +333,9 @@ describe("accounting router", () => {
 
     const req = {
       userId: "user-1",
+      orgId: "org-1",
       body: {
+        idempotency_key: "expense-misc-1",
         cost_center: "SITE",
         site_id: "site-1",
         amount_total: 5000,
@@ -259,6 +368,7 @@ describe("accounting router", () => {
   });
 
   it("POST /expenses retries without misc columns when schema migrations are missing", async () => {
+    const siteChain = createChain({ data: { id: "site-1", status: "active" }, error: null });
     const txInsertMissingCategoryChain = createChain({
       data: null,
       error: { message: "Could not find the 'category' column of 'accounting_transactions' in the schema cache" },
@@ -283,6 +393,7 @@ describe("accounting router", () => {
     const entryInsertChain = createChain({ data: { id: "entry-misc-compat" }, error: null });
     const lineInsertChain = createChain({ data: null, error: null });
     setupMockFromSequence(mockFrom, [
+      siteChain,
       txInsertMissingCategoryChain,
       txInsertMissingMiscChain,
       txInsertSuccessChain,
@@ -293,7 +404,9 @@ describe("accounting router", () => {
 
     const req = {
       userId: "user-1",
+      orgId: "org-1",
       body: {
+        idempotency_key: "expense-misc-retry-1",
         cost_center: "SITE",
         site_id: "site-1",
         amount_total: 5000,
@@ -326,6 +439,7 @@ describe("accounting router", () => {
   });
 
   it("POST /expenses keeps high-risk expense in review flow", async () => {
+    const siteChain = createChain({ data: { id: "site-1", status: "active" }, error: null });
     const txInsertChain = createChain({
       data: {
         id: "tx-2",
@@ -338,11 +452,13 @@ describe("accounting router", () => {
       },
       error: null,
     });
-    setupMockFromSequence(mockFrom, [txInsertChain]);
+    setupMockFromSequence(mockFrom, [siteChain, txInsertChain]);
 
     const req = {
       userId: "user-1",
+      orgId: "org-1",
       body: {
+        idempotency_key: "expense-high-risk-1",
         cost_center: "SITE",
         site_id: "site-1",
         amount_total: 40000,
@@ -359,7 +475,7 @@ describe("accounting router", () => {
       status: undefined,
       review_status: undefined,
     }));
-    expect(mockFrom).toHaveBeenCalledTimes(1);
+    expect(mockFrom).toHaveBeenCalledTimes(4);
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
       status: "pending_review",
@@ -370,6 +486,7 @@ describe("accounting router", () => {
   it("POST /expenses rejects invalid category before hitting DB constraints", async () => {
     const req = {
       userId: "user-1",
+      orgId: "org-1",
       body: {
         cost_center: "SITE",
         site_id: "site-1",
@@ -460,7 +577,9 @@ describe("accounting router", () => {
 
     const req = {
       userId: "user-1",
+      orgId: "org-1",
       body: {
+        idempotency_key: "sale-single-1",
         site_id: "site-1",
         description: "足場工事",
         unit_price: 50000,
@@ -475,6 +594,7 @@ describe("accounting router", () => {
     await createSaleHandler(req, res);
 
     expect(txInsertChain.insert).toHaveBeenCalledWith(expect.objectContaining({
+      org_id: "org-1",
       kind: "sale",
       site_id: "site-1",
       amount_total: 110000,
@@ -482,6 +602,7 @@ describe("accounting router", () => {
     }));
     expect(saleItemInsertChain.insert).toHaveBeenCalledWith([
       {
+        org_id: "org-1",
         transaction_id: "sale-1",
         item_name: "足場工事",
         unit_name: "式",
@@ -490,6 +611,7 @@ describe("accounting router", () => {
       },
     ]);
     expect(entryInsertChain.insert).toHaveBeenCalledWith(expect.objectContaining({
+      org_id: "org-1",
       transaction_id: "sale-1",
       created_by: "user-1",
     }));
@@ -536,7 +658,9 @@ describe("accounting router", () => {
 
     const req = {
       userId: "user-1",
+      orgId: "org-1",
       body: {
+        idempotency_key: "sale-multiple-1",
         site_id: "site-1",
         description: "",
         amount_subtotal: 1,
@@ -563,6 +687,7 @@ describe("accounting router", () => {
     await createSaleHandler(req, res);
 
     expect(txInsertChain.insert).toHaveBeenCalledWith(expect.objectContaining({
+      org_id: "org-1",
       kind: "sale",
       site_id: "site-1",
       description: "床工事、クロス工事",
@@ -573,6 +698,7 @@ describe("accounting router", () => {
     }));
     expect(saleItemInsertChain.insert).toHaveBeenCalledWith([
       {
+        org_id: "org-1",
         transaction_id: "sale-2",
         item_name: "床工事",
         unit_name: "㎡",
@@ -580,6 +706,7 @@ describe("accounting router", () => {
         quantity: 20,
       },
       {
+        org_id: "org-1",
         transaction_id: "sale-2",
         item_name: "クロス工事",
         unit_name: "人工",
@@ -588,7 +715,7 @@ describe("accounting router", () => {
       },
     ]);
     expect(lineInsertChain.insert).toHaveBeenCalledWith(expect.arrayContaining([
-      expect.objectContaining({ account_code: "1200", debit: 187000, credit: 0 }),
+      expect.objectContaining({ org_id: "org-1", account_code: "1200", debit: 187000, credit: 0 }),
       expect.objectContaining({ account_code: "4100", debit: 0, credit: 170000 }),
       expect.objectContaining({ account_code: "2500", debit: 0, credit: 17000 }),
     ]));
@@ -1070,6 +1197,7 @@ describe("accounting router", () => {
       userId: "user-1",
       orgId: "11111111-1111-4111-8111-111111111111",
       body: {
+        idempotency_key: "invoice-standard-1",
         transaction_id: "tx-1",
         billing_name: "株式会社現場",
       },
@@ -1126,6 +1254,7 @@ describe("accounting router", () => {
       userId: "user-1",
       orgId: "11111111-1111-4111-8111-111111111111",
       body: {
+        idempotency_key: "invoice-standard-1",
         transaction_id: "tx-1",
         billing_name: "株式会社現場",
         requested_document_type: "auto",
@@ -1148,6 +1277,7 @@ describe("accounting router", () => {
     }));
     expect(invoiceSourcesInsertChain.insert).toHaveBeenCalledWith(expect.arrayContaining([
       expect.objectContaining({
+        org_id: "11111111-1111-4111-8111-111111111111",
         invoice_id: "inv-2",
         source_transaction_id: "tx-1",
         is_primary_document: true,
@@ -1575,12 +1705,14 @@ describe("accounting router", () => {
     setupMockFromSequence(mockFrom, [plChain]);
 
     const req = {
+      orgId: "org-1",
       query: { month: "2026-05" },
     } as any;
     const res = createMockRes();
 
     await getPlHandler(req, res);
 
+    expect(plChain.eq).toHaveBeenCalledWith("org_id", "org-1");
     expect(plChain.in).toHaveBeenCalledWith("status", ["posted", "approved", "voided"]);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
       sales: 0,
@@ -1646,13 +1778,15 @@ describe("accounting router", () => {
       userId: "user-1",
       orgId: "11111111-1111-4111-8111-111111111111",
       params: { id: "tx-void-1" },
-      body: { reason: "入力ミス" },
+      body: { idempotency_key: "void-success-1", reason: "入力ミス" },
     } as any;
     const res = createMockRes();
 
     await voidTransactionHandler(req, res);
 
-    expect(mockFrom).toHaveBeenCalledTimes(8);
+    expect(mockFrom).toHaveBeenCalledTimes(10);
+    expect(originalFetchChain.eq).toHaveBeenCalledWith("org_id", "11111111-1111-4111-8111-111111111111");
+    expect(existingReversalChain.eq).toHaveBeenCalledWith("org_id", "11111111-1111-4111-8111-111111111111");
     expect(reversalInsertChain.insert).toHaveBeenCalledWith(expect.objectContaining({
       status: "posted",
       voids_transaction_id: "tx-void-1",
@@ -1697,7 +1831,7 @@ describe("accounting router", () => {
       userId: "user-1",
       orgId: "11111111-1111-4111-8111-111111111111",
       params: { id: "tx-void-2" },
-      body: { reason: "再取消テスト" },
+      body: { idempotency_key: "void-existing-reversal-1", reason: "再取消テスト" },
     } as any;
     const res = createMockRes();
 
@@ -1722,7 +1856,7 @@ describe("accounting router", () => {
     const req = {
       userId: "user-1",
       params: { id: "tx-reversal-2" },
-      body: { reason: "やり直し" },
+      body: { idempotency_key: "void-reversal-1", reason: "やり直し" },
     } as any;
     const res = createMockRes();
 

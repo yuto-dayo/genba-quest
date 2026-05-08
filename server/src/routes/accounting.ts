@@ -1,6 +1,8 @@
 import { Router, Response } from "express";
+import { createHash } from "crypto";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import { supabaseAdmin } from "../lib/supabaseClient";
+import { resolveActiveOrgMembership } from "../lib/orgAccess";
 import { analyzeDocument, assessExpenseRisk, OcrResult } from "../services/ocrService";
 import { getDriveStorageService } from "../services/DriveStorageService";
 import { ensureInvoicePdfStored, INVOICE_PDF_BUCKET } from "../services/InvoicePdfService";
@@ -29,7 +31,6 @@ const EXPENSE_REVIEW_NOT_REQUIRED = "not_required";
 const POSTED_STATUS = "posted";
 const EXPENSE_CATEGORIES = ["material", "tool", "travel", "food", "fuel", "utility", "other"] as const;
 const EXPENSE_TAX_CATEGORIES = ["10_STANDARD", "08_REDUCED", "00_EXEMPT", "00_TAXFREE"] as const;
-const DEFAULT_ORG_ID = process.env.DEFAULT_ORG_ID || "00000000-0000-0000-0000-000000000001";
 const INVOICE_SETTINGS_MANAGER_ROLES = new Set(["admin", "manager"]);
 const DEFAULT_SALE_TAX_CATEGORY = "10_STANDARD";
 const DEFAULT_SALE_TAX_RATE = 0.1;
@@ -54,6 +55,47 @@ type SupplementLineItemPayload = {
     unit_price: number | null;
     amount: number | null;
 };
+
+type AccountingWriteEndpoint =
+    | "accounting.expenses.create"
+    | "accounting.sales.adjust"
+    | "accounting.invoices.create"
+    | "accounting.void.create";
+
+type AccountingIdempotencyStart =
+    | {
+        mode: "created";
+        id: string;
+        endpointName: AccountingWriteEndpoint;
+        idempotencyKey: string;
+        requestHash: string;
+    }
+    | {
+        mode: "replay";
+        responseStatus: number;
+        responseJson: unknown;
+    };
+
+class AccountingRouteError extends Error {
+    status: number;
+
+    constructor(status: number, message: string) {
+        super(message);
+        this.status = status;
+    }
+}
+
+router.use(async (req: AuthenticatedRequest, res, next) => {
+    try {
+        const membership = await resolveActiveOrgMembership(req, "member");
+        req.orgId = membership.org_id;
+        next();
+    } catch (err) {
+        const message = err instanceof Error ? err.message : "ORG_ACCESS_ERROR";
+        const status = message === "INVALID_ORG_ID" ? 400 : 403;
+        res.status(status).json({ error: message });
+    }
+});
 
 const EXPENSE_ACCOUNT_MAP: Record<ExpenseCategory, { code: string; name: string }> = {
     material: { code: "5100", name: "材料費" },
@@ -242,7 +284,152 @@ function isDuplicateKeyError(error: unknown): boolean {
     return code === "23505" || message.includes("duplicate key value") || message.includes("23505");
 }
 
-async function assertSiteSalesMutable(siteId: string, orgId: string): Promise<void> {
+function canonicalizeForHash(value: unknown): unknown {
+    if (Array.isArray(value)) {
+        return value.map(canonicalizeForHash);
+    }
+
+    if (value && typeof value === "object") {
+        return Object.keys(value as Record<string, unknown>)
+            .sort()
+            .reduce<Record<string, unknown>>((acc, key) => {
+                if (key !== "idempotency_key") {
+                    acc[key] = canonicalizeForHash((value as Record<string, unknown>)[key]);
+                }
+                return acc;
+            }, {});
+    }
+
+    return value;
+}
+
+function buildRequestHash(body: unknown): string {
+    return createHash("sha256")
+        .update(JSON.stringify(canonicalizeForHash(body)))
+        .digest("hex");
+}
+
+function readIdempotencyKey(body: unknown): string {
+    const value = body && typeof body === "object"
+        ? (body as Record<string, unknown>).idempotency_key
+        : null;
+
+    if (typeof value !== "string" || !value.trim()) {
+        throw new AccountingRouteError(400, "idempotency_key is required");
+    }
+
+    return value.trim();
+}
+
+async function beginAccountingWriteIdempotency(input: {
+    orgId: string;
+    endpointName: AccountingWriteEndpoint;
+    idempotencyKey: string;
+    requestBody: unknown;
+}): Promise<AccountingIdempotencyStart> {
+    const requestHash = buildRequestHash(input.requestBody);
+    const insertResult = await supabaseAdmin
+        .from("accounting_write_idempotency_keys")
+        .insert({
+            org_id: input.orgId,
+            endpoint_name: input.endpointName,
+            idempotency_key: input.idempotencyKey,
+            request_hash: requestHash,
+            status: "in_progress",
+            locked_at: new Date().toISOString(),
+        })
+        .select("id,request_hash,status,response_status,response_json")
+        .single();
+
+    if (!insertResult.error && insertResult.data) {
+        return {
+            mode: "created",
+            id: insertResult.data.id,
+            endpointName: input.endpointName,
+            idempotencyKey: input.idempotencyKey,
+            requestHash,
+        };
+    }
+
+    if (!isDuplicateKeyError(insertResult.error)) {
+        throw insertResult.error;
+    }
+
+    const { data: existing, error: existingError } = await supabaseAdmin
+        .from("accounting_write_idempotency_keys")
+        .select("id,request_hash,status,response_status,response_json")
+        .eq("org_id", input.orgId)
+        .eq("endpoint_name", input.endpointName)
+        .eq("idempotency_key", input.idempotencyKey)
+        .maybeSingle();
+
+    if (existingError) {
+        throw existingError;
+    }
+
+    if (!existing) {
+        throw new AccountingRouteError(409, "IDEMPOTENCY_STATE_CONFLICT");
+    }
+
+    if (existing.request_hash && existing.request_hash !== requestHash) {
+        throw new AccountingRouteError(409, "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD");
+    }
+
+    if (existing.status === "succeeded") {
+        return {
+            mode: "replay",
+            responseStatus: typeof existing.response_status === "number" ? existing.response_status : 200,
+            responseJson: existing.response_json || {},
+        };
+    }
+
+    throw new AccountingRouteError(409, `IDEMPOTENCY_${String(existing.status || "in_progress").toUpperCase()}`);
+}
+
+async function completeAccountingWriteIdempotency(
+    idempotency: AccountingIdempotencyStart | null,
+    responseStatus: number,
+    responseJson: unknown,
+): Promise<void> {
+    if (!idempotency || idempotency.mode !== "created") {
+        return;
+    }
+
+    const { error } = await supabaseAdmin
+        .from("accounting_write_idempotency_keys")
+        .update({
+            status: "succeeded",
+            response_status: responseStatus,
+            response_json: responseJson || {},
+            completed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+        })
+        .eq("id", idempotency.id);
+
+    if (error) {
+        throw error;
+    }
+}
+
+async function failAccountingWriteIdempotency(
+    idempotency: AccountingIdempotencyStart | null,
+    errorCode: string,
+): Promise<void> {
+    if (!idempotency || idempotency.mode !== "created") {
+        return;
+    }
+
+    await supabaseAdmin
+        .from("accounting_write_idempotency_keys")
+        .update({
+            status: "failed",
+            response_json: { error: errorCode },
+            updated_at: new Date().toISOString(),
+        })
+        .eq("id", idempotency.id);
+}
+
+async function assertSiteBelongsToOrg(siteId: string, orgId: string) {
     const { data, error } = await supabaseAdmin
         .from("sites")
         .select("id, status")
@@ -258,6 +445,12 @@ async function assertSiteSalesMutable(siteId: string, orgId: string): Promise<vo
     if (!data) {
         throw new Error("SITE_NOT_FOUND");
     }
+
+    return data;
+}
+
+async function assertSiteSalesMutable(siteId: string, orgId: string): Promise<void> {
+    const data = await assertSiteBelongsToOrg(siteId, orgId);
 
     if (String(data.status ?? "") === "completed") {
         throw new Error("SITE_COMPLETED_SALES_IMMUTABLE");
@@ -458,7 +651,7 @@ type InvoiceSourceLinkRecord = {
     is_primary_document: boolean;
 };
 
-async function getInvoiceTransactionsByIds(transactionIds: string[]): Promise<InvoiceTransaction[]> {
+async function getInvoiceTransactionsByIds(transactionIds: string[], orgId: string): Promise<InvoiceTransaction[]> {
     if (transactionIds.length === 0) {
         return [];
     }
@@ -480,6 +673,7 @@ async function getInvoiceTransactionsByIds(transactionIds: string[]): Promise<In
             site:sites(id, name),
             client:clients(id, name)
         `)
+        .eq("org_id", orgId)
         .in("id", transactionIds);
 
     if (error) {
@@ -503,13 +697,14 @@ async function getInvoiceTransactionsByIds(transactionIds: string[]): Promise<In
         .filter((transaction): transaction is InvoiceTransaction => Boolean(transaction));
 }
 
-async function getInvoiceTransaction(transactionId: string) {
-    const [transaction] = await getInvoiceTransactionsByIds([transactionId]);
+async function getInvoiceTransaction(transactionId: string, orgId: string) {
+    const [transaction] = await getInvoiceTransactionsByIds([transactionId], orgId);
     return transaction || null;
 }
 
 async function getInvoiceSourceLinksByTransactionIds(
     transactionIds: string[],
+    orgId: string,
     options?: { primaryOnly?: boolean }
 ): Promise<InvoiceSourceLinkRecord[]> {
     if (transactionIds.length === 0) {
@@ -519,6 +714,7 @@ async function getInvoiceSourceLinksByTransactionIds(
     const { data, error } = await supabaseAdmin
         .from("accounting_invoice_sources")
         .select("invoice_id, source_transaction_id, source_transaction_date, sort_order, is_primary_document")
+        .eq("org_id", orgId)
         .in("source_transaction_id", transactionIds);
 
     if (error) {
@@ -537,7 +733,7 @@ async function getInvoiceSourceLinksByTransactionIds(
         : sourceLinks;
 }
 
-async function getInvoiceSourceLinksByInvoiceIds(invoiceIds: string[]): Promise<InvoiceSourceLinkRecord[]> {
+async function getInvoiceSourceLinksByInvoiceIds(invoiceIds: string[], orgId: string): Promise<InvoiceSourceLinkRecord[]> {
     if (invoiceIds.length === 0) {
         return [];
     }
@@ -545,6 +741,7 @@ async function getInvoiceSourceLinksByInvoiceIds(invoiceIds: string[]): Promise<
     const { data, error } = await supabaseAdmin
         .from("accounting_invoice_sources")
         .select("invoice_id, source_transaction_id, source_transaction_date, sort_order, is_primary_document")
+        .eq("org_id", orgId)
         .in("invoice_id", invoiceIds)
         .order("sort_order", { ascending: true });
 
@@ -565,7 +762,7 @@ async function getExistingInvoicesForSourceTransactions(
     orgId: string,
     options?: { primaryOnly?: boolean }
 ) {
-    const sourceLinks = await getInvoiceSourceLinksByTransactionIds(transactionIds, options);
+    const sourceLinks = await getInvoiceSourceLinksByTransactionIds(transactionIds, orgId, options);
     const invoiceIds = Array.from(new Set(sourceLinks.map((link) => link.invoice_id)));
 
     if (invoiceIds.length === 0) {
@@ -599,11 +796,12 @@ async function getExistingInvoicesForSourceTransactions(
     return Array.isArray(data) ? data : [];
 }
 
-async function getExistingInvoicesForTransaction(transactionId: string, orgId = DEFAULT_ORG_ID) {
+async function getExistingInvoicesForTransaction(transactionId: string, orgId: string) {
     return getExistingInvoicesForSourceTransactions([transactionId], orgId);
 }
 
 async function insertInvoiceSourceLinks(input: {
+    orgId: string;
     invoiceId: string;
     transactions: InvoiceTransaction[];
     isPrimaryDocument: boolean;
@@ -613,6 +811,7 @@ async function insertInvoiceSourceLinks(input: {
     }
 
     const rows = input.transactions.map((transaction, index) => ({
+        org_id: input.orgId,
         invoice_id: input.invoiceId,
         source_transaction_id: transaction.id,
         source_transaction_date: transaction.recorded_date,
@@ -750,7 +949,7 @@ function buildInvoiceCorrectionSnapshot(existingSnapshot: any, correction: Recor
 router.post("/documents", async (req: AuthenticatedRequest, res: Response) => {
     try {
         const { file_base64, mime_type, original_filename, doc_type, site_id, client_id } = req.body;
-        const orgId = req.orgId || DEFAULT_ORG_ID;
+        const orgId = req.orgId!;
 
         if (!file_base64 || !mime_type || !doc_type) {
             res.status(400).json({ error: "file_base64, mime_type, doc_type are required" });
@@ -766,6 +965,15 @@ router.post("/documents", async (req: AuthenticatedRequest, res: Response) => {
             }
         }
 
+        if (site_id) {
+            try {
+                await assertSiteBelongsToOrg(site_id, orgId);
+            } catch {
+                res.status(400).json({ error: "site_id is invalid or unavailable" });
+                return;
+            }
+        }
+
         // Base64 → Buffer
         const fileBuffer = Buffer.from(file_base64, "base64");
         const fileSize = fileBuffer.length;
@@ -777,7 +985,7 @@ router.post("/documents", async (req: AuthenticatedRequest, res: Response) => {
         // Storage にアップロード
         const timestamp = Date.now();
         const ext = original_filename?.split(".").pop() || "jpg";
-        const storagePath = `${req.userId!}/${timestamp}.${ext}`;
+        const storagePath = `${orgId}/${req.userId!}/${timestamp}.${ext}`;
 
         const { error: uploadError } = await supabaseAdmin.storage
             .from("genba-documents")
@@ -829,6 +1037,7 @@ router.post("/ocr/analyze", async (req: AuthenticatedRequest, res: Response) => 
             .from("documents")
             .select("*")
             .eq("id", document_id)
+            .eq("org_id", req.orgId!)
             .single();
 
         if (docError || !doc) {
@@ -878,6 +1087,7 @@ router.post("/ocr/analyze", async (req: AuthenticatedRequest, res: Response) => 
                 }, {} as Record<string, any>),
             })
             .eq("id", document_id)
+            .eq("org_id", req.orgId!)
             .select()
             .single();
 
@@ -894,6 +1104,7 @@ router.post("/ocr/analyze", async (req: AuthenticatedRequest, res: Response) => 
 // ============================================================
 
 router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
+    let idempotency: AccountingIdempotencyStart | null = null;
     try {
         const {
             cost_center,
@@ -911,7 +1122,7 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
             source_document_id,
             input_sources,
         } = req.body;
-        const orgId = req.orgId || DEFAULT_ORG_ID;
+        const orgId = req.orgId!;
         const normalizedCategory = normalizeExpenseCategory(category);
         const normalizedTaxCategory = normalizeExpenseTaxCategory(tax_category) || "10_STANDARD";
         const normalizedExpenseItemCode = normalizeText(expense_item_code);
@@ -942,6 +1153,27 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
             return;
         }
 
+        if (site_id) {
+            try {
+                await assertSiteBelongsToOrg(site_id, orgId);
+            } catch {
+                res.status(400).json({ error: "site_id is invalid or unavailable" });
+                return;
+            }
+        }
+
+        idempotency = await beginAccountingWriteIdempotency({
+            orgId,
+            endpointName: "accounting.expenses.create",
+            idempotencyKey: readIdempotencyKey(req.body),
+            requestBody: req.body,
+        });
+
+        if (idempotency.mode === "replay") {
+            res.status(idempotency.responseStatus).json(idempotency.responseJson);
+            return;
+        }
+
         const resolvedTotal = parseNumericInput(amount_total) || 0;
         let resolvedTaxAmount = parseNumericInput(tax_amount) || 0;
         let resolvedSubtotal = parseNumericInput(amount_subtotal);
@@ -959,6 +1191,7 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
                 .from("documents")
                 .select("ocr_fields")
                 .eq("id", source_document_id)
+                .eq("org_id", orgId)
                 .single();
 
             if (doc?.ocr_fields) {
@@ -1002,11 +1235,17 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
         });
 
         if (!requiresReview) {
-            await createJournalEntry(data, req.userId!);
+            await createJournalEntry(data, req.userId!, orgId);
         }
 
+        await completeAccountingWriteIdempotency(idempotency, 201, data);
         res.status(201).json(data);
     } catch (err: any) {
+        await failAccountingWriteIdempotency(idempotency, err instanceof Error ? err.message : "UNKNOWN_ERROR");
+        if (err instanceof AccountingRouteError) {
+            res.status(err.status).json({ error: err.message });
+            return;
+        }
         console.error("Expense create error:", err);
         res.status(500).json({ error: "Internal server error" });
     }
@@ -1028,6 +1267,7 @@ router.post("/expenses/:id/review", async (req: AuthenticatedRequest, res: Respo
             .from("accounting_transactions")
             .select("created_by, amount_total, reviewer_id, status, review_status")
             .eq("id", id)
+            .eq("org_id", req.orgId!)
             .single();
 
         if (txError || !tx) {
@@ -1080,6 +1320,7 @@ router.post("/expenses/:id/review", async (req: AuthenticatedRequest, res: Respo
                 status: txStatus,
             })
             .eq("id", id)
+            .eq("org_id", req.orgId!)
             .select()
             .single();
 
@@ -1087,7 +1328,7 @@ router.post("/expenses/:id/review", async (req: AuthenticatedRequest, res: Respo
 
         // 承認の場合は仕訳を作成
         if (action === "approve" && data) {
-            await createJournalEntry(data, req.userId!);
+            await createJournalEntry(data, req.userId!, req.orgId!);
         }
 
         res.json(data);
@@ -1139,6 +1380,7 @@ router.post("/expenses/batch-review", async (req: AuthenticatedRequest, res: Res
                     .from("accounting_transactions")
                     .select("created_by, amount_total, reviewer_id, status, review_status")
                     .eq("id", id)
+                    .eq("org_id", req.orgId!)
                     .single();
 
                 if (txError || !tx) {
@@ -1183,6 +1425,7 @@ router.post("/expenses/batch-review", async (req: AuthenticatedRequest, res: Res
                         status: txStatus,
                     })
                     .eq("id", id)
+                    .eq("org_id", req.orgId!)
                     .select()
                     .single();
 
@@ -1193,7 +1436,7 @@ router.post("/expenses/batch-review", async (req: AuthenticatedRequest, res: Res
 
                 // 承認の場合は仕訳を作成
                 if (action === "approve" && updated) {
-                    await createJournalEntry(updated, req.userId!);
+                    await createJournalEntry(updated, req.userId!, req.orgId!);
                 }
 
                 results.success.push(id);
@@ -1214,6 +1457,7 @@ router.post("/expenses/batch-review", async (req: AuthenticatedRequest, res: Res
 // ============================================================
 
 router.post("/sales", async (req: AuthenticatedRequest, res: Response) => {
+    let idempotency: AccountingIdempotencyStart | null = null;
     try {
         const {
             site_id,
@@ -1230,7 +1474,7 @@ router.post("/sales", async (req: AuthenticatedRequest, res: Response) => {
             source_document_id,
             input_sources,
         } = req.body;
-        const orgId = req.orgId || DEFAULT_ORG_ID;
+        const orgId = req.orgId!;
 
         if (!site_id) {
             res.status(400).json({ error: "site_id is required" });
@@ -1304,6 +1548,18 @@ router.post("/sales", async (req: AuthenticatedRequest, res: Response) => {
             return;
         }
 
+        idempotency = await beginAccountingWriteIdempotency({
+            orgId,
+            endpointName: "accounting.sales.adjust",
+            idempotencyKey: readIdempotencyKey(req.body),
+            requestBody: req.body,
+        });
+
+        if (idempotency.mode === "replay") {
+            res.status(idempotency.responseStatus).json(idempotency.responseJson);
+            return;
+        }
+
         const { data, error } = await supabaseAdmin
             .from("accounting_transactions")
             .insert({
@@ -1333,6 +1589,7 @@ router.post("/sales", async (req: AuthenticatedRequest, res: Response) => {
                 .from("accounting_transaction_items")
                 .insert(
                     saleItems.map((item) => ({
+                        org_id: orgId,
                         transaction_id: data.id,
                         item_name: item.item_name,
                         unit_name: item.unit_name,
@@ -1345,10 +1602,16 @@ router.post("/sales", async (req: AuthenticatedRequest, res: Response) => {
         }
 
         // 仕訳作成
-        await createJournalEntry(data, req.userId!);
+        await createJournalEntry(data, req.userId!, orgId);
 
+        await completeAccountingWriteIdempotency(idempotency, 201, data);
         res.status(201).json(data);
     } catch (err: any) {
+        await failAccountingWriteIdempotency(idempotency, err instanceof Error ? err.message : "UNKNOWN_ERROR");
+        if (err instanceof AccountingRouteError) {
+            res.status(err.status).json({ error: err.message });
+            return;
+        }
         if (err instanceof Error && err.message === "SITE_COMPLETED_SALES_IMMUTABLE") {
             res.status(409).json({ error: "SITE_COMPLETED_SALES_IMMUTABLE" });
             return;
@@ -1368,7 +1631,7 @@ router.post("/sales", async (req: AuthenticatedRequest, res: Response) => {
 
 router.get("/invoice-settings", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = req.orgId || DEFAULT_ORG_ID;
+        const orgId = req.orgId!;
         const settings = await getOrgInvoiceSettings(orgId);
         res.json(settings);
     } catch (err: any) {
@@ -1379,7 +1642,7 @@ router.get("/invoice-settings", async (req: AuthenticatedRequest, res: Response)
 
 router.put("/invoice-settings", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = req.orgId || DEFAULT_ORG_ID;
+        const orgId = req.orgId!;
         const normalizedIssuerName = normalizeText(req.body.issuer_name);
         const normalizedIssuerAddress = normalizeText(req.body.issuer_address);
         const normalizedIssuerContact = normalizeText(req.body.issuer_contact);
@@ -1477,7 +1740,7 @@ router.put("/invoice-settings", async (req: AuthenticatedRequest, res: Response)
 
 router.get("/invoice-candidates", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = req.orgId || DEFAULT_ORG_ID;
+        const orgId = req.orgId!;
         const clientId = normalizeText(req.query.client_id);
         const dateFrom = normalizeText(req.query.date_from);
         const dateTo = normalizeText(req.query.date_to);
@@ -1489,6 +1752,7 @@ router.get("/invoice-candidates", async (req: AuthenticatedRequest, res: Respons
                 site:sites(id, name),
                 client:clients(id, name)
             `)
+            .eq("org_id", orgId)
             .eq("kind", "sale")
             .neq("status", "voided")
             .order("recorded_date", { ascending: true })
@@ -1526,6 +1790,7 @@ router.get("/invoice-candidates", async (req: AuthenticatedRequest, res: Respons
         const linkedInvoiceIds = new Set(linkedInvoices.map((invoice) => invoice.id));
         const sourceLinks = await getInvoiceSourceLinksByTransactionIds(
             transactions.map((transaction) => transaction.id),
+            orgId,
             { primaryOnly: true }
         );
         const linkedSourceIds = new Set(
@@ -1543,7 +1808,7 @@ router.get("/invoice-candidates", async (req: AuthenticatedRequest, res: Respons
 
 router.post("/invoice-eligibility", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = req.orgId || DEFAULT_ORG_ID;
+        const orgId = req.orgId!;
         const transactionIds: string[] = Array.isArray(req.body.transaction_ids)
             ? req.body.transaction_ids
                 .filter((value: unknown): value is string => typeof value === "string" && value.trim().length > 0)
@@ -1556,7 +1821,7 @@ router.post("/invoice-eligibility", async (req: AuthenticatedRequest, res: Respo
         }
 
         const uniqueTransactionIds: string[] = Array.from(new Set(transactionIds));
-        const transactions = await getInvoiceTransactionsByIds(uniqueTransactionIds);
+        const transactions = await getInvoiceTransactionsByIds(uniqueTransactionIds, orgId);
 
         if (transactions.length !== uniqueTransactionIds.length) {
             res.status(404).json({ error: "One or more transactions were not found" });
@@ -1589,11 +1854,11 @@ router.post("/invoice-eligibility", async (req: AuthenticatedRequest, res: Respo
 
 router.get("/invoice-eligibility/:transactionId", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = req.orgId || DEFAULT_ORG_ID;
+        const orgId = req.orgId!;
         const transactionId = Array.isArray(req.params.transactionId)
             ? req.params.transactionId[0]
             : req.params.transactionId;
-        const transaction = await getInvoiceTransaction(transactionId);
+        const transaction = await getInvoiceTransaction(transactionId, orgId);
 
         if (!transaction) {
             res.status(404).json({ error: "Transaction not found" });
@@ -1626,7 +1891,7 @@ router.get("/invoice-eligibility/:transactionId", async (req: AuthenticatedReque
 
 router.get("/invoices", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = req.orgId || DEFAULT_ORG_ID;
+        const orgId = req.orgId!;
         const {
             limit = 50,
             offset = 0,
@@ -1637,7 +1902,7 @@ router.get("/invoices", async (req: AuthenticatedRequest, res: Response) => {
         let directSourceTransactionFilter: string | null = null;
         if (typeof sourceTransactionId === "string" && sourceTransactionId.trim()) {
             const normalizedSourceTransactionId = sourceTransactionId.trim();
-            const sourceLinks = await getInvoiceSourceLinksByTransactionIds([normalizedSourceTransactionId]);
+            const sourceLinks = await getInvoiceSourceLinksByTransactionIds([normalizedSourceTransactionId], orgId);
             filteredInvoiceIds = Array.from(new Set(sourceLinks.map((link) => link.invoice_id)));
 
             if (filteredInvoiceIds.length === 0) {
@@ -1664,7 +1929,7 @@ router.get("/invoices", async (req: AuthenticatedRequest, res: Response) => {
 
         const invoiceRows = invoices as Array<Record<string, any>>;
         const invoiceIds = invoiceRows.map((invoice) => invoice.id);
-        const sourceLinks = await getInvoiceSourceLinksByInvoiceIds(invoiceIds);
+        const sourceLinks = await getInvoiceSourceLinksByInvoiceIds(invoiceIds, orgId);
         const sourceLinksByInvoiceId = sourceLinks.reduce<Map<string, InvoiceSourceLinkRecord[]>>((map, link) => {
             const existing = map.get(link.invoice_id) || [];
             existing.push(link);
@@ -1693,6 +1958,7 @@ router.get("/invoices", async (req: AuthenticatedRequest, res: Response) => {
                     site:sites(id, name),
                     client:clients(id, name)
                 `)
+                .eq("org_id", orgId)
                 .in("id", sourceTransactionIds);
 
             if (transactionsError) {
@@ -1797,6 +2063,7 @@ router.get("/invoices", async (req: AuthenticatedRequest, res: Response) => {
 });
 
 router.post("/invoices", async (req: AuthenticatedRequest, res: Response) => {
+    let idempotency: AccountingIdempotencyStart | null = null;
     try {
         const {
             transaction_id,
@@ -1808,7 +2075,7 @@ router.post("/invoices", async (req: AuthenticatedRequest, res: Response) => {
             notes,
             requested_document_type,
         } = req.body;
-        const orgId = req.orgId || DEFAULT_ORG_ID;
+        const orgId = req.orgId!;
 
         const requestedTransactionIds: string[] = Array.isArray(source_transaction_ids)
             ? source_transaction_ids
@@ -1833,7 +2100,7 @@ router.post("/invoices", async (req: AuthenticatedRequest, res: Response) => {
             return;
         }
 
-        const transactions = await getInvoiceTransactionsByIds(uniqueTransactionIds);
+        const transactions = await getInvoiceTransactionsByIds(uniqueTransactionIds, orgId);
         if (transactions.length !== uniqueTransactionIds.length) {
             res.status(404).json({ error: "One or more transactions were not found" });
             return;
@@ -1893,6 +2160,18 @@ router.post("/invoices", async (req: AuthenticatedRequest, res: Response) => {
             return;
         }
 
+        idempotency = await beginAccountingWriteIdempotency({
+            orgId,
+            endpointName: "accounting.invoices.create",
+            idempotencyKey: readIdempotencyKey(req.body),
+            requestBody: req.body,
+        });
+
+        if (idempotency.mode === "replay") {
+            res.status(idempotency.responseStatus).json(idempotency.responseJson);
+            return;
+        }
+
         const resolvedDocumentType = resolveRequestedDocumentType(requestedDocumentType, eligibility);
         const issueDate = issue_date || new Date().toISOString().split("T")[0];
         const notesValue = normalizeText(notes) || settings.invoice_notes_default || null;
@@ -1941,6 +2220,7 @@ router.post("/invoices", async (req: AuthenticatedRequest, res: Response) => {
         if (error) throw error;
 
         await insertInvoiceSourceLinks({
+            orgId,
             invoiceId: data.id,
             transactions: sortedTransactions,
             isPrimaryDocument: true,
@@ -1950,13 +2230,14 @@ router.post("/invoices", async (req: AuthenticatedRequest, res: Response) => {
         const { error: txUpdateError } = await supabaseAdmin
             .from("accounting_transactions")
             .update({ kind: "invoice" })
+            .eq("org_id", orgId)
             .in("id", uniqueTransactionIds);
 
         if (txUpdateError) {
             throw txUpdateError;
         }
 
-        res.status(201).json({
+        const responseBody = {
             ...data,
             source_summary: sourceSummary,
             eligibility: {
@@ -1965,8 +2246,16 @@ router.post("/invoices", async (req: AuthenticatedRequest, res: Response) => {
                 reason_messages: eligibility.reason_messages,
                 resolved_document_type: resolvedDocumentType,
             },
-        });
+        };
+
+        await completeAccountingWriteIdempotency(idempotency, 201, responseBody);
+        res.status(201).json(responseBody);
     } catch (err: any) {
+        await failAccountingWriteIdempotency(idempotency, err instanceof Error ? err.message : "UNKNOWN_ERROR");
+        if (err instanceof AccountingRouteError) {
+            res.status(err.status).json({ error: err.message });
+            return;
+        }
         console.error("Invoice create error:", err);
         res.status(500).json({ error: "Internal server error" });
     }
@@ -1974,7 +2263,7 @@ router.post("/invoices", async (req: AuthenticatedRequest, res: Response) => {
 
 router.post("/invoices/:id/correct", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = req.orgId || DEFAULT_ORG_ID;
+        const orgId = req.orgId!;
         const invoiceId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
         const hasCorrectedLineItemsInput = Object.prototype.hasOwnProperty.call(req.body || {}, "corrected_line_items");
         const correctedBillingName = normalizeText(req.body.billing_name);
@@ -2061,7 +2350,7 @@ router.post("/invoices/:id/correct", async (req: AuthenticatedRequest, res: Resp
 
 router.post("/invoices/:id/supplement", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = req.orgId || DEFAULT_ORG_ID;
+        const orgId = req.orgId!;
         const invoiceId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
         const issueDate = normalizeText(req.body.issue_date) || new Date().toISOString().split("T")[0];
         const supplementNote = normalizeText(req.body.correction_note);
@@ -2134,10 +2423,10 @@ router.post("/invoices/:id/supplement", async (req: AuthenticatedRequest, res: R
             return;
         }
 
-        const baseSourceLinks = await getInvoiceSourceLinksByInvoiceIds([invoiceId]);
+        const baseSourceLinks = await getInvoiceSourceLinksByInvoiceIds([invoiceId], orgId);
         const baseSourceTransactions = baseSourceLinks.length > 0
-            ? await getInvoiceTransactionsByIds(baseSourceLinks.map((link) => link.source_transaction_id))
-            : [await getInvoiceTransaction(baseInvoice.source_transaction_id)].filter(Boolean) as InvoiceTransaction[];
+            ? await getInvoiceTransactionsByIds(baseSourceLinks.map((link) => link.source_transaction_id), orgId)
+            : [await getInvoiceTransaction(baseInvoice.source_transaction_id, orgId)].filter(Boolean) as InvoiceTransaction[];
         const sourceSummary = baseInvoice.source_summary_snapshot
             || buildInvoiceSourceSummarySnapshot(baseSourceTransactions);
 
@@ -2193,6 +2482,7 @@ router.post("/invoices/:id/supplement", async (req: AuthenticatedRequest, res: R
         }
 
         await insertInvoiceSourceLinks({
+            orgId,
             invoiceId: data.id,
             transactions: baseSourceTransactions,
             isPrimaryDocument: false,
@@ -2207,7 +2497,7 @@ router.post("/invoices/:id/supplement", async (req: AuthenticatedRequest, res: R
 
 router.get("/invoices/:id/download", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = req.orgId || DEFAULT_ORG_ID;
+        const orgId = req.orgId!;
         const invoiceId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
         const storedPdf = await ensureInvoicePdfStored({
             invoiceId,
@@ -2253,13 +2543,29 @@ router.get("/invoices/:id/download", async (req: AuthenticatedRequest, res: Resp
 // ============================================================
 
 router.post("/void/:id", async (req: AuthenticatedRequest, res: Response) => {
+    let idempotency: AccountingIdempotencyStart | null = null;
     try {
         const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-        const orgId = req.orgId || DEFAULT_ORG_ID;
+        const orgId = req.orgId!;
         const reason = normalizeText(req.body?.reason);
 
         if (!reason) {
             res.status(400).json({ error: "reason is required" });
+            return;
+        }
+
+        idempotency = await beginAccountingWriteIdempotency({
+            orgId,
+            endpointName: "accounting.void.create",
+            idempotencyKey: readIdempotencyKey(req.body),
+            requestBody: {
+                transaction_id: id,
+                ...req.body,
+            },
+        });
+
+        if (idempotency.mode === "replay") {
+            res.status(idempotency.responseStatus).json(idempotency.responseJson);
             return;
         }
 
@@ -2268,6 +2574,7 @@ router.post("/void/:id", async (req: AuthenticatedRequest, res: Response) => {
             .from("accounting_transactions")
             .select("*")
             .eq("id", id)
+            .eq("org_id", orgId)
             .maybeSingle();
 
         if (fetchError) {
@@ -2275,40 +2582,35 @@ router.post("/void/:id", async (req: AuthenticatedRequest, res: Response) => {
         }
 
         if (!original) {
-            res.status(404).json({ error: "Transaction not found" });
-            return;
+            throw new AccountingRouteError(404, "Transaction not found");
         }
 
         if (original.voids_transaction_id) {
-            res.status(409).json({ error: "取消で作成された逆仕訳は再度取消できません" });
-            return;
+            throw new AccountingRouteError(409, "取消で作成された逆仕訳は再度取消できません");
         }
 
         if (original.status === "voided") {
-            res.status(409).json({ error: "この取引はすでに取消済みです" });
-            return;
+            throw new AccountingRouteError(409, "この取引はすでに取消済みです");
         }
 
         if (!isVoidableStatus(original.status)) {
-            res.status(409).json({ error: "記帳済みまたは承認済みの取引のみ取消できます" });
-            return;
+            throw new AccountingRouteError(409, "記帳済みまたは承認済みの取引のみ取消できます");
         }
 
         if (original.kind === "invoice") {
-            res.status(409).json({ error: "請求済み売上はこの画面から取消できません" });
-            return;
+            throw new AccountingRouteError(409, "請求済み売上はこの画面から取消できません");
         }
 
         const linkedInvoices = await getExistingInvoicesForTransaction(id, orgId);
         if (linkedInvoices.length > 0) {
-            res.status(409).json({ error: "請求書に紐づく取引は取消できません" });
-            return;
+            throw new AccountingRouteError(409, "請求書に紐づく取引は取消できません");
         }
 
         const { data: existingReversal, error: existingReversalError } = await supabaseAdmin
             .from("accounting_transactions")
             .select("id")
             .eq("voids_transaction_id", id)
+            .eq("org_id", orgId)
             .maybeSingle();
 
         if (existingReversalError && !isPostgrestNoRowsError(existingReversalError)) {
@@ -2316,8 +2618,7 @@ router.post("/void/:id", async (req: AuthenticatedRequest, res: Response) => {
         }
 
         if (existingReversal) {
-            res.status(409).json({ error: "この取引はすでに取消済みです" });
-            return;
+            throw new AccountingRouteError(409, "この取引はすでに取消済みです");
         }
 
         // 元の取引は記帳済みのまま保持し、逆仕訳（マイナス金額）だけを追記する。
@@ -2349,17 +2650,23 @@ router.post("/void/:id", async (req: AuthenticatedRequest, res: Response) => {
 
         if (reversalError) {
             if (isDuplicateKeyError(reversalError)) {
-                res.status(409).json({ error: "この取引はすでに取消済みです" });
-                return;
+                throw new AccountingRouteError(409, "この取引はすでに取消済みです");
             }
             throw reversalError;
         }
 
         // 逆仕訳の仕訳エントリ作成
-        await createJournalEntry(reversal, req.userId!);
+        await createJournalEntry(reversal, req.userId!, orgId);
 
-        res.json({ original_voided: id, original_reversed: id, reversal_created: reversal.id });
+        const responseBody = { original_voided: id, original_reversed: id, reversal_created: reversal.id };
+        await completeAccountingWriteIdempotency(idempotency, 200, responseBody);
+        res.json(responseBody);
     } catch (err: any) {
+        await failAccountingWriteIdempotency(idempotency, err instanceof Error ? err.message : "UNKNOWN_ERROR");
+        if (err instanceof AccountingRouteError) {
+            res.status(err.status).json({ error: err.message });
+            return;
+        }
         console.error("Void error:", err);
         res.status(500).json({ error: "Internal server error" });
     }
@@ -2384,6 +2691,7 @@ router.get("/pl", async (req: AuthenticatedRequest, res: Response) => {
         let query = supabaseAdmin
             .from("accounting_transactions")
             .select("*")
+            .eq("org_id", req.orgId!)
             .in("status", [...LEDGER_AGGREGATION_STATUSES])
             .gte("recorded_date", startDate)
             .lte("recorded_date", endDate);
@@ -2453,6 +2761,7 @@ router.get("/transactions/search", async (req: AuthenticatedRequest, res: Respon
                 source_document:documents(id, storage_path, drive_file_id, drive_file_url, original_filename, mime_type, ocr_fields),
                 items:accounting_transaction_items(item_name, quantity, unit_name, unit_price, amount)
             `)
+            .eq("org_id", req.orgId!)
             .order("recorded_date", { ascending: false })
             .range(Number(offset), Number(offset) + Number(limit) - 1);
 
@@ -2508,6 +2817,7 @@ router.get("/transactions", async (req: AuthenticatedRequest, res: Response) => 
         source_document:documents(id, storage_path, drive_file_id, drive_file_url, original_filename, mime_type, ocr_fields),
         items:accounting_transaction_items(item_name, quantity, unit_name, unit_price, amount)
       `)
+            .eq("org_id", req.orgId!)
             .order("recorded_date", { ascending: false })
             .range(Number(offset), Number(offset) + Number(limit) - 1);
 
@@ -2547,6 +2857,7 @@ router.get("/pending-approvals", async (req: AuthenticatedRequest, res: Response
         site:sites(id, name),
         source_document:documents(id, storage_path, drive_file_id, drive_file_url, original_filename, mime_type, ocr_fields)
       `)
+            .eq("org_id", req.orgId!)
             .eq("status", "pending_review")
             .eq("reviewer_id", req.userId!)
             .order("created_at", { ascending: false });
@@ -2563,11 +2874,12 @@ router.get("/pending-approvals", async (req: AuthenticatedRequest, res: Response
 // Helper: 仕訳エントリ作成
 // ============================================================
 
-async function createJournalEntry(transaction: any, userId: string) {
+async function createJournalEntry(transaction: any, userId: string, orgId: string) {
     const { data: existingEntry, error: existingEntryError } = await supabaseAdmin
         .from("accounting_journal_entries")
         .select("id")
         .eq("transaction_id", transaction.id)
+        .eq("org_id", orgId)
         .maybeSingle();
 
     if (existingEntryError) throw existingEntryError;
@@ -2578,6 +2890,7 @@ async function createJournalEntry(transaction: any, userId: string) {
     const { data: entry, error: entryError } = await supabaseAdmin
         .from("accounting_journal_entries")
         .insert({
+            org_id: orgId,
             transaction_id: transaction.id,
             entry_date: transaction.recorded_date,
             memo: transaction.description,
@@ -2607,6 +2920,7 @@ async function createJournalEntry(transaction: any, userId: string) {
         if (isReversalAmount) {
             // 売上取消: 借方=売上高+仮受消費税、貸方=売掛金
             lines.push({
+                org_id: orgId,
                 entry_id: entry.id,
                 line_no: lineNo++,
                 account_code: "4100",
@@ -2619,6 +2933,7 @@ async function createJournalEntry(transaction: any, userId: string) {
 
             if (taxAmount > 0) {
                 lines.push({
+                    org_id: orgId,
                     entry_id: entry.id,
                     line_no: lineNo++,
                     account_code: "2500",
@@ -2629,6 +2944,7 @@ async function createJournalEntry(transaction: any, userId: string) {
             }
 
             lines.push({
+                org_id: orgId,
                 entry_id: entry.id,
                 line_no: lineNo++,
                 account_code: "1200",
@@ -2639,6 +2955,7 @@ async function createJournalEntry(transaction: any, userId: string) {
         } else {
             // 売上: 借方=売掛金、貸方=売上高+仮受消費税
             lines.push({
+                org_id: orgId,
                 entry_id: entry.id,
                 line_no: lineNo++,
                 account_code: "1200",
@@ -2649,6 +2966,7 @@ async function createJournalEntry(transaction: any, userId: string) {
 
             // 売上高（税抜）
             lines.push({
+                org_id: orgId,
                 entry_id: entry.id,
                 line_no: lineNo++,
                 account_code: "4100",
@@ -2662,6 +2980,7 @@ async function createJournalEntry(transaction: any, userId: string) {
             // 仮受消費税（税額がある場合）
             if (taxAmount > 0) {
                 lines.push({
+                    org_id: orgId,
                     entry_id: entry.id,
                     line_no: lineNo++,
                     account_code: "2500",
@@ -2679,6 +2998,7 @@ async function createJournalEntry(transaction: any, userId: string) {
         if (isReversalAmount) {
             // 経費取消: 借方=現金、貸方=経費+仮払消費税
             lines.push({
+                org_id: orgId,
                 entry_id: entry.id,
                 line_no: lineNo++,
                 account_code: "1100",
@@ -2688,6 +3008,7 @@ async function createJournalEntry(transaction: any, userId: string) {
             });
 
             lines.push({
+                org_id: orgId,
                 entry_id: entry.id,
                 line_no: lineNo++,
                 account_code: expenseAccount.code,
@@ -2700,6 +3021,7 @@ async function createJournalEntry(transaction: any, userId: string) {
 
             if (taxAmount > 0) {
                 lines.push({
+                    org_id: orgId,
                     entry_id: entry.id,
                     line_no: lineNo++,
                     account_code: "1500",
@@ -2711,6 +3033,7 @@ async function createJournalEntry(transaction: any, userId: string) {
         } else {
             // 経費（税抜）
             lines.push({
+                org_id: orgId,
                 entry_id: entry.id,
                 line_no: lineNo++,
                 account_code: expenseAccount.code,
@@ -2724,6 +3047,7 @@ async function createJournalEntry(transaction: any, userId: string) {
             // 仮払消費税（税額がある場合）
             if (taxAmount > 0) {
                 lines.push({
+                    org_id: orgId,
                     entry_id: entry.id,
                     line_no: lineNo++,
                     account_code: "1500",
@@ -2735,6 +3059,7 @@ async function createJournalEntry(transaction: any, userId: string) {
 
             // 現金（税込総額）
             lines.push({
+                org_id: orgId,
                 entry_id: entry.id,
                 line_no: lineNo++,
                 account_code: "1100",

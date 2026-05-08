@@ -3206,6 +3206,7 @@ export class PathGovernedModuleService {
     const { data: entry, error: entryError } = await supabaseAdmin
       .from("accounting_journal_entries")
       .insert({
+        org_id: this.orgId,
         transaction_id: null,
         posting_group_id: input.posting_group_id,
         entry_date: entryDate,
@@ -3225,6 +3226,7 @@ export class PathGovernedModuleService {
 
     const { error: linesError } = await supabaseAdmin.from("accounting_journal_lines").insert([
       {
+        org_id: this.orgId,
         entry_id: entry.id,
         line_no: 1,
         account_code: debitAccount,
@@ -3236,6 +3238,7 @@ export class PathGovernedModuleService {
         revenue_basis_id: input.revenue_basis_id,
       },
       {
+        org_id: this.orgId,
         entry_id: entry.id,
         line_no: 2,
         account_code: creditAccount,

@@ -106,6 +106,22 @@ function parseFilenameFromDisposition(contentDisposition: string | null): string
     return null;
 }
 
+function createClientIdempotencyKey(scope: string): string {
+    const randomPart = globalThis.crypto?.randomUUID?.()
+        || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    return `${scope}:${randomPart}`;
+}
+
+function withIdempotencyKey<T extends { idempotency_key?: string }>(
+    scope: string,
+    data: T,
+): T & { idempotency_key: string } {
+    return {
+        ...data,
+        idempotency_key: data.idempotency_key || createClientIdempotencyKey(scope),
+    };
+}
+
 // ============================================================
 // Proposals
 // ============================================================
@@ -1604,7 +1620,7 @@ export const analyzeDocumentOcr = (document_id: string) =>
 export const createExpense = (data: CreateExpenseRequest) =>
     api<AccountingTransaction>("/api/v1/accounting/expenses", {
         method: "POST",
-        body: JSON.stringify(data),
+        body: JSON.stringify(withIdempotencyKey("accounting.expenses.create", data)),
     });
 
 // 経費承認/否認
@@ -1630,14 +1646,14 @@ export interface BatchReviewResult {
 export const createSale = (data: CreateSaleRequest) =>
     api<AccountingTransaction>("/api/v1/accounting/sales", {
         method: "POST",
-        body: JSON.stringify(data),
+        body: JSON.stringify(withIdempotencyKey("accounting.sales.adjust", data)),
     });
 
 // 請求書作成
 export const createInvoice = (data: CreateInvoiceRequest) =>
     api<AccountingInvoice>("/api/v1/accounting/invoices", {
         method: "POST",
-        body: JSON.stringify(data),
+        body: JSON.stringify(withIdempotencyKey("accounting.invoices.create", data)),
     });
 
 export const correctInvoice = (invoiceId: string, data: CorrectInvoiceRequest) =>
@@ -1722,7 +1738,7 @@ export const downloadInvoicePdf = async (invoiceId: string): Promise<{ blob: Blo
 export const voidTransaction = (id: string, reason: string) =>
     api<{ original_voided: string; original_reversed?: string; reversal_created: string }>(`/api/v1/accounting/void/${id}`, {
         method: "POST",
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify(withIdempotencyKey("accounting.void.create", { reason })),
     });
 
 // 月次PL取得
@@ -1880,6 +1896,7 @@ export interface AccountingTransactionItem {
 }
 
 export interface CreateExpenseRequest {
+    idempotency_key?: string;
     cost_center?: "HQ" | "SITE";
     site_id?: string;
     vendor_name?: string;
@@ -1897,6 +1914,7 @@ export interface CreateExpenseRequest {
 }
 
 export interface CreateSaleRequest {
+    idempotency_key?: string;
     site_id?: string;
     client_id?: string;
     description?: string;
@@ -1918,6 +1936,7 @@ export interface CreateSaleRequest {
 }
 
 export interface CreateInvoiceRequest {
+    idempotency_key?: string;
     transaction_id?: string;
     source_transaction_ids?: string[];
     issue_date?: string;
