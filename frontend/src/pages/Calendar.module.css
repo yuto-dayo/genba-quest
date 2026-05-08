@@ -29,10 +29,10 @@
 }
 
 .headerTools {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: 1fr;
     align-items: center;
-    justify-content: space-between;
+    justify-items: center;
     gap: 12px;
     width: 100%;
     min-width: 0;
@@ -50,9 +50,12 @@
 }
 
 .navBtn:hover,
-.segmentButton:hover,
 .availabilityTokenButton:hover {
     transform: translateY(-1px);
+}
+
+.segmentButton:hover {
+    background: color-mix(in srgb, var(--md-sys-color-surface) 62%, transparent);
 }
 
 .navBtn:focus-visible,
@@ -65,22 +68,23 @@
 .navGroup {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 6px;
+    gap: 10px;
+    padding: 4px;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 76%, white);
+    background: transparent;
 }
 
 .navBtn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 38px;
-    height: 38px;
+    width: 36px;
+    height: 36px;
     border: none;
     border-radius: 999px;
-    background: var(--md-sys-color-surface);
+    background: color-mix(in srgb, var(--md-sys-color-surface) 92%, white);
     color: var(--md-sys-color-on-surface-variant);
+    box-shadow: var(--md-sys-elevation-level1);
     cursor: pointer;
 }
 
@@ -93,15 +97,17 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 92px;
-    min-height: 38px;
-    padding: 0 14px;
+    min-width: 104px;
+    min-height: 40px;
+    padding: 0 16px;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 82%, white);
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 76%, white);
     color: var(--md-sys-color-on-surface);
-    font: var(--md-sys-typescale-label-large);
-    font-weight: 700;
+    font: var(--md-sys-typescale-title-medium);
+    font-weight: 800;
     font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+    box-shadow: inset 0 1px 0 color-mix(in srgb, white 72%, transparent);
 }
 
 .mainPanel {
@@ -113,9 +119,39 @@
 }
 
 .segment {
-    display: flex;
+    display: inline-flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    padding: 4px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 72%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 86%, white);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, white 84%, transparent);
+}
+
+.viewSegment {
+    flex: 0 0 auto;
+}
+
+.calendarControlsRow {
+    display: inline-flex;
     flex-wrap: wrap;
-    gap: 8px;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.viewSegment .segmentButton,
+.scopeSegment .segmentButton {
+    justify-content: center;
+    min-width: 68px;
+}
+
+.scopeSegment .segmentButton {
+    min-width: 74px;
 }
 
 .active {}
@@ -123,26 +159,29 @@
 .segmentButton {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
-    min-height: 40px;
+    min-height: 36px;
     padding: 0 14px;
-    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 55%, transparent);
+    border: none;
     border-radius: 999px;
-    background: var(--md-sys-color-surface-container-low);
+    background: transparent;
     color: var(--md-sys-color-on-surface-variant);
     font: var(--md-sys-typescale-label-medium);
     cursor: pointer;
+    box-shadow: none;
 }
 
 .segmentButton.active {
-    border-color: transparent;
-    background: linear-gradient(
-        135deg,
-        color-mix(in srgb, var(--md-sys-color-primary-container) 88%, white),
-        color-mix(in srgb, var(--md-sys-color-secondary-container) 92%, white)
-    );
-    color: var(--md-sys-color-on-secondary-container);
-    box-shadow: var(--md-sys-elevation-level1);
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-primary);
+    box-shadow:
+        var(--md-sys-elevation-level1),
+        inset 0 0 0 1px color-mix(in srgb, var(--md-sys-color-primary) 14%, transparent);
+}
+
+.segmentButton.active:hover {
+    background: var(--md-sys-color-surface);
 }
 
 .mainPanel {
@@ -187,6 +226,15 @@
     flex: 0 0 auto;
     color: var(--md-sys-color-on-surface);
     font: var(--md-sys-typescale-label-large);
+}
+
+.restSummaryTitle {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-large);
+    font-weight: 700;
 }
 
 .restSummaryToggle {
@@ -285,6 +333,128 @@
 .restSummaryCount strong {
     color: var(--md-sys-color-on-surface);
     font: var(--md-sys-typescale-title-large);
+}
+
+.yearSummaryPanel {
+    display: grid;
+    gap: 18px;
+    min-height: 320px;
+}
+
+.yearSummaryHeader {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 46%, transparent);
+}
+
+.yearSummaryEyebrow,
+.yearSummaryHeader h2,
+.yearSummaryHeader p {
+    margin: 0;
+}
+
+.yearSummaryEyebrow {
+    color: var(--md-sys-color-primary);
+    font: var(--md-sys-typescale-label-small);
+    font-weight: 700;
+}
+
+.yearSummaryHeader h2 {
+    margin-top: 4px;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-title-large);
+    font-weight: 800;
+}
+
+.yearSummaryTarget {
+    display: inline-flex;
+    align-items: center;
+    min-height: 34px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--md-sys-color-primary-container) 70%, white);
+    color: var(--md-sys-color-on-primary-container);
+    font: var(--md-sys-typescale-label-medium);
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.yearSummaryList {
+    display: grid;
+    gap: 10px;
+}
+
+.yearSummaryRow {
+    display: grid;
+    grid-template-columns: minmax(120px, 220px) minmax(0, 1fr);
+    align-items: center;
+    gap: 14px;
+    min-height: 58px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 42%, transparent);
+    background: color-mix(in srgb, var(--md-sys-color-surface) 90%, white);
+}
+
+.yearSummaryMember {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-large);
+    font-weight: 700;
+}
+
+.yearSummaryMember span:last-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.yearSummaryMeterWrap {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+}
+
+.yearSummaryValue {
+    justify-self: end;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-medium);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.yearSummaryMeter {
+    height: 9px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 80%, white);
+}
+
+.yearSummaryMeter span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(
+        90deg,
+        var(--md-sys-color-primary),
+        color-mix(in srgb, var(--md-sys-color-secondary) 72%, white)
+    );
+}
+
+.yearSummaryEmpty {
+    margin: 0;
+    padding: 20px;
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 74%, white);
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-medium);
 }
 
 .personalAvailabilityPanel {
@@ -460,7 +630,7 @@
 
 @media (max-width: 1024px) {
     .headerTools {
-        justify-content: flex-start;
+        justify-content: center;
     }
 }
 
@@ -480,22 +650,7 @@
     }
 
     .headerTools {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        align-items: center;
         gap: 10px;
-    }
-
-    .navGroup {
-        justify-self: start;
-    }
-
-    .segment {
-        justify-self: end;
-    }
-
-    .segmentButton {
-        flex: 1 1 0;
     }
 
     .canvasBlock {
@@ -505,6 +660,11 @@
 
     .restSummaryBar {
         margin-bottom: 12px;
+    }
+
+    .yearSummaryHeader,
+    .yearSummaryRow {
+        gap: 10px;
     }
 }
 
@@ -529,9 +689,11 @@
     }
 
     .monthNavLabel {
-        min-width: 86px;
+        min-width: 98px;
         min-height: 34px;
         padding: 0 12px;
+        font: var(--md-sys-typescale-title-small);
+        font-weight: 800;
     }
 
     .personalAvailabilityHeader {
@@ -580,19 +742,36 @@
         font: var(--md-sys-typescale-label-small);
     }
 
-}
+    .yearSummaryHeader {
+        display: grid;
+    }
 
-@media (max-width: 420px) {
-    .headerTools {
+    .yearSummaryTarget {
+        justify-self: start;
+    }
+
+    .yearSummaryRow {
         grid-template-columns: 1fr;
     }
 
-    .navGroup {
-        justify-self: stretch;
-        justify-content: space-between;
+    .yearSummaryValue {
+        justify-self: start;
+    }
+}
+
+@media (max-width: 420px) {
+    .calendarControlsRow {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        width: 100%;
     }
 
     .segment {
+        width: 100%;
+    }
+
+    .viewSegment {
         width: 100%;
     }
 

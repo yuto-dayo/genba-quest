@@ -26,6 +26,7 @@ const baseCalendarDay: CalendarDay = {
 };
 let mockCalendarDays: CalendarDay[] = [baseCalendarDay];
 let mockSelectedDate: CalendarDay = baseCalendarDay;
+let mockAnnualRestDaysByUser: Record<string, number> = {};
 
 vi.mock("framer-motion", () => ({
     motion: new Proxy(
@@ -87,7 +88,7 @@ vi.mock("../hooks/useCalendar", () => ({
         year: 2026,
         month: 4,
         calendarDays: mockCalendarDays,
-        annualRestDaysByUser: {},
+        annualRestDaysByUser: mockAnnualRestDaysByUser,
         selectedDate: mockSelectedDate,
         sites: [],
         nextMonth: vi.fn(),
@@ -123,6 +124,7 @@ describe("Calendar page", () => {
         vi.clearAllMocks();
         mockCalendarDays = [baseCalendarDay];
         mockSelectedDate = baseCalendarDay;
+        mockAnnualRestDaysByUser = {};
         fetchMembers.mockResolvedValue([]);
         fetchOrgContext.mockResolvedValue({ membership: { user_id: "user-1" } });
         deletePersonalSchedule.mockResolvedValue({ ok: true, id: "schedule-1" });
@@ -145,6 +147,105 @@ describe("Calendar page", () => {
             expect.objectContaining({ date: "2026-04-25" }),
         );
         expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("starts in month view and shows this month's rest counts", async () => {
+        const dayWithLeave: CalendarDay = {
+            ...baseCalendarDay,
+            personal_schedules: [
+                {
+                    id: "schedule-1",
+                    user_id: "user-1",
+                    start_date: "2026-04-25",
+                    end_date: "2026-04-25",
+                    type: "vacation",
+                    title: "休み",
+                    blocks_assignment: true,
+                    visibility: "organization",
+                    reason: null,
+                    approved: true,
+                    status: "approved",
+                    source: "personal_schedule",
+                },
+            ],
+        };
+        mockCalendarDays = [dayWithLeave];
+        mockSelectedDate = dayWithLeave;
+        fetchMembers.mockResolvedValue([
+            {
+                id: "member-1",
+                user_id: "user-1",
+                display_name: "ユート",
+                full_name: null,
+                username: null,
+                avatar_url: null,
+                status: "active",
+            },
+        ]);
+
+        render(<Calendar />);
+
+        expect(screen.getByRole("button", { name: "今月" })).toHaveAttribute("aria-pressed", "true");
+        expect(screen.getByRole("button", { name: /25日/ })).toBeInTheDocument();
+        expect(screen.getByText("今月の休み数")).toBeInTheDocument();
+        expect(await screen.findByLabelText("ユート 1日")).toBeInTheDocument();
+    });
+
+    it("switches to year view summary and back to the month calendar", async () => {
+        const dayWithLeave: CalendarDay = {
+            ...baseCalendarDay,
+            personal_schedules: [
+                {
+                    id: "schedule-1",
+                    user_id: "user-1",
+                    start_date: "2026-04-25",
+                    end_date: "2026-04-25",
+                    type: "vacation",
+                    title: "休み",
+                    blocks_assignment: true,
+                    visibility: "organization",
+                    reason: null,
+                    approved: true,
+                    status: "approved",
+                    source: "personal_schedule",
+                },
+            ],
+        };
+        mockCalendarDays = [dayWithLeave];
+        mockSelectedDate = dayWithLeave;
+        mockAnnualRestDaysByUser = { "user-1": 42 };
+        fetchMembers.mockResolvedValue([
+            {
+                id: "member-1",
+                user_id: "user-1",
+                display_name: "ユート",
+                full_name: null,
+                username: null,
+                avatar_url: null,
+                status: "active",
+            },
+        ]);
+
+        render(<Calendar />);
+
+        fireEvent.click(screen.getByRole("button", { name: "今年" }));
+
+        expect(screen.getByRole("button", { name: "今年" })).toHaveAttribute("aria-pressed", "true");
+        expect(screen.queryByText("今月の休み数")).not.toBeInTheDocument();
+        expect(screen.queryByText("今年の休み数")).not.toBeInTheDocument();
+        expect(screen.getByText("今年の休み状況")).toBeInTheDocument();
+        expect(screen.getByText("年間目標: 120日")).toBeInTheDocument();
+        expect(await screen.findByText("42 / 120日")).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /25日/ })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "前月" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "翌月" })).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: "今月" }));
+
+        expect(screen.getByRole("button", { name: "今月" })).toHaveAttribute("aria-pressed", "true");
+        expect(screen.getByText("今月の休み数")).toBeInTheDocument();
+        expect(await screen.findByLabelText("ユート 1日")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /25日/ })).toBeInTheDocument();
     });
 
     it("opens the personal schedule form from the calendar FAB", () => {

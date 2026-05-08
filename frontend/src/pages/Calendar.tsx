@@ -34,6 +34,9 @@ import type {
 import styles from './Calendar.module.css';
 
 type CalendarAddMode = 'menu' | 'personal' | 'assignment';
+type CalendarViewMode = 'month' | 'year';
+
+const ANNUAL_REST_TARGET_DAYS = 120;
 
 function filterDayAssignments(day: CalendarDay, userId: string | null): CalendarDay {
     if (!userId) {
@@ -149,14 +152,12 @@ function pickSelectedLeaveSchedule(
     );
 }
 
-interface AnnualRestSummaryItem {
+interface RestSummaryItem {
     id: string;
     name: string;
     initial: string;
     days: number;
 }
-
-type RestSummaryRange = 'year' | 'month';
 
 function getMemberLabel(member: Member | undefined, fallback: string): string {
     return member?.display_name || member?.full_name || member?.username || fallback;
@@ -166,12 +167,16 @@ function getInitial(label: string): string {
     return Array.from(label.trim())[0] || '?';
 }
 
-function buildAnnualRestSummaryItems(
+function getMemberRestKey(member: Member): string {
+    return member.user_id || member.id;
+}
+
+function buildRestSummaryItems(
     members: Member[],
-    annualRestDaysByUser: Record<string, number>,
+    restDaysByUser: Record<string, number>,
     scope: CalendarScope,
     currentUserId: string | null
-): AnnualRestSummaryItem[] {
+): RestSummaryItem[] {
     if (scope === 'personal') {
         const currentMember = currentUserId
             ? members.find((member) => member.id === currentUserId || member.user_id === currentUserId)
@@ -182,19 +187,23 @@ function buildAnnualRestSummaryItems(
                 id: currentUserId ?? 'current-user',
                 name: getMemberLabel(currentMember, '自分'),
                 initial: getInitial(getMemberLabel(currentMember, '自分')),
-                days: currentUserId ? annualRestDaysByUser[currentUserId] ?? 0 : 0,
+                days: currentUserId ? restDaysByUser[currentUserId] ?? 0 : 0,
             },
         ];
     }
 
     return members
         .filter((member) => member.status !== 'removed' && member.status !== 'suspended')
-        .map((member) => ({
-            id: member.id,
-            name: getMemberLabel(member, member.id),
-            initial: getInitial(getMemberLabel(member, member.id)),
-            days: annualRestDaysByUser[member.id] ?? 0,
-        }))
+        .map((member) => {
+            const restKey = getMemberRestKey(member);
+            const label = getMemberLabel(member, member.id);
+            return {
+                id: restKey,
+                name: label,
+                initial: getInitial(label),
+                days: restDaysByUser[restKey] ?? restDaysByUser[member.id] ?? 0,
+            };
+        })
         .sort((a, b) => {
             if (a.days !== b.days) {
                 return b.days - a.days;
@@ -230,6 +239,52 @@ function countMonthlyRestDaysByUser(days: CalendarDay[]): Record<string, number>
     );
 }
 
+function YearRestSummary({
+    items,
+}: {
+    items: RestSummaryItem[];
+}) {
+    return (
+        <section className={styles.yearSummaryPanel} aria-labelledby="calendar-year-summary-title">
+            <div className={styles.yearSummaryHeader}>
+                <div>
+                    <p className={styles.yearSummaryEyebrow}>年間</p>
+                    <h2 id="calendar-year-summary-title">今年の休み状況</h2>
+                </div>
+                <span className={styles.yearSummaryTarget}>年間目標: {ANNUAL_REST_TARGET_DAYS}日</span>
+            </div>
+
+            {items.length > 0 ? (
+                <div className={styles.yearSummaryList}>
+                    {items.map((item) => {
+                        const progress = Math.min(item.days / ANNUAL_REST_TARGET_DAYS, 1) * 100;
+                        return (
+                            <div className={styles.yearSummaryRow} key={item.id}>
+                                <div className={styles.yearSummaryMember}>
+                                    <span className={styles.restSummaryInitial} aria-hidden="true">
+                                        {item.initial}
+                                    </span>
+                                    <span>{item.name}</span>
+                                </div>
+                                <div className={styles.yearSummaryMeterWrap}>
+                                    <span className={styles.yearSummaryValue}>
+                                        {item.days} / {ANNUAL_REST_TARGET_DAYS}日
+                                    </span>
+                                    <div className={styles.yearSummaryMeter} aria-hidden="true">
+                                        <span style={{ width: `${progress}%` }} />
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            ) : (
+                <p className={styles.yearSummaryEmpty}>休みデータはまだありません。</p>
+            )}
+        </section>
+    );
+}
+
 export function Calendar() {
     const {
         year,
@@ -254,7 +309,7 @@ export function Calendar() {
     const [availabilityTokens, setAvailabilityTokens] = useState<
         Partial<Record<string, AvailabilityTokenKind>>
     >({});
-    const [restSummaryRange, setRestSummaryRange] = useState<RestSummaryRange>('year');
+    const [viewMode, setViewMode] = useState<CalendarViewMode>('month');
     const [showAddModal, setShowAddModal] = useState(false);
     const [addModalMode, setAddModalMode] = useState<CalendarAddMode>('menu');
     const { drafts, addDraft, removeDraft, clearDrafts } = useDraftAssignmentCreates();
@@ -353,29 +408,44 @@ export function Calendar() {
         [visibleDays]
     );
 
-    const restSummaryItems = useMemo(
+    const monthlyRestSummaryItems = useMemo(
         () =>
-            buildAnnualRestSummaryItems(
+            buildRestSummaryItems(
                 members,
-                restSummaryRange === 'year' ? annualRestDaysByUser : monthlyRestDaysByUser,
+                monthlyRestDaysByUser,
                 scope,
                 currentUserId
             ),
-        [annualRestDaysByUser, currentUserId, members, monthlyRestDaysByUser, restSummaryRange, scope]
+        [currentUserId, members, monthlyRestDaysByUser, scope]
+    );
+
+    const annualRestSummaryItems = useMemo(
+        () =>
+            buildRestSummaryItems(
+                members,
+                annualRestDaysByUser,
+                scope,
+                currentUserId
+            ),
+        [annualRestDaysByUser, currentUserId, members, scope]
     );
 
     const restInitialByUserId = useMemo(() => {
         const initials = members.reduce<Record<string, string>>((summary, member) => {
-            summary[member.id] = getInitial(getMemberLabel(member, member.id));
+            const label = getMemberLabel(member, member.id);
+            summary[member.id] = getInitial(label);
+            if (member.user_id) {
+                summary[member.user_id] = getInitial(label);
+            }
             return summary;
         }, {});
 
-        restSummaryItems.forEach((item) => {
+        monthlyRestSummaryItems.forEach((item) => {
             initials[item.id] = item.initial;
         });
 
         return initials;
-    }, [members, restSummaryItems]);
+    }, [members, monthlyRestSummaryItems]);
 
     const shortageSiteCountByDate = useMemo(() => {
         if (scope !== 'organization') {
@@ -565,96 +635,109 @@ export function Calendar() {
                 <div className={styles.sectionHeader}>
                     <div className={styles.headerTools}>
                         <div className={styles.navGroup}>
-                            <button
-                                type="button"
-                                className={styles.navBtn}
-                                onClick={prevMonth}
-                                aria-label="前月"
-                            >
-                                <ChevronLeft size={20} />
-                            </button>
+                            {viewMode === 'month' && (
+                                <button
+                                    type="button"
+                                    className={styles.navBtn}
+                                    onClick={prevMonth}
+                                    aria-label="前月"
+                                >
+                                    <ChevronLeft size={20} />
+                                </button>
+                            )}
                             <span className={styles.monthNavLabel} aria-live="polite">
-                                {monthLabel}
+                                {viewMode === 'month' ? monthLabel : `${year}年`}
                             </span>
-                            <button
-                                type="button"
-                                className={styles.navBtn}
-                                onClick={nextMonth}
-                                aria-label="翌月"
-                            >
-                                <ChevronRight size={20} />
-                            </button>
+                            {viewMode === 'month' && (
+                                <button
+                                    type="button"
+                                    className={styles.navBtn}
+                                    onClick={nextMonth}
+                                    aria-label="翌月"
+                                >
+                                    <ChevronRight size={20} />
+                                </button>
+                            )}
                         </div>
-                        <div className={styles.segment}>
-                            <button
-                                type="button"
-                                className={`${styles.segmentButton} ${scope === 'organization' ? styles.active : ''}`}
-                                onClick={() => setScope('organization')}
-                            >
-                                <Users size={14} />
-                                全体
-                            </button>
-                            <button
-                                type="button"
-                                className={`${styles.segmentButton} ${scope === 'personal' ? styles.active : ''}`}
-                                onClick={() => setScope('personal')}
-                            >
-                                <UserRound size={14} />
-                                自分
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <div
-                    className={styles.restSummaryBar}
-                    aria-label={`${restSummaryRange === 'year' ? `${year}年` : `${month}月`}の休み数`}
-                >
-                    <div className={styles.restSummaryHeader}>
-                        <div className={styles.restSummaryToggle} aria-label="休みカウントの期間">
-                            <button
-                                type="button"
-                                className={`${styles.restSummaryToggleButton} ${
-                                    restSummaryRange === 'year' ? styles.restSummaryToggleActive : ''
-                                }`}
-                                onClick={() => setRestSummaryRange('year')}
-                                aria-pressed={restSummaryRange === 'year'}
-                            >
-                                今年
-                            </button>
-                            <button
-                                type="button"
-                                className={`${styles.restSummaryToggleButton} ${
-                                    restSummaryRange === 'month' ? styles.restSummaryToggleActive : ''
-                                }`}
-                                onClick={() => setRestSummaryRange('month')}
-                                aria-pressed={restSummaryRange === 'month'}
-                            >
-                                今月
-                            </button>
-                        </div>
-                    </div>
-                    <div className={styles.restSummaryList}>
-                        {restSummaryItems.map((item) => (
+                        <div className={styles.calendarControlsRow}>
                             <div
-                                className={styles.restSummaryItem}
-                                key={item.id}
-                                aria-label={`${item.name} ${item.days}日`}
-                                title={item.name}
+                                className={`${styles.segment} ${styles.scopeSegment}`}
+                                role="group"
+                                aria-label="表示対象"
                             >
-                                <span className={styles.restSummaryInitial} aria-hidden="true">
-                                    {item.initial}
-                                </span>
-                                <span className={styles.restSummaryCount}>
-                                    <strong>{item.days}</strong>
-                                    <small>日</small>
-                                </span>
+                                <button
+                                    type="button"
+                                    className={`${styles.segmentButton} ${scope === 'organization' ? styles.active : ''}`}
+                                    onClick={() => setScope('organization')}
+                                >
+                                    <Users size={14} />
+                                    全体
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`${styles.segmentButton} ${scope === 'personal' ? styles.active : ''}`}
+                                    onClick={() => setScope('personal')}
+                                >
+                                    <UserRound size={14} />
+                                    自分
+                                </button>
                             </div>
-                        ))}
+                            <div
+                                className={`${styles.segment} ${styles.viewSegment}`}
+                                role="group"
+                                aria-label="カレンダー表示"
+                            >
+                                <button
+                                    type="button"
+                                    className={`${styles.segmentButton} ${viewMode === 'month' ? styles.active : ''}`}
+                                    onClick={() => setViewMode('month')}
+                                    aria-pressed={viewMode === 'month'}
+                                >
+                                    今月
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`${styles.segmentButton} ${viewMode === 'year' ? styles.active : ''}`}
+                                    onClick={() => setViewMode('year')}
+                                    aria-pressed={viewMode === 'year'}
+                                >
+                                    今年
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                {scope === 'personal' && visibleSelectedDate && (
+                {viewMode === 'month' && (
+                    <div
+                        className={styles.restSummaryBar}
+                        aria-label={`${month}月の休み数`}
+                    >
+                        <div className={styles.restSummaryHeader}>
+                            <span className={styles.restSummaryTitle}>今月の休み数</span>
+                        </div>
+                        <div className={styles.restSummaryList}>
+                            {monthlyRestSummaryItems.map((item) => (
+                                <div
+                                    className={styles.restSummaryItem}
+                                    key={item.id}
+                                    aria-label={`${item.name} ${item.days}日`}
+                                    title={item.name}
+                                >
+                                    <span className={styles.restSummaryInitial} aria-hidden="true">
+                                        {item.initial}
+                                    </span>
+                                    <span className={styles.restSummaryCount}>
+                                        <strong>{item.days}</strong>
+                                        <small>日</small>
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {viewMode === 'month' && scope === 'personal' && visibleSelectedDate && (
                     <section className={styles.personalAvailabilityPanel}>
                         <div className={styles.personalAvailabilityHeader}>
                             <div>
@@ -714,26 +797,30 @@ export function Calendar() {
                 )}
 
                 <motion.div
-                    key={scope}
+                    key={`${scope}-${viewMode}`}
                     className={styles.canvasBlock}
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.2 }}
                 >
-                    <MonthCalendar
-                        days={visibleDays}
-                        onSelectDate={handleSelectDate}
-                        onOpenDateActions={handleOpenAddMenu}
-                        selectedDate={visibleSelectedDate}
-                        availabilityTokens={scope === 'personal' ? availabilityTokens : undefined}
-                        restInitialByUserId={restInitialByUserId}
-                        shortageSiteCountByDate={
-                            scope === 'organization' ? shortageSiteCountByDate : undefined
-                        }
-                    />
+                    {viewMode === 'month' ? (
+                        <MonthCalendar
+                            days={visibleDays}
+                            onSelectDate={handleSelectDate}
+                            onOpenDateActions={handleOpenAddMenu}
+                            selectedDate={visibleSelectedDate}
+                            availabilityTokens={scope === 'personal' ? availabilityTokens : undefined}
+                            restInitialByUserId={restInitialByUserId}
+                            shortageSiteCountByDate={
+                                scope === 'organization' ? shortageSiteCountByDate : undefined
+                            }
+                        />
+                    ) : (
+                        <YearRestSummary items={annualRestSummaryItems} />
+                    )}
                 </motion.div>
 
-                {scope === 'organization' && selectedDayBoard && (
+                {viewMode === 'month' && scope === 'organization' && selectedDayBoard && (
                     <DayScheduleBoard
                         board={selectedDayBoard}
                         members={members}
