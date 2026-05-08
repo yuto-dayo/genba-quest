@@ -25,8 +25,6 @@ interface DensitySummary {
     availabilityKind: AvailabilityTokenKind | null;
 }
 
-type AssignmentMarkerTone = 'confirmed' | 'pending' | 'tentative' | 'neutral';
-
 interface CompletedSiteEntry {
     siteId: string;
     siteName: string;
@@ -348,51 +346,6 @@ function buildCompletedOverflowCountByDate(
     return counts;
 }
 
-function buildAssignmentMarkers({
-    confirmedCount,
-    pendingCount,
-    tentativeCount,
-    activeCount,
-}: DensitySummary) {
-    const markers: AssignmentMarkerTone[] = [];
-    const visibleCount = Math.min(activeCount, 4);
-    const neutralCount = Math.max(0, activeCount - confirmedCount - pendingCount - tentativeCount);
-
-    for (let index = 0; index < Math.min(confirmedCount, visibleCount); index += 1) {
-        markers.push('confirmed');
-    }
-
-    for (
-        let index = 0;
-        index < Math.min(pendingCount, visibleCount - markers.length);
-        index += 1
-    ) {
-        markers.push('pending');
-    }
-
-    for (
-        let index = 0;
-        index < Math.min(tentativeCount, visibleCount - markers.length);
-        index += 1
-    ) {
-        markers.push('tentative');
-    }
-
-    for (
-        let index = 0;
-        index < Math.min(neutralCount, visibleCount - markers.length);
-        index += 1
-    ) {
-        markers.push('neutral');
-    }
-
-    while (markers.length < visibleCount) {
-        markers.push('neutral');
-    }
-
-    return markers;
-}
-
 export function MonthCalendar({
     days,
     onSelectDate,
@@ -468,7 +421,6 @@ export function MonthCalendar({
                     const density = buildDensitySummary(day, availabilityTokens);
                     const availabilityLabel = getAvailabilityLabel(density.availabilityKind);
                     const availabilityMeta = getAvailabilityMeta(density.availabilityKind);
-                    const markers = buildAssignmentMarkers(density);
                     const restInitials = getRestInitials(day, restInitialByUserId);
                     const scheduleColorMarkers = getScheduleColorMarkers(day);
                     const completedSiteNames = getCompletedSiteNames(day);
@@ -534,30 +486,6 @@ export function MonthCalendar({
 
                             <div className={styles.dayDensity}>
                                 <div className={styles.dayGlyphRow}>
-                                    {density.activeCount > 0 && (
-                                        <>
-                                            <div className={styles.dayDotGroup} aria-hidden="true">
-                                                {markers.map((marker, index) => (
-                                                    <span
-                                                        key={`${day.date}-${marker}-${index}`}
-                                                        className={`${styles.dayDot} ${
-                                                            marker === 'confirmed'
-                                                                ? styles.dayDotConfirmed
-                                                                : marker === 'pending'
-                                                                  ? styles.dayDotPending
-                                                                  : marker === 'tentative'
-                                                                    ? styles.dayDotTentative
-                                                                  : styles.dayDotNeutral
-                                                        }`}
-                                                    />
-                                                ))}
-                                            </div>
-                                            <span className={styles.dayCountBadge}>
-                                                {density.activeCount}
-                                            </span>
-                                        </>
-                                    )}
-
                                     {restInitials.map((rest) => (
                                         <span
                                             className={styles.dayRestInitial}

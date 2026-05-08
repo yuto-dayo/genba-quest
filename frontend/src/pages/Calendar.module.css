@@ -111,11 +111,9 @@
 }
 
 .mainPanel {
-    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 55%, transparent);
-    border-radius: 28px;
-    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 82%, white);
-    box-shadow: var(--md-sys-elevation-level1);
-    overflow: hidden;
+    display: grid;
+    gap: 16px;
+    min-width: 0;
 }
 
 .segment {
@@ -185,7 +183,7 @@
 }
 
 .mainPanel {
-    padding: 20px;
+    padding: 0;
 }
 
 .sectionHeader {
@@ -193,21 +191,17 @@
     justify-content: stretch;
     align-items: flex-start;
     gap: 12px;
-    margin-bottom: 16px;
-}
-
-.mainPanel {
-    min-width: 0;
+    margin-bottom: 0;
 }
 
 .canvasBlock {
     position: relative;
-    padding: 18px;
-    border-radius: 24px;
-    background: color-mix(in srgb, var(--md-sys-color-surface) 92%, white);
-    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 42%, transparent);
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    border: none;
     min-width: 0;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .restSummaryBar {
@@ -641,12 +635,11 @@
     }
 
     .mainPanel {
-        padding: 14px;
-        border-radius: 24px;
+        gap: 14px;
     }
 
     .sectionHeader {
-        margin-bottom: 12px;
+        margin-bottom: 0;
     }
 
     .headerTools {
@@ -654,8 +647,8 @@
     }
 
     .canvasBlock {
-        padding: 10px;
-        border-radius: 20px;
+        padding: 0;
+        border-radius: 0;
     }
 
     .restSummaryBar {
@@ -674,8 +667,7 @@
     }
 
     .mainPanel {
-        padding: 12px;
-        border-radius: 22px;
+        gap: 12px;
     }
 
     .navGroup {

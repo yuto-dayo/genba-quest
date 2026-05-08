@@ -29,9 +29,11 @@
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 1px;
-    background: var(--md-sys-color-outline-variant);
-    border: 1px solid var(--md-sys-color-outline-variant);
-    border-radius: var(--md-sys-shape-corner-medium);
+    background: color-mix(in srgb, var(--md-sys-color-outline-variant) 42%, transparent);
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 46%, transparent);
+    border-right: none;
+    border-left: none;
+    border-radius: 18px;
     overflow: hidden;
     min-width: 0;
 }
@@ -42,7 +44,7 @@
     text-align: left;
     font: inherit;
     color: inherit;
-    background: var(--md-sys-color-surface-container-lowest);
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-lowest) 96%, white);
     padding: 6px 6px 4px;
     min-height: 88px;
     display: flex;
@@ -71,15 +73,11 @@
 }
 
 .status_free {
-    background: var(--md-sys-color-surface-container-lowest);
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-lowest) 96%, white);
 }
 
 .status_busy {
-    background: color-mix(
-        in srgb,
-        var(--md-sys-color-primary-container) 55%,
-        var(--md-sys-color-surface-container-lowest)
-    );
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-lowest) 96%, white);
 }
 
 .status_attention {
@@ -91,22 +89,14 @@
 }
 
 .status_holiday {
-    background: var(--md-sys-color-surface-container-lowest);
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-lowest) 96%, white);
     color: inherit;
 }
 
 .dayCell.selected {
-    outline: 2px solid var(--md-sys-color-primary);
-    outline-offset: -2px;
-    background: color-mix(
-        in srgb,
-        var(--md-sys-color-secondary-container) 70%,
-        var(--md-sys-color-surface-container-lowest)
-    );
-}
-
-.dayCell.today {
-    box-shadow: inset 0 0 0 2px var(--md-sys-color-primary);
+    outline: none;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 72%, white);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--md-sys-color-outline) 42%, transparent);
 }
 
 .dayCell.today .dayNumber {
@@ -114,10 +104,19 @@
     font-weight: 700;
 }
 
+.dayCell.selected .dayNumber {
+    color: var(--md-sys-color-on-surface);
+    font-weight: 700;
+}
+
+.dayCell.selected.today .dayNumber {
+    color: var(--md-sys-color-primary);
+}
+
 .dayCell.otherMonth {
-    background: var(--md-sys-color-surface-container-low);
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 62%, white);
     color: var(--md-sys-color-on-surface-variant);
-    opacity: 0.55;
+    opacity: 0.68;
 }
 
 .dayCell.shortageDay {
@@ -146,11 +145,13 @@
 }
 
 .dayCellTop {
+    position: relative;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
     gap: 4px;
     min-height: 18px;
+    text-align: center;
 }
 
 .dayNumber {
@@ -195,6 +196,8 @@
 }
 
 .dayCellBadges {
+    position: absolute;
+    right: 0;
     display: inline-flex;
     align-items: center;
     justify-content: flex-end;
@@ -364,38 +367,6 @@
     min-width: 0;
 }
 
-.dayDotGroup {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    min-width: 0;
-    overflow: hidden;
-}
-
-.dayDot {
-    width: 8px;
-    height: 8px;
-    border-radius: 999px;
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, white 30%, transparent);
-}
-
-.dayDotConfirmed {
-    background: var(--md-sys-color-primary);
-}
-
-.dayDotPending {
-    background: var(--md-sys-color-tertiary);
-}
-
-.dayDotTentative {
-    background: color-mix(in srgb, var(--md-sys-color-tertiary) 72%, white);
-}
-
-.dayDotNeutral {
-    background: color-mix(in srgb, var(--md-sys-color-outline) 46%, white);
-}
-
-.dayCountBadge,
 .weekCountBadge,
 .detailCountPill {
     display: inline-flex;
@@ -415,10 +386,18 @@
 @media (max-width: 768px) {
     .weekHeader {
         margin-bottom: 6px;
+        margin-right: -16px;
+        margin-left: -16px;
     }
 
     .weekHeaderLabel {
         padding: 4px 0;
+    }
+
+    .monthGrid {
+        margin-right: -16px;
+        margin-left: -16px;
+        border-radius: 0;
     }
 
     .dayCell {
@@ -437,23 +416,20 @@
         padding: 0 5px;
     }
 
-    .dayDotGroup {
-        gap: 3px;
-    }
-
-    .dayDot {
-        width: 7px;
-        height: 7px;
-    }
-
-    .dayCountBadge {
-        min-width: 20px;
-        height: 20px;
-        padding: 0 6px;
-    }
 }
 
 @media (max-width: 480px) {
+    .monthGrid {
+        margin-right: -12px;
+        margin-left: -12px;
+        border-radius: 0;
+    }
+
+    .weekHeader {
+        margin-right: -12px;
+        margin-left: -12px;
+    }
+
     .dayCell {
         min-height: 64px;
         padding: 5px 4px 3px;
@@ -480,10 +456,6 @@
 @media (max-width: 360px) {
     .dayCell {
         min-height: 58px;
-    }
-
-    .dayDot:nth-child(n + 4) {
-        display: none;
     }
 }
 
