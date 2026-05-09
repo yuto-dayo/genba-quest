@@ -25,6 +25,7 @@ Implemented and locally verified the first v2.2 slice:
 - `rpc_record_accounting_payment_event` service-role RPC with active membership verification and no-PL-revenue posting metadata
 - `POST /payments/allocations` now allocates an existing payment to an invoice instead of creating the payment event
 - `rpc_allocate_accounting_payment` enforces both invoice open balance and payment unapplied balance under row locks
+- Idempotency contract tests for same-payload replay, different-payload conflict, and in-progress duplicate blocking
 
 ## Commands
 
@@ -46,6 +47,9 @@ git diff --check
 - Member-paid expenses must reject requests without `claimant_member_id`.
 - Payment events must create unapplied payments without writing PL revenue or invoice allocations.
 - Payment allocations must require `payment_id` and reject allocations that exceed either invoice open balance or payment unapplied balance.
+- Idempotency replay must return the stored response snapshot without invoking RPCs or inserting transition lineage again.
+- Idempotency payload mismatch must return `IDEMPOTENCY_CONFLICT`.
+- In-progress duplicates must return `IDEMPOTENCY_IN_PROGRESS`.
 
 ## Result
 
@@ -59,6 +63,7 @@ git diff --check
 - Accounting route unit tests after payment event route: pass, 42 tests
 - Existing-payment allocation RPC migration syntax dry-run: pass
 - Accounting route unit tests after existing-payment allocation: pass, 43 tests
+- Accounting route unit tests after idempotency contract hardening: pass, 46 tests
 - SQL boundary check: pass
 - Whitespace check: pass
 

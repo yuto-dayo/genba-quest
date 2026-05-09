@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `Continue v2.2 with idempotency breadth/parallel duplicate integration evidence, then canonical sales posting RPC.`
+- NEXT_CMD: `Continue v2.2 with canonical sales posting RPC now that transition lineage and idempotency contract are covered.`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/local.md`
@@ -18,8 +18,8 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `d247b86`
-  - Updated: `2026-05-09T20:04:01+0900`
+  - HEAD: `0ceff49`
+  - Updated: `2026-05-09T20:11:24+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
@@ -33,27 +33,27 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `Continue v2.2 with idempotency breadth/parallel duplicate integration evidence, then canonical sales posting RPC.`. Source: realtime
+- [focus] NEXT_CMD: `Continue v2.2 with canonical sales posting RPC now that transition lineage and idempotency contract are covered.`. Source: realtime
+- [H0013] Completed: P0 v2.2 slice: hardened Money write idempotency contract with IDEMPOTENCY_CONFLICT, same-response replay coverage, and in-progress duplicate blocking before RPC/lineage execution.
+- [H0013] Remaining: Continue v2.2 with canonical sales posting RPC now that transition lineage and idempotency contract are covered.
 - [H0012] Completed: P1 v2.2 slice: changed /payments/allocations to require existing payment_id and added rpc_allocate_accounting_payment to lock invoice/payment rows and enforce both invoice open balance and payment unapplied balance.
 - [H0012] Remaining: Continue v2.2 with idempotency breadth/parallel duplicate integration evidence, then canonical sales posting RPC.
-- [H0011] Completed: P1 v2.2 slice: added POST /payments payment event route plus rpc_record_accounting_payment_event for unapplied cash receipts with transition lineage and no-PL-revenue posting metadata.
-- [H0011] Remaining: Continue v2.2 by changing /payments/allocations toward existing-payment allocation semantics, then add idempotency parallel duplicate integration evidence.
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0013] This is local unit-test evidence; true concurrent DB integration evidence still needs a local/remote DB execution pass with explicit approval for any remote target.
 - [H0012] Payment event and payment allocation are now separated in API shape; legacy rpc_record_accounting_payment_allocation remains in migrations for compatibility but the route no longer calls it.
 - [H0011] Payment allocation still supports the legacy creates-payment-and-allocates RPC path; existing-payment allocation semantics are the next cut.
 - [H0010] Expense UI is not redesigned yet; this only adds payload/storage compatibility for member reimbursement and overhead separation.
 - [H0009] ProposalService.createAndSubmit remains intentionally disconnected from Money writes.
-- [H0008] Do not connect ProposalService.createAndSubmit to Money yet; transition lineage remains money_transition/full_proposal_lifecycle=false.
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0012] Unrelated dirty files remain outside this slice: AGENTS.md, dao-impl-checker skill, and accounting governance docs.
+- [H0013] Unrelated dirty files remain outside this slice: AGENTS.md, dao-impl-checker skill, and accounting governance docs.
 - [H0011] Unrelated dirty files existed before commit selection: AGENTS.md, dao-impl-checker skill, and accounting governance docs; do not stage them with this slice.
 - [H0010] Remote Supabase migration remains unexecuted; local route compatibility strips v2.2 columns if the DB schema has not applied the migration yet.
 - [H0009] POST /payments event creation is still not implemented; /payments/allocations still creates/allocates through the legacy RPC path for now.
@@ -62,18 +62,18 @@
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0013] Continue v2.2 with canonical sales posting RPC now that transition lineage and idempotency contract are covered.
 - [H0012] Continue v2.2 with idempotency breadth/parallel duplicate integration evidence, then canonical sales posting RPC.
 - [H0011] Continue v2.2 by changing /payments/allocations toward existing-payment allocation semantics, then add idempotency parallel duplicate integration evidence.
 - [H0010] Continue v2.2 with POST /payments event separation and broader idempotency replay/conflict/parallel duplicate coverage.
 - [H0009] Continue v2.2 with POST /payments event separation, expense_scope/paid_by payload support, and idempotency breadth/parallel duplicate tests.
-- [H0008] Continue v2.2 with invoice/payment/void transition lineage and idempotency breadth tests before canonical sales posting RPC.
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `12`
+- current_l3_entries: `13`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -104,6 +104,7 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] P0 v2.2 slice: hardened Money write idempotency contract with IDEMPOTENCY_CONFLICT, same-response replay coverage, and in-progress duplicate blocking before RPC/lineage execution.
 - [x] P1 v2.2 slice: changed /payments/allocations to require existing payment_id and added rpc_allocate_accounting_payment to lock invoice/payment rows and enforce both invoice open balance and payment unapplied balance.
 - [x] P1 v2.2 slice: added POST /payments payment event route plus rpc_record_accounting_payment_event for unapplied cash receipts with transition lineage and no-PL-revenue posting metadata.
 - [x] P1 v2.2 slice: added accounting_transactions projection metadata columns and /expenses support for expense_scope, paid_by, claimant_member_id, settlement_type, payment_account, reimbursement_status, and recurring_template_id.
@@ -113,22 +114,25 @@ Phase: A-0/A-1
 - [x] P1 response prep: added a backward-compatible accounting command envelope to expense, sale, and invoice create responses. Legacy top-level fields remain, while proposal/approval/execution/posting/projection fields now expose the future response shape with projection legacy ids.
 - [x] P1 prep: moved standard invoice creation write orchestration into AccountingCommandService.createAccountingInvoice, including allocation preflight, atomic RPC preference, legacy fallback insert/source links/revenue allocations, and source transaction kind updates.
 - [x] P1 prep: moved payment allocation RPC and void reversal command bodies into AccountingCommandService while keeping route-level validation, idempotency, and HTTP error mapping.
-- [x] P1 prep: extracted the legacy accounting transaction/journal write helpers for expenses and sales into server/src/services/AccountingCommandService.ts, leaving accounting routes as HTTP/org/idempotency adapters while preserving existing behavior.
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: Continue v2.2 with idempotency breadth/parallel duplicate integration evidence, then canonical sales posting RPC.
+- [ ] **P0**: Continue v2.2 with canonical sales posting RPC now that transition lineage and idempotency contract are covered.
+- [ ] **P1**: Continue v2.2 with idempotency breadth/parallel duplicate integration evidence, then canonical sales posting RPC.
 - [ ] **P1**: Continue v2.2 by changing /payments/allocations toward existing-payment allocation semantics, then add idempotency parallel duplicate integration evidence.
 - [ ] **P1**: Continue v2.2 with POST /payments event separation and broader idempotency replay/conflict/parallel duplicate coverage.
 - [ ] **P1**: Continue v2.2 with POST /payments event separation, expense_scope/paid_by payload support, and idempotency breadth/parallel duplicate tests.
-- [ ] **P1**: Continue v2.2 with invoice/payment/void transition lineage and idempotency breadth tests before canonical sales posting RPC.
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
+| `artifacts/accounting-v2.2/migration_verification_report.md` | updated v2.2 evidence index |
+| `artifacts/accounting-v2.2/idempotency_parallel_test.md` | local idempotency evidence |
+| `server/src/__tests__/unit/accountingRoute.test.ts` | replay/conflict/in-progress duplicate coverage |
+| `server/src/routes/accounting.ts` | idempotency conflict code standardized |
 | `artifacts/accounting-v2.2/migration_verification_report.md` | updated local evidence for allocation separation |
 | `server/src/__tests__/unit/accountingRoute.test.ts` | payment_id allocation tests |
 | `server/src/services/AccountingCommandService.ts` | rpc_allocate_accounting_payment wrapper |
@@ -145,10 +149,6 @@ Phase: A-0/A-1
 | `server/src/routes/accounting.ts` | expense payload validation and transition metadata persistence |
 | `supabase/migrations/20260509101543_accounting_v22_projection_metadata.sql` | projection source and reimbursement dimension columns |
 | `artifacts/accounting-v2.2/migration_verification_report.md` | updated local evidence for lineage slice |
-| `server/src/__tests__/unit/accountingRoute.test.ts` | invoice/payment/void lineage regression coverage |
-| `server/src/services/AccountingCommandService.ts` | transition proposal type coverage for payment.allocate and transaction.reverse |
-| `server/src/routes/accounting.ts` | invoice/payment/void transition lineage and no_pl_revenue posting metadata |
-| `artifacts/accounting-v2.2/migration_verification_report.md` | local verification evidence for the v2.2 slice |
 ---
 
 ## 6. Locked Files（編集中 - 他エージェント触らない）
@@ -418,5 +418,24 @@ cd frontend && npx eslint src/
   - Payment event and payment allocation are now separated in API shape; legacy rpc_record_accounting_payment_allocation remains in migrations for compatibility but the route no longer calls it.
 - Validation:
   - `server accounting route tests=pass|43 tests after existing-payment allocation; server tsc=pass|npx tsc --noEmit; sql-boundaries=pass; migration syntax=pass|docker postgres existing-payment allocation RPC dry-run; git diff --check=pass`
+- Landmines:
+  - Unrelated dirty files remain outside this slice: AGENTS.md, dao-impl-checker skill, and accounting governance docs.
+
+### 2026-05-09 20:11:24 +0900
+
+- Entry-ID: `H0013`
+- Completed:
+  - [x] P0 v2.2 slice: hardened Money write idempotency contract with IDEMPOTENCY_CONFLICT, same-response replay coverage, and in-progress duplicate blocking before RPC/lineage execution.
+- Remaining:
+  - [ ] Continue v2.2 with canonical sales posting RPC now that transition lineage and idempotency contract are covered.
+- Changed Files:
+  - `server/src/routes/accounting.ts` - idempotency conflict code standardized
+  - `server/src/__tests__/unit/accountingRoute.test.ts` - replay/conflict/in-progress duplicate coverage
+  - `artifacts/accounting-v2.2/idempotency_parallel_test.md` - local idempotency evidence
+  - `artifacts/accounting-v2.2/migration_verification_report.md` - updated v2.2 evidence index
+- Working Context:
+  - This is local unit-test evidence; true concurrent DB integration evidence still needs a local/remote DB execution pass with explicit approval for any remote target.
+- Validation:
+  - `server accounting route tests=pass|46 tests after idempotency contract; server tsc=pass|npx tsc --noEmit; git diff --check=pass; idempotency evidence=pass|artifacts/accounting-v2.2/idempotency_parallel_test.md`
 - Landmines:
   - Unrelated dirty files remain outside this slice: AGENTS.md, dao-impl-checker skill, and accounting governance docs.

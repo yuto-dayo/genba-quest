@@ -338,6 +338,45 @@ describe("accounting router", () => {
     expect(res.json).toHaveBeenCalledWith({ id: "tx-existing", kind: "expense" });
   });
 
+  it("POST /expenses rejects an idempotency key reused with a different payload", async () => {
+    const siteChain = createChain({ data: { id: "site-1", status: "active" }, error: null });
+    const txInsertChain = createChain({ data: { id: "tx-new" }, error: null });
+    const idempotencyInsertChain = createChain({
+      data: null,
+      error: { code: "23505", message: "duplicate key value violates unique constraint" },
+    });
+    const idempotencyExistingChain = createChain({
+      data: {
+        id: "idem-existing",
+        request_hash: "hash-from-a-different-payload",
+        status: "succeeded",
+        response_status: 201,
+        response_json: { id: "tx-existing", kind: "expense" },
+      },
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [siteChain, txInsertChain], [idempotencyInsertChain, idempotencyExistingChain]);
+
+    const req = {
+      userId: "user-1",
+      orgId: "org-1",
+      body: {
+        idempotency_key: "expense-conflict-1",
+        cost_center: "SITE",
+        site_id: "site-1",
+        amount_total: 2200,
+        category: "material",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createExpenseHandler(req, res);
+
+    expect(txInsertChain.insert).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({ error: "IDEMPOTENCY_CONFLICT" });
+  });
+
   it("GET /transactions applies creator and month filters", async () => {
     const queryChain = createChain({
       data: [],
@@ -2113,6 +2152,43 @@ describe("accounting router", () => {
     expect(mockRpc).not.toHaveBeenCalled();
   });
 
+  it("POST /payments rejects an in-progress duplicate before recording another payment", async () => {
+    const idempotencyInsertChain = createChain({
+      data: null,
+      error: { code: "23505", message: "duplicate key value violates unique constraint" },
+    });
+    const idempotencyExistingChain = createChain({
+      data: {
+        id: "idem-payment-in-progress",
+        request_hash: null,
+        status: "in_progress",
+        response_status: 200,
+        response_json: null,
+      },
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [], [idempotencyInsertChain, idempotencyExistingChain]);
+
+    const req = {
+      userId: "user-1",
+      orgId: "11111111-1111-4111-8111-111111111111",
+      body: {
+        idempotency_key: "payment-event-in-progress-1",
+        received_on: "2026-03-31",
+        amount: 110000,
+        payment_account: "bank",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createPaymentHandler(req, res);
+
+    expect(mockRpc).not.toHaveBeenCalled();
+    expect(mockFrom).not.toHaveBeenCalledWith("proposals");
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({ error: "IDEMPOTENCY_IN_PROGRESS" });
+  });
+
   it("POST /payments/allocations records payment allocation through the atomic RPC without PL journal writes", async () => {
     const proposalChain = createChain({
       data: {
@@ -2207,6 +2283,55 @@ describe("accounting router", () => {
 
     expect(res.status).toHaveBeenCalledWith(409);
     expect(res.json).toHaveBeenCalledWith({ error: "PAYMENT_ALLOCATION_EXCEEDS_UNCOLLECTED_BALANCE" });
+  });
+
+  it("POST /payments/allocations replays the same response snapshot without another allocation", async () => {
+    const replaySnapshot = {
+      payment: { id: "payment-existing", status: "allocated" },
+      allocation: { id: "allocation-existing", invoice_id: "inv-1", allocated_amount: 110000 },
+      proposal: { id: "proposal-existing", status: "posted_legacy_projection" },
+      projection: {
+        legacy_payment_id: "payment-existing",
+        legacy_payment_allocation_id: "allocation-existing",
+        legacy_invoice_id: "inv-1",
+        proposal_id: "proposal-existing",
+      },
+    };
+    const idempotencyInsertChain = createChain({
+      data: null,
+      error: { code: "23505", message: "duplicate key value violates unique constraint" },
+    });
+    const idempotencyExistingChain = createChain({
+      data: {
+        id: "idem-payment-allocation-replay",
+        request_hash: null,
+        status: "succeeded",
+        response_status: 201,
+        response_json: replaySnapshot,
+      },
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [], [idempotencyInsertChain, idempotencyExistingChain]);
+
+    const req = {
+      userId: "user-1",
+      orgId: "11111111-1111-4111-8111-111111111111",
+      body: {
+        idempotency_key: "payment-allocation-replay-1",
+        payment_id: "payment-existing",
+        invoice_id: "inv-1",
+        allocated_on: "2026-03-31",
+        amount: 110000,
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createPaymentAllocationHandler(req, res);
+
+    expect(mockRpc).not.toHaveBeenCalled();
+    expect(mockFrom).not.toHaveBeenCalledWith("proposals");
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(replaySnapshot);
   });
 
   it("POST /payments/allocations requires an existing payment_id", async () => {

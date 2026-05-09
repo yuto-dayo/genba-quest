@@ -365,7 +365,7 @@ async function beginAccountingWriteIdempotency(input: {
     }
 
     if (existing.request_hash && existing.request_hash !== requestHash) {
-        throw new AccountingRouteError(409, "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD");
+        throw new AccountingRouteError(409, "IDEMPOTENCY_CONFLICT");
     }
 
     if (existing.status === "succeeded") {
