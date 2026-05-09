@@ -55,8 +55,8 @@ These route-reachable accounting RPCs are membership-aware, direct `anon/authent
 
 | Function | Current local state | Reachability | Classification | Recommendation |
 | --- | --- | --- | --- | --- |
-| `public.rpc_create_accounting_invoice(..., p_created_by uuid)` | `SECURITY DEFINER`, `search_path=public, private`, `service_role` executable, `anon/authenticated` revoked | Not called directly by server routes; called internally by membership wrapper and canonical invoice RPC after membership verification | B: internal legacy base | Keep short-term for compatibility, then add a focused migration to schema-qualify/fix `search_path=pg_catalog`. Consider revoking direct `service_role` execute after proving wrapper/canonical internal calls still work. |
-| `public.rpc_record_accounting_payment_allocation(..., p_invoice_id uuid, ...)` | `SECURITY DEFINER`, `search_path=public, private`, `service_role` executable, `anon/authenticated` revoked | Not called by current server route; replaced by `/payments` + `/payments/allocations` and `rpc_allocate_accounting_payment(...)` | C: legacy exception / deprecated | Mark as no-new-route usage. Later migration should either remove service-role execute or harden to `pg_catalog` before any continued use. |
+| `public.rpc_create_accounting_invoice(..., p_created_by uuid)` | Was `SECURITY DEFINER`, `search_path=public, private`, `service_role` executable, `anon/authenticated` revoked | Not called directly by server routes; called internally by membership wrapper and canonical invoice RPC after membership verification | B: internal legacy base | Hardened by `20260509153840_harden_legacy_accounting_base_rpcs.sql`: `search_path=pg_catalog`, app-role direct execute remains revoked, service_role retained for wrapper/canonical compatibility. |
+| `public.rpc_record_accounting_payment_allocation(..., p_invoice_id uuid, ...)` | Was `SECURITY DEFINER`, `search_path=public, private`, `service_role` executable, `anon/authenticated` revoked | Not called by current server route; replaced by `/payments` + `/payments/allocations` and `rpc_allocate_accounting_payment(...)` | C: legacy exception / deprecated | Hardened by `20260509153840_harden_legacy_accounting_base_rpcs.sql`: `search_path=pg_catalog`, app-role direct execute remains revoked, service_role retained for compatibility. Still no-new-route usage. |
 | `private.assert_accounting_journal_entry_balanced(uuid)` | Was `SECURITY DEFINER`, `search_path=public, pg_temp`, broad default EXECUTE | Internal helper used by canonical posting RPCs | B: internal helper | Hardened by `20260509153529_harden_private_accounting_helpers.sql`: `search_path=pg_catalog`, direct `public/anon/authenticated` execute revoked, `service_role` only. |
 | `private.assert_invoice_revenue_allocation_capacity()` | Was `SECURITY DEFINER`, `search_path=public, private`, broad default EXECUTE; trigger function | Trigger-only invoice allocation cap guard | B: trigger helper | Hardened by `20260509153529_harden_private_accounting_helpers.sql`: `search_path=pg_catalog`, direct `public/anon/authenticated` execute revoked, `service_role` only. |
 | `private.prevent_posted_accounting_journal_mutation()` | Was `SECURITY DEFINER`, `search_path=public, pg_temp`, broad default EXECUTE; trigger function | Trigger-only posted journal immutability guard | B: trigger helper | Hardened by `20260509153529_harden_private_accounting_helpers.sql`: `search_path=pg_catalog`, direct `public/anon/authenticated` execute revoked, `service_role` only. |
@@ -93,19 +93,19 @@ Because `authenticated` has local `USAGE` on `private`, the private helper/trigg
 
 ## Recommended Next Migration
 
-The private helper/trigger subset was completed locally in `20260509153529_harden_private_accounting_helpers.sql`. The remaining work should still be done as narrow migrations, not as a broad sweep:
+The private helper/trigger subset was completed locally in `20260509153529_harden_private_accounting_helpers.sql`.
 
-1. Harden old internal base RPCs only after local replay:
-   - `public.rpc_create_accounting_invoice(..., p_created_by uuid)`
-   - `public.rpc_record_accounting_payment_allocation(... old create+allocate form ...)`
-2. Re-run:
-   - `node artifacts/accounting-v2.2/local_pl_compare_invariants_test.mjs`
-   - `node artifacts/accounting-v2.2/local_rpc_hardening_negative_test.mjs`
-   - `supabase migration up --local`
-   - `cd server && npx tsc --noEmit`
-   - `cd server && npm test -- --runTestsByPath src/__tests__/unit/accountingRoute.test.ts --runInBand`
-   - `scripts/db/check-sql-boundaries.sh`
-   - `git diff --check`
+The old internal base RPC subset was completed locally in `20260509153840_harden_legacy_accounting_base_rpcs.sql`.
+
+Re-run evidence:
+
+- `node artifacts/accounting-v2.2/local_pl_compare_invariants_test.mjs`
+- `node artifacts/accounting-v2.2/local_rpc_hardening_negative_test.mjs`
+- `supabase migration up --local`
+- `cd server && npx tsc --noEmit`
+- `cd server && npm test -- --runTestsByPath src/__tests__/unit/accountingRoute.test.ts --runInBand`
+- `scripts/db/check-sql-boundaries.sh`
+- `git diff --check`
 
 ## Decision
 
@@ -113,8 +113,8 @@ Do not treat the residue as acceptable forever.
 
 For PR review, classify it as:
 
-- private helper/trigger functions: next safe hardening target,
-- old invoice base RPC: internal legacy base behind verified wrappers,
-- old payment allocation RPC: legacy exception / deprecated, no new route usage.
+- private helper/trigger functions: hardened locally,
+- old invoice base RPC: hardened locally while preserving service_role compatibility for verified wrappers,
+- old payment allocation RPC: hardened locally, deprecated/no-new-route, service_role compatibility retained.
 
 Remote DB migration remains blocked until explicit approval.
