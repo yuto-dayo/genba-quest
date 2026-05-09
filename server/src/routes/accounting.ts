@@ -459,6 +459,7 @@ function withAccountingCommandEnvelope<T extends Record<string, unknown>>(
         projection: Record<string, unknown>;
         proposal?: Record<string, unknown> | null;
         approvalStatus?: string;
+        execution?: Record<string, unknown> | null;
         postingStatus?: string;
         mode?: string;
         postingMetadata?: Record<string, unknown>;
@@ -477,12 +478,20 @@ function withAccountingCommandEnvelope<T extends Record<string, unknown>>(
             status: input.approvalStatus || "legacy_direct",
             mode: input.mode || "legacy_direct",
         },
-        execution: {
-            status: "succeeded",
-            mode: input.mode || "legacy_direct",
-            endpoint_name: input.endpointName,
-            proposal_id: input.proposal?.id ?? null,
-        },
+        execution: input.execution
+            ? {
+                ...input.execution,
+                status: input.execution.status || "succeeded",
+                mode: input.mode || input.execution.mode || "legacy_direct",
+                endpoint_name: input.endpointName,
+                proposal_id: input.execution.proposal_id ?? input.proposal?.id ?? null,
+            }
+            : {
+                status: "succeeded",
+                mode: input.mode || "legacy_direct",
+                endpoint_name: input.endpointName,
+                proposal_id: input.proposal?.id ?? null,
+            },
         posting: {
             status: input.postingStatus || "legacy_projection",
             mode: input.mode || "legacy_projection",
@@ -2498,6 +2507,18 @@ router.post("/invoices", async (req: AuthenticatedRequest, res: Response) => {
             return;
         }
 
+        idempotency = await beginAccountingWriteIdempotency({
+            orgId,
+            endpointName: "accounting.invoices.create",
+            idempotencyKey: readIdempotencyKey(req.body),
+            requestBody: req.body,
+        });
+
+        if (idempotency.mode === "replay") {
+            res.status(idempotency.responseStatus).json(idempotency.responseJson);
+            return;
+        }
+
         const sortedTransactions = [...transactions].sort((left, right) => {
             if (left.recorded_date !== right.recorded_date) {
                 return left.recorded_date.localeCompare(right.recorded_date);
@@ -2537,18 +2558,6 @@ router.post("/invoices", async (req: AuthenticatedRequest, res: Response) => {
             return;
         }
 
-        idempotency = await beginAccountingWriteIdempotency({
-            orgId,
-            endpointName: "accounting.invoices.create",
-            idempotencyKey: readIdempotencyKey(req.body),
-            requestBody: req.body,
-        });
-
-        if (idempotency.mode === "replay") {
-            res.status(idempotency.responseStatus).json(idempotency.responseJson);
-            return;
-        }
-
         const resolvedDocumentType = resolveRequestedDocumentType(requestedDocumentType, eligibility);
         const issueDate = issue_date || new Date().toISOString().split("T")[0];
         const notesValue = normalizeText(notes) || settings.invoice_notes_default || null;
@@ -2562,6 +2571,7 @@ router.post("/invoices", async (req: AuthenticatedRequest, res: Response) => {
         const data = await createAccountingInvoice({
             orgId,
             membershipId: req.orgMembershipId || null,
+            idempotencyKey: idempotency.idempotencyKey,
             transactions: sortedTransactions,
             representativeTransaction,
             sourceTransactionIds: uniqueTransactionIds,
@@ -2586,49 +2596,84 @@ router.post("/invoices", async (req: AuthenticatedRequest, res: Response) => {
             sourceSummary: sourceSummary as unknown as Record<string, unknown>,
             eligibilitySnapshot,
             createdBy: req.userId!,
+            actorName: req.userName || req.userEmail || null,
         });
 
-        let proposalLineage: Record<string, unknown> | null = null;
-        const legacyProjection = {
+        const {
+            proposal: invoiceProposalEnvelope,
+            execution: invoiceExecutionEnvelope,
+            posting: invoicePostingEnvelope,
+            projection: invoiceProjectionEnvelope,
+            rpc_membership_verified: _rpcMembershipVerified,
+            source_summary: _canonicalSourceSummary,
+            ...invoiceData
+        } = data;
+        let proposalLineage: Record<string, unknown> | null =
+            invoiceProposalEnvelope && typeof invoiceProposalEnvelope === "object"
+                ? invoiceProposalEnvelope as Record<string, unknown>
+                : null;
+        const canonicalExecution = invoiceExecutionEnvelope && typeof invoiceExecutionEnvelope === "object"
+            ? invoiceExecutionEnvelope as Record<string, unknown>
+            : null;
+        const canonicalPosting = invoicePostingEnvelope && typeof invoicePostingEnvelope === "object"
+            ? invoicePostingEnvelope as Record<string, unknown>
+            : null;
+        const canonicalProjection = invoiceProjectionEnvelope && typeof invoiceProjectionEnvelope === "object"
+            ? invoiceProjectionEnvelope as Record<string, unknown>
+            : null;
+        let projection = canonicalProjection || {
             projection_source: "transition_lineage",
-            legacy_invoice_id: data.id,
+            legacy_invoice_id: invoiceData.id,
             legacy_transaction_id: representativeTransaction.id,
             source_transaction_ids: sortedTransactions.map((transaction) => transaction.id),
         };
 
-        try {
-            proposalLineage = await createAccountingCommandProposalLineage({
-                orgId,
-                endpointName: "accounting.invoices.create",
-                proposalType: "invoice.create",
-                idempotencyKey: idempotency.idempotencyKey,
-                transitionStatus: "posted_legacy_projection",
-                actor: {
-                    type: "human",
-                    id: req.userId!,
-                    name: req.userName || req.userEmail || null,
-                },
-                description: `請求書発行: ${normalizedBillingName}`,
-                payload: {
-                    invoice_id: data.id,
-                    invoice_no: data.invoice_no,
-                    customer_name: normalizedBillingName,
-                    document_type: resolvedDocumentType,
-                    issue_date: issueDate,
-                    due_date,
-                    source_transaction_ids: uniqueTransactionIds,
-                    source_summary: sourceSummary,
-                    eligibility: eligibilitySnapshot,
-                    posting_mode: "invoice_issue_no_pl_revenue",
-                },
-                projection: legacyProjection,
-            });
-        } catch (proposalError) {
-            console.error("Invoice proposal lineage error:", proposalError);
+        if (!proposalLineage) {
+            try {
+                proposalLineage = await createAccountingCommandProposalLineage({
+                    orgId,
+                    endpointName: "accounting.invoices.create",
+                    proposalType: "invoice.create",
+                    idempotencyKey: idempotency.idempotencyKey,
+                    transitionStatus: "posted_legacy_projection",
+                    actor: {
+                        type: "human",
+                        id: req.userId!,
+                        name: req.userName || req.userEmail || null,
+                    },
+                    description: `請求書発行: ${normalizedBillingName}`,
+                    payload: {
+                        invoice_id: invoiceData.id,
+                        invoice_no: invoiceData.invoice_no,
+                        customer_name: normalizedBillingName,
+                        document_type: resolvedDocumentType,
+                        issue_date: issueDate,
+                        due_date,
+                        source_transaction_ids: uniqueTransactionIds,
+                        source_summary: sourceSummary,
+                        eligibility: eligibilitySnapshot,
+                        posting_mode: "invoice_issue_no_pl_revenue",
+                    },
+                    projection,
+                });
+                projection = {
+                    ...projection,
+                    proposal_id: proposalLineage.id,
+                };
+            } catch (proposalError) {
+                console.error("Invoice proposal lineage error:", proposalError);
+            }
         }
 
+        const postingMode = typeof canonicalPosting?.mode === "string"
+            ? canonicalPosting.mode
+            : "invoice_issue_no_pl_revenue";
+        const postingStatus = typeof canonicalPosting?.status === "string"
+            ? canonicalPosting.status
+            : "posted";
+
         const responseBody = withAccountingCommandEnvelope({
-            ...data,
+            ...invoiceData,
             source_summary: sourceSummary,
             eligibility: {
                 eligible_for_qualified_invoice: eligibility.eligible_for_qualified_invoice,
@@ -2640,16 +2685,15 @@ router.post("/invoices", async (req: AuthenticatedRequest, res: Response) => {
             endpointName: "accounting.invoices.create",
             proposal: proposalLineage,
             approvalStatus: "not_required",
-            postingStatus: "posted",
-            mode: "invoice_issue_no_pl_revenue",
-            postingMetadata: {
+            execution: canonicalExecution,
+            postingStatus,
+            mode: postingMode,
+            postingMetadata: canonicalPosting || {
                 affects_pl: false,
                 affects_revenue: false,
                 affects_ar: true,
             },
-            projection: proposalLineage
-                ? { ...legacyProjection, proposal_id: proposalLineage.id }
-                : legacyProjection,
+            projection,
         });
 
         await completeAccountingWriteIdempotency(idempotency, 201, responseBody);

@@ -1646,7 +1646,7 @@ describe("accounting router", () => {
     expect(mockRpc).not.toHaveBeenCalled();
   });
 
-  it("POST /invoices creates standard invoice through the atomic RPC when available", async () => {
+  it("POST /invoices creates standard invoice through the canonical no-PL-revenue RPC when available", async () => {
     const transactionChain = createChain({
       data: {
         id: "tx-1",
@@ -1676,15 +1676,6 @@ describe("accounting router", () => {
       error: null,
     });
     const invoiceAllocationExistingChain = createChain({ data: [], error: null });
-    const proposalChain = createChain({
-      data: {
-        id: "proposal-invoice-1",
-        type: "invoice.create",
-        status: "executed",
-        policy_ref: "legacy_direct_transition",
-      },
-      error: null,
-    });
     setupMockFromSequence(mockFrom, [
       transactionChain,
       settingsChain,
@@ -1692,7 +1683,7 @@ describe("accounting router", () => {
       existingInvoicesFallbackChain,
       revenueBasisPreflightChain,
       invoiceAllocationExistingChain,
-    ], [], [proposalChain]);
+    ]);
     mockRpc.mockResolvedValue({
       data: {
         invoice: {
@@ -1701,6 +1692,40 @@ describe("accounting router", () => {
           document_type: "standard_invoice",
           pdf_render_status: "pending",
         },
+        proposal: {
+          id: "proposal-invoice-1",
+          type: "invoice.create",
+          status: "posted_canonical_projection",
+          lineage_mode: "transition",
+          lifecycle_engine: "money_transition",
+          full_proposal_lifecycle: false,
+          source_route: "accounting.invoices.create",
+          source_idempotency_key: "invoice-atomic-1",
+        },
+        execution: {
+          id: "execution-invoice-1",
+          proposal_id: "proposal-invoice-1",
+          status: "succeeded",
+        },
+        posting: {
+          status: "not_required",
+          mode: "invoice_issue_no_pl_revenue",
+          affects_pl: false,
+          affects_revenue: false,
+          affects_ar: true,
+        },
+        projection: {
+          projection_source: "canonical_posting_projection",
+          legacy_invoice_id: "inv-atomic",
+          legacy_transaction_id: "tx-1",
+          source_transaction_ids: ["tx-1"],
+          proposal_id: "proposal-invoice-1",
+          proposal_execution_id: "execution-invoice-1",
+          posting_group_id: null,
+          journal_entry_id: null,
+        },
+        posting_group_id: null,
+        journal_entry_id: null,
       },
       error: null,
     });
@@ -1719,14 +1744,16 @@ describe("accounting router", () => {
 
     await createInvoiceHandler(req, res);
 
-    expect(mockRpc).toHaveBeenCalledWith("rpc_create_accounting_invoice", expect.objectContaining({
+    expect(mockRpc).toHaveBeenCalledWith("rpc_create_accounting_invoice_canonical", expect.objectContaining({
       p_org_id: "11111111-1111-4111-8111-111111111111",
       p_source_transaction_ids: ["tx-1"],
       p_representative_transaction_id: "tx-1",
       p_document_type: "standard_invoice",
       p_created_by: "user-1",
       p_membership_id: null,
+      p_idempotency_key: "invoice-atomic-1",
     }));
+    expect(mockFrom).not.toHaveBeenCalledWith("proposals");
     expect(mockFrom).not.toHaveBeenCalledWith("accounting_journal_entries");
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
@@ -1734,24 +1761,103 @@ describe("accounting router", () => {
       proposal: expect.objectContaining({
         id: "proposal-invoice-1",
         type: "invoice.create",
-        status: "posted_legacy_projection",
+        status: "posted_canonical_projection",
         full_proposal_lifecycle: false,
       }),
+      execution: expect.objectContaining({
+        id: "execution-invoice-1",
+        proposal_id: "proposal-invoice-1",
+      }),
       posting: expect.objectContaining({
+        status: "not_required",
         mode: "invoice_issue_no_pl_revenue",
         affects_pl: false,
         affects_revenue: false,
         affects_ar: true,
       }),
+      posting_group_id: null,
+      journal_entry_id: null,
       projection: expect.objectContaining({
+        projection_source: "canonical_posting_projection",
         legacy_invoice_id: "inv-atomic",
         legacy_transaction_id: "tx-1",
         proposal_id: "proposal-invoice-1",
+        proposal_execution_id: "execution-invoice-1",
       }),
       eligibility: expect.objectContaining({
         resolved_document_type: "standard_invoice",
       }),
     }));
+  });
+
+  it("POST /invoices replays a completed idempotent response before duplicate invoice checks", async () => {
+    const transactionChain = createChain({
+      data: {
+        id: "tx-1",
+        kind: "sale",
+        site_id: "site-1",
+        recorded_date: "2026-03-10",
+        amount_subtotal: 100000,
+        tax_amount: 10000,
+        amount_total: 110000,
+        tax_category: "10_STANDARD",
+        currency: "JPY",
+      },
+      error: null,
+    });
+    const duplicateIdempotencyChain = createChain({
+      data: null,
+      error: { code: "23505", message: "duplicate key value violates unique constraint" },
+    });
+    const replayBody = {
+      id: "inv-replay",
+      invoice_no: "INV-2026-0009",
+      proposal: {
+        id: "proposal-invoice-replay",
+        status: "posted_canonical_projection",
+        full_proposal_lifecycle: false,
+      },
+      posting: {
+        status: "not_required",
+        mode: "invoice_issue_no_pl_revenue",
+        affects_pl: false,
+        affects_revenue: false,
+      },
+      projection: {
+        legacy_invoice_id: "inv-replay",
+        proposal_id: "proposal-invoice-replay",
+      },
+    };
+    const existingIdempotencyChain = createChain({
+      data: {
+        id: "idem-invoice-replay",
+        request_hash: null,
+        status: "succeeded",
+        response_status: 201,
+        response_json: replayBody,
+      },
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [transactionChain], [duplicateIdempotencyChain, existingIdempotencyChain]);
+
+    const req = {
+      userId: "user-1",
+      orgId: "11111111-1111-4111-8111-111111111111",
+      body: {
+        idempotency_key: "invoice-replay-1",
+        transaction_id: "tx-1",
+        billing_name: "株式会社現場",
+        requested_document_type: "auto",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createInvoiceHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(replayBody);
+    expect(mockRpc).not.toHaveBeenCalled();
+    expect(mockFrom).not.toHaveBeenCalledWith("accounting_invoices");
   });
 
   it("POST /invoices stores standard invoice snapshots when issuer is not registered", async () => {
@@ -1983,6 +2089,7 @@ describe("accounting router", () => {
       userId: "user-1",
       orgId: "11111111-1111-4111-8111-111111111111",
       body: {
+        idempotency_key: "invoice-qualified-reject-1",
         transaction_id: "tx-1",
         billing_name: "株式会社現場",
         requested_document_type: "qualified_invoice",

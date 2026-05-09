@@ -238,6 +238,7 @@ type InvoiceRevenueAllocationInsertRow = {
 export type CreateAccountingInvoiceInput = {
     orgId: string;
     membershipId?: string | null;
+    idempotencyKey?: string | null;
     transactions: InvoiceTransaction[];
     representativeTransaction: InvoiceTransaction;
     sourceTransactionIds: string[];
@@ -256,6 +257,7 @@ export type CreateAccountingInvoiceInput = {
     sourceSummary: Record<string, unknown>;
     eligibilitySnapshot: Record<string, unknown>;
     createdBy: string;
+    actorName?: string | null;
 };
 
 type AccountingTransactionForJournal = {
@@ -954,6 +956,7 @@ export async function insertInvoiceRecord(row: Record<string, unknown>) {
 async function createInvoiceRecordAtomically(input: {
     orgId: string;
     membershipId?: string | null;
+    idempotencyKey?: string | null;
     sourceTransactionIds: string[];
     representativeTransactionId: string;
     documentType: string;
@@ -971,7 +974,45 @@ async function createInvoiceRecordAtomically(input: {
     sourceSummary: Record<string, unknown>;
     eligibilitySnapshot: Record<string, unknown>;
     createdBy: string;
+    actorName?: string | null;
 }): Promise<Record<string, unknown> | null> {
+    if (input.idempotencyKey) {
+        const canonicalResult = await supabaseAdmin.rpc("rpc_create_accounting_invoice_canonical", {
+            p_org_id: input.orgId,
+            p_source_transaction_ids: input.sourceTransactionIds,
+            p_representative_transaction_id: input.representativeTransactionId,
+            p_document_type: input.documentType,
+            p_issue_date: input.issueDate,
+            p_due_date: input.dueDate || null,
+            p_source_transaction_date: input.sourceTransactionDate,
+            p_billing_name: input.billingName,
+            p_billing_address: input.billingAddress,
+            p_issuer_registration_no: input.issuerRegistrationNo,
+            p_notes: input.notes,
+            p_issuer_snapshot: input.issuerSnapshot,
+            p_registration_number_snapshot: input.registrationNumberSnapshot,
+            p_registered_at_snapshot: input.registeredAtSnapshot,
+            p_tax_summary_snapshot: input.taxSummary,
+            p_source_summary_snapshot: input.sourceSummary,
+            p_eligibility_snapshot: input.eligibilitySnapshot,
+            p_created_by: input.createdBy,
+            p_membership_id: input.membershipId || null,
+            p_idempotency_key: input.idempotencyKey,
+            p_actor_name: input.actorName || null,
+        });
+
+        if (canonicalResult.error) {
+            if (!isMissingFunctionError(canonicalResult.error, "rpc_create_accounting_invoice_canonical")) {
+                throw canonicalResult.error;
+            }
+        } else {
+            const canonicalInvoice = normalizeInvoiceRpcResult(canonicalResult.data);
+            if (canonicalInvoice) {
+                return canonicalInvoice;
+            }
+        }
+    }
+
     const { data, error } = await supabaseAdmin.rpc("rpc_create_accounting_invoice", {
         p_org_id: input.orgId,
         p_source_transaction_ids: input.sourceTransactionIds,
@@ -1001,13 +1042,40 @@ async function createInvoiceRecordAtomically(input: {
         throw error;
     }
 
-    const invoice = data && typeof data === "object" && "invoice" in data
-        ? (data as { invoice?: unknown }).invoice
-        : null;
+    return normalizeInvoiceRpcResult(data);
+}
 
-    return invoice && typeof invoice === "object"
-        ? invoice as Record<string, unknown>
-        : null;
+function normalizeInvoiceRpcResult(data: unknown): Record<string, unknown> | null {
+    if (!data || typeof data !== "object") {
+        return null;
+    }
+
+    const result = data as Record<string, unknown>;
+    const invoice = result.invoice;
+    if (!invoice || typeof invoice !== "object") {
+        return null;
+    }
+
+    const normalized: Record<string, unknown> = {
+        ...(invoice as Record<string, unknown>),
+    };
+
+    for (const key of [
+        "source_summary",
+        "proposal",
+        "execution",
+        "posting",
+        "projection",
+        "posting_group_id",
+        "journal_entry_id",
+        "rpc_membership_verified",
+    ]) {
+        if (key in result) {
+            normalized[key] = result[key];
+        }
+    }
+
+    return normalized;
 }
 
 export async function createAccountingInvoice(input: CreateAccountingInvoiceInput): Promise<Record<string, unknown>> {
@@ -1019,6 +1087,7 @@ export async function createAccountingInvoice(input: CreateAccountingInvoiceInpu
     let data = await createInvoiceRecordAtomically({
         orgId: input.orgId,
         membershipId: input.membershipId,
+        idempotencyKey: input.idempotencyKey || null,
         sourceTransactionIds: input.sourceTransactionIds,
         representativeTransactionId: input.representativeTransaction.id,
         documentType: input.documentType,
@@ -1036,6 +1105,7 @@ export async function createAccountingInvoice(input: CreateAccountingInvoiceInpu
         sourceSummary: input.sourceSummary,
         eligibilitySnapshot: input.eligibilitySnapshot,
         createdBy: input.createdBy,
+        actorName: input.actorName || null,
     });
 
     if (data) {
