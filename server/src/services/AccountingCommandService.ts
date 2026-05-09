@@ -121,12 +121,10 @@ export type SaleItemCommandPayload = {
 export type RecordPaymentAllocationInput = {
     orgId: string;
     membershipId?: string | null;
+    paymentId: string;
     invoiceId: string;
-    receivedOn: string;
+    allocatedOn: string;
     amount: number;
-    paymentMethod: string | null;
-    paymentAccount: string | null;
-    externalReference: string | null;
     createdBy: string;
 };
 
@@ -945,16 +943,14 @@ export async function createAccountingInvoice(input: CreateAccountingInvoiceInpu
 }
 
 export async function recordPaymentAllocation(input: RecordPaymentAllocationInput) {
-    const { data, error } = await supabaseAdmin.rpc("rpc_record_accounting_payment_allocation", {
+    const { data, error } = await supabaseAdmin.rpc("rpc_allocate_accounting_payment", {
         p_org_id: input.orgId,
+        p_actor_user_id: input.createdBy,
         p_membership_id: input.membershipId || null,
+        p_payment_id: input.paymentId,
         p_invoice_id: input.invoiceId,
-        p_received_on: input.receivedOn,
+        p_allocated_on: input.allocatedOn,
         p_amount: input.amount,
-        p_payment_method: input.paymentMethod,
-        p_payment_account: input.paymentAccount,
-        p_external_reference: input.externalReference,
-        p_created_by: input.createdBy,
         p_metadata_json: {
             request_source: "accounting.payments.allocate",
         },

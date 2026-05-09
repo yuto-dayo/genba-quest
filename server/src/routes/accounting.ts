@@ -2759,12 +2759,15 @@ router.post("/payments/allocations", async (req: AuthenticatedRequest, res: Resp
     let idempotency: AccountingIdempotencyStart | null = null;
     try {
         const orgId = req.orgId!;
+        const paymentId = normalizeText(req.body.payment_id);
         const invoiceId = normalizeText(req.body.invoice_id);
         const amount = parseNumericInput(req.body.amount);
-        const receivedOn = normalizeText(req.body.received_on) || new Date().toISOString().split("T")[0];
-        const paymentMethod = normalizeText(req.body.payment_method);
-        const paymentAccount = normalizeText(req.body.payment_account);
-        const externalReference = normalizeText(req.body.external_reference);
+        const allocatedOn = normalizeText(req.body.allocated_on) || normalizeText(req.body.received_on) || new Date().toISOString().split("T")[0];
+
+        if (!paymentId) {
+            res.status(400).json({ error: "payment_id is required" });
+            return;
+        }
 
         if (!invoiceId) {
             res.status(400).json({ error: "invoice_id is required" });
@@ -2791,16 +2794,14 @@ router.post("/payments/allocations", async (req: AuthenticatedRequest, res: Resp
         const allocationResult = await recordPaymentAllocation({
             orgId,
             membershipId: req.orgMembershipId || null,
+            paymentId,
             invoiceId,
-            receivedOn,
+            allocatedOn,
             amount,
-            paymentMethod,
-            paymentAccount,
-            externalReference,
             createdBy: req.userId!,
         });
 
-        const paymentId = allocationResult && typeof allocationResult === "object" && "payment" in allocationResult
+        const allocatedPaymentId = allocationResult && typeof allocationResult === "object" && "payment" in allocationResult
             ? (allocationResult as { payment?: { id?: unknown } }).payment?.id
             : null;
         const allocationId = allocationResult && typeof allocationResult === "object" && "allocation" in allocationResult
@@ -2808,7 +2809,7 @@ router.post("/payments/allocations", async (req: AuthenticatedRequest, res: Resp
             : null;
         const legacyProjection = {
             projection_source: "transition_lineage",
-            legacy_payment_id: paymentId ?? null,
+            legacy_payment_id: allocatedPaymentId ?? null,
             legacy_payment_allocation_id: allocationId ?? null,
             legacy_invoice_id: invoiceId,
         };
@@ -2829,11 +2830,9 @@ router.post("/payments/allocations", async (req: AuthenticatedRequest, res: Resp
                 description: `入金消込: ${invoiceId}`,
                 payload: {
                     invoice_id: invoiceId,
-                    received_on: receivedOn,
+                    payment_id: paymentId,
+                    allocated_on: allocatedOn,
                     amount,
-                    payment_method: paymentMethod,
-                    payment_account: paymentAccount,
-                    external_reference: externalReference,
                     posting_mode: "payment_allocation_no_pl_revenue",
                 },
                 projection: legacyProjection,
@@ -2875,6 +2874,7 @@ router.post("/payments/allocations", async (req: AuthenticatedRequest, res: Resp
 
         if (
             message.includes("PAYMENT_AMOUNT_MUST_BE_POSITIVE")
+            || message.includes("PAYMENT_ALLOCATION_AMOUNT_MUST_BE_POSITIVE")
             || message.includes("INVOICE_AMOUNT_UNAVAILABLE")
         ) {
             res.status(400).json({ error: message });
@@ -2886,12 +2886,22 @@ router.post("/payments/allocations", async (req: AuthenticatedRequest, res: Resp
             return;
         }
 
+        if (message.includes("PAYMENT_NOT_FOUND")) {
+            res.status(404).json({ error: "PAYMENT_NOT_FOUND" });
+            return;
+        }
+
+        if (message.includes("PAYMENT_ALLOCATION_EXCEEDS_UNAPPLIED_BALANCE")) {
+            res.status(409).json({ error: "PAYMENT_ALLOCATION_EXCEEDS_UNAPPLIED_BALANCE" });
+            return;
+        }
+
         if (message.includes("RPC_MEMBERSHIP_REQUIRED")) {
             res.status(403).json({ error: "RPC_MEMBERSHIP_REQUIRED" });
             return;
         }
 
-        if (message.includes("rpc_record_accounting_payment_allocation")) {
+        if (message.includes("rpc_allocate_accounting_payment")) {
             res.status(503).json({ error: "PAYMENT_ALLOCATION_SCHEMA_UNAVAILABLE" });
             return;
         }

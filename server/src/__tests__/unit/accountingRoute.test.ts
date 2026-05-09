@@ -2138,26 +2138,24 @@ describe("accounting router", () => {
       orgId: "11111111-1111-4111-8111-111111111111",
       body: {
         idempotency_key: "payment-allocation-1",
+        payment_id: "payment-1",
         invoice_id: "inv-1",
-        received_on: "2026-03-31",
+        allocated_on: "2026-03-31",
         amount: 110000,
-        payment_method: "bank_transfer",
-        payment_account: "main_bank",
       },
     } as any;
     const res = createMockRes();
 
     await createPaymentAllocationHandler(req, res);
 
-    expect(mockRpc).toHaveBeenCalledWith("rpc_record_accounting_payment_allocation", expect.objectContaining({
+    expect(mockRpc).toHaveBeenCalledWith("rpc_allocate_accounting_payment", expect.objectContaining({
       p_org_id: "11111111-1111-4111-8111-111111111111",
-      p_invoice_id: "inv-1",
-      p_received_on: "2026-03-31",
-      p_amount: 110000,
-      p_payment_method: "bank_transfer",
-      p_payment_account: "main_bank",
-      p_created_by: "user-1",
+      p_actor_user_id: "user-1",
       p_membership_id: null,
+      p_payment_id: "payment-1",
+      p_invoice_id: "inv-1",
+      p_allocated_on: "2026-03-31",
+      p_amount: 110000,
     }));
     expect(mockFrom).not.toHaveBeenCalledWith("accounting_journal_entries");
     expect(res.status).toHaveBeenCalledWith(201);
@@ -2197,8 +2195,9 @@ describe("accounting router", () => {
       orgId: "11111111-1111-4111-8111-111111111111",
       body: {
         idempotency_key: "payment-over-allocated-1",
+        payment_id: "payment-1",
         invoice_id: "inv-1",
-        received_on: "2026-03-31",
+        allocated_on: "2026-03-31",
         amount: 120000,
       },
     } as any;
@@ -2208,6 +2207,27 @@ describe("accounting router", () => {
 
     expect(res.status).toHaveBeenCalledWith(409);
     expect(res.json).toHaveBeenCalledWith({ error: "PAYMENT_ALLOCATION_EXCEEDS_UNCOLLECTED_BALANCE" });
+  });
+
+  it("POST /payments/allocations requires an existing payment_id", async () => {
+    setupMockFromSequence(mockFrom, []);
+
+    const req = {
+      userId: "user-1",
+      orgId: "11111111-1111-4111-8111-111111111111",
+      body: {
+        idempotency_key: "payment-allocation-missing-payment-1",
+        invoice_id: "inv-1",
+        amount: 110000,
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createPaymentAllocationHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: "payment_id is required" });
+    expect(mockRpc).not.toHaveBeenCalled();
   });
 
   it("GET /invoices/:id/download streams the stored invoice PDF", async () => {
