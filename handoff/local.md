@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `Next: review/commit this slice, then decide whether remaining non-accounting legacy site/proposal SECURITY DEFINER functions need separate classification, or pause for PR review. Remote DB migration/push remains blocked until explicit approval.`
+- NEXT_CMD: `Next: after user approval, push codex/money-fix and open a draft PR using the review package. Do not run remote DB migration or migration repair without explicit approval.`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/local.md`
@@ -18,8 +18,8 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `ad7b53b`
-  - Updated: `2026-05-10T00:40:26+0900`
+  - HEAD: `abf2556`
+  - Updated: `2026-05-10T00:44:06+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
@@ -33,47 +33,47 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `Next: review/commit this slice, then decide whether remaining non-accounting legacy site/proposal SECURITY DEFINER functions need separate classification, or pause for PR review. Remote DB migration/push remains blocked until explicit approval.`. Source: realtime
+- [focus] NEXT_CMD: `Next: after user approval, push codex/money-fix and open a draft PR using the review package. Do not run remote DB migration or migration repair without explicit approval.`. Source: realtime
+- [H0033] Completed: v2.2 PR review package drafted. Added artifacts/accounting-v2.2/pr_review_package.md with draft PR title/body, evidence index, pre-remote go/no-go checklist, and explicit note that remote DB migration/push/migration repair are not executed.
+- [H0033] Remaining: Next: after user approval, push codex/money-fix and open a draft PR using the review package. Do not run remote DB migration or migration repair without explicit approval.
 - [H0032] Completed: v2.2 legacy accounting base RPC search_path hardening added locally. Hardened public.rpc_create_accounting_invoice(no-membership base) and deprecated public.rpc_record_accounting_payment_allocation(old create+allocate) to search_path=pg_catalog while keeping service_role compatibility and app-role direct execute revoked. Updated classification and added evidence artifact.
 - [H0032] Remaining: Next: review/commit this slice, then decide whether remaining non-accounting legacy site/proposal SECURITY DEFINER functions need separate classification, or pause for PR review. Remote DB migration/push remains blocked until explicit approval.
-- [H0031] Completed: v2.2 private accounting helper hardening migration added locally. Hardened private.assert_accounting_journal_entry_balanced, private.assert_invoice_revenue_allocation_capacity, and private.prevent_posted_accounting_journal_mutation to search_path=pg_catalog with public/anon/authenticated EXECUTE revoked and service_role retained. Updated search_path classification and added evidence artifact.
-- [H0031] Remaining: Next: decide whether to harden old internal base RPCs rpc_create_accounting_invoice(no membership) and deprecated rpc_record_accounting_payment_allocation old create+allocate form, or pause for PR review. Remote DB migration/push remains blocked until explicit approval.
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0033] Auto-captured decision: v2.2 PR review package drafted. Added artifacts/accounting-v2.2/pr_review_package.md with draft PR title/body, evidence index, pre-remote go/no-go checklist, and explicit note t...
 - [H0032] Auto-captured decision: v2.2 legacy accounting base RPC search_path hardening added locally. Hardened public.rpc_create_accounting_invoice(no-membership base) and deprecated public.rpc_record_accountin...
 - [H0031] Auto-captured decision: v2.2 private accounting helper hardening migration added locally. Hardened private.assert_accounting_journal_entry_balanced, private.assert_invoice_revenue_allocation_capacity, ...
 - [H0030] Auto-captured decision: v2.2 legacy RPC search_path reachability classification added. Local-only inventory classifies current accounting SECURITY DEFINER residue: canonical/member-aware RPCs OK with p...
 - [H0029] Local-only evidence; remote DB/push/migration repair未実行。Existing local_v22_posting_scenario.sqlは未変更
-- [H0028] local Supabase Storage is disabled, so real signed URL/upload contracts are unit-tested with mocks; local API verifies foreign site document/drawing routes return 404 before signed URL issuance
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
+- [H0033] PR body should mention remote DB migration not executed; do not include raw review package wrapper if manually copying only the PR body block.
 - [H0032] service_role execute intentionally retained for old base RPCs; do not revoke until wrapper/canonical internal calls and any deployment fallback paths are separately sunset.
 - [H0031] Old internal base RPCs are still intentionally not changed; invoice base is called by wrapper/canonical internals, so harden it only with focused local replay.
 - [H0030] Do not broad-sweep ALTER all SECURITY DEFINER functions; old invoice base RPC is still called internally by membership wrapper/canonical RPC, so harden/revoke only with focused local replay evidence.
 - [H0029] `/pl` journal source must use explicit composite-FK relationship names after org_id FK additions, otherwise PostgREST returns ambiguous relationship PGRST201
-- [H0028] Existing legacy documents may have unprefixed storage_path; listing now returns signed_url=null for those until backfill/reupload, and OCR returns 403 for unprefixed active-org storage_path
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0033] Next: after user approval, push codex/money-fix and open a draft PR using the review package. Do not run remote DB migration or migration repair without explicit approval.
 - [H0032] Next: review/commit this slice, then decide whether remaining non-accounting legacy site/proposal SECURITY DEFINER functions need separate classification, or pause for PR review. Remote DB migration/push remains blocked until explicit approval.
 - [H0031] Next: decide whether to harden old internal base RPCs rpc_create_accounting_invoice(no membership) and deprecated rpc_record_accounting_payment_allocation old create+allocate form, or pause for PR review. Remote DB migration/push remains blocked until explicit approval.
 - [H0030] Next: implement a narrow local migration for private helper/trigger search_path/grant hardening, then rerun PL invariants and RPC hardening evidence. Remote DB migration/push remains blocked until explicit approval.
 - [H0029] Next: review/commit this evidence slice, then continue with old compatibility RPC search_path reachability classification. Remote DB migration/push remains unexecuted until explicit approval.
-- [H0028] v2.2残: legacy compatibility SECURITY DEFINER search_path完全固定判断、またはPL compare/posted journal invariantsの実データ証跡拡充。remote DB/pushは明示承認まで未実行
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `14`
+- current_l3_entries: `15`
 - last_compacted_at: `2026-05-10 00:35:04 +0900`
 - archived_entries: `18`
 <!-- HANDOFF_L2_STATE_END -->
@@ -104,6 +104,7 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] v2.2 PR review package drafted. Added artifacts/accounting-v2.2/pr_review_package.md with draft PR title/body, evidence index, pre-remote go/no-go checklist, and explicit note that remote DB migration/push/migration repair are not executed.
 - [x] v2.2 legacy accounting base RPC search_path hardening added locally. Hardened public.rpc_create_accounting_invoice(no-membership base) and deprecated public.rpc_record_accounting_payment_allocation(old create+allocate) to search_path=pg_catalog while keeping service_role compatibility and app-role direct execute revoked. Updated classification and added evidence artifact.
 - [x] v2.2 private accounting helper hardening migration added locally. Hardened private.assert_accounting_journal_entry_balanced, private.assert_invoice_revenue_allocation_capacity, and private.prevent_posted_accounting_journal_mutation to search_path=pg_catalog with public/anon/authenticated EXECUTE revoked and service_role retained. Updated search_path classification and added evidence artifact.
 - [x] v2.2 legacy RPC search_path reachability classification added. Local-only inventory classifies current accounting SECURITY DEFINER residue: canonical/member-aware RPCs OK with pg_catalog; old invoice base RPC is internal legacy base; old payment allocation create+allocate RPC is deprecated/no-new-route; private helper/trigger functions are next safe hardening target.
@@ -113,22 +114,22 @@ Phase: A-0/A-1
 - [x] v2.2 multi-org org boundary negative local API evidenceを追加。同一userがorg A/B両方所属、active org=Aでorg Bのtransaction/invoice/payment/document IDを渡すと対象APIが404を返し、org Aに会計/証憑rowが作られないことを確認
 - [x] v2.2 idempotency true-concurrent local HTTP evidenceを追加。fresh org + local serverで同一idempotency_keyのPOST /expensesを2本同時送信し、1成功/1 in_progress/完了後replay同一ID、row chain 1セットを確認
 - [x] v2.2 canonical posting chain local DB integration evidenceを追加。fresh org fixtureでsales/invoice transfer/payment receipt/payment allocation/member overhead expenseを実行し、balanced journals/no-PL-revenue/PL diff=0を確認
-- [x] accounting v2.2: local Supabase migration blockerを解消し、20260509135652 invoice_transfer まで migration up --local を通過。Storage無効ローカルでは drawing storage bucket/policyだけ条件付きskipにした
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: Next: review/commit this slice, then decide whether remaining non-accounting legacy site/proposal SECURITY DEFINER functions need separate classification, or pause for PR review. Remote DB migration/push remains blocked until explicit approval.
+- [ ] **P0**: Next: after user approval, push codex/money-fix and open a draft PR using the review package. Do not run remote DB migration or migration repair without explicit approval.
+- [ ] **P1**: Next: review/commit this slice, then decide whether remaining non-accounting legacy site/proposal SECURITY DEFINER functions need separate classification, or pause for PR review. Remote DB migration/push remains blocked until explicit approval.
 - [ ] **P1**: Next: decide whether to harden old internal base RPCs rpc_create_accounting_invoice(no membership) and deprecated rpc_record_accounting_payment_allocation old create+allocate form, or pause for PR review. Remote DB migration/push remains blocked until explicit approval.
 - [ ] **P1**: Next: implement a narrow local migration for private helper/trigger search_path/grant hardening, then rerun PL invariants and RPC hardening evidence. Remote DB migration/push remains blocked until explicit approval.
 - [ ] **P1**: Next: review/commit this evidence slice, then continue with old compatibility RPC search_path reachability classification. Remote DB migration/push remains unexecuted until explicit approval.
-- [ ] **P1**: v2.2残: legacy compatibility SECURITY DEFINER search_path完全固定判断、またはPL compare/posted journal invariantsの実データ証跡拡充。remote DB/pushは明示承認まで未実行
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
+| `artifacts/accounting-v2.2/pr_review_package.md` | draft PR body, evidence index, and pre-remote checklist |
 | `artifacts/accounting-v2.2/legacy_rpc_search_path_classification.md` | updated after legacy base RPC hardening |
 | `artifacts/accounting-v2.2/legacy_base_rpc_hardening_test.md` | local evidence for legacy base RPC hardening |
 | `supabase/migrations/20260509153840_harden_legacy_accounting_base_rpcs.sql` | legacy accounting base RPC search_path hardening |
@@ -148,7 +149,6 @@ Phase: A-0/A-1
 | `server/src/routes/sites.ts` | site document org_id filter, org-prefixed upload path, signed URL prefix gate |
 | `artifacts/accounting-v2.2/security_definer_hardening_test.md` | SECURITY DEFINER hardening evidence |
 | `artifacts/accounting-v2.2/local_rpc_hardening_negative_test.mjs` | local Postgres role/membership negative verification script |
-| `artifacts/accounting-v2.2/org_boundary_negative_test.md` | local API org boundary negative evidence |
 ---
 
 ## 6. Locked Files（編集中 - 他エージェント触らない）
@@ -183,11 +183,11 @@ cd frontend && npx eslint src/
 
 ## 9. Risks / Blockers
 
+- PR body should mention remote DB migration not executed; do not include raw review package wrapper if manually copying only the PR body block.
 - service_role execute intentionally retained for old base RPCs; do not revoke until wrapper/canonical internal calls and any deployment fallback paths are separately sunset.
 - Old internal base RPCs are still intentionally not changed; invoice base is called by wrapper/canonical internals, so harden it only with focused local replay.
 - Do not broad-sweep ALTER all SECURITY DEFINER functions; old invoice base RPC is still called internally by membership wrapper/canonical RPC, so harden/revoke only with focused local replay evidence.
 - `/pl` journal source must use explicit composite-FK relationship names after org_id FK additions, otherwise PostgREST returns ambiguous relationship PGRST201
-- Existing legacy documents may have unprefixed storage_path; listing now returns signed_url=null for those until backfill/reupload, and OCR returns 403 for unprefixed active-org storage_path
 ---
 
 ## 10. References
@@ -459,3 +459,19 @@ cd frontend && npx eslint src/
   - `supabase migration up --local=pass; legacy base RPC privilege query=public/anon/authenticated false, service_role true, search_path pg_catalog; node artifacts/accounting-v2.2/local_rpc_hardening_negative_test.mjs=pass; node artifacts/accounting-v2.2/local_pl_compare_invariants_test.mjs=pass; cd server && npx tsc --noEmit=pass; accountingRoute unit 56/56=pass; scripts/db/check-sql-boundaries.sh=pass; git diff --check=pass`
 - Landmines:
   - service_role execute intentionally retained for old base RPCs; do not revoke until wrapper/canonical internal calls and any deployment fallback paths are separately sunset.
+
+### 2026-05-10 00:44:06 +0900
+
+- Entry-ID: `H0033`
+- Completed:
+  - [x] v2.2 PR review package drafted. Added artifacts/accounting-v2.2/pr_review_package.md with draft PR title/body, evidence index, pre-remote go/no-go checklist, and explicit note that remote DB migration/push/migration repair are not executed.
+- Remaining:
+  - [ ] Next: after user approval, push codex/money-fix and open a draft PR using the review package. Do not run remote DB migration or migration repair without explicit approval.
+- Changed Files:
+  - `artifacts/accounting-v2.2/pr_review_package.md` - draft PR body, evidence index, and pre-remote checklist
+- Working Context:
+  - Auto-captured decision: v2.2 PR review package drafted. Added artifacts/accounting-v2.2/pr_review_package.md with draft PR title/body, evidence index, pre-remote go/no-go checklist, and explicit note t...
+- Validation:
+  - `git diff --check=pass; git status before package had clean branch; remote DB/push/PR not executed`
+- Landmines:
+  - PR body should mention remote DB migration not executed; do not include raw review package wrapper if manually copying only the PR body block.
