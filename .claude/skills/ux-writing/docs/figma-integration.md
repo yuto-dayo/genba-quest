@@ -33,7 +33,6 @@ Choose the setup guide for your agent:
 
 - [Claude Code](#setup-claude-code)
 - [Codex](#setup-codex)
-- [Cursor](#setup-cursor)
 
 ---
 
@@ -146,44 +145,6 @@ If using Codex in an IDE, completely restart it to activate the MCP connection.
 **Step 5: Verify**
 
 Paste a Figma Dev Mode section link into Codex and ask it to review the UX copy. Codex should access the frame and respond with feedback.
-
----
-
-### Setup: Cursor
-
-**Requirements:**
-- Cursor installed
-- Figma account
-- Internet connection
-
-**Step 1: Add Figma MCP to Cursor**
-
-Open your Cursor MCP configuration (`.cursor/mcp.json` in your project, or the global config at `~/.cursor/mcp.json`) and add:
-
-```json
-{
-  "mcpServers": {
-    "figma": {
-      "url": "https://mcp.figma.com/mcp",
-      "transport": "http"
-    }
-  }
-}
-```
-
-**Step 2: Restart Cursor**
-
-Completely quit and reopen Cursor.
-
-**Step 3: Authenticate with Figma**
-
-Open the MCP panel in Cursor settings, find the Figma server, and follow the authentication prompts to connect your Figma account.
-
-**Step 4: Verify**
-
-Ask Cursor: `Do you have access to Figma?`
-
-Cursor should confirm the connection.
 
 ---
 
@@ -381,7 +342,7 @@ Score this against the content usability checklist: [link]
 
 ### Explicitly Mention the Skill
 
-For best results, explicitly mention the UX Writing Skill in your prompts — especially in Codex and Cursor:
+For best results, explicitly mention the UX Writing Skill in your prompts — especially in Codex:
 
 ```
 Using the UX Writing Skill, review this design: [link]
@@ -394,12 +355,6 @@ $ux-writing Review the UX copy in this design: [Figma link]
 ```
 
 Or use the `/skills` command to select it from the list.
-
-In **Cursor**, reference it in your prompt:
-
-```
-@ux-writing Review the copy in this design: [Figma link]
-```
 
 ---
 
@@ -423,11 +378,6 @@ In **Cursor**, reference it in your prompt:
 1. Verify `~/.codex/config.toml` has the correct configuration
 2. Re-run `codex mcp login figma`
 3. Restart your IDE completely
-
-**Cursor:**
-1. Open Cursor settings and check the MCP panel
-2. Reconnect or re-authenticate the Figma server
-3. Restart Cursor if needed
 
 ### "I can't see the MCP server section in Figma"
 

@@ -315,7 +315,6 @@ Orchestrator `$ln-620-codebase-auditor` coordinates 9 parallel workers:
 This project supports multiple AI coding agents:
 - **Claude Code**: `.claude/` (skills + settings) + `CLAUDE.md`
 - **Codex**: `AGENTS.md` (this file) + `.agents/skills/` (symlink to `.claude/skills/`)
-- **Cursor**: `.cursor/rules/`
 - **Gemini CLI**: `GEMINI.md` + `.gemini/commands/`
 - **Antigravity (Gemini)**: `.agent/skills/` (symlink to `.claude/skills/`)
 
