@@ -900,7 +900,7 @@ async function insertInvoiceRevenueAllocations(input: {
                 source_site_id: siteId,
                 recognition_date: revenueBasis.recognized_on || revenueBasis.recognition_date || null,
                 receivable_account_type: revenueBasis.receivable_account_type || "accounts_receivable",
-                posting_mode: "no_pl_journal",
+                posting_mode: "invoice_issue_no_pl_revenue",
             },
         }];
     });

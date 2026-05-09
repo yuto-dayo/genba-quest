@@ -1882,7 +1882,7 @@ describe("accounting router", () => {
         allocation_kind: "invoice_issue",
         metadata_json: expect.objectContaining({
           source_transaction_id: "tx-1",
-          posting_mode: "no_pl_journal",
+          posting_mode: "invoice_issue_no_pl_revenue",
         }),
       }),
     ]);
@@ -2525,6 +2525,32 @@ describe("accounting router", () => {
     expect(res.json).toHaveBeenCalledWith({ error: "PAYMENT_ALLOCATION_EXCEEDS_UNCOLLECTED_BALANCE" });
   });
 
+  it("POST /payments/allocations rejects over-allocation of unapplied payment balance", async () => {
+    setupMockFromSequence(mockFrom, []);
+    mockRpc.mockResolvedValue({
+      data: null,
+      error: { message: "PAYMENT_ALLOCATION_EXCEEDS_UNAPPLIED_BALANCE" },
+    });
+
+    const req = {
+      userId: "user-1",
+      orgId: "11111111-1111-4111-8111-111111111111",
+      body: {
+        idempotency_key: "payment-unapplied-over-allocated-1",
+        payment_id: "payment-1",
+        invoice_id: "inv-1",
+        allocated_on: "2026-03-31",
+        amount: 120000,
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createPaymentAllocationHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({ error: "PAYMENT_ALLOCATION_EXCEEDS_UNAPPLIED_BALANCE" });
+  });
+
   it("POST /payments/allocations replays the same response snapshot without another allocation", async () => {
     const replaySnapshot = {
       payment: { id: "payment-existing", status: "allocated" },
@@ -2801,6 +2827,26 @@ describe("accounting router", () => {
           posting_group: { id: "posting-invoice-1", group_type: "invoice_transfer" },
           lines: [
             { id: "line-invoice-revenue", account_code: "4100", debit: 0, credit: 999999, site_id: "site-1" },
+          ],
+        },
+        {
+          id: "entry-payment-receipt-ignored",
+          entry_date: "2026-05-09",
+          posted_at: "2026-05-09T00:00:00Z",
+          transaction: { id: "tx-payment-1", kind: "payment", cost_center: "SITE", site_id: "site-1" },
+          posting_group: { id: "posting-payment-receipt-1", group_type: "payment_receipt" },
+          lines: [
+            { id: "line-payment-fake-revenue", account_code: "4100", debit: 0, credit: 777777, site_id: "site-1" },
+          ],
+        },
+        {
+          id: "entry-payment-allocation-ignored",
+          entry_date: "2026-05-09",
+          posted_at: "2026-05-09T00:00:00Z",
+          transaction: { id: "tx-payment-allocation-1", kind: "payment", cost_center: "SITE", site_id: "site-1" },
+          posting_group: { id: "posting-payment-allocation-1", group_type: "payment_allocation" },
+          lines: [
+            { id: "line-payment-allocation-fake-revenue", account_code: "4100", debit: 0, credit: 666666, site_id: "site-1" },
           ],
         },
       ],
