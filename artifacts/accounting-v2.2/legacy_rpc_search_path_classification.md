@@ -57,9 +57,9 @@ These route-reachable accounting RPCs are membership-aware, direct `anon/authent
 | --- | --- | --- | --- | --- |
 | `public.rpc_create_accounting_invoice(..., p_created_by uuid)` | `SECURITY DEFINER`, `search_path=public, private`, `service_role` executable, `anon/authenticated` revoked | Not called directly by server routes; called internally by membership wrapper and canonical invoice RPC after membership verification | B: internal legacy base | Keep short-term for compatibility, then add a focused migration to schema-qualify/fix `search_path=pg_catalog`. Consider revoking direct `service_role` execute after proving wrapper/canonical internal calls still work. |
 | `public.rpc_record_accounting_payment_allocation(..., p_invoice_id uuid, ...)` | `SECURITY DEFINER`, `search_path=public, private`, `service_role` executable, `anon/authenticated` revoked | Not called by current server route; replaced by `/payments` + `/payments/allocations` and `rpc_allocate_accounting_payment(...)` | C: legacy exception / deprecated | Mark as no-new-route usage. Later migration should either remove service-role execute or harden to `pg_catalog` before any continued use. |
-| `private.assert_accounting_journal_entry_balanced(uuid)` | `SECURITY DEFINER`, `search_path=public, pg_temp`, function EXECUTE still broadly granted by default; private schema `USAGE` exists for `authenticated` locally | Internal helper used by canonical posting RPCs | B: internal helper | Add migration to `ALTER FUNCTION ... SET search_path TO 'pg_catalog'` and revoke direct `public/anon/authenticated` execute. Grant only `service_role` if direct operational calls remain useful. |
-| `private.assert_invoice_revenue_allocation_capacity()` | `SECURITY DEFINER`, `search_path=public, private`, function EXECUTE still broadly granted by default; trigger function | Trigger-only invoice allocation cap guard | B: trigger helper | Add migration to `ALTER FUNCTION ... SET search_path TO 'pg_catalog'` and revoke direct `public/anon/authenticated` execute. Trigger execution should not require app-role direct execute. |
-| `private.prevent_posted_accounting_journal_mutation()` | `SECURITY DEFINER`, `search_path=public, pg_temp`, function EXECUTE still broadly granted by default; trigger function | Trigger-only posted journal immutability guard | B: trigger helper | Add migration to `ALTER FUNCTION ... SET search_path TO 'pg_catalog'` and revoke direct `public/anon/authenticated` execute. Verify posted journal immutability evidence after migration. |
+| `private.assert_accounting_journal_entry_balanced(uuid)` | Was `SECURITY DEFINER`, `search_path=public, pg_temp`, broad default EXECUTE | Internal helper used by canonical posting RPCs | B: internal helper | Hardened by `20260509153529_harden_private_accounting_helpers.sql`: `search_path=pg_catalog`, direct `public/anon/authenticated` execute revoked, `service_role` only. |
+| `private.assert_invoice_revenue_allocation_capacity()` | Was `SECURITY DEFINER`, `search_path=public, private`, broad default EXECUTE; trigger function | Trigger-only invoice allocation cap guard | B: trigger helper | Hardened by `20260509153529_harden_private_accounting_helpers.sql`: `search_path=pg_catalog`, direct `public/anon/authenticated` execute revoked, `service_role` only. |
+| `private.prevent_posted_accounting_journal_mutation()` | Was `SECURITY DEFINER`, `search_path=public, pg_temp`, broad default EXECUTE; trigger function | Trigger-only posted journal immutability guard | B: trigger helper | Hardened by `20260509153529_harden_private_accounting_helpers.sql`: `search_path=pg_catalog`, direct `public/anon/authenticated` execute revoked, `service_role` only. |
 
 ## Privilege Snapshot
 
@@ -69,9 +69,9 @@ Local privilege checks for the highest-priority residue:
 | --- | ---: | ---: | ---: | ---: |
 | `public.rpc_create_accounting_invoice(..., p_created_by uuid)` | false | false | false | true |
 | `public.rpc_record_accounting_payment_allocation(... old create+allocate form ...)` | false | false | false | true |
-| `private.assert_accounting_journal_entry_balanced(uuid)` | true | true | true | true |
-| `private.assert_invoice_revenue_allocation_capacity()` | true | true | true | true |
-| `private.prevent_posted_accounting_journal_mutation()` | true | true | true | true |
+| `private.assert_accounting_journal_entry_balanced(uuid)` | false | false | false | true |
+| `private.assert_invoice_revenue_allocation_capacity()` | false | false | false | true |
+| `private.prevent_posted_accounting_journal_mutation()` | false | false | false | true |
 
 Schema usage snapshot:
 
@@ -93,18 +93,12 @@ Because `authenticated` has local `USAGE` on `private`, the private helper/trigg
 
 ## Recommended Next Migration
 
-Do this in a narrow migration, not as a broad sweep:
+The private helper/trigger subset was completed locally in `20260509153529_harden_private_accounting_helpers.sql`. The remaining work should still be done as narrow migrations, not as a broad sweep:
 
-1. Harden private helpers/triggers:
-   - `ALTER FUNCTION private.assert_accounting_journal_entry_balanced(uuid) SET search_path TO 'pg_catalog';`
-   - `ALTER FUNCTION private.assert_invoice_revenue_allocation_capacity() SET search_path TO 'pg_catalog';`
-   - `ALTER FUNCTION private.prevent_posted_accounting_journal_mutation() SET search_path TO 'pg_catalog';`
-   - `REVOKE ALL ... FROM PUBLIC, anon, authenticated;`
-   - `GRANT EXECUTE ... TO service_role;`
-2. Harden old internal base RPCs only after local replay:
+1. Harden old internal base RPCs only after local replay:
    - `public.rpc_create_accounting_invoice(..., p_created_by uuid)`
    - `public.rpc_record_accounting_payment_allocation(... old create+allocate form ...)`
-3. Re-run:
+2. Re-run:
    - `node artifacts/accounting-v2.2/local_pl_compare_invariants_test.mjs`
    - `node artifacts/accounting-v2.2/local_rpc_hardening_negative_test.mjs`
    - `supabase migration up --local`

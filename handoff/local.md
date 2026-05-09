@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `Next: implement a narrow local migration for private helper/trigger search_path/grant hardening, then rerun PL invariants and RPC hardening evidence. Remote DB migration/push remains blocked until explicit approval.`
+- NEXT_CMD: `Next: decide whether to harden old internal base RPCs rpc_create_accounting_invoice(no membership) and deprecated rpc_record_accounting_payment_allocation old create+allocate form, or pause for PR review. Remote DB migration/push remains blocked until explicit approval.`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/local.md`
@@ -18,8 +18,8 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `89255b7`
-  - Updated: `2026-05-10T00:35:04+0900`
+  - HEAD: `2c7a958`
+  - Updated: `2026-05-10T00:37:18+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
@@ -33,47 +33,47 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `Next: implement a narrow local migration for private helper/trigger search_path/grant hardening, then rerun PL invariants and RPC hardening evidence. Remote DB migration/push remains blocked until explicit approval.`. Source: realtime
+- [focus] NEXT_CMD: `Next: decide whether to harden old internal base RPCs rpc_create_accounting_invoice(no membership) and deprecated rpc_record_accounting_payment_allocation old create+allocate form, or pause for PR review. Remote DB migration/push remains blocked until explicit approval.`. Source: realtime
+- [H0031] Completed: v2.2 private accounting helper hardening migration added locally. Hardened private.assert_accounting_journal_entry_balanced, private.assert_invoice_revenue_allocation_capacity, and private.prevent_posted_accounting_journal_mutation to search_path=pg_catalog with public/anon/authenticated EXECUTE revoked and service_role retained. Updated search_path classification and added evidence artifact.
+- [H0031] Remaining: Next: decide whether to harden old internal base RPCs rpc_create_accounting_invoice(no membership) and deprecated rpc_record_accounting_payment_allocation old create+allocate form, or pause for PR review. Remote DB migration/push remains blocked until explicit approval.
 - [H0030] Completed: v2.2 legacy RPC search_path reachability classification added. Local-only inventory classifies current accounting SECURITY DEFINER residue: canonical/member-aware RPCs OK with pg_catalog; old invoice base RPC is internal legacy base; old payment allocation create+allocate RPC is deprecated/no-new-route; private helper/trigger functions are next safe hardening target.
 - [H0030] Remaining: Next: implement a narrow local migration for private helper/trigger search_path/grant hardening, then rerun PL invariants and RPC hardening evidence. Remote DB migration/push remains blocked until explicit approval.
-- [H0029] Completed: v2.2 PL compare/posted journal invariants evidence added: local_pl_compare_invariants_test.mjs creates fresh local org, runs canonical sale/expense/invoice/payment/allocation/reversal, calls real /pl legacy|journal|compare API, and verifies posted journal UPDATE/DELETE fail with POSTED_JOURNAL_IMMUTABLE. Fixed /pl journal relation embeds and invoice-kind skip so local HTTP compare returns diff=0 after invoice/payment/reversal.
-- [H0029] Remaining: Next: review/commit this evidence slice, then continue with old compatibility RPC search_path reachability classification. Remote DB migration/push remains unexecuted until explicit approval.
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0031] Auto-captured decision: v2.2 private accounting helper hardening migration added locally. Hardened private.assert_accounting_journal_entry_balanced, private.assert_invoice_revenue_allocation_capacity, ...
 - [H0030] Auto-captured decision: v2.2 legacy RPC search_path reachability classification added. Local-only inventory classifies current accounting SECURITY DEFINER residue: canonical/member-aware RPCs OK with p...
 - [H0029] Local-only evidence; remote DB/push/migration repair未実行。Existing local_v22_posting_scenario.sqlは未変更
 - [H0028] local Supabase Storage is disabled, so real signed URL/upload contracts are unit-tested with mocks; local API verifies foreign site document/drawing routes return 404 before signed URL issuance
 - [H0027] local Postgres SET LOCAL ROLEでDB-enforced behaviorを確認。remote DB/push/migration repair未実行
-- [H0026] same dev actor has active memberships in org A/B; active org header controls visibility; remote DB/push/migration repair未実行
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
+- [H0031] Old internal base RPCs are still intentionally not changed; invoice base is called by wrapper/canonical internals, so harden it only with focused local replay.
 - [H0030] Do not broad-sweep ALTER all SECURITY DEFINER functions; old invoice base RPC is still called internally by membership wrapper/canonical RPC, so harden/revoke only with focused local replay evidence.
 - [H0029] `/pl` journal source must use explicit composite-FK relationship names after org_id FK additions, otherwise PostgREST returns ambiguous relationship PGRST201
 - [H0028] Existing legacy documents may have unprefixed storage_path; listing now returns signed_url=null for those until backfill/reupload, and OCR returns 403 for unprefixed active-org storage_path
 - [H0027] legacy compatibility implementation RPCs remain service_role executable and have older search_path values for fallback compatibility; direct anon/auth is revoked and membership-aware/canonical paths are fixed to pg_catalog
-- [H0026] server/.env points at remote, so script explicitly injects local SUPABASE_URL/SERVICE_ROLE_KEY; payment allocation failure creates a failed idempotency row in active org before returning 404 but no accounting rows
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0031] Next: decide whether to harden old internal base RPCs rpc_create_accounting_invoice(no membership) and deprecated rpc_record_accounting_payment_allocation old create+allocate form, or pause for PR review. Remote DB migration/push remains blocked until explicit approval.
 - [H0030] Next: implement a narrow local migration for private helper/trigger search_path/grant hardening, then rerun PL invariants and RPC hardening evidence. Remote DB migration/push remains blocked until explicit approval.
 - [H0029] Next: review/commit this evidence slice, then continue with old compatibility RPC search_path reachability classification. Remote DB migration/push remains unexecuted until explicit approval.
 - [H0028] v2.2残: legacy compatibility SECURITY DEFINER search_path完全固定判断、またはPL compare/posted journal invariantsの実データ証跡拡充。remote DB/pushは明示承認まで未実行
 - [H0027] P0残: document signed URL/PDF/OCR storage path org prefixの追加検証、またはlegacy compatibility SECURITY DEFINER search_pathを完全固定するかどうかの設計判断
-- [H0026] P0残: service-role RPC membership mismatch/direct RPC negative evidence、またはdocument signed URL/PDF/OCR storage path org prefixの追加検証
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `12`
+- current_l3_entries: `13`
 - last_compacted_at: `2026-05-10 00:35:04 +0900`
 - archived_entries: `18`
 <!-- HANDOFF_L2_STATE_END -->
@@ -104,6 +104,7 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] v2.2 private accounting helper hardening migration added locally. Hardened private.assert_accounting_journal_entry_balanced, private.assert_invoice_revenue_allocation_capacity, and private.prevent_posted_accounting_journal_mutation to search_path=pg_catalog with public/anon/authenticated EXECUTE revoked and service_role retained. Updated search_path classification and added evidence artifact.
 - [x] v2.2 legacy RPC search_path reachability classification added. Local-only inventory classifies current accounting SECURITY DEFINER residue: canonical/member-aware RPCs OK with pg_catalog; old invoice base RPC is internal legacy base; old payment allocation create+allocate RPC is deprecated/no-new-route; private helper/trigger functions are next safe hardening target.
 - [x] v2.2 PL compare/posted journal invariants evidence added: local_pl_compare_invariants_test.mjs creates fresh local org, runs canonical sale/expense/invoice/payment/allocation/reversal, calls real /pl legacy|journal|compare API, and verifies posted journal UPDATE/DELETE fail with POSTED_JOURNAL_IMMUTABLE. Fixed /pl journal relation embeds and invoice-kind skip so local HTTP compare returns diff=0 after invoice/payment/reversal.
 - [x] v2.2 document/PDF/OCR/signed URL org boundaryを実装・証跡化。site documentsはdocuments.org_idで絞り、new storage_pathをorg_id/sites/site_id/documents配下に変更、unprefixed pathにはsigned_urlを出さず、accounting OCRはorg prefix外storage_pathをStorage download前に403で拒否。invoice PDF新規生成pathもorg prefix先頭に変更。local APIでforeign site documents/drawingsが404になることを確認
@@ -113,22 +114,24 @@ Phase: A-0/A-1
 - [x] v2.2 canonical posting chain local DB integration evidenceを追加。fresh org fixtureでsales/invoice transfer/payment receipt/payment allocation/member overhead expenseを実行し、balanced journals/no-PL-revenue/PL diff=0を確認
 - [x] accounting v2.2: local Supabase migration blockerを解消し、20260509135652 invoice_transfer まで migration up --local を通過。Storage無効ローカルでは drawing storage bucket/policyだけ条件付きskipにした
 - [x] accounting v2.2: invoice issueをcanonical no-PL-revenue transfer RPC優先に接続し、same-key replayをduplicate invoice checkより前に返すよう修正
-- [x] Accounting v2.2: canonical payment allocation RPC and /payments/allocations RPC-first fallback integration added
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: Next: implement a narrow local migration for private helper/trigger search_path/grant hardening, then rerun PL invariants and RPC hardening evidence. Remote DB migration/push remains blocked until explicit approval.
+- [ ] **P0**: Next: decide whether to harden old internal base RPCs rpc_create_accounting_invoice(no membership) and deprecated rpc_record_accounting_payment_allocation old create+allocate form, or pause for PR review. Remote DB migration/push remains blocked until explicit approval.
+- [ ] **P1**: Next: implement a narrow local migration for private helper/trigger search_path/grant hardening, then rerun PL invariants and RPC hardening evidence. Remote DB migration/push remains blocked until explicit approval.
 - [ ] **P1**: Next: review/commit this evidence slice, then continue with old compatibility RPC search_path reachability classification. Remote DB migration/push remains unexecuted until explicit approval.
 - [ ] **P1**: v2.2残: legacy compatibility SECURITY DEFINER search_path完全固定判断、またはPL compare/posted journal invariantsの実データ証跡拡充。remote DB/pushは明示承認まで未実行
 - [ ] **P1**: P0残: document signed URL/PDF/OCR storage path org prefixの追加検証、またはlegacy compatibility SECURITY DEFINER search_pathを完全固定するかどうかの設計判断
-- [ ] **P1**: P0残: service-role RPC membership mismatch/direct RPC negative evidence、またはdocument signed URL/PDF/OCR storage path org prefixの追加検証
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
+| `artifacts/accounting-v2.2/legacy_rpc_search_path_classification.md` | updated classification after private helper hardening |
+| `artifacts/accounting-v2.2/private_helper_hardening_test.md` | local evidence for private helper hardening |
+| `supabase/migrations/20260509153529_harden_private_accounting_helpers.sql` | narrow private accounting helper/trigger search_path and grant hardening |
 | `artifacts/accounting-v2.2/legacy_rpc_search_path_classification.md` | local-only legacy RPC search_path reachability classification and next migration recommendation |
 | `server/src/routes/accounting.ts` | disambiguate PL journal PostgREST embeds and count revenue journals by posting group rather than invoice projection kind |
 | `artifacts/accounting-v2.2/pl_compare_posted_journal_invariants.md` | captured v2.2 local evidence summary |
@@ -146,9 +149,6 @@ Phase: A-0/A-1
 | `artifacts/accounting-v2.2/local_org_boundary_negative_test.mjs` | local server multi-org foreign ID negative verification script |
 | `artifacts/accounting-v2.2/idempotency_parallel_test.md` | DB/API concurrency row-count evidence added |
 | `artifacts/accounting-v2.2/local_idempotency_concurrency_test.mjs` | local server true-concurrent idempotency verification script |
-| `artifacts/accounting-v2.2/local_posting_chain_integration_result.md` | local DB row count/invariant/PL compare evidence |
-| `artifacts/accounting-v2.2/local_v22_posting_scenario.sql` | local-only canonical posting chain integration SQL |
-| `artifacts/accounting-v2.2/migration_verification_report.md` | local migration-up and SECURITY DEFINER/grant evidence updated |
 ---
 
 ## 6. Locked Files（編集中 - 他エージェント触らない）
@@ -183,11 +183,11 @@ cd frontend && npx eslint src/
 
 ## 9. Risks / Blockers
 
+- Old internal base RPCs are still intentionally not changed; invoice base is called by wrapper/canonical internals, so harden it only with focused local replay.
 - Do not broad-sweep ALTER all SECURITY DEFINER functions; old invoice base RPC is still called internally by membership wrapper/canonical RPC, so harden/revoke only with focused local replay evidence.
 - `/pl` journal source must use explicit composite-FK relationship names after org_id FK additions, otherwise PostgREST returns ambiguous relationship PGRST201
 - Existing legacy documents may have unprefixed storage_path; listing now returns signed_url=null for those until backfill/reupload, and OCR returns 403 for unprefixed active-org storage_path
 - legacy compatibility implementation RPCs remain service_role executable and have older search_path values for fallback compatibility; direct anon/auth is revoked and membership-aware/canonical paths are fixed to pg_catalog
-- server/.env points at remote, so script explicitly injects local SUPABASE_URL/SERVICE_ROLE_KEY; payment allocation failure creates a failed idempotency row in active org before returning 404 but no accounting rows
 ---
 
 ## 10. References
@@ -423,3 +423,21 @@ cd frontend && npx eslint src/
   - `git diff --check=pass; local DB inventory only, remote DB not used`
 - Landmines:
   - Do not broad-sweep ALTER all SECURITY DEFINER functions; old invoice base RPC is still called internally by membership wrapper/canonical RPC, so harden/revoke only with focused local replay evidence.
+
+### 2026-05-10 00:37:18 +0900
+
+- Entry-ID: `H0031`
+- Completed:
+  - [x] v2.2 private accounting helper hardening migration added locally. Hardened private.assert_accounting_journal_entry_balanced, private.assert_invoice_revenue_allocation_capacity, and private.prevent_posted_accounting_journal_mutation to search_path=pg_catalog with public/anon/authenticated EXECUTE revoked and service_role retained. Updated search_path classification and added evidence artifact.
+- Remaining:
+  - [ ] Next: decide whether to harden old internal base RPCs rpc_create_accounting_invoice(no membership) and deprecated rpc_record_accounting_payment_allocation old create+allocate form, or pause for PR review. Remote DB migration/push remains blocked until explicit approval.
+- Changed Files:
+  - `supabase/migrations/20260509153529_harden_private_accounting_helpers.sql` - narrow private accounting helper/trigger search_path and grant hardening
+  - `artifacts/accounting-v2.2/private_helper_hardening_test.md` - local evidence for private helper hardening
+  - `artifacts/accounting-v2.2/legacy_rpc_search_path_classification.md` - updated classification after private helper hardening
+- Working Context:
+  - Auto-captured decision: v2.2 private accounting helper hardening migration added locally. Hardened private.assert_accounting_journal_entry_balanced, private.assert_invoice_revenue_allocation_capacity, ...
+- Validation:
+  - `supabase migration up --local=pass; private helper privilege query=public/anon/authenticated false, service_role true, search_path pg_catalog; node artifacts/accounting-v2.2/local_rpc_hardening_negative_test.mjs=pass; node artifacts/accounting-v2.2/local_pl_compare_invariants_test.mjs=pass; cd server && npx tsc --noEmit=pass; accountingRoute unit 56/56=pass; scripts/db/check-sql-boundaries.sh=pass; git diff --check=pass`
+- Landmines:
+  - Old internal base RPCs are still intentionally not changed; invoice base is called by wrapper/canonical internals, so harden it only with focused local replay.
