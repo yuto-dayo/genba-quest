@@ -1,75 +1,95 @@
 ---
 name: genba-quest-dao-principles
-description: GENBA QUESTのDAO設計原則。コードレビュー、新機能追加、設計判断時に参照。800行のドキュメントを50行に凝縮。
+description: GENBA QUESTのDAO×UX設計原則。コードレビュー、新機能追加、設計判断時に参照。docs/DESIGN_PHILOSOPHY.md(約900行)を凝縮。
 ---
 
-# DAO設計原則（凝縮版）
+# DAO×UX設計原則（凝縮版）
 
-## 3本柱
+## MVPアウトカム（迷ったらこれで切る）
 
-1. **Proposal中心** - 全状態変更はProposal経由
-2. **Event志向Ledger** - 追記のみ、逆仕訳で修正
-3. **AIはPolicyに従属** - 自己承認禁止
+1. **請求漏れゼロ** — やった仕事が必ず請求につながる
+2. **黒字可視化** — 現場別利益と月次PLが即座に分かる
+
+## バックエンド3本柱
+
+1. **Proposal中心** — 全状態変更はProposal経由（直接UPDATE禁止）
+2. **Event志向Ledger** — 追記のみ、修正は逆仕訳、借方=貸方
+3. **AIはPolicyに従属** — 自己承認禁止（絶対ゲート）
+
+## UX原則（Calm Cockpit + Cursor Tab系）
+
+1. **Input-zero / Decision-human** — 判断は人間、入力と確認はAIが奪う
+2. **Direct + Sherpa split** — 単純操作=Direct UI、複雑な多段=Sherpa Chat（FAB起動、常駐するが沈黙）
+3. **Suggestion 5レベル** — Inline / Card / Why / Guard / Sherpa Chat（混ぜない）
+4. **育つフォーム** — 最初1〜2フィールド、AIが文脈で展開、整合性は Proposal validation で合流
+5. **AIはクリティカルパスではない** — 遅延/失敗で入力フローを止めない
 
 ## Proposal ライフサイクル
 
 ```
 draft → pending → approved → executed
-                ↘ rejected
+              ↘ rejected
 ```
 
-## 承認ルール（Policy）
+## 承認ルール（金額閾値はPolicy管理）
 
 | 金額 | 承認者数 |
 |------|----------|
 | ≤5,000円 | 自動承認 |
-| 5,001-30,000円 | 1名 |
-| >30,000円 | 2名 |
+| 5,001-30,000円 | 1名（AI可） |
+| >30,000円 | 2名（AI不可） |
 
 ## AI自己承認禁止（絶対ゲート）
 
-```typescript
-if (proposal.created_by.type === 'ai' && approver.type === 'ai') {
-  throw new Error('AI_SELF_APPROVAL_PROHIBITED');
-}
-```
+`proposal.created_by.type === 'ai' && approver.type === 'ai'` のとき承認不可。Policy評価より上位で常に効く。
 
 ## トランザクション境界
 
-```typescript
-await db.transaction(async (tx) => {
-  await updateApproval(tx, proposalId, approval);
-  const event = await createLedgerEvent(tx, proposal);
-  await applyStateChange(tx, event);
-});
-```
+「承認 + Event発行 + 状態更新」は1tx。実装手段は問わないが、ゾンビ状態（approvedだがEvent無し）を構造的に存在させない。
 
-## Ledger原則
+## Ledger / MonthClose
 
-- 借方合計 = 貸方合計（必須）
-- 修正は逆仕訳で（直接編集禁止）
+- 借方合計 = 貸方合計（必須、DB制約で守る）
+- 修正は逆仕訳（直接編集禁止）
 - 全エントリにproposal_id紐付け
+- **MonthClose確定期間は不可変** — 修正は翌期の逆仕訳
 
-## 実装フェーズ
+## ドメイン（現行 Proposal type）
 
-| Phase | 内容 |
-|-------|------|
-| A-0 | Proposal CRUD + ログ記録 |
-| A-1 | PolicyEngine + 承認フロー |
-| B | Sherpa統合 + AI制約 |
-| C | UI刷新 |
-| D | 高度機能 |
+- **Ledger**: `expense.*` / `income.*`
+- **Invoice**: `invoice.create` / `invoice.send` / `invoice.mark_paid`
+- **Assignment**: `assignment.*`
+- **Site**: `site.create` / `site.close.finalize` / `site.close.reopen`
+- **Reward**: `reward.calculate` / `reward.adjust` / `evaluation.finalize` / `skill.*`
+- **PATH governance**: 多Proposal集約決定（`path.site_close.finalized` 等のevent）
+- **Communication**: `communication.review` / `communication.task`
+- **Policy**: `policy.update`
+
+## 達成済み不変条件（回帰NG）
+
+- Proposal経由の状態変更
+- Policy評価が承認APIの最終ゲート
+- Actor区別（human/ai/integration/system）
+- AI自己承認禁止ゲート
+- pending含む承認フロー稼働
+- Sherpa Chat（FAB起動、Proposal下書き）
+- PATH governance V3.1/V3.2
+- MonthClose（month_closes テーブル）
 
 ## レビュー時チェック
 
 - [ ] 状態変更はProposal経由か？
-- [ ] AI自己承認ゲートあるか？
-- [ ] 承認+イベント+状態更新が1トランザクションか？
-- [ ] 仕訳はバランスしているか？
-- [ ] 冪等性は確保されているか？
+- [ ] AI自己承認ゲートを通っているか？
+- [ ] 承認+Event+状態更新が1tx か？
+- [ ] 仕訳バランス・冪等性は保たれているか？
+- [ ] closed month に書こうとしていないか？
+- [ ] AI出力に Proposal/根拠/影響/承認パスが揃っているか？（Calm Cockpit #5）
+- [ ] Direct でできることに Sherpa を出していないか？（逆も）
 
 ## 詳細ドキュメント
 
-- [DESIGN_PHILOSOPHY.md](docs/DESIGN_PHILOSOPHY.md) - 完全版
-- [PROPOSAL_SYSTEM.md](docs/PROPOSAL_SYSTEM.md) - Proposal詳細
-- [LEDGER_SYSTEM.md](docs/LEDGER_SYSTEM.md) - 仕訳パターン
+- [DESIGN_PHILOSOPHY.md](../../../docs/DESIGN_PHILOSOPHY.md) - 完全版
+- [PROPOSAL_SYSTEM.md](../../../docs/PROPOSAL_SYSTEM.md) - Proposal詳細
+- [LEDGER_SYSTEM.md](../../../docs/LEDGER_SYSTEM.md) - 仕訳パターン
+- [SHERPA_ARCHITECTURE.md](../../../docs/SHERPA_ARCHITECTURE.md) - AI Orchestrator
+- [design-system/genba-quest/MASTER.md](../../../design-system/genba-quest/MASTER.md) - Calm Cockpit
