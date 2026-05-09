@@ -18,6 +18,7 @@ import {
     insertInvoiceRecord,
     insertInvoiceSourceLinks,
     insertSaleTransactionWithItems,
+    recordPaymentEvent,
     recordPaymentAllocation,
 } from "../services/AccountingCommandService";
 import {
@@ -70,6 +71,7 @@ type AccountingWriteEndpoint =
     | "accounting.expenses.create"
     | "accounting.sales.adjust"
     | "accounting.invoices.create"
+    | "accounting.payments.create"
     | "accounting.payments.allocate"
     | "accounting.void.create";
 
@@ -2598,6 +2600,157 @@ router.post("/invoices/:id/supplement", async (req: AuthenticatedRequest, res: R
         res.status(201).json(data);
     } catch (err: any) {
         console.error("Invoice supplement error:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+// ============================================================
+// Payments（入金イベント / 消込）
+// ============================================================
+
+router.post("/payments", async (req: AuthenticatedRequest, res: Response) => {
+    let idempotency: AccountingIdempotencyStart | null = null;
+    try {
+        const orgId = req.orgId!;
+        const customerId = normalizeText(req.body.customer_id);
+        const amount = parseNumericInput(req.body.amount);
+        const receivedOn = normalizeText(req.body.received_on) || new Date().toISOString().split("T")[0];
+        const paymentMethod = normalizeText(req.body.payment_method);
+        const paymentAccount = normalizeText(req.body.payment_account);
+        const externalReference = normalizeText(req.body.external_reference);
+
+        if (!amount || amount <= 0) {
+            res.status(400).json({ error: "amount must be a positive number" });
+            return;
+        }
+
+        if (paymentAccount && paymentAccount !== "cash" && paymentAccount !== "bank") {
+            res.status(400).json({ error: "payment_account must be one of cash, bank" });
+            return;
+        }
+
+        if (customerId) {
+            try {
+                await assertActiveClientForOrg(customerId, orgId);
+            } catch {
+                res.status(404).json({ error: "customer_id is invalid or unavailable" });
+                return;
+            }
+        }
+
+        idempotency = await beginAccountingWriteIdempotency({
+            orgId,
+            endpointName: "accounting.payments.create",
+            idempotencyKey: readIdempotencyKey(req.body),
+            requestBody: req.body,
+        });
+
+        if (idempotency.mode === "replay") {
+            res.status(idempotency.responseStatus).json(idempotency.responseJson);
+            return;
+        }
+
+        const paymentResult = await recordPaymentEvent({
+            orgId,
+            membershipId: req.orgMembershipId || null,
+            customerId,
+            receivedOn,
+            amount,
+            paymentMethod,
+            paymentAccount,
+            externalReference,
+            createdBy: req.userId!,
+        });
+        const paymentId = paymentResult && typeof paymentResult === "object" && "payment" in paymentResult
+            ? (paymentResult as { payment?: { id?: unknown } }).payment?.id
+            : null;
+        const legacyProjection = {
+            projection_source: "transition_lineage",
+            legacy_payment_id: paymentId ?? null,
+        };
+
+        let proposalLineage: Record<string, unknown> | null = null;
+        try {
+            proposalLineage = await createAccountingCommandProposalLineage({
+                orgId,
+                endpointName: "accounting.payments.create",
+                proposalType: "payment.record",
+                idempotencyKey: idempotency.idempotencyKey,
+                transitionStatus: "posted_legacy_projection",
+                actor: {
+                    type: "human",
+                    id: req.userId!,
+                    name: req.userName || req.userEmail || null,
+                },
+                description: `入金記録: ${receivedOn}`,
+                payload: {
+                    customer_id: customerId,
+                    received_on: receivedOn,
+                    amount,
+                    payment_method: paymentMethod,
+                    payment_account: paymentAccount,
+                    external_reference: externalReference,
+                    posting_mode: "payment_received_no_pl_revenue",
+                    unapplied_account_type: "unapplied_cash",
+                },
+                projection: legacyProjection,
+            });
+        } catch (proposalError) {
+            console.error("Payment event proposal lineage error:", proposalError);
+        }
+
+        const responseBody = withAccountingCommandEnvelope(
+            paymentResult && typeof paymentResult === "object"
+                ? paymentResult as Record<string, unknown>
+                : { result: paymentResult as unknown },
+            {
+                endpointName: "accounting.payments.create",
+                proposal: proposalLineage,
+                approvalStatus: "not_required",
+                postingStatus: "posted",
+                mode: "payment_received_no_pl_revenue",
+                postingMetadata: {
+                    affects_pl: false,
+                    affects_revenue: false,
+                    affects_ar: true,
+                },
+                projection: proposalLineage
+                    ? { ...legacyProjection, proposal_id: proposalLineage.id }
+                    : legacyProjection,
+            },
+        );
+
+        await completeAccountingWriteIdempotency(idempotency, 201, responseBody);
+        res.status(201).json(responseBody);
+    } catch (err: any) {
+        await failAccountingWriteIdempotency(idempotency, err instanceof Error ? err.message : "UNKNOWN_ERROR");
+        const message = err instanceof Error ? err.message : String(err?.message || err || "UNKNOWN_ERROR");
+
+        if (
+            message.includes("PAYMENT_AMOUNT_MUST_BE_POSITIVE")
+            || message.includes("PAYMENT_RECEIVED_ON_REQUIRED")
+            || message.includes("PAYMENT_ACCOUNT_INVALID")
+        ) {
+            res.status(400).json({ error: message });
+            return;
+        }
+
+        if (message.includes("RPC_MEMBERSHIP_REQUIRED")) {
+            res.status(403).json({ error: "RPC_MEMBERSHIP_REQUIRED" });
+            return;
+        }
+
+        if (message.includes("rpc_record_accounting_payment_event")) {
+            res.status(503).json({ error: "PAYMENT_EVENT_SCHEMA_UNAVAILABLE" });
+            return;
+        }
+
+        if (err instanceof AccountingRouteError) {
+            res.status(err.status).json({ error: err.message });
+            return;
+        }
+
+        console.error("Payment event error:", err);
         res.status(500).json({ error: "Internal server error" });
     }
 });

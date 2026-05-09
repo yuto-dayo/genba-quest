@@ -152,6 +152,7 @@ describe("accounting router", () => {
   const createInvoiceHandler = getPostHandler("/invoices");
   const correctInvoiceHandler = getPostHandler("/invoices/:id/correct");
   const createInvoiceSupplementHandler = getPostHandler("/invoices/:id/supplement");
+  const createPaymentHandler = getPostHandler("/payments");
   const createPaymentAllocationHandler = getPostHandler("/payments/allocations");
   const downloadInvoiceHandler = getGetHandler("/invoices/:id/download");
   const voidTransactionHandler = getPostHandler("/void/:id");
@@ -2014,6 +2015,102 @@ describe("accounting router", () => {
       id: "inv-s1",
       document_type: "invoice_supplement",
     }));
+  });
+
+  it("POST /payments records an unapplied payment event without PL revenue", async () => {
+    const proposalChain = createChain({
+      data: {
+        id: "proposal-payment-event-1",
+        type: "payment.record",
+        status: "executed",
+        policy_ref: "legacy_direct_transition",
+      },
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [], [], [proposalChain]);
+    mockRpc.mockResolvedValue({
+      data: {
+        payment: {
+          id: "payment-event-1",
+          amount: 110000,
+          unapplied_amount: 110000,
+          status: "received",
+        },
+      },
+      error: null,
+    });
+
+    const req = {
+      userId: "user-1",
+      orgId: "11111111-1111-4111-8111-111111111111",
+      body: {
+        idempotency_key: "payment-event-1",
+        received_on: "2026-03-31",
+        amount: 110000,
+        payment_method: "bank_transfer",
+        payment_account: "bank",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createPaymentHandler(req, res);
+
+    expect(mockRpc).toHaveBeenCalledWith("rpc_record_accounting_payment_event", expect.objectContaining({
+      p_org_id: "11111111-1111-4111-8111-111111111111",
+      p_actor_user_id: "user-1",
+      p_membership_id: null,
+      p_received_on: "2026-03-31",
+      p_amount: 110000,
+      p_customer_id: null,
+      p_payment_method: "bank_transfer",
+      p_payment_account: "bank",
+    }));
+    expect(mockFrom).not.toHaveBeenCalledWith("accounting_journal_entries");
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      payment: expect.objectContaining({
+        id: "payment-event-1",
+        unapplied_amount: 110000,
+        status: "received",
+      }),
+      proposal: expect.objectContaining({
+        id: "proposal-payment-event-1",
+        type: "payment.record",
+        status: "posted_legacy_projection",
+        full_proposal_lifecycle: false,
+      }),
+      posting: expect.objectContaining({
+        mode: "payment_received_no_pl_revenue",
+        affects_pl: false,
+        affects_revenue: false,
+        affects_ar: true,
+      }),
+      projection: expect.objectContaining({
+        legacy_payment_id: "payment-event-1",
+        proposal_id: "proposal-payment-event-1",
+      }),
+    }));
+  });
+
+  it("POST /payments rejects invalid payment_account before recording a payment", async () => {
+    setupMockFromSequence(mockFrom, []);
+
+    const req = {
+      userId: "user-1",
+      orgId: "11111111-1111-4111-8111-111111111111",
+      body: {
+        idempotency_key: "payment-event-invalid-account-1",
+        amount: 110000,
+        payment_account: "wallet",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createPaymentHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: "payment_account must be one of cash, bank" });
+    expect(mockRpc).not.toHaveBeenCalled();
   });
 
   it("POST /payments/allocations records payment allocation through the atomic RPC without PL journal writes", async () => {

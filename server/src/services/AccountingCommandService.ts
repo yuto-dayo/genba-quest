@@ -78,6 +78,7 @@ export type AccountingCommandProposalLineageInput = {
         | "income.create"
         | "invoice.create"
         | "invoice.mark_paid"
+        | "payment.record"
         | "payment.allocate"
         | "expense.void"
         | "income.reverse"
@@ -121,6 +122,18 @@ export type RecordPaymentAllocationInput = {
     orgId: string;
     membershipId?: string | null;
     invoiceId: string;
+    receivedOn: string;
+    amount: number;
+    paymentMethod: string | null;
+    paymentAccount: string | null;
+    externalReference: string | null;
+    createdBy: string;
+};
+
+export type RecordPaymentEventInput = {
+    orgId: string;
+    membershipId?: string | null;
+    customerId?: string | null;
     receivedOn: string;
     amount: number;
     paymentMethod: string | null;
@@ -944,6 +957,29 @@ export async function recordPaymentAllocation(input: RecordPaymentAllocationInpu
         p_created_by: input.createdBy,
         p_metadata_json: {
             request_source: "accounting.payments.allocate",
+        },
+    });
+
+    if (error) {
+        throw error;
+    }
+
+    return data || {};
+}
+
+export async function recordPaymentEvent(input: RecordPaymentEventInput) {
+    const { data, error } = await supabaseAdmin.rpc("rpc_record_accounting_payment_event", {
+        p_org_id: input.orgId,
+        p_actor_user_id: input.createdBy,
+        p_membership_id: input.membershipId || null,
+        p_received_on: input.receivedOn,
+        p_amount: input.amount,
+        p_customer_id: input.customerId || null,
+        p_payment_method: input.paymentMethod,
+        p_payment_account: input.paymentAccount,
+        p_external_reference: input.externalReference,
+        p_metadata_json: {
+            request_source: "accounting.payments.create",
         },
     });
 

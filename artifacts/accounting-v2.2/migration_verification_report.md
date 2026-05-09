@@ -21,6 +21,8 @@ Implemented and locally verified the first v2.2 slice:
 - `no_pl_journal` response wording replaced with `no_pl_revenue` for invoice/payment posting modes
 - Accounting transaction projection metadata columns for v2.2 source mode and expense reimbursement dimensions
 - `/expenses` payload acceptance for `expense_scope`, `paid_by`, claimant, settlement, payment account, reimbursement status, and recurring template references
+- `POST /payments` payment event route for unapplied cash receipts, separated from invoice allocation
+- `rpc_record_accounting_payment_event` service-role RPC with active membership verification and no-PL-revenue posting metadata
 
 ## Commands
 
@@ -40,6 +42,7 @@ git diff --check
 - Money transition lineage responses must identify `lineage_mode=transition`, `lifecycle_engine=money_transition`, and `full_proposal_lifecycle=false`.
 - Invoice/payment posting responses must identify `affects_pl=false`, `affects_revenue=false`, and AR impact separately.
 - Member-paid expenses must reject requests without `claimant_member_id`.
+- Payment events must create unapplied payments without writing PL revenue or invoice allocations.
 
 ## Result
 
@@ -49,6 +52,8 @@ git diff --check
 - Accounting route unit tests after invoice/payment/void lineage: pass, 39 tests
 - Accounting route unit tests after expense reimbursement payload: pass, 40 tests
 - Projection metadata migration syntax dry-run: pass
+- Payment event RPC migration syntax dry-run: pass
+- Accounting route unit tests after payment event route: pass, 42 tests
 - SQL boundary check: pass
 - Whitespace check: pass
 
