@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `Push codex/money-fix and create draft PR using artifacts/accounting-v2.2/pr_body.md. Remote DB migration remains blocked until explicit approval.`
+- NEXT_CMD: `Next: review PR #9 and wait for explicit approval before any remote DB migration or migration repair.`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/local.md`
@@ -18,8 +18,8 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `da0647c`
-  - Updated: `2026-05-10T00:45:28+0900`
+  - HEAD: `313e2fc`
+  - Updated: `2026-05-10T00:45:57+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
@@ -33,47 +33,47 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `Push codex/money-fix and create draft PR using artifacts/accounting-v2.2/pr_body.md. Remote DB migration remains blocked until explicit approval.`. Source: realtime
+- [focus] NEXT_CMD: `Next: review PR #9 and wait for explicit approval before any remote DB migration or migration repair.`. Source: realtime
+- [H0035] Completed: Pushed codex/money-fix and opened draft PR #9 for accounting v2.2. PR body uses artifacts/accounting-v2.2/pr_body.md and explicitly states remote DB migration/push/migration repair were not executed.
+- [H0035] Remaining: Next: review PR #9 and wait for explicit approval before any remote DB migration or migration repair.
 - [H0034] Completed: Added clean PR body artifact for accounting v2.2 draft PR creation.
 - [H0034] Remaining: Push codex/money-fix and create draft PR using artifacts/accounting-v2.2/pr_body.md. Remote DB migration remains blocked until explicit approval.
-- [H0033] Completed: v2.2 PR review package drafted. Added artifacts/accounting-v2.2/pr_review_package.md with draft PR title/body, evidence index, pre-remote go/no-go checklist, and explicit note that remote DB migration/push/migration repair are not executed.
-- [H0033] Remaining: Next: after user approval, push codex/money-fix and open a draft PR using the review package. Do not run remote DB migration or migration repair without explicit approval.
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0035] Auto-captured decision: Pushed codex/money-fix and opened draft PR #9 for accounting v2.2. PR body uses artifacts/accounting-v2.2/pr_body.md and explicitly states remote DB migration/push/migration rep...
 - [H0034] Auto-captured decision: Added clean PR body artifact for accounting v2.2 draft PR creation.
 - [H0033] Auto-captured decision: v2.2 PR review package drafted. Added artifacts/accounting-v2.2/pr_review_package.md with draft PR title/body, evidence index, pre-remote go/no-go checklist, and explicit note t...
 - [H0032] Auto-captured decision: v2.2 legacy accounting base RPC search_path hardening added locally. Hardened public.rpc_create_accounting_invoice(no-membership base) and deprecated public.rpc_record_accountin...
 - [H0031] Auto-captured decision: v2.2 private accounting helper hardening migration added locally. Hardened private.assert_accounting_journal_entry_balanced, private.assert_invoice_revenue_allocation_capacity, ...
-- [H0030] Auto-captured decision: v2.2 legacy RPC search_path reachability classification added. Local-only inventory classifies current accounting SECURITY DEFINER residue: canonical/member-aware RPCs OK with p...
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
+- [H0035] PR/push completed, but remote DB migration remains unexecuted and must not be run without explicit approval.
 - [H0034] No new landmines reported in this chunk.
 - [H0033] PR body should mention remote DB migration not executed; do not include raw review package wrapper if manually copying only the PR body block.
 - [H0032] service_role execute intentionally retained for old base RPCs; do not revoke until wrapper/canonical internal calls and any deployment fallback paths are separately sunset.
 - [H0031] Old internal base RPCs are still intentionally not changed; invoice base is called by wrapper/canonical internals, so harden it only with focused local replay.
-- [H0030] Do not broad-sweep ALTER all SECURITY DEFINER functions; old invoice base RPC is still called internally by membership wrapper/canonical RPC, so harden/revoke only with focused local replay evidence.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0035] Next: review PR #9 and wait for explicit approval before any remote DB migration or migration repair.
 - [H0034] Push codex/money-fix and create draft PR using artifacts/accounting-v2.2/pr_body.md. Remote DB migration remains blocked until explicit approval.
 - [H0033] Next: after user approval, push codex/money-fix and open a draft PR using the review package. Do not run remote DB migration or migration repair without explicit approval.
 - [H0032] Next: review/commit this slice, then decide whether remaining non-accounting legacy site/proposal SECURITY DEFINER functions need separate classification, or pause for PR review. Remote DB migration/push remains blocked until explicit approval.
 - [H0031] Next: decide whether to harden old internal base RPCs rpc_create_accounting_invoice(no membership) and deprecated rpc_record_accounting_payment_allocation old create+allocate form, or pause for PR review. Remote DB migration/push remains blocked until explicit approval.
-- [H0030] Next: implement a narrow local migration for private helper/trigger search_path/grant hardening, then rerun PL invariants and RPC hardening evidence. Remote DB migration/push remains blocked until explicit approval.
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `16`
+- current_l3_entries: `17`
 - last_compacted_at: `2026-05-10 00:35:04 +0900`
 - archived_entries: `18`
 <!-- HANDOFF_L2_STATE_END -->
@@ -104,6 +104,7 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] Pushed codex/money-fix and opened draft PR #9 for accounting v2.2. PR body uses artifacts/accounting-v2.2/pr_body.md and explicitly states remote DB migration/push/migration repair were not executed.
 - [x] Added clean PR body artifact for accounting v2.2 draft PR creation.
 - [x] v2.2 PR review package drafted. Added artifacts/accounting-v2.2/pr_review_package.md with draft PR title/body, evidence index, pre-remote go/no-go checklist, and explicit note that remote DB migration/push/migration repair are not executed.
 - [x] v2.2 legacy accounting base RPC search_path hardening added locally. Hardened public.rpc_create_accounting_invoice(no-membership base) and deprecated public.rpc_record_accounting_payment_allocation(old create+allocate) to search_path=pg_catalog while keeping service_role compatibility and app-role direct execute revoked. Updated classification and added evidence artifact.
@@ -113,22 +114,22 @@ Phase: A-0/A-1
 - [x] v2.2 document/PDF/OCR/signed URL org boundaryを実装・証跡化。site documentsはdocuments.org_idで絞り、new storage_pathをorg_id/sites/site_id/documents配下に変更、unprefixed pathにはsigned_urlを出さず、accounting OCRはorg prefix外storage_pathをStorage download前に403で拒否。invoice PDF新規生成pathもorg prefix先頭に変更。local APIでforeign site documents/drawingsが404になることを確認
 - [x] v2.2 SECURITY DEFINER hardening local DB evidenceを追加。16 protected RPC signatureでpublic/anon/authenticated EXECUTE=false、service_role EXECUTE=trueを確認し、membership-aware/canonical 12本はsearch_path=pg_catalog、anon/auth直RPCはpermission denied、service_roleでもorg/user/membership不一致はRPC_MEMBERSHIP_REQUIREDで失敗することを確認
 - [x] v2.2 multi-org org boundary negative local API evidenceを追加。同一userがorg A/B両方所属、active org=Aでorg Bのtransaction/invoice/payment/document IDを渡すと対象APIが404を返し、org Aに会計/証憑rowが作られないことを確認
-- [x] v2.2 idempotency true-concurrent local HTTP evidenceを追加。fresh org + local serverで同一idempotency_keyのPOST /expensesを2本同時送信し、1成功/1 in_progress/完了後replay同一ID、row chain 1セットを確認
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: Push codex/money-fix and create draft PR using artifacts/accounting-v2.2/pr_body.md. Remote DB migration remains blocked until explicit approval.
+- [ ] **P0**: Next: review PR #9 and wait for explicit approval before any remote DB migration or migration repair.
+- [ ] **P1**: Push codex/money-fix and create draft PR using artifacts/accounting-v2.2/pr_body.md. Remote DB migration remains blocked until explicit approval.
 - [ ] **P1**: Next: after user approval, push codex/money-fix and open a draft PR using the review package. Do not run remote DB migration or migration repair without explicit approval.
 - [ ] **P1**: Next: review/commit this slice, then decide whether remaining non-accounting legacy site/proposal SECURITY DEFINER functions need separate classification, or pause for PR review. Remote DB migration/push remains blocked until explicit approval.
 - [ ] **P1**: Next: decide whether to harden old internal base RPCs rpc_create_accounting_invoice(no membership) and deprecated rpc_record_accounting_payment_allocation old create+allocate form, or pause for PR review. Remote DB migration/push remains blocked until explicit approval.
-- [ ] **P1**: Next: implement a narrow local migration for private helper/trigger search_path/grant hardening, then rerun PL invariants and RPC hardening evidence. Remote DB migration/push remains blocked until explicit approval.
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
+| `handoff/local.md` | PR creation handoff update |
 | `artifacts/accounting-v2.2/pr_body.md` | clean draft PR body for GitHub |
 | `artifacts/accounting-v2.2/pr_review_package.md` | draft PR body, evidence index, and pre-remote checklist |
 | `artifacts/accounting-v2.2/legacy_rpc_search_path_classification.md` | updated after legacy base RPC hardening |
@@ -148,7 +149,6 @@ Phase: A-0/A-1
 | `server/src/services/InvoicePdfService.ts` | org-prefixed invoice PDF path for new PDFs |
 | `server/src/routes/accounting.ts` | OCR storage_path org-prefix gate |
 | `server/src/routes/sites.ts` | site document org_id filter, org-prefixed upload path, signed URL prefix gate |
-| `artifacts/accounting-v2.2/security_definer_hardening_test.md` | SECURITY DEFINER hardening evidence |
 ---
 
 ## 6. Locked Files（編集中 - 他エージェント触らない）
@@ -183,11 +183,11 @@ cd frontend && npx eslint src/
 
 ## 9. Risks / Blockers
 
+- PR/push completed, but remote DB migration remains unexecuted and must not be run without explicit approval.
 - PR body should mention remote DB migration not executed; do not include raw review package wrapper if manually copying only the PR body block.
 - service_role execute intentionally retained for old base RPCs; do not revoke until wrapper/canonical internal calls and any deployment fallback paths are separately sunset.
 - Old internal base RPCs are still intentionally not changed; invoice base is called by wrapper/canonical internals, so harden it only with focused local replay.
 - Do not broad-sweep ALTER all SECURITY DEFINER functions; old invoice base RPC is still called internally by membership wrapper/canonical RPC, so harden/revoke only with focused local replay evidence.
-- `/pl` journal source must use explicit composite-FK relationship names after org_id FK additions, otherwise PostgREST returns ambiguous relationship PGRST201
 ---
 
 ## 10. References
@@ -491,3 +491,19 @@ cd frontend && npx eslint src/
   - `git diff --check=pass; gh auth status=authenticated; remote DB not used`
 - Landmines:
   - No new landmines reported in this chunk.
+
+### 2026-05-10 00:45:57 +0900
+
+- Entry-ID: `H0035`
+- Completed:
+  - [x] Pushed codex/money-fix and opened draft PR #9 for accounting v2.2. PR body uses artifacts/accounting-v2.2/pr_body.md and explicitly states remote DB migration/push/migration repair were not executed.
+- Remaining:
+  - [ ] Next: review PR #9 and wait for explicit approval before any remote DB migration or migration repair.
+- Changed Files:
+  - `handoff/local.md` - PR creation handoff update
+- Working Context:
+  - Auto-captured decision: Pushed codex/money-fix and opened draft PR #9 for accounting v2.2. PR body uses artifacts/accounting-v2.2/pr_body.md and explicitly states remote DB migration/push/migration rep...
+- Validation:
+  - `git push -u origin codex/money-fix=pass; gh pr create --draft=pass https://github.com/yuto-dayo/genba-quest/pull/9`
+- Landmines:
+  - PR/push completed, but remote DB migration remains unexecuted and must not be run without explicit approval.
