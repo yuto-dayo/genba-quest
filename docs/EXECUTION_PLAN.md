@@ -1,8 +1,10 @@
 # GENBA QUEST 実行計画（Single Source of Truth）
 
-最終更新: 2026-02-18
+最終更新: 2026-02-18（進捗率は次回オーナーレビュー要 — PATH governance / MonthClose / Communications / Invoice flow が並行進行中だが本計画には未反映）
 
 このドキュメントは「今どこまで実装されたか」と「次に何を実装するか」を一箇所で管理するための正本です。
+
+> **Phase A-0/A-1/B/C/D の位置付け**: 本計画では実装トラッキング用のタクティカル呼称として継続使用する。**思想・不変条件レベルの正本は `docs/DESIGN_PHILOSOPHY.md` 「実装フェーズ（並行進行中の現実）」セクション**（達成済み不変条件 / 進行中 / 守りたい次の不変条件 / 未着手 の4バケットモデル）。両者は別軸として併用する。
 
 ---
 
@@ -11,6 +13,7 @@
 - 長期構想は `docs/EVOLUTION_ROADMAP.md` を参照する
 - 日々の実行計画と進捗はこのファイルだけを更新する
 - セッションごとの詳細ログは `HANDOFF.md` に残す
+- Phase A-D に分類しにくい並行領域（PATH governance / MonthClose / Communications / Invoice flow）は §3.5 を参照
 
 ---
 
@@ -31,23 +34,23 @@
 ### A-0 MVP基盤（完了）
 
 - `proposals` / `ledger_events` / `ledger_transactions` / `ledger_entries` テーブル
-  - `server/sql/011_proposals.sql`
+  - `supabase/migrations/011_proposals.sql`
 - `ProposalService` CRUD/submit/approve/reject/execute 基本フロー
   - `server/src/services/ProposalService.ts`
 - PolicyテーブルとPolicyEngineの基本評価
-  - `server/sql/012_policies.sql`
+  - `supabase/migrations/012_policies.sql`
   - `server/src/services/PolicyEngine.ts`
 
 ### A-1 承認フロー（進行中）
 
 - 原子関数（DBトランザクション境界）
-  - `execute_proposal_atomic`: `server/sql/013_execute_proposal_atomic.sql`
-  - `approve_proposal_atomic`: `server/sql/014_approve_proposal_atomic.sql`
-  - `reject_proposal_atomic`: `server/sql/015_reject_proposal_atomic.sql`
-  - `pending` 用語統一 + 関数更新: `server/sql/016_pending_status_unification.sql`
-  - `assignment.create` の atomic副作用反映: `server/sql/017_execute_atomic_assignment_side_effects.sql`
-  - reward canonical guard: `server/sql/054_canonical_reward_guards.sql`
-  - explicit event type alignment (`assignment.update` / `assignment.cancel`): `server/sql/055_execute_proposal_explicit_event_types.sql`
+  - `execute_proposal_atomic`: `supabase/migrations/013_execute_proposal_atomic.sql`
+  - `approve_proposal_atomic`: `supabase/migrations/014_approve_proposal_atomic.sql`
+  - `reject_proposal_atomic`: `supabase/migrations/015_reject_proposal_atomic.sql`
+  - `pending` 用語統一 + 関数更新: `supabase/migrations/016_pending_status_unification.sql`
+  - `assignment.create` の atomic副作用反映: `supabase/migrations/017_execute_atomic_assignment_side_effects.sql`
+  - reward canonical guard: `supabase/migrations/054_canonical_reward_guards.sql`
+  - explicit event type alignment (`assignment.update` / `assignment.cancel`): `supabase/migrations/055_execute_proposal_explicit_event_types.sql`
 - stg/prod 適用Runbook（順序・検証項目を標準化）
   - `docs/DB_MIGRATION_RUNBOOK_A1.md`
 - 適用後の自動検証スクリプト
@@ -76,7 +79,7 @@
 ### B Sherpa統合（一部着手）
 
 - AI提案テーブルとRLS
-  - `server/sql/010_ai_proposals.sql`
+  - `supabase/migrations/010_ai_proposals.sql`
 - Sherpa APIルート存在
   - `server/src/routes/sherpa.ts`
 - Sherpa -> Proposal 作成API（AI actor固定、submit切替）
@@ -90,7 +93,7 @@
   - `server/src/scripts/verify-gmail-manual-e2e.ts`
 - AI自己承認禁止ゲート（サービス + SQL）
   - `server/src/services/PolicyEngine.ts`
-  - `server/sql/014_approve_proposal_atomic.sql`
+  - `supabase/migrations/014_approve_proposal_atomic.sql`
 
 ### C UI刷新（一部着手）
 
@@ -105,6 +108,27 @@
   - `frontend/src/components/SherpaChat.tsx`
 - 現場シミュレーターのアーキテクチャ計画を策定
   - `docs/PHASE_C_ASSIGNMENT_SIMULATOR_ARCHITECTURE.md`
+
+### 3.5 並行進行中の領域（Phase A-D に収まらない）
+
+これらは Phase A-D の線形配列に当てはまらず、複数Phase をまたいで稼働している。実装の正本は `server/src/services/` 配下と `docs/DESIGN_PHILOSOPHY.md` の「ドメイン構成」を参照。
+
+- **PATH governance V3.1 / V3.2** — 多Proposal集約決定、月次分配・skill認定・reward pool調整
+  - `server/src/services/PathV31Service.ts` / `PathV32SimpleRewardService.ts`
+  - `DeterministicPathReviewer.ts` / `PathPolicyBundleService.ts`
+  - 関連event: `path.site_close.finalized` / `path.skill_certification.decided` / `path.reward_run.approved` / `path.monthly_distribution.finalized`
+- **Month Close** — closed period の不可侵性、`month_closes` テーブル
+  - `site.close.finalize` / `site.close.reopen` Proposal type
+  - `server/src/services/SiteCompleteWithCloseService.ts`
+- **Communication ドメイン** — 顧客接点の review/task ループ
+  - `communication.review` / `communication.task` Proposal type
+  - `frontend/src/pages/Communications.tsx`
+  - `server/src/services/communication-contact-read-model.ts`
+- **Invoice flow（請求漏れゼロ MVPアウトカム直結）** — 発行/送付/入金確認
+  - `invoice.create` / `invoice.send` / `invoice.mark_paid` Proposal type
+  - `server/src/services/InvoiceEligibilityService.ts` / `InvoiceLineItemsService.ts` / `InvoicePdfService.ts`
+  - `frontend/src/components/InvoiceModal.tsx`
+- **LUQO** — `luqo.reward.calculate`（独自報酬DSL、reward.calculate と並列）
 
 ---
 
@@ -148,6 +172,15 @@
 1. 複数承認者ワークフロー高度化（委任含む）
 2. 監査ログビューア（Proposal/Event起点）実装
 3. 予算超過・ポリシー違反アラートを追加
+
+## M5: MVPアウトカム計測（最優先 — Phase 横断）
+
+`docs/DESIGN_PHILOSOPHY.md` で MVPアウトカムを「請求漏れゼロ + 黒字可視化」と明示済み。これを計測可能にする実装は Phase A-D の線形に乗らないため、独立Milestoneとして追跡する。
+
+1. **請求漏れゼロ計測** — 完了現場と未請求残の乖離を Money画面ダッシュボードで常時可視化
+2. **黒字可視化計測** — 現場別利益 / 月次PL を Money画面で1タップ参照可能に
+3. **closed month Guard の UI 側完備** — 既存API資産を活かし UI 側から書き換え禁止を物理化
+4. **Sherpa output 透明性の徹底**（Calm Cockpit #5）— 全AI出力に Proposal/根拠/影響/承認パスを必須化
 
 ---
 
