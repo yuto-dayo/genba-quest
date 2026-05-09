@@ -38,6 +38,8 @@ Implemented and locally verified the first v2.2 slice:
 - `/payments` uses canonical payment receipt posting when the RPC is available and falls back to the legacy payment-event RPC plus route-side transition lineage when it is not
 - `rpc_allocate_accounting_payment_canonical` creates transition `payment.allocate` lineage, proposal execution, `payment_allocation` posting group, balanced no-PL-revenue journal, and payment allocation projection metadata
 - `/payments/allocations` uses canonical payment allocation posting when the RPC is available and falls back to the legacy allocation RPC plus route-side transition lineage when it is not
+- `rpc_create_accounting_invoice_canonical` creates transition `invoice.create` lineage, proposal execution, and optional `invoice_transfer` posting group for contract-asset/unbilled-receivable to AR transfer without PL revenue
+- `20260506043949_add_private_site_drawings.sql` now skips Storage bucket/object policy setup when local Supabase Storage metadata tables are disabled, while preserving the Storage setup on environments where `storage.buckets` / `storage.objects` exist
 
 ## Commands
 
@@ -50,7 +52,11 @@ cd frontend && npx tsc -b --pretty false
 scripts/db/check-sql-boundaries.sh
 git diff --check
 supabase status
-supabase migration up
+supabase migration up --local
+supabase db query --local "select version, name from supabase_migrations.schema_migrations where version >= '20260506000000' order by version;"
+supabase db query --local "select proname, prosecdef, proconfig::text as proconfig from pg_proc where pronamespace = 'public'::regnamespace and proname in ('rpc_post_accounting_sale_canonical','rpc_reverse_accounting_sale_canonical','rpc_post_accounting_expense_canonical','rpc_record_accounting_payment_event_canonical','rpc_allocate_accounting_payment_canonical','rpc_create_accounting_invoice_canonical') order by proname;"
+supabase db query --local "select p.proname, r.rolname, has_function_privilege(r.rolname, p.oid, 'EXECUTE') as can_execute from pg_proc p cross join (values ('public'), ('anon'), ('authenticated'), ('service_role')) as r(rolname) where p.pronamespace='public'::regnamespace and p.proname in ('rpc_post_accounting_sale_canonical','rpc_reverse_accounting_sale_canonical','rpc_post_accounting_expense_canonical','rpc_record_accounting_payment_event_canonical','rpc_allocate_accounting_payment_canonical','rpc_create_accounting_invoice_canonical') order by p.proname, r.rolname;"
+supabase db query --local "DO \$\$ BEGIN PERFORM public.rpc_create_accounting_invoice_canonical(gen_random_uuid(), ARRAY[gen_random_uuid()], gen_random_uuid(), 'standard_invoice', current_date, current_date, current_date, 'Test', null, null, null, '{}'::jsonb, null, null, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, gen_random_uuid(), gen_random_uuid(), 'expected-failure', null); RAISE EXCEPTION 'UNEXPECTED_RPC_SUCCESS'; EXCEPTION WHEN OTHERS THEN IF SQLERRM = 'UNEXPECTED_RPC_SUCCESS' THEN RAISE; END IF; RAISE NOTICE 'expected failure sqlstate=%, message=%', SQLSTATE, SQLERRM; END \$\$;"
 ```
 
 ## Expected Failure Contracts Covered By This Slice
@@ -87,6 +93,7 @@ supabase migration up
 - Canonical payment allocation must enforce invoice open amount and payment unapplied amount before inserting allocation rows.
 - Canonical payment allocation must return `projection_source=canonical_posting_projection`, `proposal_execution_id`, `posting_group_id`, and `journal_entry_id`.
 - Canonical payment allocation must not create a duplicate route-side transition proposal when the RPC already returns proposal lineage.
+- Canonical invoice transfer must expose only service-role execution, fixed `search_path=pg_catalog`, and `RPC_MEMBERSHIP_REQUIRED` on missing membership.
 
 ## Result
 
@@ -122,15 +129,25 @@ supabase migration up
 - Frontend TypeScript after PL source typing: pass
 - SQL boundary check: pass
 - Whitespace check: pass
-- Local `supabase migration up`: blocked before the new canonical sales migration by pre-existing pending migration `20260506043949_add_private_site_drawings.sql` because the current local DB lacks `storage.buckets`. Remote migration was not executed.
+- Local `supabase migration up --local`: pass through `20260509135652_canonical_invoice_transfer_posting_rpc`
+- Storage-disabled local migration compatibility: pass; `site_drawings` / `site_drawing_versions` created while `storage.buckets` / `storage.objects` remain absent because local `[storage] enabled = false`
+- Canonical accounting RPCs: present in local DB, `SECURITY DEFINER = true`, `search_path=pg_catalog`
+- Canonical accounting RPC execute grants: `public=false`, `anon=false`, `authenticated=false`, `service_role=true`
+- Missing-membership canonical invoice RPC expected failure: pass, `RPC_MEMBERSHIP_REQUIRED`
+- Remote migration was not executed.
 
 ## Row Counts / Checksums
 
-- Row counts: not_applicable_local_dry_run
+- Row counts:
+  - local migration history since 2026-05-06: 18 applied rows
+  - canonical accounting RPCs checked: 6 rows
+  - accounting_transactions v2.2 projection/reimbursement columns checked: 15 rows
+  - RLS-enabled v2.2/accounting/site drawing tables checked: 6 rows
 - Before checksum: not_applicable_local_dry_run
 - After checksum: not_applicable_local_dry_run
 
 ## Notes
 
-- This artifact is local evidence only. DB integration evidence against a real Supabase database still needs explicit approval before remote execution.
+- This artifact is local evidence only. Remote DB integration evidence still needs explicit approval before any remote execution.
 - Existing legacy service-role RPC signatures remain available for compatibility but are also revoked from `public`, `anon`, and `authenticated`.
+- The local Storage compatibility fix does not create fake Storage tables; it only guards Storage-specific bucket/policy statements when local Supabase Storage is disabled.
