@@ -1,178 +1,189 @@
 ---
 name: phase-progress-checker
-description: DAO実装フェーズ（A-0, A-1, B, C, D）の進捗確認。各フェーズの完了条件チェックと次ステップ提案。
+description: GENBA QUEST 実装進捗の確認と次の一手提案。達成済み不変条件 / 進行中 / 守りたい次の不変条件 / 未着手 を philosophy に沿って点検し、優先度順アクションを返す。「今どこまで進んだ？」「次は何を優先すべき？」に答える。
 ---
 
-# Phase Progress Checker
+# Implementation Progress Checker
 
-DAO実装フェーズの進捗状況を確認し、次のアクションを提案します。
+GENBA QUEST の実装進捗を、`docs/DESIGN_PHILOSOPHY.md` の「実装フェーズ（並行進行中の現実）」フレームで点検する。
+旧Phase A-0/A-1/B/C/D は線形ロードマップとして廃止済み。本スキルは **不変条件4層** で現在地を記述する。
 
 ## 使用タイミング
 
 - スプリント計画時
-- 実装状況の確認時
-- 「今どこまで進んでる？」と聞かれた時
+- 「DAO実装どこまで進んでる？」「今どこ？」と聞かれた時
+- 「次に何を優先すべき？」と聞かれた時
+- philosophy doc 更新後の整合確認
 
-## フェーズ定義
+## 4 層フレーム
 
-### Phase A-0: MVP基盤（ログ記録）
+### 1. 達成済み不変条件（Locked-in）
 
-**完了条件:**
-- [ ] `proposals` テーブル存在
-- [ ] ProposalService CRUD実装
-- [ ] 全状態変更がProposal経由でログ記録
+回帰させてはいけない条件。コードレビューでもチェック対象。
 
 **検証コマンド:**
 ```bash
-# テーブル確認
-Grep: "CREATE TABLE.*proposals" path="server/sql"
+# proposals テーブル起点
+Grep: "CREATE TABLE.*proposals" path="supabase/migrations"
 
-# Service確認
-Grep: "class ProposalService|ProposalService" path="server/src"
+# Policy評価が承認APIの最終ゲート
+Grep: "PolicyEngine|canApprove" path="server/src/services"
 
-# 直接DB操作の残存確認（0件が理想）
-Grep: "\.update\(|\.insert\(" path="server/src/routes" --exclude="*proposal*"
+# Actor区別（human/ai/integration/system）
+Grep: "ActorRef|actor\.type|created_by\.type" path="server/src"
+
+# AI自己承認禁止ゲート
+Grep: "AI_SELF_APPROVAL|self.?approval" path="server/src" -i
+
+# pending含む承認フロー稼働
+Grep: "status.*pending|status.*approved|status.*executed" path="server/src/routes"
+
+# LedgerEvent / Transaction / Entry のダブルエントリー
+Grep: "ledger_events|ledger_transactions|ledger_entries" path="supabase/migrations"
+
+# トランザクション境界（RPC）
+Grep: "approve_proposal_atomic|execute_proposal_atomic" path="supabase/migrations"
+
+# Sherpa Chat 稼働
+Glob: "**/SherpaChat*.tsx" path="frontend/src"
+Glob: "**/FloatingActionButton*.tsx" path="frontend/src/components"
+
+# PATH governance V3.1/V3.2
+Glob: "**/PathV3*Service.ts" path="server/src/services"
+
+# MonthClose テーブル
+Grep: "CREATE TABLE.*month_closes|month_closes" path="supabase/migrations"
 ```
 
-### Phase A-1: 承認フロー
+### 2. 進行中（In flight）
 
-**完了条件:**
-- [ ] PolicyEngine実装
-- [ ] 承認ルール（金額閾値）動作
-- [ ] 承認UI実装
+実装中。完成度はバラつくため、画面/機能単位で進捗を確認する。
 
 **検証コマンド:**
 ```bash
-# PolicyEngine確認
-Grep: "PolicyEngine|getApprovalPolicy" path="server/src"
+# Inline Suggestion / 育つフォーム
+Grep: "InlineSuggestion|suggestion|prefill" path="frontend/src" -i
 
-# 金額閾値定義
-Grep: "5000|30000" path="server/src" glob="*policy*"
+# Calm Cockpit 5原則の適用
+Grep: "Calm Cockpit|Decision-first|Direct.*Sherpa" path="design-system"
 
-# 承認API
-Grep: "approve|/proposals/.*/approve" path="server/src/routes"
+# Invoice flow（請求漏れゼロMVPに直結）
+Glob: "**/InvoiceModal*.tsx" path="frontend/src/components"
+Grep: "invoice\.create|invoice\.send|invoice\.mark_paid" path="server/src/services"
+
+# Communication review/task ループ
+Glob: "**/Communications*.tsx" path="frontend/src/pages"
+Grep: "communication\.review|communication\.task" path="server/src/services"
+
+# PATH governance Read Model
+Glob: "**/PathRewardAnalysis*.ts" path="server/src/services"
+Glob: "**/PathRewardConfirmation*.tsx" path="frontend/src/pages"
 ```
 
-### Phase B: Sherpa統合 + AI制約
+### 3. 守りたい次の不変条件（Next gates）
 
-**完了条件:**
-- [ ] AI自己承認禁止ゲート実装
-- [ ] SherpaからProposal生成
-- [ ] AI提案→人間承認フロー
-- [ ] Orchestrator + SubAgents アーキテクチャ実装
-- [ ] 各SubAgentのskill.md定義
-- [ ] integration actor（Gmail等）→ Proposal連携
+完了したら Locked-in に昇格。MVPアウトカム達成のために最優先。
 
 **検証コマンド:**
 ```bash
-# AI自己承認禁止
-Grep: "AI_SELF_APPROVAL|自己承認禁止" path="server/src"
+# 請求漏れゼロ計測（完了現場と未請求残の乖離可視化）
+Grep: "unbilled|missing_invoice|invoice.*gap" path="frontend/src" -i
+# → ヒット0件なら未着手
 
-# Sherpa→Proposal連携
-Grep: "sherpa.*proposal|proposal.*sherpa" path="server/src" -i
+# 黒字可視化計測（現場別利益・月次PL）
+Grep: "monthly_pl|site_profit|profit.*site" path="frontend/src" -i
+# → ヒット0件なら未着手
 
-# Actor type チェック
-Grep: "actor.type.*ai|created_by.type" path="server/src"
+# closed month の Guard（UI/API両側での書き換え拒否）
+Grep: "isClosedMonth|month_close.*guard|MONTH_CLOSE_LOCKED" path="server/src"
 
-# Orchestrator/SubAgent構造
-Grep: "Orchestrator|SubAgent|IntentRouter" path="server/src"
+# AI Suggestion の可逆性（無視/Undoがワンタップ）
+Grep: "undoSuggestion|revertSuggestion|suggestion.*undo" path="frontend/src"
 
-# skill.md定義
-Glob: "**/skill.md" path="server/src"
+# Sherpa output の透明性（proposal_id/evidence/impact/approval path）
+Grep: "evidence|impact|approval_path" path="server/src/services" glob="*Sherpa*"
+
+# 本番運用ゲート
+Glob: "**/runbooks/*" path="docs"
+Grep: "alert|monitoring" path="docs/runbooks"
 ```
 
-### Phase C: UI刷新
+### 4. 未着手の高度化候補
 
-**完了条件:**
-- [ ] 4画面構成（Today / Calendar / Sites / Money）
-- [ ] FAB Sherpaチャット
-- [ ] 承認待ちリストUI
-- [ ] 提案詳細モーダル
-- [ ] ワンタップ承認/却下
-- [ ] Direct Manipulation vs Conversational UI 原則の適用
-- [ ] リアルタイム更新
+優先度低。MVPアウトカム（請求漏れゼロ + 黒字可視化）に直結しないもの。
 
-**検証コマンド:**
-```bash
-# 4画面構成
-Glob: "**/Today*.tsx" path="frontend/src/pages"
-Glob: "**/Calendar*.tsx" path="frontend/src/pages"
-Glob: "**/Sites*.tsx" path="frontend/src/pages"
-Glob: "**/Money*.tsx" path="frontend/src/pages"
+- AIによる自動承認の範囲拡大（閾値ベース → 文脈ベース）
+- Policy Editor（ルール変更UI）
+- 監査ダッシュボード
+- 複数組織横断
+- integration actor 本格運用（Gmail/銀行APIの自動化深掘り）
 
-# FAB Sherpa
-Grep: "FloatingAction|FAB|sherpa" path="frontend/src/components"
-
-# 承認UI
-Glob: "**/Approval*.tsx" path="frontend/src"
-
-# Proposalコンポーネント
-Grep: "proposal|Proposal" path="frontend/src/components"
-```
-
-### Phase D: 高度機能
-
-**完了条件:**
-- [ ] 複数承認者ワークフロー
-- [ ] 承認委任機能
-- [ ] 監査ログビューア
-- [ ] 予算超過アラート
-
-**検証コマンド:**
-```bash
-# 複数承認
-Grep: "required_approvers|approval_count" path="server/src"
-
-# 監査ログ
-Grep: "audit|AuditLog" path="server/src"
-```
+これらは検証コマンドではなく、Linear / GitHub Issues で別タスクとして追跡。
 
 ## 出力フォーマット
 
 ```markdown
-## DAO実装進捗レポート
+## GENBA QUEST 実装進捗レポート
 
-### 現在のフェーズ: A-1（承認フロー）
+### 1. 達成済み不変条件（回帰NG）
 
-| Phase | Status | Progress |
-|-------|--------|----------|
-| A-0 MVP基盤 | ✅ 完了 | 100% |
-| A-1 承認フロー | 🔄 進行中 | 60% |
-| B Sherpa統合 | ⏳ 未着手 | 0% |
-| C UI刷新 | ⏳ 未着手 | 0% |
-| D 高度機能 | ⏳ 未着手 | 0% |
+- ✅ Proposal 中心の状態変更（`proposals` テーブル起点）
+- ✅ Policy評価 = 承認APIの最終ゲート（`PolicyEngine`）
+- ✅ Actor区別 4種（human/ai/integration/system）
+- ✅ AI自己承認禁止ゲート（`canApprove` 二段構造）
+- ✅ pending含む承認フロー稼働
+- ✅ ダブルエントリー Ledger（events/transactions/entries）
+- ✅ トランザクション境界（RPC `approve_proposal_atomic` 等）
+- ✅ Sherpa Chat（FAB起動）
+- ✅ PATH governance V3.1/V3.2
+- ✅ MonthClose（`month_closes` テーブル）
 
-### Phase A-1 詳細
+### 2. 進行中（In flight）
 
 | 項目 | Status | 備考 |
 |------|--------|------|
-| PolicyEngine | ✅ | server/src/services/PolicyEngine.ts |
-| 金額閾値ルール | ✅ | 5000/30000円で動作確認済 |
-| 承認API | 🔄 | POST /proposals/:id/approve 実装中 |
-| 承認UI | ❌ | 未着手 |
+| Invoice flow | 🔄 | InvoiceModal実装済、請求漏れ計測未 |
+| Communication review/task | 🔄 | Communications.tsx 稼働中 |
+| Inline Suggestion / 育つフォーム | 🔄 | ExpenseModal で部分実装 |
+| PATH governance Read Model | 🔄 | PathRewardConfirmation で可視化中 |
+| Calm Cockpit 5原則の全画面適用 | 🔄 | Today / Calendar 中心に進行 |
 
-### 次のアクション
+### 3. 守りたい次の不変条件（Next gates） — MVPアウトカム直結
 
-1. 承認APIの完成（残り: レビュワー割当ロジック）
-2. フロントエンド承認ボタン実装
-3. E2Eテスト追加
+| ゲート | Status | 次の一手 |
+|-------|--------|---------|
+| 請求漏れゼロ計測 | ❌ 未着手 | Money画面に未請求残ダッシュボード追加 |
+| 黒字可視化計測 | ❌ 未着手 | 現場別利益 / 月次PL の1タップ参照 |
+| closed month Guard | 🔄 部分 | UI側Guard追加、API側は実装済 |
+| AI Suggestionの可逆性 | ❌ 未着手 | Undo / 無視の挙動を Suggestion 層に組み込み |
+| Sherpa output 透明性 | 🔄 部分 | proposal_id/evidence は揃う、impact/approval pathが不揃い |
+| 本番運用ゲート | 🔄 | 監視アラート連携・Runbook演習が要 |
+
+### 推奨される次の一手（優先度順）
+
+1. **請求漏れゼロ計測** の実装（MVPアウトカム #1 に直結、未着手）
+2. **黒字可視化計測** の実装（MVPアウトカム #2 に直結、未着手）
+3. **closed month Guard** の UI側実装完了（既存API資産を活かす）
+4. **AI Suggestion の可逆性** 確立（Inline Suggestion 本実装の前提条件）
 
 ### ブロッカー
 
-- なし
+- なし（要確認: 本番運用ゲートのRunbook演習スケジュール）
 ```
 
 ## 使用例
 
-**ユーザー:** 「DAO実装どこまで進んでる？」
+**ユーザー:** 「DAO実装どこまで進んでる？」「次は何を優先すべき？」
 
-**実行:**
-1. 各フェーズの検証コマンドを実行
-2. 結果を集計
-3. 進捗レポート出力
+**実行手順:**
+1. 各層の検証コマンドを実行（並列OK）
+2. 結果を4バケットに分類
+3. MVPアウトカム（請求漏れゼロ / 黒字可視化）に最も近い未達成項目を「次の一手」として優先度順に並べる
+4. 上記フォーマットで出力
 
 ## 関連スキル
 
-- `genba-quest-dao-principles` - フェーズ定義の確認
-- `dao-impl-checker` - 実装品質の検証
-- `design-executor` - 次フェーズの実装計画
+- `genba-quest-dao-principles` — 不変条件の定義（コードレビュー時の根拠）
+- `dao-impl-checker` — Proposalトランザクション・自己承認禁止の実装品質検証
+- `directing-continuous-improvement` — ディレクター視点で「現在の形」を判断
+- `incremental-handoff` — 進捗レポートを HANDOFF.md に追記
