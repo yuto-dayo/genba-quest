@@ -149,7 +149,6 @@ When creating new skills in `.claude/skills/`:
 このプロジェクトは複数のAIエージェントで作業可能：
 - **Claude Code**: `.claude/` (skills + settings)
 - **Codex**: `AGENTS.md` (project instructions)
-- **Cursor**: `.cursor/rules/`
 - **Gemini CLI**: `GEMINI.md` + `.gemini/commands/`
 - **Antigravity (Gemini)**: `.agent/skills/` (symlink to `.claude/skills/`)
 
