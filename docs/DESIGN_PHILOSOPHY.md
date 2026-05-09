@@ -56,6 +56,14 @@
 | ActorRef types | 4 | 1 | 0.80 | 中程度 | 全Proposalで使用中 |
 | 2テーブル圧縮 | 2 | 1 | 0.67 | 不足 | Phase 2で本格実装予定 |
 | 段階的フェーズ移行 | 3 | 1 | 0.75 | 中程度 | A-0完了で1回検証 |
+| Input-zero / Decision-human | 2 | 1 | 0.67 | 不足 | UX原則として採用、dogfooding待ち |
+| Cursor Tab的提案体験 | 2 | 1 | 0.67 | 不足 | Inline Suggestion 未実装 |
+| Sherpa Chatは最終手段（常駐させない） | 2 | 1 | 0.67 | 不足 | 現実装と方向性を要確認（要決定事項） |
+| 育つフォーム | 2 | 1 | 0.67 | 不足 | ExpenseModal等で部分実装 |
+| MonthClose 不可侵性 | 3 | 1 | 0.75 | 中程度 | `month_closes` テーブル + PATH governance で実装 |
+| PATH governance（多Proposal集約決定） | 3 | 1 | 0.75 | 中程度 | V3.1/V3.2 で運用中 |
+| 請求漏れゼロ（MVP outcome） | 2 | 1 | 0.67 | 不足 | Invoice flow 実装中、未計測 |
+| 黒字可視化（MVP outcome） | 2 | 1 | 0.67 | 不足 | Money画面で部分実装、未計測 |
 
 > **更新ルール**: 人間が主観で α/β を変更してはならない。
 > 観測は `principle_observations` テーブルに自動記録される。
@@ -69,6 +77,129 @@
 **DAO的な透明性** と **AIによる最小限の人的介入** で成立させる。
 
 > 「近未来に自然に存在しているはずの仕事用OS」
+
+### MVPアウトカム（ユーザー側から見たゴール）
+
+抽象的な「透明性」を職人ユーザー視点に翻訳すると、MVPで達成したいのは2つだけ：
+
+1. **請求漏れゼロ** — やった仕事が必ず請求につながる。完了現場と未請求残が乖離しない
+2. **黒字可視化** — 現場ごとに利益が見える。月単位で黒字/赤字が即座に分かる
+
+その他の機能（Sherpa、PATH governance、報酬分配、Communication 等）はすべて、この2つを支える / 拡張するためのもの。
+**MVPで判断に迷ったら「請求漏れゼロ / 黒字可視化に効くか」で切る。**
+
+### 人間とAIの役割観
+
+職人も事務もオーナーも、本当はちゃんと考えている。
+「この経費はあの現場のやつだ」「先月もこの駐車場使った」「これは立替だ」と頭では分かっている。
+
+ただ、**入力する暇がない / 月末まで覚えていられない / 過去を遡って参照できない**、だけ。
+
+→ 人間に足りないのは「思考」ではなく「処理帯域・記憶・参照速度」。
+→ AIはそこを補完する装置であって、判断を代行する装置ではない。
+
+GENBA QUESTのAIは、ユーザーが既にやっている思考に追いつくための処理帯域である。
+判断の主体は常に人間（とProposal）で、AIはその思考が形になる速度を上げる。
+
+---
+
+## UX原則（人間中心の設計）
+
+UI design 側の正本は `design-system/genba-quest/MASTER.md`（Calm Cockpit / Work OS）。
+本セクションは Calm Cockpit の5原則を philosophy 側で再宣言し、AI/Suggestion の挙動原則と統合する。
+
+### Calm Cockpit 5原則（design-system/genba-quest/MASTER.md より）
+
+1. **Calm density** — 有用な情報は常に見える、副次UIは静かに
+2. **Decision-first** — 次の判断/答えから出す。機能訴求から始めない
+3. **Expressive only for decisions** — 強い色/形/モーションは承認・警告・締め・報酬確定にだけ使う
+4. **Direct + Sherpa split** — 頻繁で単純な操作は Direct UI / 複雑な多段操作は Sherpa
+5. **Transparent automation** — Sherpa/AI出力は提案内容・根拠・影響・承認/再試行パスを必ず示す
+
+### 1. Input-zero / Decision-human（Calm Cockpit #2 の言い換え）
+
+**判断は奪わない。入力と確認を奪う。**
+
+- **判断** = 何をするか、誰がやるか、いくらか → 人間 + Proposal が決める
+- **入力** = タイピング、コピペ、画面遷移、思い出し → AIが消す
+- **確認** = 整合性、過去比較、根拠提示 → AIが先回りして提示する
+
+人間に足りないのは「思考」ではなく「処理帯域・記憶・参照速度」。
+AIは帯域を渡す装置であって、判断を代行する装置ではない。
+
+「人間が考えていないことはAIもやらない」「考えているけど追いつかない部分だけAIが代行する」。
+
+### 2. Cursor Tab的な提案体験
+
+AIの提案は、Cursor の Tab補完が守っている4性質に従う：
+
+1. **無視できる** — 受け入れないときの認知負荷がゼロ
+2. **即時** — 思考のリズムを邪魔しない
+3. **狭い** — 一度に一つの提案
+4. **直近文脈駆動** — いま画面に出ている文脈から予測する
+
+これを破る提案は撤退の対象。
+
+### 3. Suggestion 4分類 + Sherpa Chat（UI親密度で切る）
+
+AIの介入は親密度で5レベルに分ける。混ぜない。
+
+| 種類 | 親密度 | 例 | 受け入れ操作 | 失敗コスト |
+|------|--------|------|-------------|-----------|
+| **Inline Suggestion** (Tab補完) | 最強 | 経費入力中の勘定科目候補 | Tap / Tab | 無視で消える |
+| **Next Action Card** (次の一手) | 中 | 「未締め現場が3件」 | カードをタップ | 邪魔だが致命的でない |
+| **Why Tooltip** (説明) | 弱 | 報酬額の根拠 | 任意で開く | 出さないと気付かれない |
+| **Guard** (警告/停止) | 強制 | closed month変更の阻止 | 必ず通る | 出し損ねが致命的 |
+| **Sherpa Chat** (多段対話) | 呼出時のみ | 「先月の駐車場代を全部立替に振替」 | FABから明示起動 | チャット履歴に残る |
+
+**Sherpa Chat の役割（Calm Cockpit #4 と整合）:**
+
+- **Direct UI で完結する単純操作には介入しない**（経費1件登録、ドラッグでアサイン変更等）
+- **複雑な多段操作 / 自然言語のほうが速い操作は Sherpa が担う**（「田中さん来週月曜A現場」、「先月の電気代カテゴリ修正」等）
+- 常駐するが、ユーザーから明示的に呼ばれるまで会話を始めない
+- 出力には必ず Proposal 内容・根拠・影響・承認/再試行パスを含める（Calm Cockpit #5）
+
+### 4. 育つフォーム
+
+最初から全フィールドを表示しない。文脈に応じて展開する。
+
+- 最初に出すのは1〜2フィールド（経費なら写真+金額だけで成立）
+- AIが埋めた箇所は視覚的に区別（薄いハイライト、確定でプレーンに変わる）
+- 未確定でも保存可能。後から誰かが補完できる前提
+- 必須マークは入力途中で押し付けない
+
+整合性チェック（借方=貸方など）は入力UIではなく、**Proposal validation 側で合流**させる。
+入力UIは緩く、Proposal確定時に厳格に。これで DAO原則とも揃う。
+
+### 5. AIの境界線
+
+| カテゴリ | AI単独 | AI起案 + 人承認 | 人専用 |
+|---------|--------|----------------|--------|
+| 候補提示・OCR・Why説明 | ✅ | — | — |
+| 未入力検知・整合性警告 | ✅ | — | — |
+| Draft Proposal生成 | — | ✅ | — |
+| 立替→経費振替 | — | ✅ | — |
+| 報酬run draft計算 | — | ✅ | — |
+| 報酬run確定 | ❌ | ❌ | ✅ |
+| closed month変更 | ❌ | ❌ | ✅ |
+| posted journal直接更新 | ❌ | ❌ | ❌（誰もできない） |
+| AI起案Proposalの承認 | ❌ | ❌ | ✅（起案者と別人） |
+| PATH governance event 発行 | ❌ | ❌ | ✅（複数Proposal集約後の自動trigger可） |
+
+「AI自己承認禁止」と整合する。詳細は後段の Actor Types / 自動承認レンジ を参照。
+
+### 6. アナログ性のガードレール（Calm Cockpit #1 + #3 の運用面）
+
+「見れば分かる、押せば終わる」を守るため：
+
+- AIが何をしたかを常に表示。ワンタップで消せる（Calm Cockpit #5: Transparent automation）
+- AI遅延でクリティカルパスを止めない（候補なしでも入力は通る）
+- Inline Suggestionは受け入れるまで何も起きない（誤爆ゼロ）
+- Undoは1ステップ
+- オフライン/低速時の縮退（OCRは後回し、入力は通る）
+- 強い色/形/モーションは承認・警告・締め・報酬確定にだけ（Calm Cockpit #3: Expressive only for decisions）
+
+→ **AIは強化機能であって、クリティカルパスではない。**
 
 ---
 
@@ -149,69 +280,17 @@ AIの制約:
 - **読み取りモデル**: View定義（SQL/Materialized View）で自由に生成
 - ドメイン追加 = View定義追加（スキーマ変更なし）
 
-```typescript
-// 1コアの思想
-interface Event {
-  id: string;
-  proposal_id: string;
-  event_type: string;        // 'expense.created' | 'assignment.created' | ...
-  payload: JsonB;            // ドメイン固有データ
-  occurred_at: timestamp;
-}
-
-// Viewで解釈
-CREATE VIEW expenses AS
-SELECT
-  e.id,
-  e.payload->>'amount' as amount,
-  e.payload->>'site_id' as site_id,
-  e.occurred_at as created_at
-FROM events e
-WHERE e.event_type = 'expense.created';
-```
+Eventは `proposal_id`, `event_type`, `payload(JSON)`, `occurred_at` を持つ追記レコード。
+ドメイン別ビュー（expenses, assignments, ...）は `event_type` でフィルタした射影として定義する。
+具体スキーマは [PROPOSAL_SYSTEM.md](./PROPOSAL_SYSTEM.md) / [LEDGER_SYSTEM.md](./LEDGER_SYSTEM.md) を参照。
 
 ### Policy DSL：Single Source of Truth
 
-**問題:** 今のPolicyEngineはTypeScriptでif文を書いている。
-ルールが散らばり、テストとの乖離が生まれる。
+**問題:** PolicyルールがTypeScriptのif文に散らばると、コード・DB制約・テスト・ドキュメントが乖離する。
 
-**解決:** Policy専用のミニ言語を作り、そこから全てを生成する。
+**解決の方向:** Policyルールを宣言的な単一の真実源（YAML/DSL等）で管理し、そこから判定関数・DB制約・テスト・ドキュメントを派生させる。
 
-```yaml
-# policies/expense.yaml（人間が書く唯一の場所）
-expense.create:
-  auto_approve:
-    when:
-      amount: "<= 5000"
-
-  single_approval:
-    when:
-      amount: "> 5000 AND <= 30000"
-    approvers:
-      roles: [member, admin]
-      ai_allowed: true
-
-  dual_approval:
-    when:
-      amount: "> 30000"
-    approvers:
-      roles: [admin]
-      ai_allowed: false
-      count: 2
-```
-
-**自動生成されるもの:**
-
-1. **TypeScript判定関数** - PolicyEngine.ts
-2. **PostgreSQL CHECK制約** - migration.sql
-3. **テストケース** - policy.test.ts
-4. **ドキュメント** - POLICY_RULES.md
-
-```
-人間 → YAML → コンパイラ → [TS, SQL, Test, Docs]
-                 ↓
-         「一箇所変えれば全部変わる」
-```
+書き方の具体（YAML/JSON/独自DSL）はフェーズに応じて選ぶ。重要なのは「ルールを書く場所が1つ」であること。具体は [POLICY_SYSTEM.md](./POLICY_SYSTEM.md) を参照。
 
 ### なぜこれが「天才ムーブ」か
 
@@ -266,85 +345,88 @@ MVPルール: 1ユーザー操作 = 1 Proposal
 
 **鉄則: 「承認 + Event発行 + 状態更新」は1つのDBトランザクション**
 
-```typescript
-await db.transaction(async (tx) => {
-  // 1. Proposal承認
-  await tx.update(proposals).set({ status: 'approved' }).where(eq(proposals.id, proposalId));
+実装手段は問わない（RPC関数・ORMトランザクション・ストアド等）が、次の不変条件は守る：
 
-  // 2. LedgerEvent/Transaction/Entry 作成
-  const eventId = await tx.insert(ledgerEvents).values({ ... });
-  await tx.insert(ledgerTransactions).values({ ... });
-  await tx.insert(ledgerEntries).values(entries);
-
-  // 3. Proposal実行完了
-  await tx.update(proposals).set({
-    status: 'executed',
-    executed_at: now(),
-    result_event_id: eventId
-  });
-});
-```
-
-**なぜこうするか:**
-
-- 途中で落ちたら「未承認 / 未実行」にロールバック
-- 「approvedだけされたけどEventが無い」ゾンビ状態が理論上消える
-- `POST /proposals/:id/execute` は「実行前」か「実行済」の二択だけ見ればいい
+- 途中で落ちたら「未承認 / 未実行」にロールバックされる
+- 「approvedだけされたけどEventが無い」ゾンビ状態が構造的に存在し得ない
+- 実行APIは「実行前」か「実行済」の二択だけ見ればよい状態を保つ
 
 ### 冪等性（Idempotency）
 
-```typescript
-// Proposal実行は必ず冪等
-POST /api/v1/proposals/:id/execute
+Proposal実行は必ず冪等。同じProposalを2回実行しても結果は変わらない。
 
-// 実装
-if (proposal.executed_at) {
-  return { status: 'already_executed', event_id: proposal.result_event_id };
-}
-// 実行処理...（トランザクション内）
-```
+- 実行済フラグ（`executed_at` 等）で重複実行を弾く
+- Event ID は `proposal_id + version` から決定的に生成し、二重発行を物理的に防ぐ
 
-**なぜこうするか:**
-
-- ワーカー分散時の二重実行防止
-- リトライ安全
-- event_id = hash(proposal_id + version) で決定的生成
+**なぜこうするか:** ワーカー分散時の二重実行防止、リトライ安全性、外部integrationの at-least-once 受信への耐性。
 
 ---
 
 ## ドメイン構成
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    GENBA QUEST                          │
-├─────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐     │
-│  │   Policy    │  │  Proposal   │  │   Sherpa    │     │
-│  │  （憲法）    │  │  （提案）    │  │   （AI）    │     │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘     │
-│         │                │                │            │
-│         ▼                ▼                ▼            │
-│  ┌─────────────────────────────────────────────────┐   │
-│  │              Governance Layer                    │   │
-│  │         （承認・投票・ルール適用）                  │   │
-│  └─────────────────────────────────────────────────┘   │
-│                          │                             │
-│         ┌────────────────┼────────────────┐            │
-│         ▼                ▼                ▼            │
-│  ┌───────────┐    ┌───────────┐    ┌───────────┐      │
-│  │  Ledger   │    │  Reward   │    │ Assignment│      │
-│  │  （会計）  │    │  （報酬）  │    │（アサイン）│      │
-│  └───────────┘    └───────────┘    └───────────┘      │
-│         │                │                │            │
-│         └────────────────┴────────────────┘            │
-│                          │                             │
-│                          ▼                             │
-│  ┌─────────────────────────────────────────────────┐   │
-│  │                   Read Models                    │   │
-│  │         （UI用の集計済みビュー）                    │   │
-│  └─────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                          GENBA QUEST                             │
+├──────────────────────────────────────────────────────────────────┤
+│   Policy（憲法）    Proposal（提案）    Sherpa（AI）             │
+│        │                  │                  │                   │
+│        ▼                  ▼                  ▼                   │
+│   ┌──────────────────────────────────────────────────────┐       │
+│   │                Governance Layer                       │       │
+│   │       （承認・自動承認・自己承認禁止・Policy評価）      │       │
+│   └──────────────────────────────────────────────────────┘       │
+│                            │                                     │
+│   ┌──────────┬─────────────┼─────────────┬────────────┐          │
+│   ▼          ▼             ▼             ▼            ▼          │
+│ ┌──────┐ ┌────────┐ ┌─────────────┐ ┌──────────┐ ┌──────────┐    │
+│ │Ledger│ │Invoice │ │ Assignment  │ │   Site   │ │   PATH   │    │
+│ │(会計)│ │(請求)  │ │ (アサイン)  │ │ (現場)   │ │governance│    │
+│ └──────┘ └────────┘ └─────────────┘ └──────────┘ └──────────┘    │
+│   ┌──────────────┬─────────────────┬───────────────┐             │
+│   ▼              ▼                 ▼               ▼             │
+│ ┌──────────┐ ┌──────────┐ ┌──────────────────┐ ┌──────────┐      │
+│ │  Reward  │ │MonthClose│ │  Communication   │ │   LUQO   │      │
+│ │ (報酬)   │ │(締め)    │ │ (顧客接点)       │ │ (報酬DSL)│      │
+│ └──────────┘ └──────────┘ └──────────────────┘ └──────────┘      │
+│                            │                                     │
+│                            ▼                                     │
+│   ┌──────────────────────────────────────────────────────┐       │
+│   │           Read Models（UI用の名前付きビュー）         │       │
+│   └──────────────────────────────────────────────────────┘       │
+└──────────────────────────────────────────────────────────────────┘
 ```
+
+### ドメインと Proposal Type の対応（現行）
+
+実装に存在する Proposal type を、上のドメインに紐付けて確認できる粒度で列挙する。
+詳細スキーマは `server/src/services/ProposalService.ts` を真の正本とする。
+
+| ドメイン | 主な Proposal Type | 主な Event Type |
+|---------|-------------------|----------------|
+| **Ledger** | `expense.create` / `expense.update` / `expense.void` / `income.create` / `income.update` | `expense_recorded` / `expense_voided` / `income_recorded` |
+| **Invoice** | `invoice.create` / `invoice.send` / `invoice.mark_paid` | `invoice_issued` / `invoice_sent` / `payment_received` |
+| **Assignment** | `assignment.create` / `assignment.update` / `assignment.cancel` | `assignment.scheduled` / `assignment.rescheduled` / `assignment.cancelled` |
+| **Site** | `site.create` / `site.close.finalize` / `site.close.reopen` | `site.created` / `site.close.finalized` / `site.close.reopened` |
+| **Reward** | `reward.calculate` / `reward.adjust` / `evaluation.finalize` / `skill.achieve` / `skill.revoke` | `reward_calculated` / `reward_adjusted` / `evaluation_finalized` |
+| **PATH governance** | site.close / skill / reward 系 Proposal の上位ガバナンス | `path.site_close.finalized` / `path.skill_certification.decided` / `path.reward_run.approved` / `path.monthly_distribution.finalized` / `path.reward_pool.adjusted` |
+| **MonthClose** | `site.close.finalize`（period確定）+ `month_closes` 参照 | site.close.finalized 経由 |
+| **Communication** | `communication.review` / `communication.task` | `communication.review_recorded` / `communication.task_recorded` |
+| **LUQO** | `luqo.reward.calculate`（reward.calculate と並列の独自報酬DSL） | reward 系 |
+| **Policy** | `policy.update` | governance event |
+
+> 新ドメイン追加時は、まず Proposal type を1つ追加して `events` に流す → 必要に応じて Read Model を追加する、の順で育てる。テーブル追加は最終手段。
+
+### PATH governance の位置付け
+
+PATH は「Ledger/Reward/Site の上に立つガバナンス層」。
+個別Proposal（site.close.finalize や reward.calculate）が承認されたあと、PATH governance event が発行され、月次分配・スキル認定・reward pool 調整など**多Proposal をまたぐ集約決定**を不変のログとして残す。
+
+これにより「個別の経費承認」「個別の現場締め」「個別の報酬計算」と、「組織として確定した月次分配」が別レイヤーで追跡可能になる。
+
+### MonthClose の不可侵性
+
+`month_closes` で確定した期間に属するLedgerEventは原則不可変。
+修正は逆仕訳Eventとして「翌期に」記録する。AI/人を問わず、closed periodの直接更新は禁止（UX原則 §5 の Guard で強制）。
 
 ---
 
@@ -375,22 +457,13 @@ if (proposal.executed_at) {
 
 ### AIの自己承認禁止（最終ゲート）
 
-```typescript
-function canApprove(proposal: Proposal, actor: Actor): boolean {
-  // 絶対に抜けない最終ゲート
-  if (actor.type === 'ai' && proposal.created_by.type === 'ai') {
-    return false;
-  }
+承認可否は二段構造で判定する：
 
-  // その上にPolicy評価が乗る
-  return policyEngine.canApprove(proposal, actor);
-}
-```
+1. **AI自己承認禁止ゲート**（絶対に抜けない）
+   `actor.type === 'ai' && proposal.created_by.type === 'ai'` のとき承認不可。
+2. **Policy評価**（金額・期間・ロールベースの判断）
 
-**二段構造:**
-
-1. AI自己承認禁止 → 絶対に抜けない
-2. Policy評価 → 金額・期間・ロールベースの判断
+順序固定。Policy評価で例外を作っても、自己承認ゲートはその上位で常に効く。
 
 ---
 
@@ -446,148 +519,41 @@ PolicyEngine は Governance Layer の一部として実装。
 
 「なんでこのときOKした？」を後から説明できるようにする。
 
-### 構造
+### 持つべき情報
 
-```typescript
-interface ProposalContext {
-  // 判断時点のスナップショット
-  snapshot: {
-    // 関連データ
-    similar_cases: ProposalRef[];        // 類似の過去ケース
-    recent_trend?: TrendData;            // 日別・月別推移
+判断時点のスナップショットを Proposal に紐付けて保存する：
 
-    // 適用ルール
-    policy_version: string;
-    matched_rule: PolicyRule;
+- **関連データ**: 類似の過去ケース、直近トレンド（カテゴリ別の月次推移など）
+- **適用ルール**: Policy のバージョンと match した ruleの識別子
+- **AI判断**: 人間が読める reasoning 文字列、confidence スコア
+- **メタ情報**: 作成時刻、actor
 
-    // AI判断
-    ai_reasoning?: string;               // 人間が読める説明
-    confidence?: number;                 // 0-1
-  };
-
-  // メタ情報
-  created_at: string;
-  actor: ActorRef;
-}
-```
-
-### 例: 経費承認
-
-```json
-{
-  "snapshot": {
-    "similar_cases": ["prop_abc123", "prop_def456"],
-    "recent_trend": {
-      "category": "materials",
-      "this_month": 45000,
-      "last_month": 52000,
-      "avg_3months": 48000
-    },
-    "policy_version": "v3",
-    "matched_rule": {
-      "id": "expense-auto-approve-small",
-      "name": "少額経費の自動承認"
-    },
-    "ai_reasoning": "金額5,000円以下、材料費カテゴリ、過去の類似ケース2件あり。ポリシーに基づき自動承認。"
-  }
-}
-```
+「なぜこのときOKした？」が後から1画面で再構成できる粒度であればよい。
+スナップショットの保存先・スキーマは [SHERPA_ARCHITECTURE.md](./SHERPA_ARCHITECTURE.md) を参照。
 
 ---
 
 ## Read Models（名前付きビュー）
 
-UIとサーバ間の会話を具体化するため、先に作るRead Modelを定義。
+UIとサーバ間の会話を具体化するため、画面ごとにRead Modelを名前付きで定義する。
+スキーマは画面要件から逆算して柔軟に育てる。下表は**代表例で網羅ではない**。実装の真の正本は `server/src/services/` 配下のRead Model実装ファイル。
 
-### TodayPendingApprovalsView
+| Read Model | 使用箇所 | 主な内容 |
+|-----------|---------|---------|
+| `TodayPendingApprovalsView` | Today画面 | 承認待ちProposal一覧、起案者、AI reasoning短縮版 |
+| `CalendarAssignmentsView` | Calendar画面 | 日付×現場×ワーカー、status (`pending` / `scheduled` / `confirmed` / `completed`) |
+| `MoneyDailyLedgerView` | Money画面 | 日別の収支、カテゴリ別内訳、月次合計 |
+| `RewardSummaryView` | Sites詳細, Money画面 | 報酬計算スナップショット、worker別配分・Tスコア |
+| `CommunicationContactReadModel` | Communications画面 | 顧客接点の review/task 履歴とステータス |
+| PATH 系 (PathRewardAnalysis 等) | PathRewardConfirmation画面 | PATH governance の月次分配・skill認定スナップショット |
+| Invoice 系 | Money画面の請求パネル | 発行済/未送付/未入金の請求書一覧、請求漏れ候補 |
 
-```typescript
-// Today画面の「承認待ち」セクション用
-interface TodayPendingApprovalsView {
-  proposals: {
-    id: string;
-    type: ProposalType;
-    summary: string;           // "経費: ホームセンターで資材購入 ¥32,000"
-    created_by: ActorRef;
-    created_at: string;
-    actor_type: 'human' | 'ai' | 'integration';
-    ai_reasoning_short?: string;  // AI提案の場合、短い理由
-  }[];
-  total_count: number;
-}
-```
+**設計原則:**
 
-**使用箇所:** Today画面
-
-### CalendarAssignmentsView
-
-```typescript
-// Calendar画面のメインデータ
-interface CalendarAssignmentsView {
-  assignments: {
-    id: string;
-    date: string;              // YYYY-MM-DD
-    site_id: string;
-    site_name: string;
-    worker_ids: string[];
-    worker_names: string[];
-    time_blocks?: TimeBlock[];
-    status: 'pending' | 'scheduled' | 'confirmed' | 'completed';
-    // Read Model用ステータス（Write Modelとの対応）:
-    //   pending   = Proposal承認待ち（Write Modelに未反映）
-    //   scheduled = Write status: scheduled（確定済み・未着手）
-    //   confirmed = Write status: confirmed（当日確認済み）
-    //   completed = Write status: completed（完了）
-  }[];
-  month: string;               // YYYY-MM
-}
-```
-
-**使用箇所:** Calendar画面
-
-### MoneyDailyLedgerView
-
-```typescript
-// Money画面の日別収支
-interface MoneyDailyLedgerView {
-  days: {
-    date: string;
-    income: number;
-    expense: number;
-    balance: number;
-    by_category: Record<string, number>;
-  }[];
-  month_total: {
-    income: number;
-    expense: number;
-    profit: number;
-  };
-}
-```
-
-**使用箇所:** Money画面
-
-### RewardSummaryView
-
-```typescript
-// 報酬計算結果サマリー
-interface RewardSummaryView {
-  site_id: string;
-  site_name: string;
-  calculated_at: string;
-  workers: {
-    worker_id: string;
-    worker_name: string;
-    t_score: number;
-    days: number;
-    amount: number;
-    ratio: number;
-  }[];
-  total_distributable: number;
-}
-```
-
-**使用箇所:** Sites詳細、Money画面
+- Read Modelは Write Model（proposals + events）からの射影。一次データではない
+- 必要な画面ができたときに足す。先回りして作りすぎない
+- Calendarの `pending` のように、Read Model独自のステータスを定義してUI都合を吸収してよい
+- 名前付きビューを増やす方が、proposals/events 本体のスキーマを膨らませるより常に好ましい
 
 ### Read Model の更新タイミング
 
@@ -631,10 +597,8 @@ LedgerEntry[] (借方・貸方のペア)
 
 ### Event IDの決定的生成
 
-```typescript
-// 二重発行防止
-const event_id = hash(`${proposal_id}:${proposal_version}`);
-```
+`event_id = hash(proposal_id + version)` のように決定的に生成し、二重発行を物理的に防ぐ。
+ハッシュ関数とフォーマットは実装で選ぶ（衝突ゼロが保証できれば手段は問わない）。
 
 ---
 
@@ -692,20 +656,9 @@ const event_id = hash(`${proposal_id}:${proposal_version}`);
 
 ### Tスコアスナップショット
 
-```typescript
-interface TScoreSnapshot {
-  id: string;
-  worker_id: string;
-  score: number;
-  details: SkillAchievement[];
-  captured_at: string;
-}
+報酬計算時の Tスコアは時点スナップショットとして保存し、`reward.calculate` Proposal はそのスナップショットIDを参照する。
 
-// 報酬計算時に「どのバージョンのTスコアで計算したか」を記録
-interface RewardCalculation {
-  t_score_snapshot_id: string;  // ← これで完全トレース可能
-}
-```
+→ 後から「この報酬はどのTスコアで計算されたか」が完全にトレース可能。スコア定義が変わっても過去の報酬計算は再現できる。
 
 ---
 
@@ -722,92 +675,58 @@ interface RewardCalculation {
 
 ---
 
-## 実装フェーズ
+## 実装フェーズ（並行進行中の現実）
 
-### Phase A-0: 超MVP（現行動作 + ログ化）
+線形ロードマップではなく、**達成済み不変条件 / 進行中 / 未着手** の3層で現状を捉える。
+Phase A→B→C→D は当初の計画線だったが、実装は実際には複数Phaseが並行で走っている。
 
-**目的:** 既存UIの挙動を崩さずにProposalモデルを先に生やす
+### 達成済みの不変条件（Locked-in）
 
-**スコープ:**
+ここに入った項目は、**回帰させない**。コードレビューでもチェック対象。
 
-1. `proposals` テーブル導入
-2. 対象を限定:
-   - `expense.create`
-   - `assignment.create`
-3. 承認は全部「即承認（system）」
-4. **現行動作は変えない、ログだけProposal化**
+- [x] `proposals` テーブルが全状態変更の起点になっている
+- [x] Policy評価が承認APIの最終ゲートとして稼働
+- [x] `human` / `ai` / `integration` / `system` の Actor 区別を記録
+- [x] AI自己承認禁止ゲートが実装済み（`canApprove` 二段構造）
+- [x] `pending` を含む承認フローが運用されている（Today画面の承認カード）
+- [x] LedgerEvent / Transaction / Entry のダブルエントリー構造
+- [x] トランザクション境界（承認 + Event + 状態更新 = 1tx）が RPC で実装済み
+- [x] Sherpa Chat（FAB起動、Proposal下書き起案）が稼働
+- [x] PATH governance V3.1 / V3.2 が site.close.finalize / reward.calculate と接続
+- [x] `month_closes` テーブルで closed period が定義されている
 
-**A-0特有の暫定ルール:**
+### 進行中（In flight）
 
-| ルール | 内容 |
-|--------|------|
-| status | 常に `approved` + `executed`（中間状態なし） |
-| Policy評価 | スキップ（固定ルールで即時承認） |
-| UI | Proposalの概念は一切出さない |
-| 承認待ち | Todayに「承認待ち」セクションはまだ出さない |
-| Actor | すべて `system` actor（人間/AIの区別はまだしない） |
+- 🔄 Inline Suggestion（経費入力での勘定科目候補等）の本実装
+- 🔄 育つフォームの全画面適用（ExpenseModal で部分実装済み、他は未）
+- 🔄 Calm Cockpit 5原則の全画面遵守（Today / Calendar 中心に進行）
+- 🔄 Invoice flow（請求漏れゼロ MVPアウトカムに直結）
+- 🔄 Communication ドメインの review/task ループ
+- 🔄 PATH governance event の Read Model 整備（PathRewardConfirmation 経由）
 
-> **重要:** Phase A-0 は検証環境限定（本番投入不可）。
-> 本番運用は最低でも A-1 以降とし、以下を有効化する。
-> 1. Policy評価をスキップしない（サーバ最終ゲートで常時評価）
-> 2. `human` / `ai` / `integration` / `system` を正規に記録
-> 3. `pending` を含む承認フローを運用し、承認待ちをUI表示する
+### 守りたい次の不変条件（Next gates）
 
-**成果物:**
+これを「次のPhase完了条件」とする。終わったら Locked-in に昇格。
 
-- すべての経費/アサイン操作に対してProposalが1行残る
-- Proposalログが溜まり、Sherpaの学習土台になる
-- 既存UIは一切変わらない
+- [ ] **請求漏れゼロ計測** — 完了現場と未請求残の乖離をダッシュボードで常時可視化
+- [ ] **黒字可視化計測** — 現場別利益 / 月次PL が Money画面で1タップ参照可能
+- [ ] **closed month の不可侵性** — Guard で UI/API 両側から書き換えを物理的に拒否
+- [ ] **AI Suggestionの可逆性** — Inline Suggestion は無視/Undo がワンタップで完結
+- [ ] **Sherpa output の透明性**（Calm Cockpit #5）— 全AI出力に Proposal/根拠/影響/承認パスを必須化
+- [ ] **本番運用ゲート** — 監視項目アラート連携、Runbook演習1回完了、PITRバックアップ運用
 
-**終了条件:**
+### 未着手の高度化候補
 
-- 1ヶ月程度Proposalログを蓄積
-- ログを見て「傾向分析ができそう」と判断できたらA-1へ
+優先度低。現MVPアウトカム（請求漏れゼロ + 黒字可視化）に直結しないものはここ。
 
-**A-0 完了チェックリスト:**
+- AIによる自動承認の範囲拡大（現在は閾値ベース、文脈ベースへ）
+- Policy Editor（ルール変更UI）
+- 監査ダッシュボード
+- 複数組織横断（現状は org_id 境界で完全分離）
+- integration actor 本格運用（Gmail/銀行APIの自動化深掘り）
 
-- [ ] `expense.create` / `assignment.create` のProposalが1ヶ月で50件以上
-- [ ] Proposalの `payload` 設計に大きな後悔がない
-- [ ] 「この条件なら自動承認でいいよね」が3パターン以上見えた
-- [ ] Read Model のクエリが実用的な速度で動いている
-
-### Phase A-1: 基盤（本来のPhase A）
-
-1. Policy評価エンジン（単純なif文でOK）
-2. 高額経費だけ「承認待ち」化
-3. Ledgerイベント構造
-4. 一部アサイン変更を承認待ち化
-5. Todayに「承認待ち」セクション追加
-
-### 本番移行ゲート（Go/No-Go）
-
-本番リリース判定は次をすべて満たすこと。
-
-- [ ] A-0モード（Policyスキップ、全system actor）を無効化済み
-- [ ] 承認API/実行APIが `pending` / `approved` 遷移を強制
-- [ ] 監視項目（不変条件 + 可用性）にアラート連携済み
-- [ ] バックアップ/復旧手順をRunbook化し、演習を1回以上実施
-
-### Phase B: AI統合
-
-1. Sherpa Orchestrator
-2. Sub Agents（Accounting, Reward, Assignment）
-3. skill.md によるAI行動範囲定義
-4. 根拠スナップショット記録
-
-### Phase C: UI刷新
-
-1. Today / Calendar / Sites / Money の再構築
-2. Proposal一覧・承認UI
-3. FAB Sherpa
-
-### Phase D: 高度化
-
-1. AIによる自動承認の範囲拡大
-2. Policy Editor（ルール変更UI）
-3. 監査ダッシュボード
-4. 複数組織対応
-5. integration actor本格運用（Gmail/銀行連携）
+> Phaseの粒度で会話したいときの旧呼称: A-0=ログ化、A-1=承認フロー、B=AI統合、C=UI刷新、D=高度化。
+> 上の不変条件3層はこの旧呼称と1対1対応しない。「どの不変条件を次に獲得するか」で語る方が現実に合う。
 
 ---
 
@@ -830,22 +749,12 @@ interface RewardCalculation {
 
 ### 2-1. Policy / PolicyVersion の扱い
 
-**方針:** Policy全体をバージョン管理し、Proposal評価時点のスナップショットを記録。
-
-```typescript
-interface Proposal {
-  // ... 他のフィールド
-
-  // 評価時点のPolicy情報（必須）
-  evaluated_policy_version: string;   // 'v3'
-  matched_rule_id: string;            // 'expense-auto-approve-small'
-}
-```
+**方針:** Policy全体をバージョン管理し、Proposalには評価時点の `policy_version` と `matched_rule_id` を必ず記録する。
 
 **なぜ重要か:**
 
-- 「この時期はポリシー v2 だったから、この承認は当時としては正しい」という説明が可能
-- 監査時に「なぜこの判断だったか」をPolicy変遷込みで追跡
+- 「この時期はポリシー v2 だったから、この承認は当時としては正しい」が説明可能
+- 監査時にPolicy変遷込みで判断根拠を追跡できる
 - DAOの透明性 = 判断根拠の完全記録
 
 ### 2-2. 承認の並行実行（コンカレンシ）
@@ -853,13 +762,7 @@ interface Proposal {
 **問題:** 複数人が同時に「承認」ボタンを押す可能性。
 
 **解決策:** 楽観ロックで状態遷移を1回だけ成功させる。
-
-```sql
-UPDATE proposals
-SET status = 'approved', approved_at = now(), approved_by = :actor_id
-WHERE id = :id AND status = 'pending';
--- rowCount == 0 なら「もう誰かがapproved/rejected済み」
-```
+`UPDATE proposals SET status='approved' WHERE id=:id AND status='pending'` のように、現状態を WHERE 句で縛り、rowCount==0 を「先に誰かが確定済み」として扱う。
 
 ### 2-2-1. Proposalステータス遷移図（正式版）
 
@@ -898,99 +801,36 @@ WHERE id = :id AND status = 'pending';
 
 **問題:** ワーカー再実行や多重リクエストで `execute` が重複実行される可能性。
 
-**解決策:** `approved` かつ `executed_at IS NULL` の1行更新のみ成功させる。
+**解決策:** 承認時と同じ楽観ロック。`status='approved' AND executed_at IS NULL` の1行更新のみ成功する条件で実行する。
 
-```sql
-UPDATE proposals
-SET status = 'executed',
-    executed_at = now(),
-    result_event_id = :event_id
-WHERE id = :id
-  AND status = 'approved'
-  AND executed_at IS NULL;
--- rowCount == 0 なら「実行済み」または「状態不正」
-```
-
-**必須制約（DB）:**
-
-```sql
-CREATE UNIQUE INDEX uq_ledger_events_proposal_version
-ON ledger_events (proposal_id, proposal_version);
-```
+加えて DB側で `(proposal_id, proposal_version)` の一意制約を ledger_events に張り、Event発行の二重化も物理的に拒否する。アプリ側ロジックのバグがあっても帳簿は汚れない。
 
 ### 2-3. integration の at-least-once 問題
 
 **問題:** Gmail / 銀行 / webhookは「同じイベントが2回届く」世界。
 
-**解決策:** 外部IDを一意制約で受け止め、`INSERT ... ON CONFLICT` で冪等化する。
-
-```sql
-CREATE UNIQUE INDEX uq_integration_source_external_id
-ON integration_events (source, external_id);
-```
-
-```typescript
-const inserted = await db.execute(sql`
-  INSERT INTO integration_events (source, external_id, received_at)
-  VALUES (${source}, ${externalId}, now())
-  ON CONFLICT (source, external_id) DO NOTHING
-  RETURNING id
-`);
-
-if (inserted.rowCount === 0) {
-  return { status: 'already_processed' };
-}
-
-// 初回受信時のみProposalを作成
-const proposalId = hash(`integration:${source}:${externalId}`);
-```
+**解決策:** `(source, external_id)` の一意制約で重複を物理的に拒否し、初回受信時のみProposalを作る。
+ProposalIDも `hash(integration:source:external_id)` のように決定的に生成し、event_id 戦略と整合させる。
 
 **なぜこうするか:**
 
-- 同時受信でもDBが重複を物理的に拒否する
-- アプリ側の `findFirst` 競合を回避できる
-- event_id = hash(proposal_id:version) の思想と整合
+- 同時受信でもDBが重複を構造的に拒否する
+- アプリ側の存在チェック競合（findFirst → insert の race）を回避
+- 「決定的ID生成」原則とEvent側で揃う
 
 ### 2-4. Event payload のスキーマ進化
 
 **問題:** Eventは不変だが、将来「フィールド足したい」が必ず出る。
 
-**解決策:** JSON payload + version パターン。
-
-```typescript
-interface LedgerEvent {
-  id: string;
-  org_id: string;
-  proposal_id: string;
-
-  // スキーマ進化対応
-  type: string;           // 'expense-booked'
-  schema_version: number; // 1, 2, 3...
-  payload: unknown;       // JSON
-
-  occurred_at: string;
-  recorded_at: string;
-  actor: ActorRef;
-}
-
-// パース時
-function parsePayload(event: LedgerEvent): ExpensePayload {
-  switch (event.schema_version) {
-    case 1:
-      return migrateV1toV2(event.payload as ExpensePayloadV1);
-    case 2:
-      return event.payload as ExpensePayloadV2;
-    default:
-      throw new Error(`Unknown schema version: ${event.schema_version}`);
-  }
-}
-```
+**解決策:** Eventは `type` + `schema_version` + JSON `payload` の組で持つ。
 
 **運用方針:**
 
 - 新フィールド追加時は `schema_version` をインクリメント
 - 古いイベントは読み取り時にマイグレーション（遅延変換）
-- バッチジョブでの一括アップグレードも可能（optional）
+- 必要に応じてバッチジョブで一括アップグレードも可（optional）
+
+→ Eventの不変性を守ったまま、ドメインモデルだけ進化させられる。
 
 ---
 

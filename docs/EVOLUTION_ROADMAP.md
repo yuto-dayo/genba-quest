@@ -13,18 +13,25 @@
 
 ## 現在地と目標
 
-```text
-現在地（Phase A）:
-  ├── Proposal中心 ✓
-  ├── Ledger追記のみ ✓
-  ├── AI自己承認禁止 ✓
-  └── Policy評価 ✓（ただしハードコード）
+実装現状の正本は `docs/DESIGN_PHILOSOPHY.md` の「実装フェーズ（並行進行中の現実）」を参照。
+本ドキュメントでは中長期の進化方向として、現状の不変条件と到達像を抽象化して述べる。
 
-目標（Phase D以降）:
-  ├── 1コア（Proposal + Event）
-  ├── Policy DSLから全自動生成
-  ├── Sandbox環境でルールA/Bテスト
-  └── SherpaがPolicy改善を提案
+```text
+現在の達成済み不変条件（DESIGN_PHILOSOPHY.md 参照）:
+  ├── Proposal中心（全状態変更の起点）
+  ├── Ledger追記のみ（修正は逆仕訳）
+  ├── AI自己承認禁止（canApprove 二段ゲート）
+  ├── Policy評価（承認APIの最終ゲート、ただしTypeScriptにハードコード）
+  ├── Direct + Sherpa split（Calm Cockpit #4 で実装方針確定）
+  ├── PATH governance V3.1/V3.2（多Proposal集約決定）
+  └── MonthClose 不可侵性（month_closes テーブルで定義）
+
+中長期の進化目標:
+  ├── 1コア（Proposal + Event）— 全ドメインを2テーブル + Read Modelに圧縮
+  ├── Policy DSLから全自動生成 — TypeScript/SQL/テスト/ドキュメント
+  ├── Sandbox環境でルールA/Bテスト — 本番投入前の安全検証
+  ├── SherpaがPolicy改善を提案 — 観測ベースの自己進化
+  └── MVPアウトカム計測（請求漏れゼロ / 黒字可視化）の自動可視化
 ```
 
 ---
@@ -197,8 +204,8 @@ Think Again（Adam Grant）× Thompson Sampling（ベイズ統計）のアプロ
 ### 実装状態
 
 - Phase 1（データ基盤）: `design_principles` + `principle_observations` テーブル、API、seed data ✅
-- Phase 2（自動観測）: ProposalService連携 → Phase A-1完了後
-- Phase 3（UI + Sherpa）: ダッシュボード可視化 → Phase B以降
+- Phase 2（自動観測）: ProposalService連携 → 承認フロー本番運用ゲート通過後
+- Phase 3（UI + Sherpa）: ダッシュボード可視化 → Sherpa統合の透明性原則（Calm Cockpit #5）と合流
 
 ### DAO的意義
 
@@ -314,21 +321,25 @@ Sandbox結果:
 | Phase | 内容 | 依存 | 工数 | 優先度 |
 | ----- | ---- | ---- | ---- | ------ |
 | 1 | Policy DSL | なし | 2週間 | 高 |
-| 2 | 1コア化 | Phase A-1完了 | 3週間 | 中 |
+| 2 | 1コア化 | 承認フロー本番運用ゲート通過 | 3週間 | 中 |
 | 3 | Sandbox環境 | Phase 1, 2 | 2週間 | 中 |
 | 4 | Sherpaルール提案 | Phase 3 | 1週間 | 低 |
 
+> 注: ここでの "Phase 1〜4" はEVOLUTION（自己進化機構）固有の番号で、`docs/DESIGN_PHILOSOPHY.md` の実装フェーズ（達成済み不変条件 / 進行中 / 次の不変条件）とは別軸。前者は中長期の機能進化、後者は現行実装のマイルストーン。
+
 ---
 
-## 天才でも変えないもの
+## 天才でも変えないもの（永続不変条件）
 
-どんなに進化しても、以下は絶対に維持:
+どんなに進化しても、以下は絶対に維持。`docs/DESIGN_PHILOSOPHY.md` の「達成済み不変条件」のうち、特に**ロールバックが許されない核**を抽出したもの。
 
 1. **Proposal中心** - 直接UPDATE禁止
 2. **Ledger追記のみ** - 修正は逆仕訳
 3. **AI自己承認禁止** - 絶対に抜けないゲート
 4. **org境界の明確さ** - クロス組織アクセス禁止
 5. **Read ModelとWrite Modelの分離** - CQRS原則
+6. **MonthClose 不可侵性** - 確定期間のLedgerEventは不可変（修正は翌期の逆仕訳）
+7. **Input-zero / Decision-human** - AIは判断を代行しない、入力と確認だけを代行する
 
 これらは「思想そのもの」であり、天才がやるのは「より抽象化／自動化する」であって、逆には戻さない。
 
