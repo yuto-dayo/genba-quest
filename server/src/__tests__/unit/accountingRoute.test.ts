@@ -1354,6 +1354,15 @@ describe("accounting router", () => {
       error: null,
     });
     const invoiceAllocationExistingChain = createChain({ data: [], error: null });
+    const proposalChain = createChain({
+      data: {
+        id: "proposal-invoice-1",
+        type: "invoice.create",
+        status: "executed",
+        policy_ref: "legacy_direct_transition",
+      },
+      error: null,
+    });
     setupMockFromSequence(mockFrom, [
       transactionChain,
       settingsChain,
@@ -1361,7 +1370,7 @@ describe("accounting router", () => {
       existingInvoicesFallbackChain,
       revenueBasisPreflightChain,
       invoiceAllocationExistingChain,
-    ]);
+    ], [], [proposalChain]);
     mockRpc.mockResolvedValue({
       data: {
         invoice: {
@@ -1400,6 +1409,23 @@ describe("accounting router", () => {
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
       id: "inv-atomic",
+      proposal: expect.objectContaining({
+        id: "proposal-invoice-1",
+        type: "invoice.create",
+        status: "posted_legacy_projection",
+        full_proposal_lifecycle: false,
+      }),
+      posting: expect.objectContaining({
+        mode: "invoice_issue_no_pl_revenue",
+        affects_pl: false,
+        affects_revenue: false,
+        affects_ar: true,
+      }),
+      projection: expect.objectContaining({
+        legacy_invoice_id: "inv-atomic",
+        legacy_transaction_id: "tx-1",
+        proposal_id: "proposal-invoice-1",
+      }),
       eligibility: expect.objectContaining({
         resolved_document_type: "standard_invoice",
       }),
@@ -1949,7 +1975,16 @@ describe("accounting router", () => {
   });
 
   it("POST /payments/allocations records payment allocation through the atomic RPC without PL journal writes", async () => {
-    setupMockFromSequence(mockFrom, []);
+    const proposalChain = createChain({
+      data: {
+        id: "proposal-payment-1",
+        type: "payment.allocate",
+        status: "executed",
+        policy_ref: "legacy_direct_transition",
+      },
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [], [], [proposalChain]);
     mockRpc.mockResolvedValue({
       data: {
         payment: { id: "payment-1", amount: 110000, status: "allocated" },
@@ -1990,6 +2025,24 @@ describe("accounting router", () => {
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
       payment: expect.objectContaining({ id: "payment-1" }),
       allocation: expect.objectContaining({ id: "allocation-1" }),
+      proposal: expect.objectContaining({
+        id: "proposal-payment-1",
+        type: "payment.allocate",
+        status: "posted_legacy_projection",
+        full_proposal_lifecycle: false,
+      }),
+      posting: expect.objectContaining({
+        mode: "payment_allocation_no_pl_revenue",
+        affects_pl: false,
+        affects_revenue: false,
+        affects_ar: true,
+      }),
+      projection: expect.objectContaining({
+        legacy_payment_id: "payment-1",
+        legacy_payment_allocation_id: "allocation-1",
+        legacy_invoice_id: "inv-1",
+        proposal_id: "proposal-payment-1",
+      }),
     }));
   });
 
@@ -2153,6 +2206,15 @@ describe("accounting router", () => {
     const existingEntryChain = createChain({ data: null, error: null });
     const entryInsertChain = createChain({ data: { id: "journal-1" }, error: null });
     const lineInsertChain = createChain({ data: null, error: null });
+    const proposalChain = createChain({
+      data: {
+        id: "proposal-void-1",
+        type: "transaction.reverse",
+        status: "executed",
+        policy_ref: "legacy_direct_transition",
+      },
+      error: null,
+    });
     setupMockFromSequence(mockFrom, [
       originalFetchChain,
       invoiceSourceLinksChain,
@@ -2162,7 +2224,7 @@ describe("accounting router", () => {
       existingEntryChain,
       entryInsertChain,
       lineInsertChain,
-    ]);
+    ], [], [proposalChain]);
 
     const req = {
       userId: "user-1",
@@ -2174,7 +2236,7 @@ describe("accounting router", () => {
 
     await voidTransactionHandler(req, res);
 
-    expect(mockFrom).toHaveBeenCalledTimes(10);
+    expect(mockFrom).toHaveBeenCalledTimes(11);
     expect(originalFetchChain.eq).toHaveBeenCalledWith("org_id", "11111111-1111-4111-8111-111111111111");
     expect(existingReversalChain.eq).toHaveBeenCalledWith("org_id", "11111111-1111-4111-8111-111111111111");
     expect(reversalInsertChain.insert).toHaveBeenCalledWith(expect.objectContaining({
@@ -2190,11 +2252,22 @@ describe("accounting router", () => {
       expect.objectContaining({ account_code: "5100", debit: 0, credit: 3100 }),
       expect.objectContaining({ account_code: "1500", debit: 0, credit: 310 }),
     ]);
-    expect(res.json).toHaveBeenCalledWith({
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
       original_voided: "tx-void-1",
       original_reversed: "tx-void-1",
       reversal_created: "tx-reversal-1",
-    });
+      proposal: expect.objectContaining({
+        id: "proposal-void-1",
+        type: "transaction.reverse",
+        status: "reversed",
+        full_proposal_lifecycle: false,
+      }),
+      projection: expect.objectContaining({
+        legacy_transaction_id: "tx-reversal-1",
+        reverses_transaction_id: "tx-void-1",
+        proposal_id: "proposal-void-1",
+      }),
+    }));
   });
 
   it("POST /void/:id rejects re-voiding a transaction that already has a reversal", async () => {

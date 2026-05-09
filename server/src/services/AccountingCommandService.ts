@@ -58,7 +58,15 @@ export type AccountingCommandActorRef = {
 export type AccountingCommandProposalLineageInput = {
     orgId: string;
     endpointName: string;
-    proposalType: "expense.create" | "income.create" | "invoice.create" | "invoice.mark_paid" | "expense.void" | "income.reverse";
+    proposalType:
+        | "expense.create"
+        | "income.create"
+        | "invoice.create"
+        | "invoice.mark_paid"
+        | "payment.allocate"
+        | "expense.void"
+        | "income.reverse"
+        | "transaction.reverse";
     idempotencyKey: string;
     actor: AccountingCommandActorRef;
     description: string;
