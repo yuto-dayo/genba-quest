@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `v2.2次候補: ローカルDB上でPL compare/posted journal invariantsの実データシナリオ証跡を追加。remote db pushは明示承認まで未実行`
+- NEXT_CMD: `P0/P1残: true concurrent duplicate DB/API integration test、org boundary multi-org negative test、必要ならaccountingV22Canonical integration test化`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/local.md`
@@ -18,8 +18,8 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `643eff2`
-  - Updated: `2026-05-09T23:17:50+0900`
+  - HEAD: `42e9aca`
+  - Updated: `2026-05-09T23:31:28+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
@@ -33,47 +33,47 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `v2.2次候補: ローカルDB上でPL compare/posted journal invariantsの実データシナリオ証跡を追加。remote db pushは明示承認まで未実行`. Source: realtime
+- [focus] NEXT_CMD: `P0/P1残: true concurrent duplicate DB/API integration test、org boundary multi-org negative test、必要ならaccountingV22Canonical integration test化`. Source: realtime
+- [H0024] Completed: v2.2 canonical posting chain local DB integration evidenceを追加。fresh org fixtureでsales/invoice transfer/payment receipt/payment allocation/member overhead expenseを実行し、balanced journals/no-PL-revenue/PL diff=0を確認
+- [H0024] Remaining: P0/P1残: true concurrent duplicate DB/API integration test、org boundary multi-org negative test、必要ならaccountingV22Canonical integration test化
 - [H0023] Completed: accounting v2.2: local Supabase migration blockerを解消し、20260509135652 invoice_transfer まで migration up --local を通過。Storage無効ローカルでは drawing storage bucket/policyだけ条件付きskipにした
 - [H0023] Remaining: v2.2次候補: ローカルDB上でPL compare/posted journal invariantsの実データシナリオ証跡を追加。remote db pushは明示承認まで未実行
-- [H0022] Completed: accounting v2.2: invoice issueをcanonical no-PL-revenue transfer RPC優先に接続し、same-key replayをduplicate invoice checkより前に返すよう修正
-- [H0022] Remaining: v2.2次候補: invoice_transfer SQLのローカルDB適用検証またはPL compareのDB integration evidence拡充。remote db pushは明示承認まで未実行
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0024] remote DB/push/migration repair未実行。Supabase CLI db query -f はmulti-statementを弾くためdocker exec psqlでlocal DBへ実行
 - [H0023] Local config has [storage] enabled=false; migration now preserves real Supabase Storage behavior when storage.buckets/objects exist and skips only Storage-specific setup otherwise
 - [H0022] P1 canonical invoice/payment step: invoice issue can now transfer contract_asset/unbilled_receivable to AR without PL revenue; ProposalService is still not called
 - [H0021] Payment allocation now has canonical BS posting: Dr unapplied cash, Cr accounts receivable; PL revenue remains unchanged
 - [H0020] Payment receipt now has canonical BS posting: Dr cash/bank, Cr unapplied cash; invoice allocation remains separate
-- [H0019] No-PL-revenue contract is now fixed before adding invoice/payment canonical posting RPCs
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
+- [H0024] posted journal immutabilityが有効なので固定fixture cleanupでDELETE再実行してはいけない。SQLはfresh org fixture方式
 - [H0023] remote DB migration/push/migration repair未実行。local-only evidence; remote Storage-enabled behavior still relies on actual Supabase Storage metadata tables.
 - [H0022] remote DB migration/push/migration repair未実行。migration fileはGit管理のみ。
 - [H0021] Remote DB still untouched; local supabase migration up remains blocked by the older storage.buckets local migration issue before these new migrations.
 - [H0019] Older historical migration bodies still contain no_pl_journal strings, but runtime fallback service metadata and route response contract now use no_pl_revenue wording; remote DB still untouched.
-- [H0018] Local supabase migration up remains blocked before these migrations by existing 20260506043949_add_private_site_drawings.sql missing local storage.buckets; remote DB still untouched.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0024] P0/P1残: true concurrent duplicate DB/API integration test、org boundary multi-org negative test、必要ならaccountingV22Canonical integration test化
 - [H0023] v2.2次候補: ローカルDB上でPL compare/posted journal invariantsの実データシナリオ証跡を追加。remote db pushは明示承認まで未実行
 - [H0022] v2.2次候補: invoice_transfer SQLのローカルDB適用検証またはPL compareのDB integration evidence拡充。remote db pushは明示承認まで未実行
 - [H0021] Next v2.2 slice: implement invoice_transfer canonical posting for invoice issue, then re-run PL compare contract tests
 - [H0020] Next v2.2 slice: implement canonical payment allocation posting group/journal or invoice_transfer posting, keeping PL revenue unchanged
-- [H0019] Next v2.2 slice: implement canonical invoice/payment RPCs for invoice_transfer, payment_receipt, and payment_allocation posting groups, keeping PL revenue unchanged
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `14`
+- current_l3_entries: `15`
 - last_compacted_at: `2026-05-09 22:52:16 +0900`
 - archived_entries: `9`
 <!-- HANDOFF_L2_STATE_END -->
@@ -104,6 +104,7 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] v2.2 canonical posting chain local DB integration evidenceを追加。fresh org fixtureでsales/invoice transfer/payment receipt/payment allocation/member overhead expenseを実行し、balanced journals/no-PL-revenue/PL diff=0を確認
 - [x] accounting v2.2: local Supabase migration blockerを解消し、20260509135652 invoice_transfer まで migration up --local を通過。Storage無効ローカルでは drawing storage bucket/policyだけ条件付きskipにした
 - [x] accounting v2.2: invoice issueをcanonical no-PL-revenue transfer RPC優先に接続し、same-key replayをduplicate invoice checkより前に返すよう修正
 - [x] Accounting v2.2: canonical payment allocation RPC and /payments/allocations RPC-first fallback integration added
@@ -113,22 +114,23 @@ Phase: A-0/A-1
 - [x] Accounting v2.2 review: fixed canonical sales/reversal SQL net sales amount normalization when subtotal looks gross
 - [x] Accounting v2.2: canonical sales reversal RPC and /void RPC-first fallback integration added
 - [x] Accounting v2.2: PL compare mode source=legacy|journal|compare implemented; journal source is net-accounting and compare includes gross-compatible diff
-- [x] Accounting v2.2: canonical sales posting RPC migration and /sales RPC-first fallback integration added
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: v2.2次候補: ローカルDB上でPL compare/posted journal invariantsの実データシナリオ証跡を追加。remote db pushは明示承認まで未実行
+- [ ] **P0**: P0/P1残: true concurrent duplicate DB/API integration test、org boundary multi-org negative test、必要ならaccountingV22Canonical integration test化
+- [ ] **P1**: v2.2次候補: ローカルDB上でPL compare/posted journal invariantsの実データシナリオ証跡を追加。remote db pushは明示承認まで未実行
 - [ ] **P1**: v2.2次候補: invoice_transfer SQLのローカルDB適用検証またはPL compareのDB integration evidence拡充。remote db pushは明示承認まで未実行
 - [ ] **P1**: Next v2.2 slice: implement invoice_transfer canonical posting for invoice issue, then re-run PL compare contract tests
 - [ ] **P1**: Next v2.2 slice: implement canonical payment allocation posting group/journal or invoice_transfer posting, keeping PL revenue unchanged
-- [ ] **P1**: Next v2.2 slice: implement canonical invoice/payment RPCs for invoice_transfer, payment_receipt, and payment_allocation posting groups, keeping PL revenue unchanged
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
+| `artifacts/accounting-v2.2/local_posting_chain_integration_result.md` | local DB row count/invariant/PL compare evidence |
+| `artifacts/accounting-v2.2/local_v22_posting_scenario.sql` | local-only canonical posting chain integration SQL |
 | `artifacts/accounting-v2.2/migration_verification_report.md` | local migration-up and SECURITY DEFINER/grant evidence updated |
 | `supabase/migrations/20260506043949_add_private_site_drawings.sql` | guard Storage bucket/object policy setup when local Storage metadata tables are disabled |
 | `artifacts/accounting-v2.2/invoice_transfer_canonical_test.md` | evidence summary |
@@ -147,8 +149,6 @@ Phase: A-0/A-1
 | `server/src/services/AccountingCommandService.ts` | recordPaymentEvent tries canonical payment receipt RPC before legacy fallback |
 | `supabase/migrations/20260509133923_canonical_payment_receipt_posting_rpc.sql` | adds service-role canonical payment receipt no-PL-revenue posting RPC |
 | `artifacts/accounting-v2.2/migration_verification_report.md` | records invoice/payment no-PL contract evidence |
-| `server/src/__tests__/unit/accountingRoute.test.ts` | adds payment unapplied-balance cap test and PL compare exclusions for payment_receipt/payment_allocation |
-| `server/src/services/AccountingCommandService.ts` | renames invoice fallback allocation posting metadata to invoice_issue_no_pl_revenue |
 ---
 
 ## 6. Locked Files（編集中 - 他エージェント触らない）
@@ -183,11 +183,11 @@ cd frontend && npx eslint src/
 
 ## 9. Risks / Blockers
 
+- posted journal immutabilityが有効なので固定fixture cleanupでDELETE再実行してはいけない。SQLはfresh org fixture方式
 - remote DB migration/push/migration repair未実行。local-only evidence; remote Storage-enabled behavior still relies on actual Supabase Storage metadata tables.
 - remote DB migration/push/migration repair未実行。migration fileはGit管理のみ。
 - Remote DB still untouched; local supabase migration up remains blocked by the older storage.buckets local migration issue before these new migrations.
 - Older historical migration bodies still contain no_pl_journal strings, but runtime fallback service metadata and route response contract now use no_pl_revenue wording; remote DB still untouched.
-- Local supabase migration up remains blocked before these migrations by existing 20260506043949_add_private_site_drawings.sql missing local storage.buckets; remote DB still untouched.
 ---
 
 ## 10. References
@@ -472,3 +472,20 @@ cd frontend && npx eslint src/
   - `supabase migration up --local=PASS through 20260509135652; canonical RPC search_path/grants SQL check=PASS; missing membership expected failure=RPC_MEMBERSHIP_REQUIRED; remote DB untouched`
 - Landmines:
   - remote DB migration/push/migration repair未実行。local-only evidence; remote Storage-enabled behavior still relies on actual Supabase Storage metadata tables.
+
+### 2026-05-09 23:31:28 +0900
+
+- Entry-ID: `H0024`
+- Completed:
+  - [x] v2.2 canonical posting chain local DB integration evidenceを追加。fresh org fixtureでsales/invoice transfer/payment receipt/payment allocation/member overhead expenseを実行し、balanced journals/no-PL-revenue/PL diff=0を確認
+- Remaining:
+  - [ ] P0/P1残: true concurrent duplicate DB/API integration test、org boundary multi-org negative test、必要ならaccountingV22Canonical integration test化
+- Changed Files:
+  - `artifacts/accounting-v2.2/local_v22_posting_scenario.sql` - local-only canonical posting chain integration SQL
+  - `artifacts/accounting-v2.2/local_posting_chain_integration_result.md` - local DB row count/invariant/PL compare evidence
+- Working Context:
+  - remote DB/push/migration repair未実行。Supabase CLI db query -f はmulti-statementを弾くためdocker exec psqlでlocal DBへ実行
+- Validation:
+  - `PASS: docker exec psql local_v22_posting_scenario.sql; PASS: supabase migration up --local; PASS: cd server && npx tsc --noEmit; PASS: accountingRoute unit 55/55; PASS: scripts/db/check-sql-boundaries.sh; PASS: git diff --check`
+- Landmines:
+  - posted journal immutabilityが有効なので固定fixture cleanupでDELETE再実行してはいけない。SQLはfresh org fixture方式
