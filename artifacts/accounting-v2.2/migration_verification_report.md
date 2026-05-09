@@ -31,6 +31,8 @@ Implemented and locally verified the first v2.2 slice:
 - `GET /api/v1/accounting/pl` accepts `source=legacy|journal|compare`; default/legacy remains `accounting_transactions`, journal source returns net-accounting posted journal totals, and compare returns both net journal and gross-compatible journal diff data
 - `rpc_reverse_accounting_sale_canonical` creates transition `income.reverse` lineage, proposal execution, posting group, balanced reversal journal, and `accounting_transactions` projection for posted sales reversals
 - `/void/:id` uses canonical sales reversal when the RPC is available and falls back to legacy reversal for unsupported kinds such as expenses
+- `rpc_post_accounting_expense_canonical` creates transition `expense.create` lineage, proposal execution, posting group, balanced expense journal, and `accounting_transactions` projection for immediately posted low-risk expenses
+- `/expenses` uses canonical expense posting when the RPC is available, preserves the legacy top-level Money response, and keeps high-risk review-pending expenses on the transition legacy path
 
 ## Commands
 
@@ -67,6 +69,9 @@ supabase migration up
 - Canonical sales reversal must return `projection_source=canonical_posting_projection`, `proposal_execution_id`, `posting_group_id`, and `journal_entry_id`.
 - Canonical sales reversal must use DB-valid transition proposal type `income.reverse` rather than the legacy response-only `transaction.reverse` label.
 - Canonical sales posting/reversal must normalize net sales journal amount when `amount_subtotal` looks like a gross total, so `revenue + output_tax = accounts_receivable` remains balanced.
+- Canonical expense posting must return `projection_source=canonical_posting_projection`, `proposal_execution_id`, `posting_group_id`, and `journal_entry_id` while preserving the Money legacy top-level response.
+- Canonical expense posting must call the service-role RPC with `p_org_id`, `p_actor_user_id`, and `p_membership_id`.
+- Canonical expense posting must carry `expense_scope`, `paid_by`, claimant, settlement, payment account, and reimbursement metadata into the projection/journal dimensions.
 
 ## Result
 
@@ -86,7 +91,10 @@ supabase migration up
 - Accounting route + SiteCompletion targeted regression after PL compare mode: pass, 55 tests
 - Accounting route + SiteCompletion targeted regression after canonical sales reversal: pass, 56 tests
 - Accounting route + SiteCompletion targeted regression after review fix for gross-looking subtotal journal balance: pass, 56 tests
+- Accounting route unit tests after canonical expense route integration: pass, 51 tests
+- Accounting route + SiteCompletion targeted regression after canonical expense route integration: pass, 57 tests
 - TypeScript after canonical sales route integration: pass
+- TypeScript after canonical expense route integration: pass
 - Frontend TypeScript after PL source typing: pass
 - SQL boundary check: pass
 - Whitespace check: pass

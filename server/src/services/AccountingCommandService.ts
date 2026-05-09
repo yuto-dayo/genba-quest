@@ -64,6 +64,36 @@ export type ExpenseInsertPayload = {
     created_by: string;
 };
 
+export type PostCanonicalExpenseInput = {
+    orgId: string;
+    membershipId?: string | null;
+    idempotencyKey: string;
+    costCenter: string;
+    siteId?: string | null;
+    vendorName?: unknown;
+    description?: unknown;
+    recordedDate: string;
+    amountSubtotal: number;
+    taxAmount: number;
+    amountTotal: number;
+    category: ExpenseCategory;
+    expenseItemCode?: string | null;
+    expenseItemOther?: string | null;
+    taxCategory: string;
+    riskLevel: "LOW" | "HIGH";
+    sourceDocumentId?: unknown;
+    inputSources: Record<string, unknown>;
+    expenseScope: "job" | "overhead";
+    paidBy: "org" | "member";
+    claimantMemberId?: string | null;
+    settlementType: "paid" | "unpaid";
+    paymentAccount?: "cash" | "bank" | null;
+    reimbursementStatus?: "unsubmitted" | "submitted" | "approved" | "reimbursed" | null;
+    recurringTemplateId?: string | null;
+    createdBy: string;
+    actorName?: string | null;
+};
+
 export type AccountingCommandActorRef = {
     type: "human" | "ai" | "system" | "integration";
     id: string;
@@ -575,6 +605,59 @@ export async function postCanonicalSale(
 
     if (error) {
         if (isMissingFunctionError(error, "rpc_post_accounting_sale_canonical")) {
+            return null;
+        }
+        throw error;
+    }
+
+    return data && typeof data === "object"
+        ? data as Record<string, unknown>
+        : {};
+}
+
+export async function postCanonicalExpense(
+    input: PostCanonicalExpenseInput,
+): Promise<Record<string, unknown> | null> {
+    const result = await supabaseAdmin.rpc("rpc_post_accounting_expense_canonical", {
+        p_org_id: input.orgId,
+        p_actor_user_id: input.createdBy,
+        p_membership_id: input.membershipId || null,
+        p_idempotency_key: input.idempotencyKey,
+        p_cost_center: input.costCenter,
+        p_site_id: input.siteId || null,
+        p_vendor_name: typeof input.vendorName === "string" && input.vendorName ? input.vendorName : null,
+        p_description: typeof input.description === "string" && input.description ? input.description : null,
+        p_recorded_date: input.recordedDate,
+        p_amount_subtotal: input.amountSubtotal,
+        p_tax_amount: input.taxAmount,
+        p_amount_total: input.amountTotal,
+        p_category: input.category,
+        p_expense_item_code: input.expenseItemCode || null,
+        p_expense_item_other: input.expenseItemOther || null,
+        p_tax_category: input.taxCategory,
+        p_risk_level: input.riskLevel,
+        p_source_document_id: typeof input.sourceDocumentId === "string" && input.sourceDocumentId
+            ? input.sourceDocumentId
+            : null,
+        p_input_sources: input.inputSources || {},
+        p_expense_scope: input.expenseScope,
+        p_paid_by: input.paidBy,
+        p_claimant_member_id: input.claimantMemberId || null,
+        p_settlement_type: input.settlementType,
+        p_payment_account: input.paymentAccount || null,
+        p_reimbursement_status: input.reimbursementStatus || null,
+        p_recurring_template_id: input.recurringTemplateId || null,
+        p_actor_name: input.actorName || null,
+    });
+
+    if (!result) {
+        return null;
+    }
+
+    const { data, error } = result;
+
+    if (error) {
+        if (isMissingFunctionError(error, "rpc_post_accounting_expense_canonical")) {
             return null;
         }
         throw error;

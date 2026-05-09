@@ -18,6 +18,7 @@ import {
     insertInvoiceRecord,
     insertInvoiceSourceLinks,
     insertSaleTransactionWithItems,
+    postCanonicalExpense,
     postCanonicalSale,
     recordPaymentEvent,
     recordPaymentAllocation,
@@ -52,7 +53,7 @@ const DEFAULT_SALE_UNIT_NAME = "式";
 const LEDGER_AGGREGATION_STATUSES = ["posted", "approved", "voided"] as const;
 const PL_SOURCES = ["legacy", "journal", "compare"] as const;
 const PL_REVENUE_NET_ACCOUNT_CODES = new Set(["4100"]);
-const PL_EXPENSE_NET_ACCOUNT_CODES = new Set(["5100", "5200", "5300", "5400", "5900"]);
+const PL_EXPENSE_NET_ACCOUNT_CODES = new Set(["5100", "5110", "5120", "5130", "5140", "5200", "5300", "5400", "5900"]);
 const PL_REVENUE_GROSS_COMPAT_ACCOUNT_CODES = new Set([...PL_REVENUE_NET_ACCOUNT_CODES, "2500"]);
 const PL_EXPENSE_GROSS_COMPAT_ACCOUNT_CODES = new Set([...PL_EXPENSE_NET_ACCOUNT_CODES, "1500"]);
 const PL_NO_REVENUE_POSTING_GROUP_TYPES = new Set(["invoice_transfer", "payment_receipt", "payment_allocation"]);
@@ -1347,6 +1348,75 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
         }
 
         const requiresReview = risk_level === "HIGH";
+
+        if (!requiresReview) {
+            const canonicalResult = await postCanonicalExpense({
+                orgId,
+                membershipId: req.orgMembershipId || null,
+                idempotencyKey: idempotency.idempotencyKey,
+                costCenter: resolvedCostCenter,
+                siteId: typeof resolvedSiteId === "string" ? resolvedSiteId : null,
+                vendorName: vendor_name,
+                description,
+                recordedDate: recorded_date || new Date().toISOString().split("T")[0],
+                amountSubtotal: resolvedSubtotal,
+                taxAmount: resolvedTaxAmount,
+                amountTotal: resolvedTotal,
+                category: normalizedCategory || "other",
+                expenseItemCode: normalizedExpenseItemCode,
+                expenseItemOther: normalizedExpenseItemOther,
+                taxCategory: normalizedTaxCategory,
+                riskLevel: risk_level,
+                sourceDocumentId: source_document_id,
+                inputSources: input_sources || {},
+                expenseScope: normalizedExpenseScope as "job" | "overhead",
+                paidBy: normalizedPaidBy as "org" | "member",
+                claimantMemberId: normalizedClaimantMemberId,
+                settlementType: normalizedSettlementType as "paid" | "unpaid",
+                paymentAccount: normalizedPaymentAccount as "cash" | "bank" | null,
+                reimbursementStatus: normalizedReimbursementStatus as "unsubmitted" | "submitted" | "approved" | "reimbursed" | null,
+                recurringTemplateId: normalizedRecurringTemplateId,
+                createdBy: req.userId!,
+                actorName: req.userName || req.userEmail || null,
+            });
+
+            const canonicalData = canonicalResult?.transaction;
+
+            if (canonicalData && typeof canonicalData === "object" && "id" in canonicalData) {
+                const canonicalProposal = canonicalResult.proposal && typeof canonicalResult.proposal === "object"
+                    ? canonicalResult.proposal as Record<string, unknown>
+                    : null;
+                const canonicalProjection = canonicalResult.projection && typeof canonicalResult.projection === "object"
+                    ? canonicalResult.projection as Record<string, unknown>
+                    : {
+                        legacy_transaction_id: (canonicalData as Record<string, unknown>).id,
+                        legacy_transaction_kind: (canonicalData as Record<string, unknown>).kind || "expense",
+                        projection_source: "canonical_posting_projection",
+                    };
+                const canonicalPosting = canonicalResult.posting && typeof canonicalResult.posting === "object"
+                    ? canonicalResult.posting as Record<string, unknown>
+                    : {
+                        affects_pl: true,
+                        affects_revenue: false,
+                        affects_ar: false,
+                        mode: "canonical_expense_posting",
+                    };
+
+                const responseBody = withAccountingCommandEnvelope(canonicalData as Record<string, unknown>, {
+                    endpointName: "accounting.expenses.create",
+                    proposal: canonicalProposal,
+                    approvalStatus: "not_required",
+                    postingStatus: "posted",
+                    mode: "canonical_expense_posting",
+                    projection: canonicalProjection,
+                    postingMetadata: canonicalPosting,
+                });
+
+                await completeAccountingWriteIdempotency(idempotency, 201, responseBody);
+                res.status(201).json(responseBody);
+                return;
+            }
+        }
 
         const data = await insertExpenseTransaction({
             org_id: orgId,

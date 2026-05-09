@@ -253,6 +253,124 @@ describe("accounting router", () => {
     expect(res.status).toHaveBeenCalledWith(201);
   });
 
+  it("POST /expenses uses canonical expense posting RPC when available", async () => {
+    const siteChain = createChain({ data: { id: "site-1", status: "active" }, error: null });
+    setupMockFromSequence(mockFrom, [siteChain]);
+    mockRpc.mockResolvedValue({
+      data: {
+        org_id: "org-1",
+        transaction: {
+          id: "expense-canonical-1",
+          org_id: "org-1",
+          kind: "expense",
+          site_id: "site-1",
+          description: "ビス購入",
+          recorded_date: "2026-03-18",
+          amount_subtotal: 1000,
+          tax_amount: 100,
+          amount_total: 1100,
+          projection_source: "canonical_posting_projection",
+          proposal_id: "proposal-expense-canonical-1",
+          proposal_execution_id: "execution-expense-canonical-1",
+          posting_group_id: "posting-group-expense-canonical-1",
+          journal_entry_id: "journal-expense-canonical-1",
+        },
+        proposal: {
+          id: "proposal-expense-canonical-1",
+          type: "expense.create",
+          status: "posted_canonical_projection",
+          db_status: "executed",
+          lineage_mode: "transition",
+          lifecycle_engine: "money_transition",
+          full_proposal_lifecycle: false,
+          source_route: "accounting.expenses.create",
+          source_idempotency_key: "expense-canonical-1",
+        },
+        projection: {
+          legacy_transaction_id: "expense-canonical-1",
+          legacy_transaction_kind: "expense",
+          projection_source: "canonical_posting_projection",
+          proposal_id: "proposal-expense-canonical-1",
+          proposal_execution_id: "execution-expense-canonical-1",
+          posting_group_id: "posting-group-expense-canonical-1",
+          journal_entry_id: "journal-expense-canonical-1",
+        },
+        posting: {
+          status: "posted",
+          mode: "canonical_expense_posting",
+          affects_pl: true,
+          affects_revenue: false,
+          affects_ar: false,
+        },
+      },
+      error: null,
+    });
+
+    const req = {
+      userId: "user-1",
+      userName: "山田",
+      orgId: "org-1",
+      orgMembershipId: "membership-1",
+      body: {
+        idempotency_key: "expense-canonical-1",
+        cost_center: "SITE",
+        site_id: "site-1",
+        vendor_name: "資材屋",
+        amount_subtotal: 1000,
+        tax_amount: 100,
+        amount_total: 1100,
+        category: "material",
+        description: "ビス購入",
+        expense_scope: "job",
+        paid_by: "member",
+        claimant_member_id: "member-1",
+        settlement_type: "unpaid",
+        reimbursement_status: "submitted",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createExpenseHandler(req, res);
+
+    expect(mockRpc).toHaveBeenCalledWith("rpc_post_accounting_expense_canonical", expect.objectContaining({
+      p_org_id: "org-1",
+      p_actor_user_id: "user-1",
+      p_membership_id: "membership-1",
+      p_idempotency_key: "expense-canonical-1",
+      p_site_id: "site-1",
+      p_amount_total: 1100,
+      p_category: "material",
+      p_expense_scope: "job",
+      p_paid_by: "member",
+      p_claimant_member_id: "member-1",
+      p_settlement_type: "unpaid",
+      p_reimbursement_status: "submitted",
+    }));
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      id: "expense-canonical-1",
+      proposal: expect.objectContaining({
+        id: "proposal-expense-canonical-1",
+        status: "posted_canonical_projection",
+        lifecycle_engine: "money_transition",
+        full_proposal_lifecycle: false,
+      }),
+      posting: expect.objectContaining({
+        status: "posted",
+        mode: "canonical_expense_posting",
+        affects_pl: true,
+        affects_revenue: false,
+        affects_ar: false,
+      }),
+      projection: expect.objectContaining({
+        projection_source: "canonical_posting_projection",
+        proposal_execution_id: "execution-expense-canonical-1",
+        posting_group_id: "posting-group-expense-canonical-1",
+        journal_entry_id: "journal-expense-canonical-1",
+      }),
+    }));
+  });
+
   it("POST /expenses requires an idempotency key for accounting writes", async () => {
     const siteChain = createChain({ data: { id: "site-1", status: "active" }, error: null });
     setupMockFromSequence(mockFrom, [siteChain]);
