@@ -204,6 +204,11 @@ describe("accounting router", () => {
         amount_total: 1100,
         category: "material",
         description: "ビス購入",
+        expense_scope: "job",
+        paid_by: "member",
+        claimant_member_id: "member-1",
+        settlement_type: "unpaid",
+        reimbursement_status: "submitted",
       },
     } as any;
     const res = createMockRes();
@@ -218,6 +223,18 @@ describe("accounting router", () => {
       risk_level: "LOW",
       status: "posted",
       review_status: "not_required",
+      projection_source: "transition_lineage",
+      expense_scope: "job",
+      paid_by: "member",
+      claimant_member_id: "member-1",
+      settlement_type: "unpaid",
+      reimbursement_status: "submitted",
+      metadata_json: expect.objectContaining({
+        expense_scope: "job",
+        paid_by: "member",
+        settlement_type: "unpaid",
+        reimbursement_status: "submitted",
+      }),
       created_by: "user-1",
     }));
     expect(existingEntryChain.maybeSingle).toHaveBeenCalled();
@@ -254,6 +271,31 @@ describe("accounting router", () => {
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith({ error: "idempotency_key is required" });
+  });
+
+  it("POST /expenses requires claimant_member_id for member-paid reimbursements", async () => {
+    const siteChain = createChain({ data: { id: "site-1", status: "active" }, error: null });
+    setupMockFromSequence(mockFrom, [siteChain]);
+
+    const req = {
+      userId: "user-1",
+      orgId: "org-1",
+      body: {
+        idempotency_key: "expense-member-missing-claimant-1",
+        cost_center: "SITE",
+        site_id: "site-1",
+        amount_total: 1100,
+        category: "material",
+        paid_by: "member",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createExpenseHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: "claimant_member_id is required when paid_by is member" });
+    expect(mockFrom).not.toHaveBeenCalledWith("accounting_write_idempotency_keys");
   });
 
   it("POST /expenses replays a completed idempotent write without inserting another transaction", async () => {

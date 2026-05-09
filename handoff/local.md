@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `Continue v2.2 with POST /payments event separation, expense_scope/paid_by payload support, and idempotency breadth/parallel duplicate tests.`
+- NEXT_CMD: `Continue v2.2 with POST /payments event separation and broader idempotency replay/conflict/parallel duplicate coverage.`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/local.md`
@@ -18,8 +18,8 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `628dd68`
-  - Updated: `2026-05-09T19:15:07+0900`
+  - HEAD: `c57b85a`
+  - Updated: `2026-05-09T19:18:30+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
@@ -33,47 +33,47 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `Continue v2.2 with POST /payments event separation, expense_scope/paid_by payload support, and idempotency breadth/parallel duplicate tests.`. Source: realtime
+- [focus] NEXT_CMD: `Continue v2.2 with POST /payments event separation and broader idempotency replay/conflict/parallel duplicate coverage.`. Source: realtime
+- [H0010] Completed: P1 v2.2 slice: added accounting_transactions projection metadata columns and /expenses support for expense_scope, paid_by, claimant_member_id, settlement_type, payment_account, reimbursement_status, and recurring_template_id.
+- [H0010] Remaining: Continue v2.2 with POST /payments event separation and broader idempotency replay/conflict/parallel duplicate coverage.
 - [H0009] Completed: P1 v2.2 slice: added transition proposal lineage to invoice issue, payment allocation, and void/reversal responses; renamed invoice/payment posting modes to no_pl_revenue and exposed posting impact flags.
 - [H0009] Remaining: Continue v2.2 with POST /payments event separation, expense_scope/paid_by payload support, and idempotency breadth/parallel duplicate tests.
-- [H0008] Completed: P0/P1 v2.2 slice: hardened SECURITY DEFINER RPC boundary with membership-aware wrappers and propagated active membership IDs; added transition lineage semantics and sales proposal lineage.
-- [H0008] Remaining: Continue v2.2 with invoice/payment/void transition lineage and idempotency breadth tests before canonical sales posting RPC.
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0010] Expense UI is not redesigned yet; this only adds payload/storage compatibility for member reimbursement and overhead separation.
 - [H0009] ProposalService.createAndSubmit remains intentionally disconnected from Money writes.
 - [H0008] Do not connect ProposalService.createAndSubmit to Money yet; transition lineage remains money_transition/full_proposal_lifecycle=false.
 - [H0007] Subagent Chandrasekhar confirmed createAndSubmit would create ledger_events/ledger_entries while Money route already writes accounting_transactions/accounting_journal_*; parent kept critical Proposal/ledger decision local.
 - [H0006] Kept frontend compatibility by preserving AccountingTransaction/AccountingInvoice top-level fields. The envelope is explicit about legacy_direct, so it does not pretend a real proposal exists yet.
-- [H0005] Ramanujan confirmed route test ordering risks. Parent kept transaction fetch/eligibility/idempotency in the route and moved only the write command body to preserve behavior.
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
+- [H0010] Remote Supabase migration remains unexecuted; local route compatibility strips v2.2 columns if the DB schema has not applied the migration yet.
 - [H0009] POST /payments event creation is still not implemented; /payments/allocations still creates/allocates through the legacy RPC path for now.
 - [H0008] Migration is local only; remote Supabase migration/push remains unexecuted. complete-with-close now passes membership id, but old service-role signatures remain for compatibility.
 - [H0007] This is transition lineage only: ProposalService execution is still not used for Money expense writes, and remote DB migration/push remains unexecuted.
 - [H0006] proposal remains null in these create responses; this is only a typed transition envelope, not full Proposal-backed execution.
-- [H0005] Proposal-backed response envelope is still not implemented; getOrgInvoiceSettings and invoice transaction reads remain route-local for now.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0010] Continue v2.2 with POST /payments event separation and broader idempotency replay/conflict/parallel duplicate coverage.
 - [H0009] Continue v2.2 with POST /payments event separation, expense_scope/paid_by payload support, and idempotency breadth/parallel duplicate tests.
 - [H0008] Continue v2.2 with invoice/payment/void transition lineage and idempotency breadth tests before canonical sales posting RPC.
 - [H0007] Continue P1 by applying the same proposal lineage pattern to sales/invoice/payment only after confirming each route cannot double-post ledger artifacts.
 - [H0006] Replace legacy_direct envelope internals with real Proposal/execution records once Money write commands are routed through the Proposal pipeline.
-- [H0005] Begin Proposal-shaped Money responses: wrap existing command results into proposal/approval/execution/posting/projection envelopes while keeping legacy projection ids stable.
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `9`
+- current_l3_entries: `10`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -104,6 +104,7 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] P1 v2.2 slice: added accounting_transactions projection metadata columns and /expenses support for expense_scope, paid_by, claimant_member_id, settlement_type, payment_account, reimbursement_status, and recurring_template_id.
 - [x] P1 v2.2 slice: added transition proposal lineage to invoice issue, payment allocation, and void/reversal responses; renamed invoice/payment posting modes to no_pl_revenue and exposed posting impact flags.
 - [x] P0/P1 v2.2 slice: hardened SECURITY DEFINER RPC boundary with membership-aware wrappers and propagated active membership IDs; added transition lineage semantics and sales proposal lineage.
 - [x] P1 response: connected POST /expenses to transition Proposal lineage without calling ProposalService.createAndSubmit, so legacy Money transaction/journal writes remain stable while responses can return a real proposal row.
@@ -117,17 +118,22 @@ Phase: A-0/A-1
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: Continue v2.2 with POST /payments event separation, expense_scope/paid_by payload support, and idempotency breadth/parallel duplicate tests.
+- [ ] **P0**: Continue v2.2 with POST /payments event separation and broader idempotency replay/conflict/parallel duplicate coverage.
+- [ ] **P1**: Continue v2.2 with POST /payments event separation, expense_scope/paid_by payload support, and idempotency breadth/parallel duplicate tests.
 - [ ] **P1**: Continue v2.2 with invoice/payment/void transition lineage and idempotency breadth tests before canonical sales posting RPC.
 - [ ] **P1**: Continue P1 by applying the same proposal lineage pattern to sales/invoice/payment only after confirming each route cannot double-post ledger artifacts.
 - [ ] **P1**: Replace legacy_direct envelope internals with real Proposal/execution records once Money write commands are routed through the Proposal pipeline.
-- [ ] **P1**: Begin Proposal-shaped Money responses: wrap existing command results into proposal/approval/execution/posting/projection envelopes while keeping legacy projection ids stable.
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
+| `artifacts/accounting-v2.2/migration_verification_report.md` | updated local evidence for reimbursement slice |
+| `server/src/__tests__/unit/accountingRoute.test.ts` | member reimbursement validation and insert assertions |
+| `server/src/services/AccountingCommandService.ts` | expense insert payload and schema compatibility retry |
+| `server/src/routes/accounting.ts` | expense payload validation and transition metadata persistence |
+| `supabase/migrations/20260509101543_accounting_v22_projection_metadata.sql` | projection source and reimbursement dimension columns |
 | `artifacts/accounting-v2.2/migration_verification_report.md` | updated local evidence for lineage slice |
 | `server/src/__tests__/unit/accountingRoute.test.ts` | invoice/payment/void lineage regression coverage |
 | `server/src/services/AccountingCommandService.ts` | transition proposal type coverage for payment.allocate and transaction.reverse |
@@ -143,11 +149,6 @@ Phase: A-0/A-1
 | `server/src/services/AccountingCommandService.ts` | createAccountingCommandProposalLineage helper |
 | `frontend/src/lib/api.ts` | optional envelope typing and broader idempotency helper typing |
 | `server/src/routes/accounting.ts` | backward-compatible accounting command envelope |
-| `server/src/routes/accounting.ts` | POST /invoices delegates write orchestration to command service |
-| `server/src/services/AccountingCommandService.ts` | createAccountingInvoice and invoice helper ownership |
-| `server/src/routes/accounting.ts` | route delegates payment/void writes to command service |
-| `server/src/services/AccountingCommandService.ts` | payment allocation and void reversal command bodies |
-| `server/src/routes/accounting.ts` | now imports accounting command helpers and keeps route-level validation/idempotency |
 ---
 
 ## 6. Locked Files（編集中 - 他エージェント触らない）
@@ -182,11 +183,11 @@ cd frontend && npx eslint src/
 
 ## 9. Risks / Blockers
 
+- Remote Supabase migration remains unexecuted; local route compatibility strips v2.2 columns if the DB schema has not applied the migration yet.
 - POST /payments event creation is still not implemented; /payments/allocations still creates/allocates through the legacy RPC path for now.
 - Migration is local only; remote Supabase migration/push remains unexecuted. complete-with-close now passes membership id, but old service-role signatures remain for compatibility.
 - This is transition lineage only: ProposalService execution is still not used for Money expense writes, and remote DB migration/push remains unexecuted.
 - proposal remains null in these create responses; this is only a typed transition envelope, not full Proposal-backed execution.
-- Proposal-backed response envelope is still not implemented; getOrgInvoiceSettings and invoice transaction reads remain route-local for now.
 ---
 
 ## 10. References
@@ -359,3 +360,23 @@ cd frontend && npx eslint src/
   - `server accounting route tests=pass|39 tests after invoice/payment/void lineage; server tsc=pass|npx tsc --noEmit; sql-boundaries=pass; git diff --check=pass`
 - Landmines:
   - POST /payments event creation is still not implemented; /payments/allocations still creates/allocates through the legacy RPC path for now.
+
+### 2026-05-09 19:18:30 +0900
+
+- Entry-ID: `H0010`
+- Completed:
+  - [x] P1 v2.2 slice: added accounting_transactions projection metadata columns and /expenses support for expense_scope, paid_by, claimant_member_id, settlement_type, payment_account, reimbursement_status, and recurring_template_id.
+- Remaining:
+  - [ ] Continue v2.2 with POST /payments event separation and broader idempotency replay/conflict/parallel duplicate coverage.
+- Changed Files:
+  - `supabase/migrations/20260509101543_accounting_v22_projection_metadata.sql` - projection source and reimbursement dimension columns
+  - `server/src/routes/accounting.ts` - expense payload validation and transition metadata persistence
+  - `server/src/services/AccountingCommandService.ts` - expense insert payload and schema compatibility retry
+  - `server/src/__tests__/unit/accountingRoute.test.ts` - member reimbursement validation and insert assertions
+  - `artifacts/accounting-v2.2/migration_verification_report.md` - updated local evidence for reimbursement slice
+- Working Context:
+  - Expense UI is not redesigned yet; this only adds payload/storage compatibility for member reimbursement and overhead separation.
+- Validation:
+  - `server accounting route tests=pass|40 tests after reimbursement payload; server tsc=pass|npx tsc --noEmit; sql-boundaries=pass; migration syntax=pass|docker postgres projection metadata dry-run; git diff --check=pass`
+- Landmines:
+  - Remote Supabase migration remains unexecuted; local route compatibility strips v2.2 columns if the DB schema has not applied the migration yet.

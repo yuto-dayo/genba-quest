@@ -1017,14 +1017,64 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
             expense_item_other,
             source_document_id,
             input_sources,
+            expense_scope,
+            paid_by,
+            claimant_member_id,
+            settlement_type,
+            payment_account,
+            reimbursement_status,
+            recurring_template_id,
         } = req.body;
         const orgId = req.orgId!;
         const normalizedCategory = normalizeExpenseCategory(category);
         const normalizedTaxCategory = normalizeExpenseTaxCategory(tax_category) || "10_STANDARD";
         const normalizedExpenseItemCode = normalizeText(expense_item_code);
         const normalizedExpenseItemOther = normalizeText(expense_item_other);
+        const normalizedExpenseScope = normalizeText(expense_scope) || (cost_center === "HQ" ? "overhead" : "job");
+        const normalizedPaidBy = normalizeText(paid_by) || "org";
+        const normalizedClaimantMemberId = normalizeText(claimant_member_id);
+        const normalizedSettlementType = normalizeText(settlement_type) || "paid";
+        const normalizedPaymentAccount = normalizeText(payment_account);
+        const normalizedReimbursementStatus = normalizeText(reimbursement_status)
+            || (normalizedPaidBy === "member" ? "unsubmitted" : null);
+        const normalizedRecurringTemplateId = normalizeText(recurring_template_id);
+        const resolvedCostCenter = normalizedExpenseScope === "overhead" ? "HQ" : (cost_center || "SITE");
+        const resolvedSiteId = normalizedExpenseScope === "overhead" ? null : site_id;
 
-        if (cost_center !== "HQ" && !site_id) {
+        if (normalizedExpenseScope !== "job" && normalizedExpenseScope !== "overhead") {
+            res.status(400).json({ error: "expense_scope must be one of job, overhead" });
+            return;
+        }
+
+        if (normalizedPaidBy !== "org" && normalizedPaidBy !== "member") {
+            res.status(400).json({ error: "paid_by must be one of org, member" });
+            return;
+        }
+
+        if (normalizedPaidBy === "member" && !normalizedClaimantMemberId) {
+            res.status(400).json({ error: "claimant_member_id is required when paid_by is member" });
+            return;
+        }
+
+        if (normalizedSettlementType !== "paid" && normalizedSettlementType !== "unpaid") {
+            res.status(400).json({ error: "settlement_type must be one of paid, unpaid" });
+            return;
+        }
+
+        if (normalizedPaymentAccount && normalizedPaymentAccount !== "cash" && normalizedPaymentAccount !== "bank") {
+            res.status(400).json({ error: "payment_account must be one of cash, bank" });
+            return;
+        }
+
+        if (
+            normalizedReimbursementStatus
+            && !["unsubmitted", "submitted", "approved", "reimbursed"].includes(normalizedReimbursementStatus)
+        ) {
+            res.status(400).json({ error: "reimbursement_status must be one of unsubmitted, submitted, approved, reimbursed" });
+            return;
+        }
+
+        if (resolvedCostCenter !== "HQ" && !resolvedSiteId) {
             res.status(400).json({ error: "site_id is required when cost_center is SITE" });
             return;
         }
@@ -1049,9 +1099,9 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
             return;
         }
 
-        if (site_id) {
+        if (resolvedSiteId) {
             try {
-                await assertSiteBelongsToOrg(site_id, orgId);
+                await assertSiteBelongsToOrg(resolvedSiteId, orgId);
             } catch {
                 res.status(400).json({ error: "site_id is invalid or unavailable" });
                 return;
@@ -1110,8 +1160,8 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
         const data = await insertExpenseTransaction({
             org_id: orgId,
             kind: "expense",
-            cost_center: cost_center || "SITE",
-            site_id: cost_center === "HQ" ? null : site_id,
+            cost_center: resolvedCostCenter,
+            site_id: resolvedSiteId,
             vendor_name,
             description,
             recorded_date: recorded_date || new Date().toISOString().split("T")[0],
@@ -1127,6 +1177,24 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
             review_status: requiresReview ? undefined : EXPENSE_REVIEW_NOT_REQUIRED,
             source_document_id,
             input_sources: input_sources || {},
+            projection_source: "transition_lineage",
+            legacy_source_route: "accounting.expenses.create",
+            legacy_source_id: idempotency.idempotencyKey,
+            metadata_json: {
+                expense_scope: normalizedExpenseScope,
+                paid_by: normalizedPaidBy,
+                settlement_type: normalizedSettlementType,
+                payment_account: normalizedPaymentAccount,
+                reimbursement_status: normalizedReimbursementStatus,
+                recurring_template_id: normalizedRecurringTemplateId,
+            },
+            expense_scope: normalizedExpenseScope as "job" | "overhead",
+            paid_by: normalizedPaidBy as "org" | "member",
+            claimant_member_id: normalizedClaimantMemberId,
+            settlement_type: normalizedSettlementType as "paid" | "unpaid",
+            payment_account: normalizedPaymentAccount as "cash" | "bank" | null,
+            reimbursement_status: normalizedReimbursementStatus as "unsubmitted" | "submitted" | "approved" | "reimbursed" | null,
+            recurring_template_id: normalizedRecurringTemplateId,
             created_by: req.userId!,
         });
 
@@ -1136,6 +1204,7 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
 
         let proposalLineage: Record<string, unknown> | null = null;
         const legacyProjection = {
+            projection_source: "transition_lineage",
             legacy_transaction_id: data.id,
             legacy_transaction_kind: data.kind || "expense",
         };
@@ -1154,8 +1223,8 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
                 },
                 description: `経費登録: ${normalizeText(description) || normalizeText(vendor_name) || data.id}`,
                 payload: {
-                    cost_center: cost_center || "SITE",
-                    site_id: cost_center === "HQ" ? null : site_id,
+                    cost_center: resolvedCostCenter,
+                    site_id: resolvedSiteId,
                     vendor_name,
                     description,
                     recorded_date: data.recorded_date,
@@ -1170,10 +1239,17 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
                     review_required: requiresReview,
                     source_document_id,
                     input_sources: input_sources || {},
+                    expense_scope: normalizedExpenseScope,
+                    paid_by: normalizedPaidBy,
+                    claimant_member_id: normalizedClaimantMemberId,
+                    settlement_type: normalizedSettlementType,
+                    payment_account: normalizedPaymentAccount,
+                    reimbursement_status: normalizedReimbursementStatus,
+                    recurring_template_id: normalizedRecurringTemplateId,
                 },
                 projection: legacyProjection,
                 documentId: typeof source_document_id === "string" ? source_document_id : null,
-                siteId: cost_center === "HQ" ? null : typeof site_id === "string" ? site_id : null,
+                siteId: typeof resolvedSiteId === "string" ? resolvedSiteId : null,
             });
         } catch (proposalError) {
             console.error("Expense proposal lineage error:", proposalError);

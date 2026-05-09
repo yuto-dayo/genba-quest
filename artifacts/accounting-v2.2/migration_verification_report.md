@@ -19,6 +19,8 @@ Implemented and locally verified the first v2.2 slice:
 - Sales transition proposal lineage response envelope
 - Transition lineage for invoice issue, payment allocation, and transaction reversal
 - `no_pl_journal` response wording replaced with `no_pl_revenue` for invoice/payment posting modes
+- Accounting transaction projection metadata columns for v2.2 source mode and expense reimbursement dimensions
+- `/expenses` payload acceptance for `expense_scope`, `paid_by`, claimant, settlement, payment account, reimbursement status, and recurring template references
 
 ## Commands
 
@@ -37,6 +39,7 @@ git diff --check
 - Direct RPC execution by `public`, `anon`, and `authenticated` is revoked in migration for hardened accounting/site completion RPC signatures.
 - Money transition lineage responses must identify `lineage_mode=transition`, `lifecycle_engine=money_transition`, and `full_proposal_lifecycle=false`.
 - Invoice/payment posting responses must identify `affects_pl=false`, `affects_revenue=false`, and AR impact separately.
+- Member-paid expenses must reject requests without `claimant_member_id`.
 
 ## Result
 
@@ -44,6 +47,8 @@ git diff --check
 - TypeScript: pass
 - Targeted unit tests: pass, 45 tests
 - Accounting route unit tests after invoice/payment/void lineage: pass, 39 tests
+- Accounting route unit tests after expense reimbursement payload: pass, 40 tests
+- Projection metadata migration syntax dry-run: pass
 - SQL boundary check: pass
 - Whitespace check: pass
 

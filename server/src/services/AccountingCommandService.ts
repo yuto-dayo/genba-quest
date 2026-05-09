@@ -46,6 +46,21 @@ export type ExpenseInsertPayload = {
     review_status?: string;
     source_document_id: unknown;
     input_sources: Record<string, unknown>;
+    projection_source?: "legacy_direct_write" | "transition_lineage" | "canonical_posting_projection" | "synthetic_backfill";
+    proposal_id?: string | null;
+    proposal_execution_id?: string | null;
+    posting_group_id?: string | null;
+    journal_entry_id?: string | null;
+    legacy_source_route?: string | null;
+    legacy_source_id?: string | null;
+    metadata_json?: Record<string, unknown>;
+    expense_scope?: "job" | "overhead";
+    paid_by?: "org" | "member";
+    claimant_member_id?: string | null;
+    settlement_type?: "paid" | "unpaid";
+    payment_account?: "cash" | "bank" | null;
+    reimbursement_status?: "unsubmitted" | "submitted" | "approved" | "reimbursed" | null;
+    recurring_template_id?: string | null;
     created_by: string;
 };
 
@@ -333,7 +348,7 @@ function isPostgrestNoRowsError(error: unknown): boolean {
 export async function insertExpenseTransaction(payload: ExpenseInsertPayload) {
     let insertPayload: Record<string, unknown> = { ...payload };
 
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+    for (let attempt = 0; attempt < 4; attempt += 1) {
         const { data, error } = await supabaseAdmin
             .from("accounting_transactions")
             .insert(insertPayload)
@@ -359,6 +374,31 @@ export async function insertExpenseTransaction(payload: ExpenseInsertPayload) {
         if ("expense_item_other" in insertPayload && isMissingColumnError(error, "expense_item_other")) {
             const { expense_item_other: _expenseItemOther, ...rest } = insertPayload;
             insertPayload = rest;
+            continue;
+        }
+
+        const v22CompatColumns = [
+            "projection_source",
+            "proposal_id",
+            "proposal_execution_id",
+            "posting_group_id",
+            "journal_entry_id",
+            "legacy_source_route",
+            "legacy_source_id",
+            "metadata_json",
+            "expense_scope",
+            "paid_by",
+            "claimant_member_id",
+            "settlement_type",
+            "payment_account",
+            "reimbursement_status",
+            "recurring_template_id",
+        ];
+        const missingV22Column = v22CompatColumns.find((column) => isMissingColumnError(error, column));
+        if (missingV22Column) {
+            insertPayload = Object.fromEntries(
+                Object.entries(insertPayload).filter(([key]) => !v22CompatColumns.includes(key))
+            );
             continue;
         }
 
