@@ -116,6 +116,26 @@ export type SaleItemCommandPayload = {
     unit_name: string;
     unit_price: number;
     quantity: number;
+    amount?: number;
+};
+
+export type PostCanonicalSaleInput = {
+    orgId: string;
+    membershipId?: string | null;
+    idempotencyKey: string;
+    siteId: string;
+    clientId?: unknown;
+    description: string;
+    recordedDate: string;
+    amountSubtotal: number;
+    taxAmount: number;
+    amountTotal: number;
+    taxCategory: string;
+    sourceDocumentId?: unknown;
+    inputSources: Record<string, unknown>;
+    items: SaleItemCommandPayload[];
+    createdBy: string;
+    actorName?: string | null;
 };
 
 export type RecordPaymentAllocationInput = {
@@ -145,6 +165,16 @@ export type CreateVoidReversalInput = {
     transactionId: string;
     reason: string;
     createdBy: string;
+};
+
+export type ReverseCanonicalSaleInput = {
+    orgId: string;
+    membershipId?: string | null;
+    transactionId: string;
+    reason: string;
+    idempotencyKey: string;
+    createdBy: string;
+    actorName?: string | null;
 };
 
 type InvoiceRevenueBasisAnchor = {
@@ -511,6 +541,48 @@ export async function insertSaleTransactionWithItems(
     }
 
     return data;
+}
+
+export async function postCanonicalSale(
+    input: PostCanonicalSaleInput,
+): Promise<Record<string, unknown> | null> {
+    const result = await supabaseAdmin.rpc("rpc_post_accounting_sale_canonical", {
+        p_org_id: input.orgId,
+        p_actor_user_id: input.createdBy,
+        p_membership_id: input.membershipId || null,
+        p_idempotency_key: input.idempotencyKey,
+        p_site_id: input.siteId,
+        p_client_id: typeof input.clientId === "string" && input.clientId ? input.clientId : null,
+        p_description: input.description,
+        p_recorded_date: input.recordedDate,
+        p_amount_subtotal: input.amountSubtotal,
+        p_tax_amount: input.taxAmount,
+        p_amount_total: input.amountTotal,
+        p_tax_category: input.taxCategory,
+        p_source_document_id: typeof input.sourceDocumentId === "string" && input.sourceDocumentId
+            ? input.sourceDocumentId
+            : null,
+        p_input_sources: input.inputSources || {},
+        p_items: input.items,
+        p_actor_name: input.actorName || null,
+    });
+
+    if (!result) {
+        return null;
+    }
+
+    const { data, error } = result;
+
+    if (error) {
+        if (isMissingFunctionError(error, "rpc_post_accounting_sale_canonical")) {
+            return null;
+        }
+        throw error;
+    }
+
+    return data && typeof data === "object"
+        ? data as Record<string, unknown>
+        : {};
 }
 
 export async function insertInvoiceSourceLinks(input: {
@@ -984,6 +1056,59 @@ export async function recordPaymentEvent(input: RecordPaymentEventInput) {
     }
 
     return data || {};
+}
+
+function isCanonicalSalesReverseFallbackError(error: unknown): boolean {
+    if (isMissingFunctionError(error, "rpc_reverse_accounting_sale_canonical")) {
+        return true;
+    }
+
+    if (!error || typeof error !== "object") {
+        return false;
+    }
+
+    const message = "message" in error && typeof error.message === "string" ? error.message : "";
+    return (
+        message.includes("CANONICAL_SALES_REVERSE_UNSUPPORTED_KIND")
+        || message.includes("CANONICAL_SALES_REVERSE_REVERSAL_ROW")
+        || message.includes("CANONICAL_SALES_REVERSE_ALREADY_VOIDED")
+        || message.includes("CANONICAL_SALES_REVERSE_NOT_POSTED")
+        || message.includes("CANONICAL_SALES_REVERSE_ALREADY_EXISTS")
+        || message.includes("CANONICAL_SALES_REVERSE_INVOICED")
+        || message.includes("TRANSACTION_NOT_FOUND")
+    );
+}
+
+export async function reverseCanonicalSale(
+    input: ReverseCanonicalSaleInput,
+): Promise<Record<string, unknown> | null> {
+    const result = await supabaseAdmin.rpc("rpc_reverse_accounting_sale_canonical", {
+        p_org_id: input.orgId,
+        p_actor_user_id: input.createdBy,
+        p_membership_id: input.membershipId || null,
+        p_idempotency_key: input.idempotencyKey,
+        p_transaction_id: input.transactionId,
+        p_reason: input.reason,
+        p_reversal_date: new Date().toISOString().split("T")[0],
+        p_actor_name: input.actorName || null,
+    });
+
+    if (!result) {
+        return null;
+    }
+
+    const { data, error } = result;
+
+    if (error) {
+        if (isCanonicalSalesReverseFallbackError(error)) {
+            return null;
+        }
+        throw error;
+    }
+
+    return data && typeof data === "object"
+        ? data as Record<string, unknown>
+        : {};
 }
 
 async function hasInvoiceLinkForTransaction(transactionId: string, orgId: string): Promise<boolean> {

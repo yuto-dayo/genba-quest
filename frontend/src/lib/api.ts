@@ -1744,15 +1744,25 @@ export const voidTransaction = (id: string, reason: string) =>
         body: JSON.stringify(withIdempotencyKey("accounting.void.create", { reason })),
     });
 
+type FetchPLParams = {
+    month?: string;
+    site_id?: string;
+    cost_center?: string;
+};
+
 // 月次PL取得
-export const fetchPL = (params?: { month?: string; site_id?: string; cost_center?: string }) => {
+export function fetchPL(params?: FetchPLParams & { source?: "legacy" }): Promise<PLReport>;
+export function fetchPL(params: FetchPLParams & { source: "journal" }): Promise<PLJournalReport>;
+export function fetchPL(params: FetchPLParams & { source: "compare" }): Promise<PLCompareReport>;
+export function fetchPL(params?: FetchPLParams & { source?: PLSource }) {
     const searchParams = new URLSearchParams();
     if (params?.month) searchParams.append("month", params.month);
     if (params?.site_id) searchParams.append("site_id", params.site_id);
     if (params?.cost_center) searchParams.append("cost_center", params.cost_center);
+    if (params?.source) searchParams.append("source", params.source);
     const query = searchParams.toString();
-    return api<PLReport>(`/api/v1/accounting/pl${query ? `?${query}` : ""}`);
-};
+    return api<PLReport | PLJournalReport | PLCompareReport>(`/api/v1/accounting/pl${query ? `?${query}` : ""}`);
+}
 
 // 取引一覧
 export const fetchTransactions = (params?: {
@@ -2058,13 +2068,48 @@ export interface AccountingInvoiceListItem extends AccountingInvoice {
     source_summary?: InvoiceSourceSummary | null;
 }
 
-export interface PLReport {
-    month: string;
+export type PLSource = "legacy" | "journal" | "compare";
+
+export interface PLSummary {
     sales: number;
     expenses: number;
     profit: number;
     distributable: number;
+    transaction_count?: number;
+    journal_entry_count?: number;
+    journal_line_count?: number;
+}
+
+export interface PLReport extends PLSummary {
+    month: string;
+    source?: "legacy";
     transaction_count: number;
+}
+
+export interface PLJournalReport extends PLSummary {
+    month: string;
+    source: "journal";
+    basis: "net_accounting";
+}
+
+export interface PLCompareReport {
+    month: string;
+    source: "compare";
+    basis: {
+        legacy: "gross";
+        journal: "net_accounting";
+        diff: "gross_compat";
+    };
+    tax_basis_warning: boolean;
+    legacy: PLSummary;
+    journal: PLSummary;
+    journal_gross_compat: PLSummary;
+    diff: Pick<PLSummary, "sales" | "expenses" | "profit" | "distributable">;
+    mismatches: Array<{
+        field: string;
+        amount: number;
+        basis: "gross_compat";
+    }>;
 }
 
 // ============================================================

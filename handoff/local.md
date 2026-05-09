@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `Continue v2.2 with canonical sales posting RPC now that transition lineage and idempotency contract are covered.`
+- NEXT_CMD: `Commit/split v2.2 local changes before starting expense canonical posting RPC, or continue with expense canonical only after this review checkpoint is accepted`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/local.md`
@@ -18,8 +18,8 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `0ceff49`
-  - Updated: `2026-05-09T20:11:24+0900`
+  - HEAD: `9af47f8`
+  - Updated: `2026-05-09T20:52:25+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
@@ -33,47 +33,47 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `Continue v2.2 with canonical sales posting RPC now that transition lineage and idempotency contract are covered.`. Source: realtime
-- [H0013] Completed: P0 v2.2 slice: hardened Money write idempotency contract with IDEMPOTENCY_CONFLICT, same-response replay coverage, and in-progress duplicate blocking before RPC/lineage execution.
-- [H0013] Remaining: Continue v2.2 with canonical sales posting RPC now that transition lineage and idempotency contract are covered.
-- [H0012] Completed: P1 v2.2 slice: changed /payments/allocations to require existing payment_id and added rpc_allocate_accounting_payment to lock invoice/payment rows and enforce both invoice open balance and payment unapplied balance.
-- [H0012] Remaining: Continue v2.2 with idempotency breadth/parallel duplicate integration evidence, then canonical sales posting RPC.
+- [focus] NEXT_CMD: `Commit/split v2.2 local changes before starting expense canonical posting RPC, or continue with expense canonical only after this review checkpoint is accepted`. Source: realtime
+- [H0017] Completed: Accounting v2.2 review: fixed canonical sales/reversal SQL net sales amount normalization when subtotal looks gross
+- [H0017] Remaining: Commit/split v2.2 local changes before starting expense canonical posting RPC, or continue with expense canonical only after this review checkpoint is accepted
+- [H0016] Completed: Accounting v2.2: canonical sales reversal RPC and /void RPC-first fallback integration added
+- [H0016] Remaining: Next v2.2 slice: expense canonical posting RPC, then invoice/payment no-PL-revenue canonical posting contract tests against journal source
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0017] Review found one real balance risk: GREATEST(subtotal,total-tax) could overstate revenue when subtotal was gross. SQL now derives net when subtotal equals/exceeds total or subtotal+tax exceeds total.
+- [H0016] Original posted transaction remains in totals; sales reversal adds a separate negative projection/journal. Legacy expense void remains available until expense canonical posting RPC exists.
+- [H0015] Default /pl remains legacy-compatible for Money/Today; source=journal returns net_accounting, source=compare returns legacy gross, journal net, journal_gross_compat, and diff based on gross-compatible totals
+- [H0014] Remote DB migration/push/migration repair still not executed; local Supabase migration up is blocked by pre-existing storage migration before reaching canonical sales migration
 - [H0013] This is local unit-test evidence; true concurrent DB integration evidence still needs a local/remote DB execution pass with explicit approval for any remote target.
-- [H0012] Payment event and payment allocation are now separated in API shape; legacy rpc_record_accounting_payment_allocation remains in migrations for compatibility but the route no longer calls it.
-- [H0011] Payment allocation still supports the legacy creates-payment-and-allocates RPC path; existing-payment allocation semantics are the next cut.
-- [H0010] Expense UI is not redesigned yet; this only adds payload/storage compatibility for member reimbursement and overhead separation.
-- [H0009] ProposalService.createAndSubmit remains intentionally disconnected from Money writes.
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
+- [H0017] Local supabase migration up remains blocked before these migrations by existing 20260506043949_add_private_site_drawings.sql missing local storage.buckets; remote DB still untouched.
+- [H0016] proposals.type currently allows income.reverse but not transaction.reverse in migrations; canonical sales reversal intentionally uses income.reverse for DB compatibility.
+- [H0015] Do not switch /pl default to journal until remote/local DB parity evidence shows diff=0 over recent sales/expense/reverse and invoice/payment no-PL cases
+- [H0014] Do not use income_post for manual sales yet: revenue_basis.origin_completion_event_id remains NOT NULL, so first canonical manual sales slice uses posting_groups.group_type=manual_adjustment
 - [H0013] Unrelated dirty files remain outside this slice: AGENTS.md, dao-impl-checker skill, and accounting governance docs.
-- [H0011] Unrelated dirty files existed before commit selection: AGENTS.md, dao-impl-checker skill, and accounting governance docs; do not stage them with this slice.
-- [H0010] Remote Supabase migration remains unexecuted; local route compatibility strips v2.2 columns if the DB schema has not applied the migration yet.
-- [H0009] POST /payments event creation is still not implemented; /payments/allocations still creates/allocates through the legacy RPC path for now.
-- [H0008] Migration is local only; remote Supabase migration/push remains unexecuted. complete-with-close now passes membership id, but old service-role signatures remain for compatibility.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0017] Commit/split v2.2 local changes before starting expense canonical posting RPC, or continue with expense canonical only after this review checkpoint is accepted
+- [H0016] Next v2.2 slice: expense canonical posting RPC, then invoice/payment no-PL-revenue canonical posting contract tests against journal source
+- [H0015] Next v2.2 slice: sales reversal canonical posting RPC or expense canonical posting RPC; keep /pl default legacy until real DB parity evidence is collected
+- [H0014] Implement PL compare mode source=legacy|journal|compare, with gross-compatible journal totals and no-PL-revenue invoice/payment exclusion
 - [H0013] Continue v2.2 with canonical sales posting RPC now that transition lineage and idempotency contract are covered.
-- [H0012] Continue v2.2 with idempotency breadth/parallel duplicate integration evidence, then canonical sales posting RPC.
-- [H0011] Continue v2.2 by changing /payments/allocations toward existing-payment allocation semantics, then add idempotency parallel duplicate integration evidence.
-- [H0010] Continue v2.2 with POST /payments event separation and broader idempotency replay/conflict/parallel duplicate coverage.
-- [H0009] Continue v2.2 with POST /payments event separation, expense_scope/paid_by payload support, and idempotency breadth/parallel duplicate tests.
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `13`
+- current_l3_entries: `17`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -104,51 +104,51 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] Accounting v2.2 review: fixed canonical sales/reversal SQL net sales amount normalization when subtotal looks gross
+- [x] Accounting v2.2: canonical sales reversal RPC and /void RPC-first fallback integration added
+- [x] Accounting v2.2: PL compare mode source=legacy|journal|compare implemented; journal source is net-accounting and compare includes gross-compatible diff
+- [x] Accounting v2.2: canonical sales posting RPC migration and /sales RPC-first fallback integration added
 - [x] P0 v2.2 slice: hardened Money write idempotency contract with IDEMPOTENCY_CONFLICT, same-response replay coverage, and in-progress duplicate blocking before RPC/lineage execution.
 - [x] P1 v2.2 slice: changed /payments/allocations to require existing payment_id and added rpc_allocate_accounting_payment to lock invoice/payment rows and enforce both invoice open balance and payment unapplied balance.
 - [x] P1 v2.2 slice: added POST /payments payment event route plus rpc_record_accounting_payment_event for unapplied cash receipts with transition lineage and no-PL-revenue posting metadata.
 - [x] P1 v2.2 slice: added accounting_transactions projection metadata columns and /expenses support for expense_scope, paid_by, claimant_member_id, settlement_type, payment_account, reimbursement_status, and recurring_template_id.
 - [x] P1 v2.2 slice: added transition proposal lineage to invoice issue, payment allocation, and void/reversal responses; renamed invoice/payment posting modes to no_pl_revenue and exposed posting impact flags.
 - [x] P0/P1 v2.2 slice: hardened SECURITY DEFINER RPC boundary with membership-aware wrappers and propagated active membership IDs; added transition lineage semantics and sales proposal lineage.
-- [x] P1 response: connected POST /expenses to transition Proposal lineage without calling ProposalService.createAndSubmit, so legacy Money transaction/journal writes remain stable while responses can return a real proposal row.
-- [x] P1 response prep: added a backward-compatible accounting command envelope to expense, sale, and invoice create responses. Legacy top-level fields remain, while proposal/approval/execution/posting/projection fields now expose the future response shape with projection legacy ids.
-- [x] P1 prep: moved standard invoice creation write orchestration into AccountingCommandService.createAccountingInvoice, including allocation preflight, atomic RPC preference, legacy fallback insert/source links/revenue allocations, and source transaction kind updates.
-- [x] P1 prep: moved payment allocation RPC and void reversal command bodies into AccountingCommandService while keeping route-level validation, idempotency, and HTTP error mapping.
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: Continue v2.2 with canonical sales posting RPC now that transition lineage and idempotency contract are covered.
-- [ ] **P1**: Continue v2.2 with idempotency breadth/parallel duplicate integration evidence, then canonical sales posting RPC.
-- [ ] **P1**: Continue v2.2 by changing /payments/allocations toward existing-payment allocation semantics, then add idempotency parallel duplicate integration evidence.
-- [ ] **P1**: Continue v2.2 with POST /payments event separation and broader idempotency replay/conflict/parallel duplicate coverage.
-- [ ] **P1**: Continue v2.2 with POST /payments event separation, expense_scope/paid_by payload support, and idempotency breadth/parallel duplicate tests.
+- [ ] **P0**: Commit/split v2.2 local changes before starting expense canonical posting RPC, or continue with expense canonical only after this review checkpoint is accepted
+- [ ] **P1**: Next v2.2 slice: expense canonical posting RPC, then invoice/payment no-PL-revenue canonical posting contract tests against journal source
+- [ ] **P1**: Next v2.2 slice: sales reversal canonical posting RPC or expense canonical posting RPC; keep /pl default legacy until real DB parity evidence is collected
+- [ ] **P1**: Implement PL compare mode source=legacy|journal|compare, with gross-compatible journal totals and no-PL-revenue invoice/payment exclusion
+- [ ] **P1**: Continue v2.2 with canonical sales posting RPC now that transition lineage and idempotency contract are covered.
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
+| `artifacts/accounting-v2.2/migration_verification_report.md` | records review fix evidence |
+| `supabase/migrations/20260509113639_canonical_sales_reversal_rpc.sql` | normalized reversal v_sales_amount like existing TS journal helper |
+| `supabase/migrations/20260509112149_canonical_sales_posting_rpc.sql` | normalized v_sales_amount like existing TS journal helper |
+| `artifacts/accounting-v2.2/migration_verification_report.md` | records canonical sales reversal evidence |
+| `server/src/__tests__/unit/accountingRoute.test.ts` | covers canonical sales reversal and expense fallback |
+| `server/src/routes/accounting.ts` | /void uses canonical sales reversal when available |
+| `server/src/services/AccountingCommandService.ts` | adds reverseCanonicalSale RPC wrapper and unsupported-kind fallback |
+| `supabase/migrations/20260509113639_canonical_sales_reversal_rpc.sql` | adds service-role canonical sales reversal RPC |
+| `artifacts/accounting-v2.2/migration_verification_report.md` | records PL compare evidence |
+| `frontend/src/lib/api.ts` | adds typed PL source overloads and compare response types |
+| `server/src/__tests__/unit/accountingRoute.test.ts` | covers journal PL and compare mode with invoice/payment no-PL exclusion |
+| `server/src/routes/accounting.ts` | adds PL source parsing, legacy/journal/compare summaries, net journal and gross-compatible diff |
+| `artifacts/accounting-v2.2/migration_verification_report.md` | records canonical sales evidence and local migration blocker |
+| `server/src/__tests__/unit/accountingRoute.test.ts` | covers canonical sales route envelope |
+| `server/src/routes/accounting.ts` | uses canonical sales RPC when available while preserving legacy response/fallback |
+| `server/src/services/AccountingCommandService.ts` | adds postCanonicalSale RPC wrapper with missing-function fallback |
+| `supabase/migrations/20260509112149_canonical_sales_posting_rpc.sql` | adds service-role canonical sales posting RPC |
 | `artifacts/accounting-v2.2/migration_verification_report.md` | updated v2.2 evidence index |
 | `artifacts/accounting-v2.2/idempotency_parallel_test.md` | local idempotency evidence |
 | `server/src/__tests__/unit/accountingRoute.test.ts` | replay/conflict/in-progress duplicate coverage |
-| `server/src/routes/accounting.ts` | idempotency conflict code standardized |
-| `artifacts/accounting-v2.2/migration_verification_report.md` | updated local evidence for allocation separation |
-| `server/src/__tests__/unit/accountingRoute.test.ts` | payment_id allocation tests |
-| `server/src/services/AccountingCommandService.ts` | rpc_allocate_accounting_payment wrapper |
-| `server/src/routes/accounting.ts` | payment_id required for /payments/allocations |
-| `supabase/migrations/20260509110041_accounting_existing_payment_allocation.sql` | existing-payment allocation RPC |
-| `artifacts/accounting-v2.2/migration_verification_report.md` | updated local evidence for payment event slice |
-| `server/src/__tests__/unit/accountingRoute.test.ts` | payment event success/validation coverage |
-| `server/src/services/AccountingCommandService.ts` | recordPaymentEvent RPC wrapper |
-| `server/src/routes/accounting.ts` | POST /payments route and transition lineage response |
-| `supabase/migrations/20260509102522_accounting_payment_event_rpc.sql` | idempotency endpoint plus payment event RPC |
-| `artifacts/accounting-v2.2/migration_verification_report.md` | updated local evidence for reimbursement slice |
-| `server/src/__tests__/unit/accountingRoute.test.ts` | member reimbursement validation and insert assertions |
-| `server/src/services/AccountingCommandService.ts` | expense insert payload and schema compatibility retry |
-| `server/src/routes/accounting.ts` | expense payload validation and transition metadata persistence |
-| `supabase/migrations/20260509101543_accounting_v22_projection_metadata.sql` | projection source and reimbursement dimension columns |
-| `artifacts/accounting-v2.2/migration_verification_report.md` | updated local evidence for lineage slice |
 ---
 
 ## 6. Locked Files（編集中 - 他エージェント触らない）
@@ -183,11 +183,11 @@ cd frontend && npx eslint src/
 
 ## 9. Risks / Blockers
 
+- Local supabase migration up remains blocked before these migrations by existing 20260506043949_add_private_site_drawings.sql missing local storage.buckets; remote DB still untouched.
+- proposals.type currently allows income.reverse but not transaction.reverse in migrations; canonical sales reversal intentionally uses income.reverse for DB compatibility.
+- Do not switch /pl default to journal until remote/local DB parity evidence shows diff=0 over recent sales/expense/reverse and invoice/payment no-PL cases
+- Do not use income_post for manual sales yet: revenue_basis.origin_completion_event_id remains NOT NULL, so first canonical manual sales slice uses posting_groups.group_type=manual_adjustment
 - Unrelated dirty files remain outside this slice: AGENTS.md, dao-impl-checker skill, and accounting governance docs.
-- Unrelated dirty files existed before commit selection: AGENTS.md, dao-impl-checker skill, and accounting governance docs; do not stage them with this slice.
-- Remote Supabase migration remains unexecuted; local route compatibility strips v2.2 columns if the DB schema has not applied the migration yet.
-- POST /payments event creation is still not implemented; /payments/allocations still creates/allocates through the legacy RPC path for now.
-- Migration is local only; remote Supabase migration/push remains unexecuted. complete-with-close now passes membership id, but old service-role signatures remain for compatibility.
 ---
 
 ## 10. References
@@ -439,3 +439,80 @@ cd frontend && npx eslint src/
   - `server accounting route tests=pass|46 tests after idempotency contract; server tsc=pass|npx tsc --noEmit; git diff --check=pass; idempotency evidence=pass|artifacts/accounting-v2.2/idempotency_parallel_test.md`
 - Landmines:
   - Unrelated dirty files remain outside this slice: AGENTS.md, dao-impl-checker skill, and accounting governance docs.
+
+### 2026-05-09 20:27:48 +0900
+
+- Entry-ID: `H0014`
+- Completed:
+  - [x] Accounting v2.2: canonical sales posting RPC migration and /sales RPC-first fallback integration added
+- Remaining:
+  - [ ] Implement PL compare mode source=legacy|journal|compare, with gross-compatible journal totals and no-PL-revenue invoice/payment exclusion
+- Changed Files:
+  - `supabase/migrations/20260509112149_canonical_sales_posting_rpc.sql` - adds service-role canonical sales posting RPC
+  - `server/src/services/AccountingCommandService.ts` - adds postCanonicalSale RPC wrapper with missing-function fallback
+  - `server/src/routes/accounting.ts` - uses canonical sales RPC when available while preserving legacy response/fallback
+  - `server/src/__tests__/unit/accountingRoute.test.ts` - covers canonical sales route envelope
+  - `artifacts/accounting-v2.2/migration_verification_report.md` - records canonical sales evidence and local migration blocker
+- Working Context:
+  - Remote DB migration/push/migration repair still not executed; local Supabase migration up is blocked by pre-existing storage migration before reaching canonical sales migration
+- Validation:
+  - `cd server && npx tsc --noEmit => PASS; npm test -- --runTestsByPath src/__tests__/unit/accountingRoute.test.ts src/__tests__/unit/SiteCompletionService.test.ts --runInBand => PASS 53/53; scripts/db/check-sql-boundaries.sh => PASS; git diff --check => PASS; supabase migration up => BLOCKED before new migration by existing 20260506043949_add_private_site_drawings.sql missing local storage.buckets`
+- Landmines:
+  - Do not use income_post for manual sales yet: revenue_basis.origin_completion_event_id remains NOT NULL, so first canonical manual sales slice uses posting_groups.group_type=manual_adjustment
+
+### 2026-05-09 20:34:51 +0900
+
+- Entry-ID: `H0015`
+- Completed:
+  - [x] Accounting v2.2: PL compare mode source=legacy|journal|compare implemented; journal source is net-accounting and compare includes gross-compatible diff
+- Remaining:
+  - [ ] Next v2.2 slice: sales reversal canonical posting RPC or expense canonical posting RPC; keep /pl default legacy until real DB parity evidence is collected
+- Changed Files:
+  - `server/src/routes/accounting.ts` - adds PL source parsing, legacy/journal/compare summaries, net journal and gross-compatible diff
+  - `server/src/__tests__/unit/accountingRoute.test.ts` - covers journal PL and compare mode with invoice/payment no-PL exclusion
+  - `frontend/src/lib/api.ts` - adds typed PL source overloads and compare response types
+  - `artifacts/accounting-v2.2/migration_verification_report.md` - records PL compare evidence
+- Working Context:
+  - Default /pl remains legacy-compatible for Money/Today; source=journal returns net_accounting, source=compare returns legacy gross, journal net, journal_gross_compat, and diff based on gross-compatible totals
+- Validation:
+  - `cd server && npx tsc --noEmit => PASS; npm test -- --runTestsByPath src/__tests__/unit/accountingRoute.test.ts src/__tests__/unit/SiteCompletionService.test.ts --runInBand => PASS 55/55; cd frontend && npx tsc -b --pretty false => PASS; scripts/db/check-sql-boundaries.sh => PASS; git diff --check => PASS`
+- Landmines:
+  - Do not switch /pl default to journal until remote/local DB parity evidence shows diff=0 over recent sales/expense/reverse and invoice/payment no-PL cases
+
+### 2026-05-09 20:40:42 +0900
+
+- Entry-ID: `H0016`
+- Completed:
+  - [x] Accounting v2.2: canonical sales reversal RPC and /void RPC-first fallback integration added
+- Remaining:
+  - [ ] Next v2.2 slice: expense canonical posting RPC, then invoice/payment no-PL-revenue canonical posting contract tests against journal source
+- Changed Files:
+  - `supabase/migrations/20260509113639_canonical_sales_reversal_rpc.sql` - adds service-role canonical sales reversal RPC
+  - `server/src/services/AccountingCommandService.ts` - adds reverseCanonicalSale RPC wrapper and unsupported-kind fallback
+  - `server/src/routes/accounting.ts` - /void uses canonical sales reversal when available
+  - `server/src/__tests__/unit/accountingRoute.test.ts` - covers canonical sales reversal and expense fallback
+  - `artifacts/accounting-v2.2/migration_verification_report.md` - records canonical sales reversal evidence
+- Working Context:
+  - Original posted transaction remains in totals; sales reversal adds a separate negative projection/journal. Legacy expense void remains available until expense canonical posting RPC exists.
+- Validation:
+  - `cd server && npx tsc --noEmit => PASS; npm test -- --runTestsByPath src/__tests__/unit/accountingRoute.test.ts src/__tests__/unit/SiteCompletionService.test.ts --runInBand => PASS 56/56; cd frontend && npx tsc -b --pretty false => PASS; scripts/db/check-sql-boundaries.sh => PASS; git diff --check => PASS`
+- Landmines:
+  - proposals.type currently allows income.reverse but not transaction.reverse in migrations; canonical sales reversal intentionally uses income.reverse for DB compatibility.
+
+### 2026-05-09 20:52:25 +0900
+
+- Entry-ID: `H0017`
+- Completed:
+  - [x] Accounting v2.2 review: fixed canonical sales/reversal SQL net sales amount normalization when subtotal looks gross
+- Remaining:
+  - [ ] Commit/split v2.2 local changes before starting expense canonical posting RPC, or continue with expense canonical only after this review checkpoint is accepted
+- Changed Files:
+  - `supabase/migrations/20260509112149_canonical_sales_posting_rpc.sql` - normalized v_sales_amount like existing TS journal helper
+  - `supabase/migrations/20260509113639_canonical_sales_reversal_rpc.sql` - normalized reversal v_sales_amount like existing TS journal helper
+  - `artifacts/accounting-v2.2/migration_verification_report.md` - records review fix evidence
+- Working Context:
+  - Review found one real balance risk: GREATEST(subtotal,total-tax) could overstate revenue when subtotal was gross. SQL now derives net when subtotal equals/exceeds total or subtotal+tax exceeds total.
+- Validation:
+  - `cd server && npx tsc --noEmit => PASS; npm test -- --runTestsByPath src/__tests__/unit/accountingRoute.test.ts src/__tests__/unit/SiteCompletionService.test.ts --runInBand => PASS 56/56; cd frontend && npx tsc -b --pretty false => PASS; scripts/db/check-sql-boundaries.sh => PASS; git diff --check => PASS`
+- Landmines:
+  - Local supabase migration up remains blocked before these migrations by existing 20260506043949_add_private_site_drawings.sql missing local storage.buckets; remote DB still untouched.

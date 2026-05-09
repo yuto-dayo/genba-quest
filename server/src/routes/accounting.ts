@@ -18,8 +18,10 @@ import {
     insertInvoiceRecord,
     insertInvoiceSourceLinks,
     insertSaleTransactionWithItems,
+    postCanonicalSale,
     recordPaymentEvent,
     recordPaymentAllocation,
+    reverseCanonicalSale,
 } from "../services/AccountingCommandService";
 import {
     buildDefaultInvoiceSettings,
@@ -48,9 +50,26 @@ const DEFAULT_SALE_TAX_CATEGORY = "10_STANDARD";
 const DEFAULT_SALE_TAX_RATE = 0.1;
 const DEFAULT_SALE_UNIT_NAME = "式";
 const LEDGER_AGGREGATION_STATUSES = ["posted", "approved", "voided"] as const;
+const PL_SOURCES = ["legacy", "journal", "compare"] as const;
+const PL_REVENUE_NET_ACCOUNT_CODES = new Set(["4100"]);
+const PL_EXPENSE_NET_ACCOUNT_CODES = new Set(["5100", "5200", "5300", "5400", "5900"]);
+const PL_REVENUE_GROSS_COMPAT_ACCOUNT_CODES = new Set([...PL_REVENUE_NET_ACCOUNT_CODES, "2500"]);
+const PL_EXPENSE_GROSS_COMPAT_ACCOUNT_CODES = new Set([...PL_EXPENSE_NET_ACCOUNT_CODES, "1500"]);
+const PL_NO_REVENUE_POSTING_GROUP_TYPES = new Set(["invoice_transfer", "payment_receipt", "payment_allocation"]);
 
 type ExpenseCategory = typeof EXPENSE_CATEGORIES[number];
 type ExpenseTaxCategory = typeof EXPENSE_TAX_CATEGORIES[number];
+type PlSource = typeof PL_SOURCES[number];
+type PlJournalBasis = "net_accounting" | "gross_compat";
+type PlSummary = {
+    sales: number;
+    expenses: number;
+    profit: number;
+    distributable: number;
+    transaction_count?: number;
+    journal_entry_count?: number;
+    journal_line_count?: number;
+};
 type SaleItemPayload = {
     item_name: string;
     quantity: number;
@@ -199,6 +218,176 @@ function normalizeNetSubtotal(subtotal: number | null, taxAmount: number, total:
 
 function roundMoney(value: number): number {
     return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function toMoneyNumber(value: unknown): number {
+    if (typeof value === "number" && Number.isFinite(value)) {
+        return value;
+    }
+
+    if (typeof value === "string" && value.trim()) {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    return 0;
+}
+
+function normalizePlSource(value: unknown): PlSource {
+    return typeof value === "string" && PL_SOURCES.includes(value as PlSource)
+        ? value as PlSource
+        : "legacy";
+}
+
+function completePlSummary(input: {
+    sales: number;
+    expenses: number;
+    transactionCount?: number;
+    journalEntryCount?: number;
+    journalLineCount?: number;
+}): PlSummary {
+    const sales = roundMoney(input.sales);
+    const expenses = roundMoney(input.expenses);
+    const profit = roundMoney(sales - expenses);
+    const distributable = roundMoney(Math.max(profit, 0) * 0.7);
+
+    return {
+        sales,
+        expenses,
+        profit,
+        distributable,
+        ...(input.transactionCount !== undefined ? { transaction_count: input.transactionCount } : {}),
+        ...(input.journalEntryCount !== undefined ? { journal_entry_count: input.journalEntryCount } : {}),
+        ...(input.journalLineCount !== undefined ? { journal_line_count: input.journalLineCount } : {}),
+    };
+}
+
+function summarizeLegacyPlRows(rows: Array<Record<string, unknown>>): PlSummary {
+    let sales = 0;
+    let expenses = 0;
+
+    for (const tx of rows) {
+        if (tx.kind === "sale" || tx.kind === "invoice") {
+            sales += toMoneyNumber(tx.amount_total);
+        } else if (tx.kind === "expense") {
+            expenses += toMoneyNumber(tx.amount_total);
+        }
+    }
+
+    return completePlSummary({
+        sales,
+        expenses,
+        transactionCount: rows.length,
+    });
+}
+
+function firstNestedRecord(value: unknown): Record<string, unknown> | null {
+    if (Array.isArray(value)) {
+        const first = value[0];
+        return first && typeof first === "object" ? first as Record<string, unknown> : null;
+    }
+
+    return value && typeof value === "object" ? value as Record<string, unknown> : null;
+}
+
+function shouldSkipJournalEntryForPl(
+    entry: Record<string, unknown>,
+    costCenterFilter: unknown,
+): boolean {
+    if (!entry.posted_at) {
+        return true;
+    }
+
+    const postingGroup = firstNestedRecord(entry.posting_group);
+    const groupType = postingGroup?.group_type;
+    if (typeof groupType === "string" && PL_NO_REVENUE_POSTING_GROUP_TYPES.has(groupType)) {
+        return true;
+    }
+
+    const transaction = firstNestedRecord(entry.transaction);
+    if (transaction?.kind === "invoice") {
+        return true;
+    }
+
+    if (typeof costCenterFilter === "string" && costCenterFilter) {
+        return transaction?.cost_center !== costCenterFilter;
+    }
+
+    return false;
+}
+
+function summarizeJournalPlRows(
+    entries: Array<Record<string, unknown>>,
+    filters: { siteId?: unknown; costCenter?: unknown },
+    basis: PlJournalBasis = "net_accounting",
+): PlSummary {
+    let sales = 0;
+    let expenses = 0;
+    let journalEntryCount = 0;
+    let journalLineCount = 0;
+    const revenueAccountCodes = basis === "gross_compat"
+        ? PL_REVENUE_GROSS_COMPAT_ACCOUNT_CODES
+        : PL_REVENUE_NET_ACCOUNT_CODES;
+    const expenseAccountCodes = basis === "gross_compat"
+        ? PL_EXPENSE_GROSS_COMPAT_ACCOUNT_CODES
+        : PL_EXPENSE_NET_ACCOUNT_CODES;
+
+    for (const entry of entries) {
+        if (shouldSkipJournalEntryForPl(entry, filters.costCenter)) {
+            continue;
+        }
+
+        const transaction = firstNestedRecord(entry.transaction);
+        const linesValue = entry.lines ?? entry.accounting_journal_lines;
+        const lines = Array.isArray(linesValue) ? linesValue : [];
+        let countedEntry = false;
+
+        for (const rawLine of lines) {
+            if (!rawLine || typeof rawLine !== "object") {
+                continue;
+            }
+
+            const line = rawLine as Record<string, unknown>;
+            const lineSiteId = line.site_id ?? transaction?.site_id;
+            if (typeof filters.siteId === "string" && filters.siteId && lineSiteId !== filters.siteId) {
+                continue;
+            }
+
+            const accountCode = typeof line.account_code === "string" ? line.account_code : "";
+            const debit = toMoneyNumber(line.debit);
+            const credit = toMoneyNumber(line.credit);
+
+            if (revenueAccountCodes.has(accountCode)) {
+                sales += credit - debit;
+                journalLineCount += 1;
+                countedEntry = true;
+            } else if (expenseAccountCodes.has(accountCode)) {
+                expenses += debit - credit;
+                journalLineCount += 1;
+                countedEntry = true;
+            }
+        }
+
+        if (countedEntry) {
+            journalEntryCount += 1;
+        }
+    }
+
+    return completePlSummary({
+        sales,
+        expenses,
+        journalEntryCount,
+        journalLineCount,
+    });
+}
+
+function buildPlDiff(legacy: PlSummary, journal: PlSummary): Pick<PlSummary, "sales" | "expenses" | "profit" | "distributable"> {
+    return {
+        sales: roundMoney(journal.sales - legacy.sales),
+        expenses: roundMoney(journal.expenses - legacy.expenses),
+        profit: roundMoney(journal.profit - legacy.profit),
+        distributable: roundMoney(journal.distributable - legacy.distributable),
+    };
 }
 
 function isMissingColumnError(error: unknown, columnName: string): boolean {
@@ -1590,6 +1779,63 @@ router.post("/sales", async (req: AuthenticatedRequest, res: Response) => {
             return;
         }
 
+        const saleDescription = buildSaleDescription(normalizedDescription, saleItems);
+        const canonicalResult = await postCanonicalSale({
+            orgId,
+            membershipId: req.orgMembershipId || null,
+            idempotencyKey: idempotency.idempotencyKey,
+            siteId: site_id,
+            clientId: client_id,
+            description: saleDescription,
+            recordedDate: recorded_date || new Date().toISOString().split("T")[0],
+            amountSubtotal: resolvedSubtotal,
+            taxAmount: resolvedTaxAmount,
+            amountTotal: resolvedTotal,
+            taxCategory: DEFAULT_SALE_TAX_CATEGORY,
+            sourceDocumentId: source_document_id,
+            inputSources: input_sources || {},
+            items: saleItems,
+            createdBy: req.userId!,
+            actorName: req.userName || req.userEmail || null,
+        });
+
+        const canonicalData = canonicalResult?.transaction;
+
+        if (canonicalData && typeof canonicalData === "object" && "id" in canonicalData) {
+            const canonicalProposal = canonicalResult.proposal && typeof canonicalResult.proposal === "object"
+                ? canonicalResult.proposal as Record<string, unknown>
+                : null;
+            const canonicalProjection = canonicalResult.projection && typeof canonicalResult.projection === "object"
+                ? canonicalResult.projection as Record<string, unknown>
+                : {
+                    legacy_transaction_id: (canonicalData as Record<string, unknown>).id,
+                    legacy_transaction_kind: (canonicalData as Record<string, unknown>).kind || "sale",
+                    projection_source: "canonical_posting_projection",
+                };
+            const canonicalPosting = canonicalResult.posting && typeof canonicalResult.posting === "object"
+                ? canonicalResult.posting as Record<string, unknown>
+                : {
+                    affects_pl: true,
+                    affects_revenue: true,
+                    affects_ar: true,
+                    mode: "canonical_sales_posting",
+                };
+
+            const responseBody = withAccountingCommandEnvelope(canonicalData as Record<string, unknown>, {
+                endpointName: "accounting.sales.adjust",
+                proposal: canonicalProposal,
+                approvalStatus: "not_required",
+                postingStatus: "posted",
+                mode: "canonical_sales_posting",
+                projection: canonicalProjection,
+                postingMetadata: canonicalPosting,
+            });
+
+            await completeAccountingWriteIdempotency(idempotency, 201, responseBody);
+            res.status(201).json(responseBody);
+            return;
+        }
+
         const data = await insertSaleTransactionWithItems(
             {
                 org_id: orgId,
@@ -1597,7 +1843,7 @@ router.post("/sales", async (req: AuthenticatedRequest, res: Response) => {
                 cost_center: "SITE",
                 site_id,
                 client_id,
-                description: buildSaleDescription(normalizedDescription, saleItems),
+                description: saleDescription,
                 recorded_date: recorded_date || new Date().toISOString().split("T")[0],
                 amount_subtotal: resolvedSubtotal,
                 tax_amount: resolvedTaxAmount,
@@ -1632,11 +1878,11 @@ router.post("/sales", async (req: AuthenticatedRequest, res: Response) => {
                     id: req.userId!,
                     name: req.userName || req.userEmail || null,
                 },
-                description: `売上登録: ${buildSaleDescription(normalizedDescription, saleItems)}`,
+                description: `売上登録: ${saleDescription}`,
                 payload: {
                     site_id,
                     client_id,
-                    description: buildSaleDescription(normalizedDescription, saleItems),
+                    description: saleDescription,
                     recorded_date: data.recorded_date,
                     amount_subtotal: resolvedSubtotal,
                     tax_amount: resolvedTaxAmount,
@@ -2985,6 +3231,57 @@ router.post("/void/:id", async (req: AuthenticatedRequest, res: Response) => {
             return;
         }
 
+        const canonicalReversal = await reverseCanonicalSale({
+            orgId,
+            membershipId: req.orgMembershipId || null,
+            transactionId: id,
+            reason,
+            idempotencyKey: idempotency.idempotencyKey,
+            createdBy: req.userId!,
+            actorName: req.userName || req.userEmail || null,
+        });
+
+        if (canonicalReversal && "reversal_created" in canonicalReversal) {
+            const proposal = canonicalReversal.proposal && typeof canonicalReversal.proposal === "object"
+                ? canonicalReversal.proposal as Record<string, unknown>
+                : null;
+            const projection = canonicalReversal.projection && typeof canonicalReversal.projection === "object"
+                ? canonicalReversal.projection as Record<string, unknown>
+                : {
+                    projection_source: "canonical_posting_projection",
+                    legacy_transaction_id: canonicalReversal.reversal_created,
+                    reverses_transaction_id: id,
+                };
+            const posting = canonicalReversal.posting && typeof canonicalReversal.posting === "object"
+                ? canonicalReversal.posting as Record<string, unknown>
+                : {
+                    affects_pl: true,
+                    affects_revenue: true,
+                    affects_ar: true,
+                    mode: "canonical_sales_reversal",
+                };
+            const responseBody = withAccountingCommandEnvelope(
+                {
+                    original_voided: canonicalReversal.original_voided,
+                    original_reversed: canonicalReversal.original_reversed,
+                    reversal_created: canonicalReversal.reversal_created,
+                },
+                {
+                    endpointName: "accounting.void.create",
+                    proposal,
+                    approvalStatus: "not_required",
+                    postingStatus: "posted",
+                    mode: "canonical_sales_reversal",
+                    postingMetadata: posting,
+                    projection,
+                },
+            );
+
+            await completeAccountingWriteIdempotency(idempotency, 200, responseBody);
+            res.json(responseBody);
+            return;
+        }
+
         const reversalResult = await createVoidReversal({
             orgId,
             transactionId: id,
@@ -3061,7 +3358,8 @@ router.post("/void/:id", async (req: AuthenticatedRequest, res: Response) => {
 
 router.get("/pl", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const { month, site_id, cost_center } = req.query;
+        const { month, site_id, cost_center, source } = req.query;
+        const plSource = normalizePlSource(source);
 
         // デフォルトは今月
         const targetMonth = (month as string) || new Date().toISOString().slice(0, 7);
@@ -3071,47 +3369,109 @@ router.get("/pl", async (req: AuthenticatedRequest, res: Response) => {
         const lastDay = new Date(year, mon, 0).getDate();
         const endDate = `${targetMonth}-${String(lastDay).padStart(2, "0")}`;
 
-        let query = supabaseAdmin
-            .from("accounting_transactions")
-            .select("*")
-            .eq("org_id", req.orgId!)
-            .in("status", [...LEDGER_AGGREGATION_STATUSES])
-            .gte("recorded_date", startDate)
-            .lte("recorded_date", endDate);
+        let legacySummary: PlSummary | null = null;
 
-        if (site_id) {
-            query = query.eq("site_id", site_id);
-        }
-        if (cost_center) {
-            query = query.eq("cost_center", cost_center);
-        }
+        if (plSource !== "journal") {
+            let query = supabaseAdmin
+                .from("accounting_transactions")
+                .select("*")
+                .eq("org_id", req.orgId!)
+                .in("status", [...LEDGER_AGGREGATION_STATUSES])
+                .gte("recorded_date", startDate)
+                .lte("recorded_date", endDate);
 
-        const { data, error } = await query;
-
-        if (error) throw error;
-
-        // 集計
-        let sales = 0;
-        let expenses = 0;
-
-        for (const tx of data || []) {
-            if (tx.kind === "sale" || tx.kind === "invoice") {
-                sales += tx.amount_total || 0;
-            } else if (tx.kind === "expense") {
-                expenses += tx.amount_total || 0;
+            if (site_id) {
+                query = query.eq("site_id", site_id);
             }
+            if (cost_center) {
+                query = query.eq("cost_center", cost_center);
+            }
+
+            const { data: legacyRows, error } = await query;
+
+            if (error) throw error;
+
+            legacySummary = summarizeLegacyPlRows((legacyRows || []) as Array<Record<string, unknown>>);
         }
 
-        const profit = sales - expenses;
-        const distributable = Math.max(profit, 0) * 0.7; // 会社留保30%
+        if (plSource === "legacy") {
+            res.json({
+                month: targetMonth,
+                source: "legacy",
+                ...legacySummary!,
+            });
+            return;
+        }
+
+        let journalQuery = supabaseAdmin
+            .from("accounting_journal_entries")
+            .select(`
+                id,
+                entry_date,
+                posted_at,
+                posting_group_id,
+                transaction:accounting_transactions(id, kind, cost_center, site_id),
+                posting_group:posting_groups(id, group_type),
+                lines:accounting_journal_lines(id, account_code, debit, credit, site_id)
+            `)
+            .eq("org_id", req.orgId!)
+            .gte("entry_date", startDate)
+            .lte("entry_date", endDate);
+
+        const { data: journalRows, error: journalError } = await journalQuery;
+
+        if (journalError) throw journalError;
+
+        const journalSummary = summarizeJournalPlRows(
+            (journalRows || []) as Array<Record<string, unknown>>,
+            {
+                siteId: site_id,
+                costCenter: cost_center,
+            },
+            "net_accounting"
+        );
+
+        if (plSource === "journal") {
+            res.json({
+                month: targetMonth,
+                source: "journal",
+                basis: "net_accounting",
+                ...journalSummary,
+            });
+            return;
+        }
+
+        const journalGrossCompatSummary = summarizeJournalPlRows(
+            (journalRows || []) as Array<Record<string, unknown>>,
+            {
+                siteId: site_id,
+                costCenter: cost_center,
+            },
+            "gross_compat"
+        );
+        const diff = buildPlDiff(legacySummary!, journalGrossCompatSummary);
+        const mismatches = Object.entries(diff)
+            .filter(([, amount]) => amount !== 0)
+            .map(([field, amount]) => ({
+                field,
+                amount,
+                basis: "gross_compat",
+            }));
 
         res.json({
             month: targetMonth,
-            sales,
-            expenses,
-            profit,
-            distributable,
-            transaction_count: data?.length || 0,
+            source: "compare",
+            basis: {
+                legacy: "gross",
+                journal: "net_accounting",
+                diff: "gross_compat",
+            },
+            tax_basis_warning: true,
+            legacy: legacySummary!,
+            journal: journalSummary,
+            journal_gross_compat: journalGrossCompatSummary,
+            diff,
+            mismatches,
         });
     } catch (err: any) {
         console.error("PL error:", err);

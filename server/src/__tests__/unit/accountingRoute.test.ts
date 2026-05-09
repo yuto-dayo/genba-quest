@@ -163,6 +163,7 @@ describe("accounting router", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockRpc.mockReset();
     mockStorageFrom.mockReset();
   });
 
@@ -696,6 +697,127 @@ describe("accounting router", () => {
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith({ error: "site_id is required" });
     expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("POST /sales uses canonical sales posting RPC when available", async () => {
+    const siteLookupChain = createChain({
+      data: {
+        id: "site-1",
+        status: "active",
+      },
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [siteLookupChain]);
+    mockRpc.mockResolvedValue({
+      data: {
+        org_id: "org-1",
+        transaction: {
+          id: "sale-canonical-1",
+          org_id: "org-1",
+          kind: "sale",
+          site_id: "site-1",
+          description: "足場工事",
+          recorded_date: "2026-03-18",
+          amount_subtotal: 100000,
+          tax_amount: 10000,
+          amount_total: 110000,
+          projection_source: "canonical_posting_projection",
+          proposal_id: "proposal-sale-canonical-1",
+          proposal_execution_id: "execution-sale-canonical-1",
+          posting_group_id: "posting-group-sale-canonical-1",
+          journal_entry_id: "journal-sale-canonical-1",
+        },
+        proposal: {
+          id: "proposal-sale-canonical-1",
+          type: "income.create",
+          status: "posted_canonical_projection",
+          db_status: "executed",
+          lineage_mode: "transition",
+          lifecycle_engine: "money_transition",
+          full_proposal_lifecycle: false,
+          source_route: "accounting.sales.adjust",
+          source_idempotency_key: "sale-canonical-1",
+        },
+        projection: {
+          legacy_transaction_id: "sale-canonical-1",
+          legacy_transaction_kind: "sale",
+          projection_source: "canonical_posting_projection",
+          proposal_id: "proposal-sale-canonical-1",
+          proposal_execution_id: "execution-sale-canonical-1",
+          posting_group_id: "posting-group-sale-canonical-1",
+          journal_entry_id: "journal-sale-canonical-1",
+        },
+        posting: {
+          status: "posted",
+          mode: "canonical_sales_posting",
+          affects_pl: true,
+          affects_revenue: true,
+          affects_ar: true,
+        },
+      },
+      error: null,
+    });
+
+    const req = {
+      userId: "user-1",
+      userName: "山田",
+      orgId: "org-1",
+      orgMembershipId: "membership-1",
+      body: {
+        idempotency_key: "sale-canonical-1",
+        site_id: "site-1",
+        description: "足場工事",
+        unit_price: 50000,
+        quantity: 2,
+        amount_subtotal: 100000,
+        tax_amount: 10000,
+        amount_total: 110000,
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createSaleHandler(req, res);
+
+    expect(mockRpc).toHaveBeenCalledWith("rpc_post_accounting_sale_canonical", expect.objectContaining({
+      p_org_id: "org-1",
+      p_actor_user_id: "user-1",
+      p_membership_id: "membership-1",
+      p_idempotency_key: "sale-canonical-1",
+      p_site_id: "site-1",
+      p_amount_total: 110000,
+      p_items: [
+        {
+          item_name: "足場工事",
+          unit_name: "式",
+          unit_price: 50000,
+          quantity: 2,
+          amount: 100000,
+        },
+      ],
+    }));
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      id: "sale-canonical-1",
+      proposal: expect.objectContaining({
+        id: "proposal-sale-canonical-1",
+        status: "posted_canonical_projection",
+        lifecycle_engine: "money_transition",
+        full_proposal_lifecycle: false,
+      }),
+      posting: expect.objectContaining({
+        status: "posted",
+        mode: "canonical_sales_posting",
+        affects_pl: true,
+        affects_revenue: true,
+        affects_ar: true,
+      }),
+      projection: expect.objectContaining({
+        projection_source: "canonical_posting_projection",
+        proposal_execution_id: "execution-sale-canonical-1",
+        posting_group_id: "posting-group-sale-canonical-1",
+        journal_entry_id: "journal-sale-canonical-1",
+      }),
+    }));
   });
 
   it("POST /sales stores a single item when unit price and quantity are provided", async () => {
@@ -2450,6 +2572,270 @@ describe("accounting router", () => {
     }));
   });
 
+  it("GET /pl source=journal aggregates net accounting totals from posted journal lines", async () => {
+    const journalChain = createChain({
+      data: [
+        {
+          id: "entry-sale-1",
+          entry_date: "2026-05-07",
+          posted_at: "2026-05-07T00:00:00Z",
+          transaction: { id: "tx-sale-1", kind: "sale", cost_center: "SITE", site_id: "site-1" },
+          posting_group: { id: "posting-sale-1", group_type: "manual_adjustment" },
+          lines: [
+            { id: "line-ar", account_code: "1200", debit: 110000, credit: 0, site_id: "site-1" },
+            { id: "line-revenue", account_code: "4100", debit: 0, credit: 100000, site_id: "site-1" },
+            { id: "line-output-tax", account_code: "2500", debit: 0, credit: 10000, site_id: "site-1" },
+          ],
+        },
+        {
+          id: "entry-expense-1",
+          entry_date: "2026-05-08",
+          posted_at: "2026-05-08T00:00:00Z",
+          transaction: { id: "tx-expense-1", kind: "expense", cost_center: "SITE", site_id: "site-1" },
+          posting_group: { id: "posting-expense-1", group_type: "manual_adjustment" },
+          lines: [
+            { id: "line-expense", account_code: "5100", debit: 30000, credit: 0, site_id: "site-1" },
+            { id: "line-input-tax", account_code: "1500", debit: 3000, credit: 0, site_id: "site-1" },
+            { id: "line-cash", account_code: "1100", debit: 0, credit: 33000, site_id: "site-1" },
+          ],
+        },
+      ],
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [journalChain]);
+
+    const req = {
+      orgId: "org-1",
+      query: { month: "2026-05", source: "journal", site_id: "site-1", cost_center: "SITE" },
+    } as any;
+    const res = createMockRes();
+
+    await getPlHandler(req, res);
+
+    expect(mockFrom).toHaveBeenCalledWith("accounting_journal_entries");
+    expect(journalChain.eq).toHaveBeenCalledWith("org_id", "org-1");
+    expect(journalChain.gte).toHaveBeenCalledWith("entry_date", "2026-05-01");
+    expect(journalChain.lte).toHaveBeenCalledWith("entry_date", "2026-05-31");
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      month: "2026-05",
+      source: "journal",
+      basis: "net_accounting",
+      sales: 100000,
+      expenses: 30000,
+      profit: 70000,
+      distributable: 49000,
+      journal_entry_count: 2,
+      journal_line_count: 2,
+    }));
+  });
+
+  it("GET /pl source=compare returns legacy and journal diff and excludes invoice/payment revenue journals", async () => {
+    const legacyChain = createChain({
+      data: [
+        {
+          id: "tx-sale-1",
+          kind: "sale",
+          status: "posted",
+          amount_total: 110000,
+          recorded_date: "2026-05-07",
+        },
+        {
+          id: "tx-expense-1",
+          kind: "expense",
+          status: "posted",
+          amount_total: 33000,
+          recorded_date: "2026-05-08",
+        },
+      ],
+      error: null,
+    });
+    const journalChain = createChain({
+      data: [
+        {
+          id: "entry-sale-1",
+          entry_date: "2026-05-07",
+          posted_at: "2026-05-07T00:00:00Z",
+          transaction: { id: "tx-sale-1", kind: "sale", cost_center: "SITE", site_id: "site-1" },
+          posting_group: { id: "posting-sale-1", group_type: "manual_adjustment" },
+          lines: [
+            { id: "line-ar", account_code: "1200", debit: 110000, credit: 0, site_id: "site-1" },
+            { id: "line-revenue", account_code: "4100", debit: 0, credit: 100000, site_id: "site-1" },
+            { id: "line-output-tax", account_code: "2500", debit: 0, credit: 10000, site_id: "site-1" },
+          ],
+        },
+        {
+          id: "entry-expense-1",
+          entry_date: "2026-05-08",
+          posted_at: "2026-05-08T00:00:00Z",
+          transaction: { id: "tx-expense-1", kind: "expense", cost_center: "SITE", site_id: "site-1" },
+          posting_group: { id: "posting-expense-1", group_type: "manual_adjustment" },
+          lines: [
+            { id: "line-expense", account_code: "5100", debit: 30000, credit: 0, site_id: "site-1" },
+            { id: "line-input-tax", account_code: "1500", debit: 3000, credit: 0, site_id: "site-1" },
+            { id: "line-cash", account_code: "1100", debit: 0, credit: 33000, site_id: "site-1" },
+          ],
+        },
+        {
+          id: "entry-invoice-ignored",
+          entry_date: "2026-05-09",
+          posted_at: "2026-05-09T00:00:00Z",
+          transaction: { id: "tx-invoice-1", kind: "invoice", cost_center: "SITE", site_id: "site-1" },
+          posting_group: { id: "posting-invoice-1", group_type: "invoice_transfer" },
+          lines: [
+            { id: "line-invoice-revenue", account_code: "4100", debit: 0, credit: 999999, site_id: "site-1" },
+          ],
+        },
+      ],
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [legacyChain, journalChain]);
+
+    const req = {
+      orgId: "org-1",
+      query: { month: "2026-05", source: "compare" },
+    } as any;
+    const res = createMockRes();
+
+    await getPlHandler(req, res);
+
+    expect(mockFrom).toHaveBeenNthCalledWith(1, "accounting_transactions");
+    expect(mockFrom).toHaveBeenNthCalledWith(2, "accounting_journal_entries");
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      month: "2026-05",
+      source: "compare",
+      basis: {
+        legacy: "gross",
+        journal: "net_accounting",
+        diff: "gross_compat",
+      },
+      tax_basis_warning: true,
+      legacy: expect.objectContaining({
+        sales: 110000,
+        expenses: 33000,
+        profit: 77000,
+        transaction_count: 2,
+      }),
+      journal: expect.objectContaining({
+        sales: 100000,
+        expenses: 30000,
+        profit: 70000,
+        journal_entry_count: 2,
+        journal_line_count: 2,
+      }),
+      journal_gross_compat: expect.objectContaining({
+        sales: 110000,
+        expenses: 33000,
+        profit: 77000,
+        journal_entry_count: 2,
+        journal_line_count: 4,
+      }),
+      diff: {
+        sales: 0,
+        expenses: 0,
+        profit: 0,
+        distributable: 0,
+      },
+      mismatches: [],
+    }));
+  });
+
+  it("POST /void/:id uses canonical sales reversal RPC when available", async () => {
+    setupMockFromSequence(mockFrom, []);
+    mockRpc.mockResolvedValue({
+      data: {
+        org_id: "11111111-1111-4111-8111-111111111111",
+        original_voided: "tx-sale-void-1",
+        original_reversed: "tx-sale-void-1",
+        reversal_created: "tx-sale-reversal-canonical-1",
+        reversal: {
+          id: "tx-sale-reversal-canonical-1",
+          kind: "sale",
+          amount_subtotal: -100000,
+          tax_amount: -10000,
+          amount_total: -110000,
+          projection_source: "canonical_posting_projection",
+          proposal_id: "proposal-sales-reversal-1",
+          proposal_execution_id: "execution-sales-reversal-1",
+          posting_group_id: "posting-sales-reversal-1",
+          journal_entry_id: "journal-sales-reversal-1",
+        },
+        proposal: {
+          id: "proposal-sales-reversal-1",
+          type: "income.reverse",
+          status: "reversed",
+          db_status: "executed",
+          lineage_mode: "transition",
+          lifecycle_engine: "money_transition",
+          full_proposal_lifecycle: false,
+          source_route: "accounting.void.create",
+          source_idempotency_key: "void-sales-canonical-1",
+        },
+        projection: {
+          projection_source: "canonical_posting_projection",
+          legacy_transaction_id: "tx-sale-reversal-canonical-1",
+          reverses_transaction_id: "tx-sale-void-1",
+          proposal_id: "proposal-sales-reversal-1",
+          proposal_execution_id: "execution-sales-reversal-1",
+          posting_group_id: "posting-sales-reversal-1",
+          journal_entry_id: "journal-sales-reversal-1",
+        },
+        posting: {
+          status: "posted",
+          mode: "canonical_sales_reversal",
+          affects_pl: true,
+          affects_revenue: true,
+          affects_ar: true,
+        },
+      },
+      error: null,
+    });
+
+    const req = {
+      userId: "user-1",
+      userName: "山田",
+      orgId: "11111111-1111-4111-8111-111111111111",
+      orgMembershipId: "membership-1",
+      params: { id: "tx-sale-void-1" },
+      body: { idempotency_key: "void-sales-canonical-1", reason: "売上入力ミス" },
+    } as any;
+    const res = createMockRes();
+
+    await voidTransactionHandler(req, res);
+
+    expect(mockRpc).toHaveBeenCalledWith("rpc_reverse_accounting_sale_canonical", expect.objectContaining({
+      p_org_id: "11111111-1111-4111-8111-111111111111",
+      p_actor_user_id: "user-1",
+      p_membership_id: "membership-1",
+      p_idempotency_key: "void-sales-canonical-1",
+      p_transaction_id: "tx-sale-void-1",
+      p_reason: "売上入力ミス",
+    }));
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      original_voided: "tx-sale-void-1",
+      original_reversed: "tx-sale-void-1",
+      reversal_created: "tx-sale-reversal-canonical-1",
+      proposal: expect.objectContaining({
+        id: "proposal-sales-reversal-1",
+        type: "income.reverse",
+        status: "reversed",
+        full_proposal_lifecycle: false,
+      }),
+      posting: expect.objectContaining({
+        status: "posted",
+        mode: "canonical_sales_reversal",
+        affects_pl: true,
+      }),
+      projection: expect.objectContaining({
+        projection_source: "canonical_posting_projection",
+        legacy_transaction_id: "tx-sale-reversal-canonical-1",
+        reverses_transaction_id: "tx-sale-void-1",
+        proposal_execution_id: "execution-sales-reversal-1",
+        posting_group_id: "posting-sales-reversal-1",
+        journal_entry_id: "journal-sales-reversal-1",
+      }),
+    }));
+  });
+
   it("POST /void/:id keeps the original posted and creates a reversal entry", async () => {
     const originalFetchChain = createChain({
       data: {
@@ -2509,6 +2895,10 @@ describe("accounting router", () => {
       entryInsertChain,
       lineInsertChain,
     ], [], [proposalChain]);
+    mockRpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: "CANONICAL_SALES_REVERSE_UNSUPPORTED_KIND" },
+    });
 
     const req = {
       userId: "user-1",
@@ -2521,6 +2911,10 @@ describe("accounting router", () => {
     await voidTransactionHandler(req, res);
 
     expect(mockFrom).toHaveBeenCalledTimes(11);
+    expect(mockRpc).toHaveBeenCalledWith("rpc_reverse_accounting_sale_canonical", expect.objectContaining({
+      p_transaction_id: "tx-void-1",
+      p_reason: "入力ミス",
+    }));
     expect(originalFetchChain.eq).toHaveBeenCalledWith("org_id", "11111111-1111-4111-8111-111111111111");
     expect(existingReversalChain.eq).toHaveBeenCalledWith("org_id", "11111111-1111-4111-8111-111111111111");
     expect(reversalInsertChain.insert).toHaveBeenCalledWith(expect.objectContaining({
