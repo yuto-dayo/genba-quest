@@ -171,11 +171,13 @@ export type PostCanonicalSaleInput = {
 export type RecordPaymentAllocationInput = {
     orgId: string;
     membershipId?: string | null;
+    idempotencyKey?: string | null;
     paymentId: string;
     invoiceId: string;
     allocatedOn: string;
     amount: number;
     createdBy: string;
+    actorName?: string | null;
 };
 
 export type RecordPaymentEventInput = {
@@ -1100,6 +1102,31 @@ export async function createAccountingInvoice(input: CreateAccountingInvoiceInpu
 }
 
 export async function recordPaymentAllocation(input: RecordPaymentAllocationInput) {
+    if (input.idempotencyKey) {
+        const canonicalResult = await supabaseAdmin.rpc("rpc_allocate_accounting_payment_canonical", {
+            p_org_id: input.orgId,
+            p_actor_user_id: input.createdBy,
+            p_membership_id: input.membershipId || null,
+            p_idempotency_key: input.idempotencyKey,
+            p_payment_id: input.paymentId,
+            p_invoice_id: input.invoiceId,
+            p_allocated_on: input.allocatedOn,
+            p_amount: input.amount,
+            p_metadata_json: {
+                request_source: "accounting.payments.allocate",
+            },
+            p_actor_name: input.actorName || null,
+        });
+
+        if (canonicalResult.error) {
+            if (!isMissingFunctionError(canonicalResult.error, "rpc_allocate_accounting_payment_canonical")) {
+                throw canonicalResult.error;
+            }
+        } else {
+            return canonicalResult.data || {};
+        }
+    }
+
     const { data, error } = await supabaseAdmin.rpc("rpc_allocate_accounting_payment", {
         p_org_id: input.orgId,
         p_actor_user_id: input.createdBy,

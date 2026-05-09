@@ -3135,11 +3135,13 @@ router.post("/payments/allocations", async (req: AuthenticatedRequest, res: Resp
         const allocationResult = await recordPaymentAllocation({
             orgId,
             membershipId: req.orgMembershipId || null,
+            idempotencyKey: idempotency.idempotencyKey,
             paymentId,
             invoiceId,
             allocatedOn,
             amount,
             createdBy: req.userId!,
+            actorName: req.userName || req.userEmail || null,
         });
 
         const allocatedPaymentId = allocationResult && typeof allocationResult === "object" && "payment" in allocationResult
@@ -3148,6 +3150,13 @@ router.post("/payments/allocations", async (req: AuthenticatedRequest, res: Resp
         const allocationId = allocationResult && typeof allocationResult === "object" && "allocation" in allocationResult
             ? (allocationResult as { allocation?: { id?: unknown } }).allocation?.id
             : null;
+        const rpcProjection = allocationResult
+            && typeof allocationResult === "object"
+            && "projection" in allocationResult
+            && allocationResult.projection
+            && typeof allocationResult.projection === "object"
+            ? allocationResult.projection as Record<string, unknown>
+            : null;
         const legacyProjection = {
             projection_source: "transition_lineage",
             legacy_payment_id: allocatedPaymentId ?? null,
@@ -3155,32 +3164,48 @@ router.post("/payments/allocations", async (req: AuthenticatedRequest, res: Resp
             legacy_invoice_id: invoiceId,
         };
 
-        let proposalLineage: Record<string, unknown> | null = null;
-        try {
-            proposalLineage = await createAccountingCommandProposalLineage({
-                orgId,
-                endpointName: "accounting.payments.allocate",
-                proposalType: "payment.allocate",
-                idempotencyKey: idempotency.idempotencyKey,
-                transitionStatus: "posted_legacy_projection",
-                actor: {
-                    type: "human",
-                    id: req.userId!,
-                    name: req.userName || req.userEmail || null,
-                },
-                description: `入金消込: ${invoiceId}`,
-                payload: {
-                    invoice_id: invoiceId,
-                    payment_id: paymentId,
-                    allocated_on: allocatedOn,
-                    amount,
-                    posting_mode: "payment_allocation_no_pl_revenue",
-                },
-                projection: legacyProjection,
-            });
-        } catch (proposalError) {
-            console.error("Payment allocation proposal lineage error:", proposalError);
+        let proposalLineage: Record<string, unknown> | null = allocationResult
+            && typeof allocationResult === "object"
+            && "proposal" in allocationResult
+            && allocationResult.proposal
+            && typeof allocationResult.proposal === "object"
+            ? allocationResult.proposal as Record<string, unknown>
+            : null;
+        if (!proposalLineage) {
+            try {
+                proposalLineage = await createAccountingCommandProposalLineage({
+                    orgId,
+                    endpointName: "accounting.payments.allocate",
+                    proposalType: "payment.allocate",
+                    idempotencyKey: idempotency.idempotencyKey,
+                    transitionStatus: "posted_legacy_projection",
+                    actor: {
+                        type: "human",
+                        id: req.userId!,
+                        name: req.userName || req.userEmail || null,
+                    },
+                    description: `入金消込: ${invoiceId}`,
+                    payload: {
+                        invoice_id: invoiceId,
+                        payment_id: paymentId,
+                        allocated_on: allocatedOn,
+                        amount,
+                        posting_mode: "payment_allocation_no_pl_revenue",
+                    },
+                    projection: legacyProjection,
+                });
+            } catch (proposalError) {
+                console.error("Payment allocation proposal lineage error:", proposalError);
+            }
         }
+
+        const rpcPosting = allocationResult
+            && typeof allocationResult === "object"
+            && "posting" in allocationResult
+            && allocationResult.posting
+            && typeof allocationResult.posting === "object"
+            ? allocationResult.posting as Record<string, unknown>
+            : null;
 
         const responseBody = withAccountingCommandEnvelope(
             allocationResult && typeof allocationResult === "object"
@@ -3192,14 +3217,14 @@ router.post("/payments/allocations", async (req: AuthenticatedRequest, res: Resp
                 approvalStatus: "not_required",
                 postingStatus: "posted",
                 mode: "payment_allocation_no_pl_revenue",
-                postingMetadata: {
+                postingMetadata: rpcPosting || {
                     affects_pl: false,
                     affects_revenue: false,
                     affects_ar: true,
                 },
-                projection: proposalLineage
+                projection: rpcProjection || (proposalLineage
                     ? { ...legacyProjection, proposal_id: proposalLineage.id }
-                    : legacyProjection,
+                    : legacyProjection),
             },
         );
         await completeAccountingWriteIdempotency(idempotency, 201, responseBody);

@@ -2518,22 +2518,38 @@ describe("accounting router", () => {
     expect(res.json).toHaveBeenCalledWith({ error: "IDEMPOTENCY_IN_PROGRESS" });
   });
 
-  it("POST /payments/allocations records payment allocation through the atomic RPC without PL journal writes", async () => {
-    const proposalChain = createChain({
-      data: {
-        id: "proposal-payment-1",
-        type: "payment.allocate",
-        status: "executed",
-        policy_ref: "legacy_direct_transition",
-      },
-      error: null,
-    });
-    setupMockFromSequence(mockFrom, [], [], [proposalChain]);
+  it("POST /payments/allocations records payment allocation through the canonical RPC without PL revenue", async () => {
+    setupMockFromSequence(mockFrom, []);
     mockRpc.mockResolvedValue({
       data: {
         payment: { id: "payment-1", amount: 110000, status: "allocated" },
         allocation: { id: "allocation-1", invoice_id: "inv-1", allocated_amount: 110000 },
         invoice: { id: "inv-1", amount_total: 110000, allocated_total: 110000, uncollected_balance: 0 },
+        proposal: {
+          id: "proposal-payment-1",
+          type: "payment.allocate",
+          status: "posted_canonical_projection",
+          db_status: "executed",
+          lifecycle_engine: "money_transition",
+          full_proposal_lifecycle: false,
+        },
+        projection: {
+          projection_source: "canonical_posting_projection",
+          legacy_payment_id: "payment-1",
+          legacy_payment_allocation_id: "allocation-1",
+          legacy_invoice_id: "inv-1",
+          proposal_id: "proposal-payment-1",
+          proposal_execution_id: "execution-payment-allocation-1",
+          posting_group_id: "posting-group-payment-allocation-1",
+          journal_entry_id: "journal-payment-allocation-1",
+        },
+        posting: {
+          status: "posted",
+          mode: "payment_allocation_no_pl_revenue",
+          affects_pl: false,
+          affects_revenue: false,
+          affects_ar: true,
+        },
       },
       error: null,
     });
@@ -2553,10 +2569,11 @@ describe("accounting router", () => {
 
     await createPaymentAllocationHandler(req, res);
 
-    expect(mockRpc).toHaveBeenCalledWith("rpc_allocate_accounting_payment", expect.objectContaining({
+    expect(mockRpc).toHaveBeenCalledWith("rpc_allocate_accounting_payment_canonical", expect.objectContaining({
       p_org_id: "11111111-1111-4111-8111-111111111111",
       p_actor_user_id: "user-1",
       p_membership_id: null,
+      p_idempotency_key: "payment-allocation-1",
       p_payment_id: "payment-1",
       p_invoice_id: "inv-1",
       p_allocated_on: "2026-03-31",
@@ -2570,7 +2587,7 @@ describe("accounting router", () => {
       proposal: expect.objectContaining({
         id: "proposal-payment-1",
         type: "payment.allocate",
-        status: "posted_legacy_projection",
+        status: "posted_canonical_projection",
         full_proposal_lifecycle: false,
       }),
       posting: expect.objectContaining({
@@ -2580,10 +2597,82 @@ describe("accounting router", () => {
         affects_ar: true,
       }),
       projection: expect.objectContaining({
+        projection_source: "canonical_posting_projection",
         legacy_payment_id: "payment-1",
         legacy_payment_allocation_id: "allocation-1",
         legacy_invoice_id: "inv-1",
         proposal_id: "proposal-payment-1",
+        proposal_execution_id: "execution-payment-allocation-1",
+        posting_group_id: "posting-group-payment-allocation-1",
+        journal_entry_id: "journal-payment-allocation-1",
+      }),
+    }));
+  });
+
+  it("POST /payments/allocations falls back to transition lineage when canonical allocation RPC is unavailable", async () => {
+    const proposalChain = createChain({
+      data: {
+        id: "proposal-payment-legacy-1",
+        type: "payment.allocate",
+        status: "executed",
+        policy_ref: "legacy_direct_transition",
+      },
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [], [], [proposalChain]);
+    mockRpc.mockImplementation((functionName: string) => {
+      if (functionName === "rpc_allocate_accounting_payment_canonical") {
+        return Promise.resolve({
+          data: null,
+          error: {
+            code: "PGRST202",
+            message: "Could not find the function public.rpc_allocate_accounting_payment_canonical",
+          },
+        });
+      }
+
+      return Promise.resolve({
+        data: {
+          payment: { id: "payment-legacy-1", amount: 110000, status: "allocated" },
+          allocation: { id: "allocation-legacy-1", invoice_id: "inv-1", allocated_amount: 110000 },
+          invoice: { id: "inv-1", amount_total: 110000, allocated_total: 110000, uncollected_balance: 0 },
+        },
+        error: null,
+      });
+    });
+
+    const req = {
+      userId: "user-1",
+      orgId: "11111111-1111-4111-8111-111111111111",
+      body: {
+        idempotency_key: "payment-allocation-legacy-1",
+        payment_id: "payment-legacy-1",
+        invoice_id: "inv-1",
+        allocated_on: "2026-03-31",
+        amount: 110000,
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createPaymentAllocationHandler(req, res);
+
+    expect(mockRpc).toHaveBeenNthCalledWith(1, "rpc_allocate_accounting_payment_canonical", expect.any(Object));
+    expect(mockRpc).toHaveBeenNthCalledWith(2, "rpc_allocate_accounting_payment", expect.objectContaining({
+      p_payment_id: "payment-legacy-1",
+      p_invoice_id: "inv-1",
+    }));
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      proposal: expect.objectContaining({
+        id: "proposal-payment-legacy-1",
+        status: "posted_legacy_projection",
+      }),
+      projection: expect.objectContaining({
+        projection_source: "transition_lineage",
+        legacy_payment_id: "payment-legacy-1",
+        legacy_payment_allocation_id: "allocation-legacy-1",
+        legacy_invoice_id: "inv-1",
+        proposal_id: "proposal-payment-legacy-1",
       }),
     }));
   });

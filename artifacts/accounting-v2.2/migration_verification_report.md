@@ -36,6 +36,8 @@ Implemented and locally verified the first v2.2 slice:
 - Invoice/payment no-PL-revenue contract tests now cover fallback invoice allocation metadata, payment allocation unpaid-balance caps, and `/pl?source=compare` exclusion for `invoice_transfer`, `payment_receipt`, and `payment_allocation` posting groups
 - `rpc_record_accounting_payment_event_canonical` creates transition `payment.record` lineage, proposal execution, `payment_receipt` posting group, balanced no-PL-revenue journal, and payment projection metadata
 - `/payments` uses canonical payment receipt posting when the RPC is available and falls back to the legacy payment-event RPC plus route-side transition lineage when it is not
+- `rpc_allocate_accounting_payment_canonical` creates transition `payment.allocate` lineage, proposal execution, `payment_allocation` posting group, balanced no-PL-revenue journal, and payment allocation projection metadata
+- `/payments/allocations` uses canonical payment allocation posting when the RPC is available and falls back to the legacy allocation RPC plus route-side transition lineage when it is not
 
 ## Commands
 
@@ -81,6 +83,10 @@ supabase migration up
 - Canonical payment receipt must post only balance-sheet lines (`Dr cash/bank`, `Cr unapplied_cash`) and no revenue line.
 - Canonical payment receipt must return `projection_source=canonical_posting_projection`, `proposal_execution_id`, `posting_group_id`, and `journal_entry_id`.
 - Canonical payment receipt must not create a duplicate route-side transition proposal when the RPC already returns proposal lineage.
+- Canonical payment allocation must post only balance-sheet lines (`Dr unapplied_cash`, `Cr accounts_receivable`) and no revenue line.
+- Canonical payment allocation must enforce invoice open amount and payment unapplied amount before inserting allocation rows.
+- Canonical payment allocation must return `projection_source=canonical_posting_projection`, `proposal_execution_id`, `posting_group_id`, and `journal_entry_id`.
+- Canonical payment allocation must not create a duplicate route-side transition proposal when the RPC already returns proposal lineage.
 
 ## Result
 
@@ -106,10 +112,13 @@ supabase migration up
 - Accounting route + SiteCompletion targeted regression after invoice/payment no-PL contract hardening: pass, 58 tests
 - Accounting route unit tests after canonical payment receipt route integration: pass, 53 tests
 - Accounting route + SiteCompletion targeted regression after canonical payment receipt route integration: pass, 59 tests
+- Accounting route unit tests after canonical payment allocation route integration: pass, 54 tests
+- Accounting route + SiteCompletion targeted regression after canonical payment allocation route integration: pass, 60 tests
 - TypeScript after canonical sales route integration: pass
 - TypeScript after canonical expense route integration: pass
 - TypeScript after invoice/payment no-PL contract hardening: pass
 - TypeScript after canonical payment receipt route integration: pass
+- TypeScript after canonical payment allocation route integration: pass
 - Frontend TypeScript after PL source typing: pass
 - SQL boundary check: pass
 - Whitespace check: pass
