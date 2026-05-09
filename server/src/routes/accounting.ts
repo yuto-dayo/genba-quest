@@ -309,12 +309,8 @@ function shouldSkipJournalEntryForPl(
         return true;
     }
 
-    const transaction = firstNestedRecord(entry.transaction);
-    if (transaction?.kind === "invoice") {
-        return true;
-    }
-
     if (typeof costCenterFilter === "string" && costCenterFilter) {
+        const transaction = firstNestedRecord(entry.transaction);
         return transaction?.cost_center !== costCenterFilter;
     }
 
@@ -3583,9 +3579,9 @@ router.get("/pl", async (req: AuthenticatedRequest, res: Response) => {
                 entry_date,
                 posted_at,
                 posting_group_id,
-                transaction:accounting_transactions(id, kind, cost_center, site_id),
-                posting_group:posting_groups(id, group_type),
-                lines:accounting_journal_lines(id, account_code, debit, credit, site_id)
+                transaction:accounting_transactions!accounting_journal_entries_org_transaction_fkey(id, kind, cost_center, site_id),
+                posting_group:posting_groups!accounting_journal_entries_org_posting_group_fkey(id, group_type),
+                lines:accounting_journal_lines!accounting_journal_lines_org_entry_fkey(id, account_code, debit, credit, site_id)
             `)
             .eq("org_id", req.orgId!)
             .gte("entry_date", startDate)

@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `v2.2残: legacy compatibility SECURITY DEFINER search_path完全固定判断、またはPL compare/posted journal invariantsの実データ証跡拡充。remote DB/pushは明示承認まで未実行`
+- NEXT_CMD: `Next: review/commit this evidence slice, then continue with old compatibility RPC search_path reachability classification. Remote DB migration/push remains unexecuted until explicit approval.`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/local.md`
@@ -18,8 +18,8 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `5052f48`
-  - Updated: `2026-05-10T00:07:43+0900`
+  - HEAD: `8608d71`
+  - Updated: `2026-05-10T00:30:27+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
@@ -33,47 +33,47 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `v2.2残: legacy compatibility SECURITY DEFINER search_path完全固定判断、またはPL compare/posted journal invariantsの実データ証跡拡充。remote DB/pushは明示承認まで未実行`. Source: realtime
+- [focus] NEXT_CMD: `Next: review/commit this evidence slice, then continue with old compatibility RPC search_path reachability classification. Remote DB migration/push remains unexecuted until explicit approval.`. Source: realtime
+- [H0029] Completed: v2.2 PL compare/posted journal invariants evidence added: local_pl_compare_invariants_test.mjs creates fresh local org, runs canonical sale/expense/invoice/payment/allocation/reversal, calls real /pl legacy|journal|compare API, and verifies posted journal UPDATE/DELETE fail with POSTED_JOURNAL_IMMUTABLE. Fixed /pl journal relation embeds and invoice-kind skip so local HTTP compare returns diff=0 after invoice/payment/reversal.
+- [H0029] Remaining: Next: review/commit this evidence slice, then continue with old compatibility RPC search_path reachability classification. Remote DB migration/push remains unexecuted until explicit approval.
 - [H0028] Completed: v2.2 document/PDF/OCR/signed URL org boundaryを実装・証跡化。site documentsはdocuments.org_idで絞り、new storage_pathをorg_id/sites/site_id/documents配下に変更、unprefixed pathにはsigned_urlを出さず、accounting OCRはorg prefix外storage_pathをStorage download前に403で拒否。invoice PDF新規生成pathもorg prefix先頭に変更。local APIでforeign site documents/drawingsが404になることを確認
 - [H0028] Remaining: v2.2残: legacy compatibility SECURITY DEFINER search_path完全固定判断、またはPL compare/posted journal invariantsの実データ証跡拡充。remote DB/pushは明示承認まで未実行
-- [H0027] Completed: v2.2 SECURITY DEFINER hardening local DB evidenceを追加。16 protected RPC signatureでpublic/anon/authenticated EXECUTE=false、service_role EXECUTE=trueを確認し、membership-aware/canonical 12本はsearch_path=pg_catalog、anon/auth直RPCはpermission denied、service_roleでもorg/user/membership不一致はRPC_MEMBERSHIP_REQUIREDで失敗することを確認
-- [H0027] Remaining: P0残: document signed URL/PDF/OCR storage path org prefixの追加検証、またはlegacy compatibility SECURITY DEFINER search_pathを完全固定するかどうかの設計判断
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0029] Auto-captured decision: v2.2 PL compare/posted journal invariants evidence added: local_pl_compare_invariants_test.mjs creates fresh local org, runs canonical sale/expense/invoice/payment/allocation/re...
 - [H0028] local Supabase Storage is disabled, so real signed URL/upload contracts are unit-tested with mocks; local API verifies foreign site document/drawing routes return 404 before signed URL issuance
 - [H0027] local Postgres SET LOCAL ROLEでDB-enforced behaviorを確認。remote DB/push/migration repair未実行
 - [H0026] same dev actor has active memberships in org A/B; active org header controls visibility; remote DB/push/migration repair未実行
 - [H0025] script parses local Supabase service key from supabase status and starts a local Express server on isolated port; remote DB/push/migration repair未実行
-- [H0024] remote DB/push/migration repair未実行。Supabase CLI db query -f はmulti-statementを弾くためdocker exec psqlでlocal DBへ実行
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
+- [H0029] No new landmines reported in this chunk.
 - [H0028] Existing legacy documents may have unprefixed storage_path; listing now returns signed_url=null for those until backfill/reupload, and OCR returns 403 for unprefixed active-org storage_path
 - [H0027] legacy compatibility implementation RPCs remain service_role executable and have older search_path values for fallback compatibility; direct anon/auth is revoked and membership-aware/canonical paths are fixed to pg_catalog
 - [H0026] server/.env points at remote, so script explicitly injects local SUPABASE_URL/SERVICE_ROLE_KEY; payment allocation failure creates a failed idempotency row in active org before returning 404 but no accounting rows
 - [H0025] server/.env points at remote, so script explicitly injects local SUPABASE_URL/SERVICE_ROLE_KEY; do not run ad-hoc server tests without overriding env
-- [H0024] posted journal immutabilityが有効なので固定fixture cleanupでDELETE再実行してはいけない。SQLはfresh org fixture方式
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0029] Next: review/commit this evidence slice, then continue with old compatibility RPC search_path reachability classification. Remote DB migration/push remains unexecuted until explicit approval.
 - [H0028] v2.2残: legacy compatibility SECURITY DEFINER search_path完全固定判断、またはPL compare/posted journal invariantsの実データ証跡拡充。remote DB/pushは明示承認まで未実行
 - [H0027] P0残: document signed URL/PDF/OCR storage path org prefixの追加検証、またはlegacy compatibility SECURITY DEFINER search_pathを完全固定するかどうかの設計判断
 - [H0026] P0残: service-role RPC membership mismatch/direct RPC negative evidence、またはdocument signed URL/PDF/OCR storage path org prefixの追加検証
 - [H0025] P0残: multi-org org boundary negative testを実DB/APIで証跡化。active org外IDは404/403契約を確認
-- [H0024] P0/P1残: true concurrent duplicate DB/API integration test、org boundary multi-org negative test、必要ならaccountingV22Canonical integration test化
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `19`
+- current_l3_entries: `20`
 - last_compacted_at: `2026-05-09 22:52:16 +0900`
 - archived_entries: `9`
 <!-- HANDOFF_L2_STATE_END -->
@@ -104,6 +104,7 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] v2.2 PL compare/posted journal invariants evidence added: local_pl_compare_invariants_test.mjs creates fresh local org, runs canonical sale/expense/invoice/payment/allocation/reversal, calls real /pl legacy|journal|compare API, and verifies posted journal UPDATE/DELETE fail with POSTED_JOURNAL_IMMUTABLE. Fixed /pl journal relation embeds and invoice-kind skip so local HTTP compare returns diff=0 after invoice/payment/reversal.
 - [x] v2.2 document/PDF/OCR/signed URL org boundaryを実装・証跡化。site documentsはdocuments.org_idで絞り、new storage_pathをorg_id/sites/site_id/documents配下に変更、unprefixed pathにはsigned_urlを出さず、accounting OCRはorg prefix外storage_pathをStorage download前に403で拒否。invoice PDF新規生成pathもorg prefix先頭に変更。local APIでforeign site documents/drawingsが404になることを確認
 - [x] v2.2 SECURITY DEFINER hardening local DB evidenceを追加。16 protected RPC signatureでpublic/anon/authenticated EXECUTE=false、service_role EXECUTE=trueを確認し、membership-aware/canonical 12本はsearch_path=pg_catalog、anon/auth直RPCはpermission denied、service_roleでもorg/user/membership不一致はRPC_MEMBERSHIP_REQUIREDで失敗することを確認
 - [x] v2.2 multi-org org boundary negative local API evidenceを追加。同一userがorg A/B両方所属、active org=Aでorg Bのtransaction/invoice/payment/document IDを渡すと対象APIが404を返し、org Aに会計/証憑rowが作られないことを確認
@@ -113,19 +114,21 @@ Phase: A-0/A-1
 - [x] accounting v2.2: invoice issueをcanonical no-PL-revenue transfer RPC優先に接続し、same-key replayをduplicate invoice checkより前に返すよう修正
 - [x] Accounting v2.2: canonical payment allocation RPC and /payments/allocations RPC-first fallback integration added
 - [x] Accounting v2.2: canonical payment receipt RPC and /payments RPC-first fallback integration added
-- [x] Accounting v2.2: invoice/payment no-PL-revenue contract tests hardened
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: legacy compatibility SECURITY DEFINER search_pathを完全固定するかどうかの設計判断
-- [ ] **P1**: PL compare / posted journal invariants の実データ証跡拡充。remote DB/pushは明示承認まで未実行
+- [ ] **P0**: review/commit current v2.2 evidence slice, then classify legacy compatibility RPC search_path reachability. Remote DB migration/push remains unexecuted until explicit approval.
+- [ ] **P1**: document legacy unprefixed path handling as fail-closed/backfill-later if needed.
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
+| `artifacts/accounting-v2.2/local_pl_compare_invariants_test.mjs` | local API/DB PL compare, reversal, posted journal immutability evidence runner |
+| `artifacts/accounting-v2.2/pl_compare_posted_journal_invariants.md` | captured v2.2 local evidence summary |
+| `server/src/routes/accounting.ts` | disambiguate PL journal PostgREST embeds and count revenue journals by posting group rather than invoice projection kind |
 | `artifacts/accounting-v2.2/document_boundary_test.md` | document boundary evidence |
 | `artifacts/accounting-v2.2/local_document_boundary_negative_test.mjs` | local API foreign site document/drawing boundary script |
 | `server/src/__tests__/unit/accountingRoute.test.ts` | OCR prefix guard and invoice PDF path contract |
@@ -145,7 +148,6 @@ Phase: A-0/A-1
 | `supabase/migrations/20260506043949_add_private_site_drawings.sql` | guard Storage bucket/object policy setup when local Storage metadata tables are disabled |
 | `artifacts/accounting-v2.2/invoice_transfer_canonical_test.md` | evidence summary |
 | `server/src/__tests__/unit/accountingRoute.test.ts` | canonical invoice RPC and replay regression coverage |
-| `server/src/routes/accounting.ts` | invoice idempotency replay moved before duplicate checks and canonical envelope returned |
 ---
 
 ## 6. Locked Files（編集中 - 他エージェント触らない）
@@ -559,3 +561,21 @@ cd frontend && npx eslint src/
   - `PASS: node artifacts/accounting-v2.2/local_document_boundary_negative_test.mjs; PASS: supabase migration up --local; PASS: cd server && npx tsc --noEmit; PASS: sitesRoute+accountingRoute unit 64/64; PASS: scripts/db/check-sql-boundaries.sh; PASS: git diff --check`
 - Landmines:
   - Existing legacy documents may have unprefixed storage_path; listing now returns signed_url=null for those until backfill/reupload, and OCR returns 403 for unprefixed active-org storage_path
+
+### 2026-05-10 00:30:27 +0900
+
+- Entry-ID: `H0029`
+- Completed:
+  - [x] v2.2 PL compare/posted journal invariants evidence added: local_pl_compare_invariants_test.mjs creates fresh local org, runs canonical sale/expense/invoice/payment/allocation/reversal, calls real /pl legacy|journal|compare API, and verifies posted journal UPDATE/DELETE fail with POSTED_JOURNAL_IMMUTABLE. Fixed /pl journal relation embeds and invoice-kind skip so local HTTP compare returns diff=0 after invoice/payment/reversal.
+- Remaining:
+  - [ ] Next: review/commit this evidence slice, then continue with old compatibility RPC search_path reachability classification. Remote DB migration/push remains unexecuted until explicit approval.
+- Changed Files:
+  - `artifacts/accounting-v2.2/local_pl_compare_invariants_test.mjs` - local API/DB PL compare, reversal, posted journal immutability evidence runner
+  - `artifacts/accounting-v2.2/pl_compare_posted_journal_invariants.md` - captured v2.2 local evidence summary
+  - `server/src/routes/accounting.ts` - disambiguate PL journal PostgREST embeds and count revenue journals by posting group rather than invoice projection kind
+- Working Context:
+  - Local-only evidence; remote DB/push/migration repair未実行。Existing local_v22_posting_scenario.sqlは未変更
+- Validation:
+  - `node artifacts/accounting-v2.2/local_pl_compare_invariants_test.mjs=pass; supabase migration up --local=up to date; cd server && npx tsc --noEmit=pass; cd server && npm test -- --runTestsByPath src/__tests__/unit/accountingRoute.test.ts --runInBand=pass; scripts/db/check-sql-boundaries.sh=pass; git diff --check=pass`
+- Landmines:
+  - `/pl` journal source must use explicit composite-FK relationship names after org_id FK additions, otherwise PostgREST returns ambiguous relationship PGRST201
