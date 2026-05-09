@@ -87,10 +87,12 @@ function getPutHandler(path: string) {
 function setupMockFromSequence(
   mockFrom: jest.Mock,
   chains: ReturnType<typeof createChain>[],
-  idempotencyChains: ReturnType<typeof createChain>[] = []
+  idempotencyChains: ReturnType<typeof createChain>[] = [],
+  proposalChains: ReturnType<typeof createChain>[] = []
 ): void {
   let callIndex = 0;
   let idempotencyIndex = 0;
+  let proposalIndex = 0;
 
   mockFrom.mockImplementation((table: string) => {
     if (table === "accounting_write_idempotency_keys") {
@@ -113,6 +115,23 @@ function setupMockFromSequence(
       }
 
       return createChain({ data: null, error: null });
+    }
+
+    if (table === "proposals") {
+      if (proposalChains.length > 0) {
+        return proposalChains.shift()!;
+      }
+
+      proposalIndex += 1;
+      return createChain({
+        data: {
+          id: `proposal-${proposalIndex}`,
+          type: "expense.create",
+          status: "executed",
+          policy_ref: "legacy_direct_transition",
+        },
+        error: null,
+      });
     }
 
     const chain = chains[callIndex] || createChain();
@@ -324,13 +343,22 @@ describe("accounting router", () => {
     const existingEntryChain = createChain({ data: null, error: null });
     const entryInsertChain = createChain({ data: { id: "entry-misc" }, error: null });
     const lineInsertChain = createChain({ data: null, error: null });
+    const proposalChain = createChain({
+      data: {
+        id: "proposal-expense-misc",
+        type: "expense.create",
+        status: "executed",
+        policy_ref: "legacy_direct_transition",
+      },
+      error: null,
+    });
     setupMockFromSequence(mockFrom, [
       siteChain,
       txInsertChain,
       existingEntryChain,
       entryInsertChain,
       lineInsertChain,
-    ]);
+    ], [], [proposalChain]);
 
     const req = {
       userId: "user-1",
@@ -365,7 +393,41 @@ describe("accounting router", () => {
     expect(lineInsertChain.insert).toHaveBeenCalledWith(expect.not.arrayContaining([
       expect.objectContaining({ account_code: "1500" }),
     ]));
+    expect(proposalChain.insert).toHaveBeenCalledWith(expect.objectContaining({
+      org_id: "org-1",
+      type: "expense.create",
+      status: "executed",
+      policy_ref: "legacy_direct_transition",
+      idempotency_key: "accounting.expenses.create:expense-misc-1",
+      payload: expect.objectContaining({
+        category: "other",
+        amount_total: 5000,
+        projection: expect.objectContaining({
+          legacy_transaction_id: "tx-misc",
+          legacy_transaction_kind: "expense",
+        }),
+        transition: expect.objectContaining({
+          mode: "legacy_direct_projection",
+          endpoint_name: "accounting.expenses.create",
+        }),
+      }),
+    }));
     expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      proposal: expect.objectContaining({
+        id: "proposal-expense-misc",
+        type: "expense.create",
+        status: "executed",
+      }),
+      execution: expect.objectContaining({
+        mode: "legacy_direct_projection",
+        proposal_id: "proposal-expense-misc",
+      }),
+      projection: expect.objectContaining({
+        legacy_transaction_id: "tx-misc",
+        proposal_id: "proposal-expense-misc",
+      }),
+    }));
   });
 
   it("POST /expenses retries without misc columns when schema migrations are missing", async () => {
@@ -476,7 +538,7 @@ describe("accounting router", () => {
       status: undefined,
       review_status: undefined,
     }));
-    expect(mockFrom).toHaveBeenCalledTimes(4);
+    expect(mockFrom).toHaveBeenCalledTimes(5);
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
       status: "pending_review",

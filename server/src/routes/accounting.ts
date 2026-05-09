@@ -10,6 +10,7 @@ import { buildInvoiceDisplayLineItems } from "../services/InvoiceLineItemsServic
 import { assertActiveClientForOrg } from "../services/ClientDirectoryService";
 import {
     AccountingCommandError,
+    createAccountingCommandProposalLineage,
     createAccountingInvoice,
     createJournalEntry,
     createVoidReversal,
@@ -263,11 +264,13 @@ function withAccountingCommandEnvelope<T extends Record<string, unknown>>(
     input: {
         endpointName: AccountingWriteEndpoint;
         projection: Record<string, unknown>;
+        proposal?: Record<string, unknown> | null;
         approvalStatus?: string;
         postingStatus?: string;
+        mode?: string;
     },
 ): T & {
-    proposal: null;
+    proposal: Record<string, unknown> | null;
     approval: Record<string, unknown>;
     execution: Record<string, unknown>;
     posting: Record<string, unknown>;
@@ -275,19 +278,20 @@ function withAccountingCommandEnvelope<T extends Record<string, unknown>>(
 } {
     return {
         ...legacyPayload,
-        proposal: null,
+        proposal: input.proposal ?? null,
         approval: {
             status: input.approvalStatus || "legacy_direct",
-            mode: "legacy_direct",
+            mode: input.mode || "legacy_direct",
         },
         execution: {
             status: "succeeded",
-            mode: "legacy_direct",
+            mode: input.mode || "legacy_direct",
             endpoint_name: input.endpointName,
+            proposal_id: input.proposal?.id ?? null,
         },
         posting: {
             status: input.postingStatus || "legacy_projection",
-            mode: "legacy_projection",
+            mode: input.mode || "legacy_projection",
         },
         projection: input.projection,
     };
@@ -1127,14 +1131,59 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
             await createJournalEntry(data, req.userId!, orgId);
         }
 
+        let proposalLineage: Record<string, unknown> | null = null;
+        const legacyProjection = {
+            legacy_transaction_id: data.id,
+            legacy_transaction_kind: data.kind || "expense",
+        };
+
+        try {
+            proposalLineage = await createAccountingCommandProposalLineage({
+                orgId,
+                endpointName: "accounting.expenses.create",
+                proposalType: "expense.create",
+                idempotencyKey: idempotency.idempotencyKey,
+                actor: {
+                    type: "human",
+                    id: req.userId!,
+                    name: req.userName || req.userEmail || null,
+                },
+                description: `経費登録: ${normalizeText(description) || normalizeText(vendor_name) || data.id}`,
+                payload: {
+                    cost_center: cost_center || "SITE",
+                    site_id: cost_center === "HQ" ? null : site_id,
+                    vendor_name,
+                    description,
+                    recorded_date: data.recorded_date,
+                    amount_subtotal: resolvedSubtotal,
+                    tax_amount: resolvedTaxAmount,
+                    amount_total: resolvedTotal,
+                    category: normalizedCategory || "other",
+                    expense_item_code: normalizedExpenseItemCode,
+                    expense_item_other: normalizedExpenseItemOther,
+                    tax_category: normalizedTaxCategory,
+                    risk_level,
+                    review_required: requiresReview,
+                    source_document_id,
+                    input_sources: input_sources || {},
+                },
+                projection: legacyProjection,
+                documentId: typeof source_document_id === "string" ? source_document_id : null,
+                siteId: cost_center === "HQ" ? null : typeof site_id === "string" ? site_id : null,
+            });
+        } catch (proposalError) {
+            console.error("Expense proposal lineage error:", proposalError);
+        }
+
         const responseBody = withAccountingCommandEnvelope(data, {
             endpointName: "accounting.expenses.create",
+            proposal: proposalLineage,
             approvalStatus: requiresReview ? "pending_review" : "not_required",
             postingStatus: requiresReview ? "pending_review" : "posted",
-            projection: {
-                legacy_transaction_id: data.id,
-                legacy_transaction_kind: data.kind || "expense",
-            },
+            mode: "legacy_direct_projection",
+            projection: proposalLineage
+                ? { ...legacyProjection, proposal_id: proposalLineage.id }
+                : legacyProjection,
         });
 
         await completeAccountingWriteIdempotency(idempotency, 201, responseBody);

@@ -49,6 +49,25 @@ export type ExpenseInsertPayload = {
     created_by: string;
 };
 
+export type AccountingCommandActorRef = {
+    type: "human" | "ai" | "system" | "integration";
+    id: string;
+    name?: string | null;
+};
+
+export type AccountingCommandProposalLineageInput = {
+    orgId: string;
+    endpointName: string;
+    proposalType: "expense.create";
+    idempotencyKey: string;
+    actor: AccountingCommandActorRef;
+    description: string;
+    payload: Record<string, unknown>;
+    projection: Record<string, unknown>;
+    documentId?: string | null;
+    siteId?: string | null;
+};
+
 export type SaleTransactionInsertPayload = {
     org_id: string;
     kind: "sale";
@@ -336,6 +355,46 @@ export async function insertExpenseTransaction(payload: ExpenseInsertPayload) {
     }
 
     throw new Error("Failed to insert expense transaction after schema compatibility retries");
+}
+
+export async function createAccountingCommandProposalLineage(
+    input: AccountingCommandProposalLineageInput,
+) {
+    const transitionPayload = {
+        ...input.payload,
+        projection: input.projection,
+        transition: {
+            mode: "legacy_direct_projection",
+            endpoint_name: input.endpointName,
+        },
+    };
+
+    const { data, error } = await supabaseAdmin
+        .from("proposals")
+        .insert({
+            org_id: input.orgId,
+            type: input.proposalType,
+            status: "executed",
+            created_by: input.actor,
+            payload: transitionPayload,
+            description: input.description,
+            policy_ref: "legacy_direct_transition",
+            required_approvals: 0,
+            approvals: [],
+            executed_at: new Date().toISOString(),
+            executed_by: input.actor,
+            document_id: input.documentId || null,
+            site_id: input.siteId || null,
+            idempotency_key: `${input.endpointName}:${input.idempotencyKey}`,
+        })
+        .select()
+        .single();
+
+    if (error) {
+        throw error;
+    }
+
+    return data;
 }
 
 export async function insertSaleTransactionWithItems(

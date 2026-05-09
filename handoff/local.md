@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `Replace legacy_direct envelope internals with real Proposal/execution records once Money write commands are routed through the Proposal pipeline.`
+- NEXT_CMD: `Continue P1 by applying the same proposal lineage pattern to sales/invoice/payment only after confirming each route cannot double-post ledger artifacts.`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/local.md`
@@ -18,8 +18,8 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `cb25d6f`
-  - Updated: `2026-05-09T07:36:07+0900`
+  - HEAD: `467065a`
+  - Updated: `2026-05-09T18:44:49+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
@@ -33,47 +33,47 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `Replace legacy_direct envelope internals with real Proposal/execution records once Money write commands are routed through the Proposal pipeline.`. Source: realtime
+- [focus] NEXT_CMD: `Continue P1 by applying the same proposal lineage pattern to sales/invoice/payment only after confirming each route cannot double-post ledger artifacts.`. Source: realtime
+- [H0007] Completed: P1 response: connected POST /expenses to transition Proposal lineage without calling ProposalService.createAndSubmit, so legacy Money transaction/journal writes remain stable while responses can return a real proposal row.
+- [H0007] Remaining: Continue P1 by applying the same proposal lineage pattern to sales/invoice/payment only after confirming each route cannot double-post ledger artifacts.
 - [H0006] Completed: P1 response prep: added a backward-compatible accounting command envelope to expense, sale, and invoice create responses. Legacy top-level fields remain, while proposal/approval/execution/posting/projection fields now expose the future response shape with projection legacy ids.
 - [H0006] Remaining: Replace legacy_direct envelope internals with real Proposal/execution records once Money write commands are routed through the Proposal pipeline.
-- [H0005] Completed: P1 prep: moved standard invoice creation write orchestration into AccountingCommandService.createAccountingInvoice, including allocation preflight, atomic RPC preference, legacy fallback insert/source links/revenue allocations, and source transaction kind updates.
-- [H0005] Remaining: Begin Proposal-shaped Money responses: wrap existing command results into proposal/approval/execution/posting/projection envelopes while keeping legacy projection ids stable.
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0007] Subagent Chandrasekhar confirmed createAndSubmit would create ledger_events/ledger_entries while Money route already writes accounting_transactions/accounting_journal_*; parent kept critical Proposal/ledger decision local.
 - [H0006] Kept frontend compatibility by preserving AccountingTransaction/AccountingInvoice top-level fields. The envelope is explicit about legacy_direct, so it does not pretend a real proposal exists yet.
 - [H0005] Ramanujan confirmed route test ordering risks. Parent kept transaction fetch/eligibility/idempotency in the route and moved only the write command body to preserve behavior.
 - [H0004] This continues Hume's recommended P1 command-service seam. Proposal/ledger/RLS/auth policy remains parent-owned and unchanged.
 - [H0003] Subagent Hume confirmed the safest P1 route/service seam is to isolate idempotent Money write commands first; parent kept Proposal/ledger/RLS/auth decisions in route-owned scope for now.
-- [H0002] Subagents investigated invoice atomic RPC and P1 helper extraction. Parent implemented invoice RPC boundary; remote DB migration/push still unexecuted.
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
+- [H0007] This is transition lineage only: ProposalService execution is still not used for Money expense writes, and remote DB migration/push remains unexecuted.
 - [H0006] proposal remains null in these create responses; this is only a typed transition envelope, not full Proposal-backed execution.
 - [H0005] Proposal-backed response envelope is still not implemented; getOrgInvoiceSettings and invoice transaction reads remain route-local for now.
 - [H0004] Invoice creation orchestration is still route-local; command service is not yet returning the final proposal/execution/posting/projection response shape.
 - [H0003] This is behavior-preserving extraction only; invoice/payment/void command bodies are still route-local and Proposal-backed Money response shape is not implemented yet.
-- [H0002] Remote Supabase migration remains unexecuted; supabase migration up --local remains blocked by pre-existing storage.buckets issue.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0007] Continue P1 by applying the same proposal lineage pattern to sales/invoice/payment only after confirming each route cannot double-post ledger artifacts.
 - [H0006] Replace legacy_direct envelope internals with real Proposal/execution records once Money write commands are routed through the Proposal pipeline.
 - [H0005] Begin Proposal-shaped Money responses: wrap existing command results into proposal/approval/execution/posting/projection envelopes while keeping legacy projection ids stable.
 - [H0004] Continue P1 by moving invoice creation command orchestration into AccountingCommandService, then layer Proposal-shaped responses over the isolated command service.
 - [H0003] Continue P1 by moving invoice/payment/void command bodies behind the same service boundary, then introduce Proposal-return shapes once the write commands are isolated.
-- [H0002] Commit this atomic invoice slice; next choose either P1 helper extraction for Proposal-backed Money writes or DB integration tests for rpc_create_accounting_invoice.
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `6`
+- current_l3_entries: `7`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -104,6 +104,7 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] P1 response: connected POST /expenses to transition Proposal lineage without calling ProposalService.createAndSubmit, so legacy Money transaction/journal writes remain stable while responses can return a real proposal row.
 - [x] P1 response prep: added a backward-compatible accounting command envelope to expense, sale, and invoice create responses. Legacy top-level fields remain, while proposal/approval/execution/posting/projection fields now expose the future response shape with projection legacy ids.
 - [x] P1 prep: moved standard invoice creation write orchestration into AccountingCommandService.createAccountingInvoice, including allocation preflight, atomic RPC preference, legacy fallback insert/source links/revenue allocations, and source transaction kind updates.
 - [x] P1 prep: moved payment allocation RPC and void reversal command bodies into AccountingCommandService while keeping route-level validation, idempotency, and HTTP error mapping.
@@ -114,17 +115,20 @@ Phase: A-0/A-1
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: Replace legacy_direct envelope internals with real Proposal/execution records once Money write commands are routed through the Proposal pipeline.
+- [ ] **P0**: Continue P1 by applying the same proposal lineage pattern to sales/invoice/payment only after confirming each route cannot double-post ledger artifacts.
+- [ ] **P1**: Replace legacy_direct envelope internals with real Proposal/execution records once Money write commands are routed through the Proposal pipeline.
 - [ ] **P1**: Begin Proposal-shaped Money responses: wrap existing command results into proposal/approval/execution/posting/projection envelopes while keeping legacy projection ids stable.
 - [ ] **P1**: Continue P1 by moving invoice creation command orchestration into AccountingCommandService, then layer Proposal-shaped responses over the isolated command service.
 - [ ] **P1**: Continue P1 by moving invoice/payment/void command bodies behind the same service boundary, then introduce Proposal-return shapes once the write commands are isolated.
-- [ ] **P1**: Commit this atomic invoice slice; next choose either P1 helper extraction for Proposal-backed Money writes or DB integration tests for rpc_create_accounting_invoice.
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
+| `server/src/__tests__/unit/accountingRoute.test.ts` | proposal lineage coverage for expense create |
+| `server/src/routes/accounting.ts` | expense create returns proposal-backed transition envelope |
+| `server/src/services/AccountingCommandService.ts` | createAccountingCommandProposalLineage helper |
 | `frontend/src/lib/api.ts` | optional envelope typing and broader idempotency helper typing |
 | `server/src/routes/accounting.ts` | backward-compatible accounting command envelope |
 | `server/src/routes/accounting.ts` | POST /invoices delegates write orchestration to command service |
@@ -173,11 +177,11 @@ cd frontend && npx eslint src/
 
 ## 9. Risks / Blockers
 
+- This is transition lineage only: ProposalService execution is still not used for Money expense writes, and remote DB migration/push remains unexecuted.
 - proposal remains null in these create responses; this is only a typed transition envelope, not full Proposal-backed execution.
 - Proposal-backed response envelope is still not implemented; getOrgInvoiceSettings and invoice transaction reads remain route-local for now.
 - Invoice creation orchestration is still route-local; command service is not yet returning the final proposal/execution/posting/projection response shape.
 - This is behavior-preserving extraction only; invoice/payment/void command bodies are still route-local and Proposal-backed Money response shape is not implemented yet.
-- Remote Supabase migration remains unexecuted; supabase migration up --local remains blocked by pre-existing storage.buckets issue.
 ---
 
 ## 10. References
@@ -292,3 +296,21 @@ cd frontend && npx eslint src/
   - `server accountingRoute.test.ts=pass|39 tests; server tsc=pass|npx tsc --noEmit; frontend build=pass|npm run build; git diff --check=pass`
 - Landmines:
   - proposal remains null in these create responses; this is only a typed transition envelope, not full Proposal-backed execution.
+
+### 2026-05-09 18:44:49 +0900
+
+- Entry-ID: `H0007`
+- Completed:
+  - [x] P1 response: connected POST /expenses to transition Proposal lineage without calling ProposalService.createAndSubmit, so legacy Money transaction/journal writes remain stable while responses can return a real proposal row.
+- Remaining:
+  - [ ] Continue P1 by applying the same proposal lineage pattern to sales/invoice/payment only after confirming each route cannot double-post ledger artifacts.
+- Changed Files:
+  - `server/src/services/AccountingCommandService.ts` - createAccountingCommandProposalLineage helper
+  - `server/src/routes/accounting.ts` - expense create returns proposal-backed transition envelope
+  - `server/src/__tests__/unit/accountingRoute.test.ts` - proposal lineage coverage for expense create
+- Working Context:
+  - Subagent Chandrasekhar confirmed createAndSubmit would create ledger_events/ledger_entries while Money route already writes accounting_transactions/accounting_journal_*; parent kept critical Proposal/ledger decision local.
+- Validation:
+  - `server accountingRoute.test.ts=pass|39 tests; server tsc=pass|npx tsc --noEmit; git diff --check=pass`
+- Landmines:
+  - This is transition lineage only: ProposalService execution is still not used for Money expense writes, and remote DB migration/push remains unexecuted.
