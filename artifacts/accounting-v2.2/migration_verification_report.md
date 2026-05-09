@@ -34,6 +34,8 @@ Implemented and locally verified the first v2.2 slice:
 - `rpc_post_accounting_expense_canonical` creates transition `expense.create` lineage, proposal execution, posting group, balanced expense journal, and `accounting_transactions` projection for immediately posted low-risk expenses
 - `/expenses` uses canonical expense posting when the RPC is available, preserves the legacy top-level Money response, and keeps high-risk review-pending expenses on the transition legacy path
 - Invoice/payment no-PL-revenue contract tests now cover fallback invoice allocation metadata, payment allocation unpaid-balance caps, and `/pl?source=compare` exclusion for `invoice_transfer`, `payment_receipt`, and `payment_allocation` posting groups
+- `rpc_record_accounting_payment_event_canonical` creates transition `payment.record` lineage, proposal execution, `payment_receipt` posting group, balanced no-PL-revenue journal, and payment projection metadata
+- `/payments` uses canonical payment receipt posting when the RPC is available and falls back to the legacy payment-event RPC plus route-side transition lineage when it is not
 
 ## Commands
 
@@ -76,6 +78,9 @@ supabase migration up
 - Invoice fallback allocation metadata must use `invoice_issue_no_pl_revenue`, not legacy `no_pl_journal`.
 - Payment allocation must reject both invoice over-collection and payment unapplied-balance over-allocation.
 - PL compare mode must exclude invoice/payment no-PL-revenue posting groups even if bad revenue-looking journal lines exist.
+- Canonical payment receipt must post only balance-sheet lines (`Dr cash/bank`, `Cr unapplied_cash`) and no revenue line.
+- Canonical payment receipt must return `projection_source=canonical_posting_projection`, `proposal_execution_id`, `posting_group_id`, and `journal_entry_id`.
+- Canonical payment receipt must not create a duplicate route-side transition proposal when the RPC already returns proposal lineage.
 
 ## Result
 
@@ -99,9 +104,12 @@ supabase migration up
 - Accounting route + SiteCompletion targeted regression after canonical expense route integration: pass, 57 tests
 - Accounting route unit tests after invoice/payment no-PL contract hardening: pass, 52 tests
 - Accounting route + SiteCompletion targeted regression after invoice/payment no-PL contract hardening: pass, 58 tests
+- Accounting route unit tests after canonical payment receipt route integration: pass, 53 tests
+- Accounting route + SiteCompletion targeted regression after canonical payment receipt route integration: pass, 59 tests
 - TypeScript after canonical sales route integration: pass
 - TypeScript after canonical expense route integration: pass
 - TypeScript after invoice/payment no-PL contract hardening: pass
+- TypeScript after canonical payment receipt route integration: pass
 - Frontend TypeScript after PL source typing: pass
 - SQL boundary check: pass
 - Whitespace check: pass

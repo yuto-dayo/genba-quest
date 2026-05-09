@@ -2297,16 +2297,7 @@ describe("accounting router", () => {
   });
 
   it("POST /payments records an unapplied payment event without PL revenue", async () => {
-    const proposalChain = createChain({
-      data: {
-        id: "proposal-payment-event-1",
-        type: "payment.record",
-        status: "executed",
-        policy_ref: "legacy_direct_transition",
-      },
-      error: null,
-    });
-    setupMockFromSequence(mockFrom, [], [], [proposalChain]);
+    setupMockFromSequence(mockFrom, []);
     mockRpc.mockResolvedValue({
       data: {
         payment: {
@@ -2314,6 +2305,29 @@ describe("accounting router", () => {
           amount: 110000,
           unapplied_amount: 110000,
           status: "received",
+        },
+        proposal: {
+          id: "proposal-payment-event-1",
+          type: "payment.record",
+          status: "posted_canonical_projection",
+          db_status: "executed",
+          lifecycle_engine: "money_transition",
+          full_proposal_lifecycle: false,
+        },
+        projection: {
+          projection_source: "canonical_posting_projection",
+          legacy_payment_id: "payment-event-1",
+          proposal_id: "proposal-payment-event-1",
+          proposal_execution_id: "execution-payment-event-1",
+          posting_group_id: "posting-group-payment-event-1",
+          journal_entry_id: "journal-payment-event-1",
+        },
+        posting: {
+          status: "posted",
+          mode: "payment_received_no_pl_revenue",
+          affects_pl: false,
+          affects_revenue: false,
+          affects_ar: true,
         },
       },
       error: null,
@@ -2334,10 +2348,11 @@ describe("accounting router", () => {
 
     await createPaymentHandler(req, res);
 
-    expect(mockRpc).toHaveBeenCalledWith("rpc_record_accounting_payment_event", expect.objectContaining({
+    expect(mockRpc).toHaveBeenCalledWith("rpc_record_accounting_payment_event_canonical", expect.objectContaining({
       p_org_id: "11111111-1111-4111-8111-111111111111",
       p_actor_user_id: "user-1",
       p_membership_id: null,
+      p_idempotency_key: "payment-event-1",
       p_received_on: "2026-03-31",
       p_amount: 110000,
       p_customer_id: null,
@@ -2355,7 +2370,7 @@ describe("accounting router", () => {
       proposal: expect.objectContaining({
         id: "proposal-payment-event-1",
         type: "payment.record",
-        status: "posted_legacy_projection",
+        status: "posted_canonical_projection",
         full_proposal_lifecycle: false,
       }),
       posting: expect.objectContaining({
@@ -2365,8 +2380,82 @@ describe("accounting router", () => {
         affects_ar: true,
       }),
       projection: expect.objectContaining({
+        projection_source: "canonical_posting_projection",
         legacy_payment_id: "payment-event-1",
         proposal_id: "proposal-payment-event-1",
+        proposal_execution_id: "execution-payment-event-1",
+        posting_group_id: "posting-group-payment-event-1",
+        journal_entry_id: "journal-payment-event-1",
+      }),
+    }));
+  });
+
+  it("POST /payments falls back to transition lineage when canonical payment receipt RPC is unavailable", async () => {
+    const proposalChain = createChain({
+      data: {
+        id: "proposal-payment-event-legacy-1",
+        type: "payment.record",
+        status: "executed",
+        policy_ref: "legacy_direct_transition",
+      },
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [], [], [proposalChain]);
+    mockRpc.mockImplementation((functionName: string) => {
+      if (functionName === "rpc_record_accounting_payment_event_canonical") {
+        return Promise.resolve({
+          data: null,
+          error: {
+            code: "PGRST202",
+            message: "Could not find the function public.rpc_record_accounting_payment_event_canonical",
+          },
+        });
+      }
+
+      return Promise.resolve({
+        data: {
+          payment: {
+            id: "payment-event-legacy-1",
+            amount: 110000,
+            unapplied_amount: 110000,
+            status: "received",
+          },
+        },
+        error: null,
+      });
+    });
+
+    const req = {
+      userId: "user-1",
+      orgId: "11111111-1111-4111-8111-111111111111",
+      body: {
+        idempotency_key: "payment-event-legacy-1",
+        received_on: "2026-03-31",
+        amount: 110000,
+        payment_account: "cash",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createPaymentHandler(req, res);
+
+    expect(mockRpc).toHaveBeenNthCalledWith(1, "rpc_record_accounting_payment_event_canonical", expect.any(Object));
+    expect(mockRpc).toHaveBeenNthCalledWith(2, "rpc_record_accounting_payment_event", expect.objectContaining({
+      p_org_id: "11111111-1111-4111-8111-111111111111",
+      p_actor_user_id: "user-1",
+      p_payment_account: "cash",
+    }));
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      payment: expect.objectContaining({ id: "payment-event-legacy-1" }),
+      proposal: expect.objectContaining({
+        id: "proposal-payment-event-legacy-1",
+        status: "posted_legacy_projection",
+      }),
+      projection: expect.objectContaining({
+        projection_source: "transition_lineage",
+        legacy_payment_id: "payment-event-legacy-1",
+        proposal_id: "proposal-payment-event-legacy-1",
       }),
     }));
   });

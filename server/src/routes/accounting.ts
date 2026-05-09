@@ -2969,6 +2969,7 @@ router.post("/payments", async (req: AuthenticatedRequest, res: Response) => {
         const paymentResult = await recordPaymentEvent({
             orgId,
             membershipId: req.orgMembershipId || null,
+            idempotencyKey: idempotency.idempotencyKey,
             customerId,
             receivedOn,
             amount,
@@ -2976,44 +2977,68 @@ router.post("/payments", async (req: AuthenticatedRequest, res: Response) => {
             paymentAccount,
             externalReference,
             createdBy: req.userId!,
+            actorName: req.userName || req.userEmail || null,
         });
         const paymentId = paymentResult && typeof paymentResult === "object" && "payment" in paymentResult
             ? (paymentResult as { payment?: { id?: unknown } }).payment?.id
+            : null;
+        const rpcProjection = paymentResult
+            && typeof paymentResult === "object"
+            && "projection" in paymentResult
+            && paymentResult.projection
+            && typeof paymentResult.projection === "object"
+            ? paymentResult.projection as Record<string, unknown>
             : null;
         const legacyProjection = {
             projection_source: "transition_lineage",
             legacy_payment_id: paymentId ?? null,
         };
 
-        let proposalLineage: Record<string, unknown> | null = null;
-        try {
-            proposalLineage = await createAccountingCommandProposalLineage({
-                orgId,
-                endpointName: "accounting.payments.create",
-                proposalType: "payment.record",
-                idempotencyKey: idempotency.idempotencyKey,
-                transitionStatus: "posted_legacy_projection",
-                actor: {
-                    type: "human",
-                    id: req.userId!,
-                    name: req.userName || req.userEmail || null,
-                },
-                description: `入金記録: ${receivedOn}`,
-                payload: {
-                    customer_id: customerId,
-                    received_on: receivedOn,
-                    amount,
-                    payment_method: paymentMethod,
-                    payment_account: paymentAccount,
-                    external_reference: externalReference,
-                    posting_mode: "payment_received_no_pl_revenue",
-                    unapplied_account_type: "unapplied_cash",
-                },
-                projection: legacyProjection,
-            });
-        } catch (proposalError) {
-            console.error("Payment event proposal lineage error:", proposalError);
+        let proposalLineage: Record<string, unknown> | null = paymentResult
+            && typeof paymentResult === "object"
+            && "proposal" in paymentResult
+            && paymentResult.proposal
+            && typeof paymentResult.proposal === "object"
+            ? paymentResult.proposal as Record<string, unknown>
+            : null;
+        if (!proposalLineage) {
+            try {
+                proposalLineage = await createAccountingCommandProposalLineage({
+                    orgId,
+                    endpointName: "accounting.payments.create",
+                    proposalType: "payment.record",
+                    idempotencyKey: idempotency.idempotencyKey,
+                    transitionStatus: "posted_legacy_projection",
+                    actor: {
+                        type: "human",
+                        id: req.userId!,
+                        name: req.userName || req.userEmail || null,
+                    },
+                    description: `入金記録: ${receivedOn}`,
+                    payload: {
+                        customer_id: customerId,
+                        received_on: receivedOn,
+                        amount,
+                        payment_method: paymentMethod,
+                        payment_account: paymentAccount,
+                        external_reference: externalReference,
+                        posting_mode: "payment_received_no_pl_revenue",
+                        unapplied_account_type: "unapplied_cash",
+                    },
+                    projection: legacyProjection,
+                });
+            } catch (proposalError) {
+                console.error("Payment event proposal lineage error:", proposalError);
+            }
         }
+
+        const rpcPosting = paymentResult
+            && typeof paymentResult === "object"
+            && "posting" in paymentResult
+            && paymentResult.posting
+            && typeof paymentResult.posting === "object"
+            ? paymentResult.posting as Record<string, unknown>
+            : null;
 
         const responseBody = withAccountingCommandEnvelope(
             paymentResult && typeof paymentResult === "object"
@@ -3025,14 +3050,14 @@ router.post("/payments", async (req: AuthenticatedRequest, res: Response) => {
                 approvalStatus: "not_required",
                 postingStatus: "posted",
                 mode: "payment_received_no_pl_revenue",
-                postingMetadata: {
+                postingMetadata: rpcPosting || {
                     affects_pl: false,
                     affects_revenue: false,
                     affects_ar: true,
                 },
-                projection: proposalLineage
+                projection: rpcProjection || (proposalLineage
                     ? { ...legacyProjection, proposal_id: proposalLineage.id }
-                    : legacyProjection,
+                    : legacyProjection),
             },
         );
 
