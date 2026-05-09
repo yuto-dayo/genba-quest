@@ -148,6 +148,10 @@ function normalizeText(value: unknown): string | null {
     return trimmed ? trimmed : null;
 }
 
+function isOrgScopedStoragePath(orgId: string, storagePath: string | null | undefined): storagePath is string {
+    return typeof storagePath === "string" && storagePath.startsWith(`${orgId}/`);
+}
+
 function normalizeExpenseCategory(value: unknown): ExpenseCategory | null {
     const normalized = normalizeText(value)?.toLowerCase();
     if (!normalized) {
@@ -1150,6 +1154,11 @@ router.post("/ocr/analyze", async (req: AuthenticatedRequest, res: Response) => 
             fileBuffer = driveFile.buffer;
             mimeType = driveFile.mimeType || mimeType;
         } else if (doc.storage_path) {
+            if (!isOrgScopedStoragePath(req.orgId!, doc.storage_path)) {
+                res.status(403).json({ error: "Document storage path is outside active org" });
+                return;
+            }
+
             const { data: fileData, error: downloadError } = await supabaseAdmin.storage
                 .from("genba-documents")
                 .download(doc.storage_path);

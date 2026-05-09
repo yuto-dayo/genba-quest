@@ -84,7 +84,7 @@ function buildInvoicePdfStoragePath(invoice: InvoiceRow): string {
     const orgSegment = sanitizePathSegment(invoice.org_id || "legacy");
     const invoiceSegment = sanitizePathSegment(invoice.id);
     const filename = buildInvoicePdfFilename(invoice.invoice_no);
-    return `generated/invoices/${orgSegment}/${invoiceSegment}/${filename}`;
+    return `${orgSegment}/generated/invoices/${invoiceSegment}/${filename}`;
 }
 
 function pickSingleRelation<T>(value: T[] | T | null | undefined): T | null {

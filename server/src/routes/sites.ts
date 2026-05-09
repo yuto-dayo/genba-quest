@@ -59,6 +59,31 @@ const SITE_COMPLETION_ERROR_STATUS_MAP: Record<string, number> = {
 
 type SiteScheduleMode = typeof SITE_SCHEDULE_MODES[number];
 
+function sanitizeStoragePathSegment(value: string): string {
+    return value.replace(/[^A-Za-z0-9_-]/g, "_");
+}
+
+function isOrgScopedStoragePath(orgId: string, storagePath: string | null | undefined): storagePath is string {
+    return typeof storagePath === "string" && storagePath.startsWith(`${orgId}/`);
+}
+
+function buildSiteDocumentStoragePath(input: {
+    orgId: string;
+    siteId: string;
+    userId: string;
+    timestamp: number;
+    extension: string;
+}): string {
+    return [
+        sanitizeStoragePathSegment(input.orgId),
+        "sites",
+        sanitizeStoragePathSegment(input.siteId),
+        "documents",
+        sanitizeStoragePathSegment(input.userId),
+        `${input.timestamp}.${sanitizeStoragePathSegment(input.extension || "bin")}`,
+    ].join("/");
+}
+
 function normalizeText(value: unknown): string | null {
     if (typeof value !== "string") {
         return null;
@@ -795,6 +820,7 @@ router.get("/:id/documents", async (req: AuthenticatedRequest, res: Response) =>
         const { data, error } = await supabaseAdmin
             .from("documents")
             .select("id, doc_type, original_filename, mime_type, file_size, storage_path, drive_file_url, created_at")
+            .eq("org_id", orgId)
             .eq("site_id", siteId)
             .order("created_at", { ascending: false });
 
@@ -803,7 +829,7 @@ router.get("/:id/documents", async (req: AuthenticatedRequest, res: Response) =>
         // storage_path がある場合は署名付きURLを生成
         const docsWithUrls = await Promise.all(
             (data || []).map(async (doc) => {
-                if (doc.storage_path) {
+                if (isOrgScopedStoragePath(orgId, doc.storage_path)) {
                     const { data: urlData } = await supabaseAdmin.storage
                         .from("genba-documents")
                         .createSignedUrl(doc.storage_path, 3600); // 1時間有効
@@ -849,7 +875,13 @@ router.post("/:id/documents", async (req: AuthenticatedRequest, res: Response) =
 
         const timestamp = Date.now();
         const ext = original_filename?.split(".").pop() || "jpg";
-        const storagePath = `${req.userId!}/${timestamp}.${ext}`;
+        const storagePath = buildSiteDocumentStoragePath({
+            orgId,
+            siteId,
+            userId: req.userId!,
+            timestamp,
+            extension: ext,
+        });
 
         const { error: uploadError } = await supabaseAdmin.storage
             .from("genba-documents")

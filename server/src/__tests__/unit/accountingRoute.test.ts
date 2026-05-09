@@ -154,6 +154,7 @@ describe("accounting router", () => {
   const createInvoiceSupplementHandler = getPostHandler("/invoices/:id/supplement");
   const createPaymentHandler = getPostHandler("/payments");
   const createPaymentAllocationHandler = getPostHandler("/payments/allocations");
+  const analyzeOcrHandler = getPostHandler("/ocr/analyze");
   const downloadInvoiceHandler = getGetHandler("/invoices/:id/download");
   const voidTransactionHandler = getPostHandler("/void/:id");
   const mockFrom = (supabaseAdmin as unknown as { from: jest.Mock }).from;
@@ -2906,6 +2907,33 @@ describe("accounting router", () => {
     expect(mockRpc).not.toHaveBeenCalled();
   });
 
+  it("POST /ocr/analyze rejects document storage paths outside the active org", async () => {
+    const documentChain = createChain({
+      data: {
+        id: "doc-1",
+        org_id: "11111111-1111-4111-8111-111111111111",
+        storage_path: "user-1/legacy.pdf",
+        mime_type: "application/pdf",
+      },
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [documentChain]);
+
+    const req = {
+      orgId: "11111111-1111-4111-8111-111111111111",
+      body: {
+        document_id: "doc-1",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await analyzeOcrHandler(req, res);
+
+    expect(mockStorageFrom).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({ error: "Document storage path is outside active org" });
+  });
+
   it("GET /invoices/:id/download streams the stored invoice PDF", async () => {
     const pdfBlob = new Blob([Buffer.from("%PDF-1.4 test")], { type: "application/pdf" });
     const download = jest.fn().mockResolvedValue({ data: pdfBlob, error: null });
@@ -2913,7 +2941,7 @@ describe("accounting router", () => {
     mockEnsureInvoicePdfStored.mockResolvedValue({
       invoiceId: "inv-1",
       invoiceNo: "INV-2026-0001",
-      storagePath: "generated/invoices/org/inv-1/INV-2026-0001.pdf",
+      storagePath: "org/generated/invoices/inv-1/INV-2026-0001.pdf",
       filename: "INV-2026-0001.pdf",
     });
 
@@ -2930,7 +2958,7 @@ describe("accounting router", () => {
       orgId: "11111111-1111-4111-8111-111111111111",
     });
     expect(mockStorageFrom).toHaveBeenCalledWith("genba-documents");
-    expect(download).toHaveBeenCalledWith("generated/invoices/org/inv-1/INV-2026-0001.pdf");
+    expect(download).toHaveBeenCalledWith("org/generated/invoices/inv-1/INV-2026-0001.pdf");
     expect(res.setHeader).toHaveBeenCalledWith("Content-Type", "application/pdf");
     expect(res.setHeader).toHaveBeenCalledWith("Cache-Control", "no-store, no-cache, must-revalidate");
     expect(res.setHeader).toHaveBeenCalledWith("Pragma", "no-cache");

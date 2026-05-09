@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `P0残: document signed URL/PDF/OCR storage path org prefixの追加検証、またはlegacy compatibility SECURITY DEFINER search_pathを完全固定するかどうかの設計判断`
+- NEXT_CMD: `v2.2残: legacy compatibility SECURITY DEFINER search_path完全固定判断、またはPL compare/posted journal invariantsの実データ証跡拡充。remote DB/pushは明示承認まで未実行`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/local.md`
@@ -18,8 +18,8 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `2b8f660`
-  - Updated: `2026-05-09T23:53:22+0900`
+  - HEAD: `5052f48`
+  - Updated: `2026-05-10T00:07:43+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
@@ -33,47 +33,47 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `P0残: document signed URL/PDF/OCR storage path org prefixの追加検証、またはlegacy compatibility SECURITY DEFINER search_pathを完全固定するかどうかの設計判断`. Source: realtime
+- [focus] NEXT_CMD: `v2.2残: legacy compatibility SECURITY DEFINER search_path完全固定判断、またはPL compare/posted journal invariantsの実データ証跡拡充。remote DB/pushは明示承認まで未実行`. Source: realtime
+- [H0028] Completed: v2.2 document/PDF/OCR/signed URL org boundaryを実装・証跡化。site documentsはdocuments.org_idで絞り、new storage_pathをorg_id/sites/site_id/documents配下に変更、unprefixed pathにはsigned_urlを出さず、accounting OCRはorg prefix外storage_pathをStorage download前に403で拒否。invoice PDF新規生成pathもorg prefix先頭に変更。local APIでforeign site documents/drawingsが404になることを確認
+- [H0028] Remaining: v2.2残: legacy compatibility SECURITY DEFINER search_path完全固定判断、またはPL compare/posted journal invariantsの実データ証跡拡充。remote DB/pushは明示承認まで未実行
 - [H0027] Completed: v2.2 SECURITY DEFINER hardening local DB evidenceを追加。16 protected RPC signatureでpublic/anon/authenticated EXECUTE=false、service_role EXECUTE=trueを確認し、membership-aware/canonical 12本はsearch_path=pg_catalog、anon/auth直RPCはpermission denied、service_roleでもorg/user/membership不一致はRPC_MEMBERSHIP_REQUIREDで失敗することを確認
 - [H0027] Remaining: P0残: document signed URL/PDF/OCR storage path org prefixの追加検証、またはlegacy compatibility SECURITY DEFINER search_pathを完全固定するかどうかの設計判断
-- [H0026] Completed: v2.2 multi-org org boundary negative local API evidenceを追加。同一userがorg A/B両方所属、active org=Aでorg Bのtransaction/invoice/payment/document IDを渡すと対象APIが404を返し、org Aに会計/証憑rowが作られないことを確認
-- [H0026] Remaining: P0残: service-role RPC membership mismatch/direct RPC negative evidence、またはdocument signed URL/PDF/OCR storage path org prefixの追加検証
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0028] local Supabase Storage is disabled, so real signed URL/upload contracts are unit-tested with mocks; local API verifies foreign site document/drawing routes return 404 before signed URL issuance
 - [H0027] local Postgres SET LOCAL ROLEでDB-enforced behaviorを確認。remote DB/push/migration repair未実行
 - [H0026] same dev actor has active memberships in org A/B; active org header controls visibility; remote DB/push/migration repair未実行
 - [H0025] script parses local Supabase service key from supabase status and starts a local Express server on isolated port; remote DB/push/migration repair未実行
 - [H0024] remote DB/push/migration repair未実行。Supabase CLI db query -f はmulti-statementを弾くためdocker exec psqlでlocal DBへ実行
-- [H0023] Local config has [storage] enabled=false; migration now preserves real Supabase Storage behavior when storage.buckets/objects exist and skips only Storage-specific setup otherwise
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
+- [H0028] Existing legacy documents may have unprefixed storage_path; listing now returns signed_url=null for those until backfill/reupload, and OCR returns 403 for unprefixed active-org storage_path
 - [H0027] legacy compatibility implementation RPCs remain service_role executable and have older search_path values for fallback compatibility; direct anon/auth is revoked and membership-aware/canonical paths are fixed to pg_catalog
 - [H0026] server/.env points at remote, so script explicitly injects local SUPABASE_URL/SERVICE_ROLE_KEY; payment allocation failure creates a failed idempotency row in active org before returning 404 but no accounting rows
 - [H0025] server/.env points at remote, so script explicitly injects local SUPABASE_URL/SERVICE_ROLE_KEY; do not run ad-hoc server tests without overriding env
 - [H0024] posted journal immutabilityが有効なので固定fixture cleanupでDELETE再実行してはいけない。SQLはfresh org fixture方式
-- [H0023] remote DB migration/push/migration repair未実行。local-only evidence; remote Storage-enabled behavior still relies on actual Supabase Storage metadata tables.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0028] v2.2残: legacy compatibility SECURITY DEFINER search_path完全固定判断、またはPL compare/posted journal invariantsの実データ証跡拡充。remote DB/pushは明示承認まで未実行
 - [H0027] P0残: document signed URL/PDF/OCR storage path org prefixの追加検証、またはlegacy compatibility SECURITY DEFINER search_pathを完全固定するかどうかの設計判断
 - [H0026] P0残: service-role RPC membership mismatch/direct RPC negative evidence、またはdocument signed URL/PDF/OCR storage path org prefixの追加検証
 - [H0025] P0残: multi-org org boundary negative testを実DB/APIで証跡化。active org外IDは404/403契約を確認
 - [H0024] P0/P1残: true concurrent duplicate DB/API integration test、org boundary multi-org negative test、必要ならaccountingV22Canonical integration test化
-- [H0023] v2.2次候補: ローカルDB上でPL compare/posted journal invariantsの実データシナリオ証跡を追加。remote db pushは明示承認まで未実行
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `18`
+- current_l3_entries: `19`
 - last_compacted_at: `2026-05-09 22:52:16 +0900`
 - archived_entries: `9`
 <!-- HANDOFF_L2_STATE_END -->
@@ -104,6 +104,7 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] v2.2 document/PDF/OCR/signed URL org boundaryを実装・証跡化。site documentsはdocuments.org_idで絞り、new storage_pathをorg_id/sites/site_id/documents配下に変更、unprefixed pathにはsigned_urlを出さず、accounting OCRはorg prefix外storage_pathをStorage download前に403で拒否。invoice PDF新規生成pathもorg prefix先頭に変更。local APIでforeign site documents/drawingsが404になることを確認
 - [x] v2.2 SECURITY DEFINER hardening local DB evidenceを追加。16 protected RPC signatureでpublic/anon/authenticated EXECUTE=false、service_role EXECUTE=trueを確認し、membership-aware/canonical 12本はsearch_path=pg_catalog、anon/auth直RPCはpermission denied、service_roleでもorg/user/membership不一致はRPC_MEMBERSHIP_REQUIREDで失敗することを確認
 - [x] v2.2 multi-org org boundary negative local API evidenceを追加。同一userがorg A/B両方所属、active org=Aでorg Bのtransaction/invoice/payment/document IDを渡すと対象APIが404を返し、org Aに会計/証憑rowが作られないことを確認
 - [x] v2.2 idempotency true-concurrent local HTTP evidenceを追加。fresh org + local serverで同一idempotency_keyのPOST /expensesを2本同時送信し、1成功/1 in_progress/完了後replay同一ID、row chain 1セットを確認
@@ -113,19 +114,25 @@ Phase: A-0/A-1
 - [x] Accounting v2.2: canonical payment allocation RPC and /payments/allocations RPC-first fallback integration added
 - [x] Accounting v2.2: canonical payment receipt RPC and /payments RPC-first fallback integration added
 - [x] Accounting v2.2: invoice/payment no-PL-revenue contract tests hardened
-- [x] Accounting v2.2: canonical expense posting RPC and /expenses RPC-first fallback integration added
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: P0残: document signed URL/PDF/OCR storage path org prefixの追加検証、またはlegacy compatibility SECURITY DEFINER search_pathを完全固定するかどうかの設計判断
-- [ ] **P1**: v2.2次候補: ローカルDB上でPL compare/posted journal invariantsの実データシナリオ証跡を追加。remote db pushは明示承認まで未実行
+- [ ] **P0**: legacy compatibility SECURITY DEFINER search_pathを完全固定するかどうかの設計判断
+- [ ] **P1**: PL compare / posted journal invariants の実データ証跡拡充。remote DB/pushは明示承認まで未実行
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
+| `artifacts/accounting-v2.2/document_boundary_test.md` | document boundary evidence |
+| `artifacts/accounting-v2.2/local_document_boundary_negative_test.mjs` | local API foreign site document/drawing boundary script |
+| `server/src/__tests__/unit/accountingRoute.test.ts` | OCR prefix guard and invoice PDF path contract |
+| `server/src/__tests__/unit/sitesRoute.test.ts` | site document signed URL/upload path contracts |
+| `server/src/services/InvoicePdfService.ts` | org-prefixed invoice PDF path for new PDFs |
+| `server/src/routes/accounting.ts` | OCR storage_path org-prefix gate |
+| `server/src/routes/sites.ts` | site document org_id filter, org-prefixed upload path, signed URL prefix gate |
 | `artifacts/accounting-v2.2/security_definer_hardening_test.md` | SECURITY DEFINER hardening evidence |
 | `artifacts/accounting-v2.2/local_rpc_hardening_negative_test.mjs` | local Postgres role/membership negative verification script |
 | `artifacts/accounting-v2.2/org_boundary_negative_test.md` | local API org boundary negative evidence |
@@ -139,13 +146,6 @@ Phase: A-0/A-1
 | `artifacts/accounting-v2.2/invoice_transfer_canonical_test.md` | evidence summary |
 | `server/src/__tests__/unit/accountingRoute.test.ts` | canonical invoice RPC and replay regression coverage |
 | `server/src/routes/accounting.ts` | invoice idempotency replay moved before duplicate checks and canonical envelope returned |
-| `server/src/services/AccountingCommandService.ts` | createAccountingInvoice uses canonical invoice RPC first and preserves envelope metadata |
-| `supabase/migrations/20260509135652_canonical_invoice_transfer_posting_rpc.sql` | invoice_transfer canonical RPC migration, service_role-only grant, membership check, no-PL revenue journal |
-| `artifacts/accounting-v2.2/migration_verification_report.md` | records canonical payment allocation evidence |
-| `server/src/__tests__/unit/accountingRoute.test.ts` | covers canonical payment allocation response and missing-function fallback |
-| `server/src/routes/accounting.ts` | /payments/allocations uses RPC-provided proposal/projection/posting envelope without duplicate route-side lineage |
-| `server/src/services/AccountingCommandService.ts` | recordPaymentAllocation tries canonical allocation RPC before legacy fallback |
-| `supabase/migrations/20260509134828_canonical_payment_allocation_posting_rpc.sql` | adds service-role canonical payment allocation no-PL-revenue posting RPC |
 ---
 
 ## 6. Locked Files（編集中 - 他エージェント触らない）
@@ -180,11 +180,11 @@ cd frontend && npx eslint src/
 
 ## 9. Risks / Blockers
 
+- Existing legacy documents may have unprefixed storage_path; listing now returns signed_url=null for those until backfill/reupload, and OCR returns 403 for unprefixed active-org storage_path
 - legacy compatibility implementation RPCs remain service_role executable and have older search_path values for fallback compatibility; direct anon/auth is revoked and membership-aware/canonical paths are fixed to pg_catalog
 - server/.env points at remote, so script explicitly injects local SUPABASE_URL/SERVICE_ROLE_KEY; payment allocation failure creates a failed idempotency row in active org before returning 404 but no accounting rows
 - server/.env points at remote, so script explicitly injects local SUPABASE_URL/SERVICE_ROLE_KEY; do not run ad-hoc server tests without overriding env
 - posted journal immutabilityが有効なので固定fixture cleanupでDELETE再実行してはいけない。SQLはfresh org fixture方式
-- remote DB migration/push/migration repair未実行。local-only evidence; remote Storage-enabled behavior still relies on actual Supabase Storage metadata tables.
 ---
 
 ## 10. References
@@ -537,3 +537,25 @@ cd frontend && npx eslint src/
   - `PASS: node artifacts/accounting-v2.2/local_rpc_hardening_negative_test.mjs; PASS: supabase migration up --local; PASS: cd server && npx tsc --noEmit; PASS: accountingRoute unit 55/55; PASS: scripts/db/check-sql-boundaries.sh; PASS: git diff --check`
 - Landmines:
   - legacy compatibility implementation RPCs remain service_role executable and have older search_path values for fallback compatibility; direct anon/auth is revoked and membership-aware/canonical paths are fixed to pg_catalog
+
+### 2026-05-10 00:07:43 +0900
+
+- Entry-ID: `H0028`
+- Completed:
+  - [x] v2.2 document/PDF/OCR/signed URL org boundaryを実装・証跡化。site documentsはdocuments.org_idで絞り、new storage_pathをorg_id/sites/site_id/documents配下に変更、unprefixed pathにはsigned_urlを出さず、accounting OCRはorg prefix外storage_pathをStorage download前に403で拒否。invoice PDF新規生成pathもorg prefix先頭に変更。local APIでforeign site documents/drawingsが404になることを確認
+- Remaining:
+  - [ ] v2.2残: legacy compatibility SECURITY DEFINER search_path完全固定判断、またはPL compare/posted journal invariantsの実データ証跡拡充。remote DB/pushは明示承認まで未実行
+- Changed Files:
+  - `server/src/routes/sites.ts` - site document org_id filter, org-prefixed upload path, signed URL prefix gate
+  - `server/src/routes/accounting.ts` - OCR storage_path org-prefix gate
+  - `server/src/services/InvoicePdfService.ts` - org-prefixed invoice PDF path for new PDFs
+  - `server/src/__tests__/unit/sitesRoute.test.ts` - site document signed URL/upload path contracts
+  - `server/src/__tests__/unit/accountingRoute.test.ts` - OCR prefix guard and invoice PDF path contract
+  - `artifacts/accounting-v2.2/local_document_boundary_negative_test.mjs` - local API foreign site document/drawing boundary script
+  - `artifacts/accounting-v2.2/document_boundary_test.md` - document boundary evidence
+- Working Context:
+  - local Supabase Storage is disabled, so real signed URL/upload contracts are unit-tested with mocks; local API verifies foreign site document/drawing routes return 404 before signed URL issuance
+- Validation:
+  - `PASS: node artifacts/accounting-v2.2/local_document_boundary_negative_test.mjs; PASS: supabase migration up --local; PASS: cd server && npx tsc --noEmit; PASS: sitesRoute+accountingRoute unit 64/64; PASS: scripts/db/check-sql-boundaries.sh; PASS: git diff --check`
+- Landmines:
+  - Existing legacy documents may have unprefixed storage_path; listing now returns signed_url=null for those until backfill/reupload, and OCR returns 403 for unprefixed active-org storage_path
