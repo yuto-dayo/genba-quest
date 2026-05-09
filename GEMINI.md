@@ -57,4 +57,6 @@ Or use the slash-command shortcuts (see `.gemini/commands/`):
 - Keep Proposal-centric architecture intact.
 - Never bypass policy checks on the server.
 - Never allow AI self-approval (`ai` creator + `ai` approver).
+- Honor MVP outcomes (請求漏れゼロ + 黒字可視化) when prioritizing scope — see `docs/DESIGN_PHILOSOPHY.md` 思想 section.
+- Follow UX原則: Input-zero / Decision-human, Direct + Sherpa split, Calm Cockpit 5 principles. AI removes typing and verification load, never decision authority. Details in `AGENTS.md` UX Principles section + `design-system/genba-quest/MASTER.md`.
 - Pre-commit guard (`.githooks/pre-commit`) must stay enabled.
