@@ -57,6 +57,7 @@ describe("SiteCompletionService", () => {
       p_org_id: orgId,
       p_site_id: siteId,
       p_actor_user_id: userId,
+      p_membership_id: null,
       p_effective_completed_at: "2026-04-18T09:30:00.000Z",
     });
     expect(mockFrom).toHaveBeenCalledWith("sites");
@@ -237,6 +238,7 @@ describe("SiteCompletionService", () => {
       p_org_id: orgId,
       p_site_id: siteId,
       p_actor_user_id: userId,
+      p_membership_id: null,
       p_effective_reversed_at: "2026-04-19T03:00:00.000Z",
       p_reason: "manual correction",
     });

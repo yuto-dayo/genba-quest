@@ -6,6 +6,7 @@ export type OrgRole = "admin" | "member";
 export type OrgMembershipStatus = "active" | "suspended" | "removed";
 
 export interface OrgMembershipRecord {
+    id?: string | null;
     org_id: string;
     user_id: string;
     role: OrgRole;
@@ -48,7 +49,7 @@ function assertValidOrgId(orgId: string): void {
 export async function listActiveMemberships(userId: string): Promise<OrgMembershipRecord[]> {
     const { data, error } = await supabaseAdmin
         .from("org_memberships")
-        .select("org_id,user_id,role,status,title,approval_limit,joined_at,created_at")
+        .select("id,org_id,user_id,role,status,title,approval_limit,joined_at,created_at")
         .eq("user_id", userId)
         .eq("status", "active")
         .order("created_at", { ascending: true });
@@ -68,6 +69,7 @@ export async function listActiveMemberships(userId: string): Promise<OrgMembersh
     }
 
     return [{
+        id: null,
         org_id: getDevDefaultOrgId(),
         user_id: devUser.id,
         role: devUser.role,

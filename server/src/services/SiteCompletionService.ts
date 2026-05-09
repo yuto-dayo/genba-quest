@@ -6,11 +6,13 @@ const COMPLETE_SITE_KNOWN_ERRORS = [
   "SITE_NOT_FOUND",
   "SITE_REVENUE_REQUIRED_FOR_AUTO_INCOME",
   "SITE_COMPLETION_ALREADY_ACTIVE",
+  "RPC_MEMBERSHIP_REQUIRED",
 ] as const;
 
 const REVERSE_SITE_COMPLETION_KNOWN_ERRORS = [
   "SITE_NOT_FOUND",
   "SITE_COMPLETION_NOT_ACTIVE",
+  "RPC_MEMBERSHIP_REQUIRED",
 ] as const;
 
 export interface SiteCompletionRpcPayload {
@@ -41,12 +43,14 @@ export interface SiteRecord {
 export interface CompleteSiteInput {
   siteId: string;
   actorUserId: string;
+  membershipId?: string | null;
   effectiveCompletedAt?: string;
 }
 
 export interface ReverseSiteCompletionInput {
   siteId: string;
   actorUserId: string;
+  membershipId?: string | null;
   effectiveReversedAt?: string;
   reason?: string | null;
 }
@@ -108,6 +112,7 @@ export class SiteCompletionService {
       p_org_id: this.orgId,
       p_site_id: input.siteId,
       p_actor_user_id: input.actorUserId,
+      p_membership_id: input.membershipId ?? null,
       p_effective_completed_at: input.effectiveCompletedAt ?? null,
     });
 
@@ -146,6 +151,7 @@ export class SiteCompletionService {
       p_org_id: this.orgId,
       p_site_id: input.siteId,
       p_actor_user_id: input.actorUserId,
+      p_membership_id: input.membershipId ?? null,
       p_effective_reversed_at: input.effectiveReversedAt ?? null,
       p_reason: input.reason ?? null,
     });

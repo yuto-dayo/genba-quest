@@ -100,6 +100,7 @@ router.use(async (req: AuthenticatedRequest, res, next) => {
     try {
         const membership = await resolveActiveOrgMembership(req, "member");
         req.orgId = membership.org_id;
+        req.orgMembershipId = membership.id ?? null;
         next();
     } catch (err) {
         const message = err instanceof Error ? err.message : "ORG_ACCESS_ERROR";
@@ -1143,6 +1144,7 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
                 endpointName: "accounting.expenses.create",
                 proposalType: "expense.create",
                 idempotencyKey: idempotency.idempotencyKey,
+                transitionStatus: "posted_legacy_projection",
                 actor: {
                     type: "human",
                     id: req.userId!,
@@ -1532,14 +1534,55 @@ router.post("/sales", async (req: AuthenticatedRequest, res: Response) => {
         // 仕訳作成
         await createJournalEntry(data, req.userId!, orgId);
 
+        let proposalLineage: Record<string, unknown> | null = null;
+        const legacyProjection = {
+            legacy_transaction_id: data.id,
+            legacy_transaction_kind: data.kind || "sale",
+        };
+
+        try {
+            proposalLineage = await createAccountingCommandProposalLineage({
+                orgId,
+                endpointName: "accounting.sales.adjust",
+                proposalType: "income.create",
+                idempotencyKey: idempotency.idempotencyKey,
+                transitionStatus: "posted_legacy_projection",
+                actor: {
+                    type: "human",
+                    id: req.userId!,
+                    name: req.userName || req.userEmail || null,
+                },
+                description: `売上登録: ${buildSaleDescription(normalizedDescription, saleItems)}`,
+                payload: {
+                    site_id,
+                    client_id,
+                    description: buildSaleDescription(normalizedDescription, saleItems),
+                    recorded_date: data.recorded_date,
+                    amount_subtotal: resolvedSubtotal,
+                    tax_amount: resolvedTaxAmount,
+                    amount_total: resolvedTotal,
+                    tax_category: DEFAULT_SALE_TAX_CATEGORY,
+                    source_document_id,
+                    input_sources: input_sources || {},
+                    items: saleItems,
+                },
+                projection: legacyProjection,
+                documentId: typeof source_document_id === "string" ? source_document_id : null,
+                siteId: typeof site_id === "string" ? site_id : null,
+            });
+        } catch (proposalError) {
+            console.error("Sale proposal lineage error:", proposalError);
+        }
+
         const responseBody = withAccountingCommandEnvelope(data, {
             endpointName: "accounting.sales.adjust",
+            proposal: proposalLineage,
             approvalStatus: "not_required",
             postingStatus: "posted",
-            projection: {
-                legacy_transaction_id: data.id,
-                legacy_transaction_kind: data.kind || "sale",
-            },
+            mode: "legacy_direct_projection",
+            projection: proposalLineage
+                ? { ...legacyProjection, proposal_id: proposalLineage.id }
+                : legacyProjection,
         });
 
         await completeAccountingWriteIdempotency(idempotency, 201, responseBody);
@@ -2122,6 +2165,7 @@ router.post("/invoices", async (req: AuthenticatedRequest, res: Response) => {
 
         const data = await createAccountingInvoice({
             orgId,
+            membershipId: req.orgMembershipId || null,
             transactions: sortedTransactions,
             representativeTransaction,
             sourceTransactionIds: uniqueTransactionIds,
@@ -2187,6 +2231,10 @@ router.post("/invoices", async (req: AuthenticatedRequest, res: Response) => {
         }
         if (message.includes("SOURCE_TRANSACTION_NOT_FOUND")) {
             res.status(404).json({ error: "One or more transactions were not found" });
+            return;
+        }
+        if (message.includes("RPC_MEMBERSHIP_REQUIRED")) {
+            res.status(403).json({ error: "RPC_MEMBERSHIP_REQUIRED" });
             return;
         }
         if (message.includes("SOURCE_TRANSACTION_IDS_REQUIRED") || message.includes("BILLING_NAME_REQUIRED")) {
@@ -2467,6 +2515,7 @@ router.post("/payments/allocations", async (req: AuthenticatedRequest, res: Resp
 
         const responseBody = await recordPaymentAllocation({
             orgId,
+            membershipId: req.orgMembershipId || null,
             invoiceId,
             receivedOn,
             amount,
@@ -2496,6 +2545,11 @@ router.post("/payments/allocations", async (req: AuthenticatedRequest, res: Resp
 
         if (message.includes("PAYMENT_ALLOCATION_EXCEEDS_UNCOLLECTED_BALANCE")) {
             res.status(409).json({ error: "PAYMENT_ALLOCATION_EXCEEDS_UNCOLLECTED_BALANCE" });
+            return;
+        }
+
+        if (message.includes("RPC_MEMBERSHIP_REQUIRED")) {
+            res.status(403).json({ error: "RPC_MEMBERSHIP_REQUIRED" });
             return;
         }
 

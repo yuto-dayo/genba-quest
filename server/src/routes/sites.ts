@@ -31,6 +31,7 @@ const SITE_SCHEDULE_MODES = ["continuous", "weekdays", "custom"] as const;
 const SITE_COMPLETION_ERROR_STATUS_MAP: Record<string, number> = {
     USER_CONTEXT_REQUIRED: 403,
     ORG_MEMBERSHIP_REQUIRED: 403,
+    RPC_MEMBERSHIP_REQUIRED: 403,
     ORG_ONBOARDING_REQUIRED: 403,
     ORG_SELECTION_REQUIRED: 403,
     ORG_ROLE_REQUIRED: 403,
@@ -562,6 +563,7 @@ router.get("/members", async (req: AuthenticatedRequest, res: Response) => {
             code === "USER_CONTEXT_REQUIRED" ||
             code === "ORG_ONBOARDING_REQUIRED" ||
             code === "ORG_MEMBERSHIP_REQUIRED" ||
+            code === "RPC_MEMBERSHIP_REQUIRED" ||
             code === "ORG_ROLE_REQUIRED"
         ) {
             res.status(403).json({ error: code });
@@ -1437,7 +1439,12 @@ router.post("/:id/complete-with-close", async (req: AuthenticatedRequest, res: R
 
         const response: CompleteSiteWithCloseHttpResponse = await createSiteCompleteWithCloseService(
             membership.org_id,
-        ).execute(siteId, ((req.body as Record<string, unknown> | undefined) || {}), buildHumanActor(req));
+        ).execute(
+            siteId,
+            ((req.body as Record<string, unknown> | undefined) || {}),
+            buildHumanActor(req),
+            membership.id,
+        );
 
         const maybeSite = response.body.site;
         if (
@@ -1470,6 +1477,7 @@ router.post("/:id/complete", async (req: AuthenticatedRequest, res: Response) =>
         const result = await new SiteCompletionService(membership.org_id).completeSite({
             siteId,
             actorUserId: getActorUserId(req),
+            membershipId: membership.id,
             effectiveCompletedAt: normalizeOptionalTimestamp(
                 (req.body as Record<string, unknown> | undefined)?.effective_completed_at,
                 "INVALID_EFFECTIVE_COMPLETED_AT"
@@ -1502,6 +1510,7 @@ router.post("/:id/complete/reverse", async (req: AuthenticatedRequest, res: Resp
         const result = await new SiteCompletionService(membership.org_id).reverseSiteCompletion({
             siteId,
             actorUserId: getActorUserId(req),
+            membershipId: membership.id,
             effectiveReversedAt: normalizeOptionalTimestamp(
                 body.effective_reversed_at,
                 "INVALID_EFFECTIVE_REVERSED_AT"

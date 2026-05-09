@@ -1,0 +1,55 @@
+# Accounting v2.2 Local Migration Verification
+
+Date: 2026-05-09
+
+## Scope
+
+- Target org_id: not_applicable_local_dry_run
+- Remote DB migration: not executed
+- Remote DB push: not executed
+- Migration repair: not executed
+
+## Scenario
+
+Implemented and locally verified the first v2.2 slice:
+
+- SECURITY DEFINER RPC hardening for accounting/site-completion RPC entrypoints
+- Active membership propagation from HTTP routes into service-role RPC calls
+- Transition lineage semantics for Money expense and sales writes
+- Sales transition proposal lineage response envelope
+
+## Commands
+
+```bash
+docker run --name genba-v22-sqlcheck -e POSTGRES_PASSWORD=postgres -v /Users/yutoyoshino/Documents/genba-quest:/repo:ro -d postgres:16
+psql -v ON_ERROR_STOP=1 -h localhost -p 55432 -U postgres -d postgres -f /repo/supabase/migrations/20260509100057_harden_accounting_rpc_membership.sql
+cd server && npx tsc --noEmit
+cd server && npm test -- --runTestsByPath src/__tests__/unit/accountingRoute.test.ts src/__tests__/unit/SiteCompletionService.test.ts --runInBand
+scripts/db/check-sql-boundaries.sh
+git diff --check
+```
+
+## Expected Failure Contracts Covered By This Slice
+
+- `RPC_MEMBERSHIP_REQUIRED`: service-role RPC wrapper should fail when `p_membership_id` is missing or does not match active org/user membership.
+- Direct RPC execution by `public`, `anon`, and `authenticated` is revoked in migration for hardened accounting/site completion RPC signatures.
+- Money transition lineage responses must identify `lineage_mode=transition`, `lifecycle_engine=money_transition`, and `full_proposal_lifecycle=false`.
+
+## Result
+
+- Migration syntax dry-run: pass
+- TypeScript: pass
+- Targeted unit tests: pass, 45 tests
+- SQL boundary check: pass
+- Whitespace check: pass
+
+## Row Counts / Checksums
+
+- Row counts: not_applicable_local_dry_run
+- Before checksum: not_applicable_local_dry_run
+- After checksum: not_applicable_local_dry_run
+
+## Notes
+
+- This artifact is local evidence only. DB integration evidence against a real Supabase database still needs explicit approval before remote execution.
+- Existing legacy service-role RPC signatures remain available for compatibility but are also revoked from `public`, `anon`, and `authenticated`.

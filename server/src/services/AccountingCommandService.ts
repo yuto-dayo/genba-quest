@@ -58,12 +58,13 @@ export type AccountingCommandActorRef = {
 export type AccountingCommandProposalLineageInput = {
     orgId: string;
     endpointName: string;
-    proposalType: "expense.create";
+    proposalType: "expense.create" | "income.create" | "invoice.create" | "invoice.mark_paid" | "expense.void" | "income.reverse";
     idempotencyKey: string;
     actor: AccountingCommandActorRef;
     description: string;
     payload: Record<string, unknown>;
     projection: Record<string, unknown>;
+    transitionStatus?: "recorded" | "posted_legacy_projection" | "posted_canonical_projection" | "reversed";
     documentId?: string | null;
     siteId?: string | null;
 };
@@ -95,6 +96,7 @@ export type SaleItemCommandPayload = {
 
 export type RecordPaymentAllocationInput = {
     orgId: string;
+    membershipId?: string | null;
     invoiceId: string;
     receivedOn: string;
     amount: number;
@@ -137,6 +139,7 @@ type InvoiceRevenueAllocationInsertRow = {
 
 export type CreateAccountingInvoiceInput = {
     orgId: string;
+    membershipId?: string | null;
     transactions: InvoiceTransaction[];
     representativeTransaction: InvoiceTransaction;
     sourceTransactionIds: string[];
@@ -360,12 +363,21 @@ export async function insertExpenseTransaction(payload: ExpenseInsertPayload) {
 export async function createAccountingCommandProposalLineage(
     input: AccountingCommandProposalLineageInput,
 ) {
+    const transitionStatus = input.transitionStatus || "posted_legacy_projection";
     const transitionPayload = {
         ...input.payload,
+        lineage_mode: "transition",
+        lifecycle_engine: "money_transition",
+        full_proposal_lifecycle: false,
+        transition_status: transitionStatus,
+        source_route: input.endpointName,
+        source_idempotency_key: input.idempotencyKey,
         projection: input.projection,
         transition: {
             mode: "legacy_direct_projection",
             endpoint_name: input.endpointName,
+            status: transitionStatus,
+            full_proposal_lifecycle: false,
         },
     };
 
@@ -394,7 +406,16 @@ export async function createAccountingCommandProposalLineage(
         throw error;
     }
 
-    return data;
+    return {
+        ...(data as Record<string, unknown>),
+        db_status: (data as Record<string, unknown>)?.status,
+        status: transitionStatus,
+        lineage_mode: "transition",
+        lifecycle_engine: "money_transition",
+        full_proposal_lifecycle: false,
+        source_route: input.endpointName,
+        source_idempotency_key: input.idempotencyKey,
+    };
 }
 
 export async function insertSaleTransactionWithItems(
@@ -714,6 +735,7 @@ export async function insertInvoiceRecord(row: Record<string, unknown>) {
 
 async function createInvoiceRecordAtomically(input: {
     orgId: string;
+    membershipId?: string | null;
     sourceTransactionIds: string[];
     representativeTransactionId: string;
     documentType: string;
@@ -751,6 +773,7 @@ async function createInvoiceRecordAtomically(input: {
         p_source_summary_snapshot: input.sourceSummary,
         p_eligibility_snapshot: input.eligibilitySnapshot,
         p_created_by: input.createdBy,
+        p_membership_id: input.membershipId || null,
     });
 
     if (error) {
@@ -777,6 +800,7 @@ export async function createAccountingInvoice(input: CreateAccountingInvoiceInpu
 
     let data = await createInvoiceRecordAtomically({
         orgId: input.orgId,
+        membershipId: input.membershipId,
         sourceTransactionIds: input.sourceTransactionIds,
         representativeTransactionId: input.representativeTransaction.id,
         documentType: input.documentType,
@@ -862,6 +886,7 @@ export async function createAccountingInvoice(input: CreateAccountingInvoiceInpu
 export async function recordPaymentAllocation(input: RecordPaymentAllocationInput) {
     const { data, error } = await supabaseAdmin.rpc("rpc_record_accounting_payment_allocation", {
         p_org_id: input.orgId,
+        p_membership_id: input.membershipId || null,
         p_invoice_id: input.invoiceId,
         p_received_on: input.receivedOn,
         p_amount: input.amount,

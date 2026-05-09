@@ -400,6 +400,12 @@ describe("accounting router", () => {
       policy_ref: "legacy_direct_transition",
       idempotency_key: "accounting.expenses.create:expense-misc-1",
       payload: expect.objectContaining({
+        lineage_mode: "transition",
+        lifecycle_engine: "money_transition",
+        full_proposal_lifecycle: false,
+        transition_status: "posted_legacy_projection",
+        source_route: "accounting.expenses.create",
+        source_idempotency_key: "expense-misc-1",
         category: "other",
         amount_total: 5000,
         projection: expect.objectContaining({
@@ -409,6 +415,7 @@ describe("accounting router", () => {
         transition: expect.objectContaining({
           mode: "legacy_direct_projection",
           endpoint_name: "accounting.expenses.create",
+          full_proposal_lifecycle: false,
         }),
       }),
     }));
@@ -417,7 +424,10 @@ describe("accounting router", () => {
       proposal: expect.objectContaining({
         id: "proposal-expense-misc",
         type: "expense.create",
-        status: "executed",
+        status: "posted_legacy_projection",
+        db_status: "executed",
+        lineage_mode: "transition",
+        full_proposal_lifecycle: false,
       }),
       execution: expect.objectContaining({
         mode: "legacy_direct_projection",
@@ -629,6 +639,15 @@ describe("accounting router", () => {
     const existingEntryChain = createChain({ data: null, error: null });
     const entryInsertChain = createChain({ data: { id: "entry-2" }, error: null });
     const lineInsertChain = createChain({ data: null, error: null });
+    const proposalChain = createChain({
+      data: {
+        id: "proposal-sale-1",
+        type: "income.create",
+        status: "executed",
+        policy_ref: "legacy_direct_transition",
+      },
+      error: null,
+    });
     setupMockFromSequence(mockFrom, [
       siteLookupChain,
       txInsertChain,
@@ -636,7 +655,7 @@ describe("accounting router", () => {
       existingEntryChain,
       entryInsertChain,
       lineInsertChain,
-    ]);
+    ], [], [proposalChain]);
 
     const req = {
       userId: "user-1",
@@ -683,7 +702,38 @@ describe("accounting router", () => {
       expect.objectContaining({ account_code: "4100", debit: 0, credit: 100000 }),
       expect.objectContaining({ account_code: "2500", debit: 0, credit: 10000 }),
     ]));
+    expect(proposalChain.insert).toHaveBeenCalledWith(expect.objectContaining({
+      org_id: "org-1",
+      type: "income.create",
+      status: "executed",
+      idempotency_key: "accounting.sales.adjust:sale-single-1",
+      payload: expect.objectContaining({
+        lineage_mode: "transition",
+        lifecycle_engine: "money_transition",
+        full_proposal_lifecycle: false,
+        transition_status: "posted_legacy_projection",
+        source_route: "accounting.sales.adjust",
+        source_idempotency_key: "sale-single-1",
+        projection: expect.objectContaining({
+          legacy_transaction_id: "sale-1",
+          legacy_transaction_kind: "sale",
+        }),
+      }),
+    }));
     expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      proposal: expect.objectContaining({
+        id: "proposal-sale-1",
+        type: "income.create",
+        status: "posted_legacy_projection",
+        db_status: "executed",
+        full_proposal_lifecycle: false,
+      }),
+      projection: expect.objectContaining({
+        legacy_transaction_id: "sale-1",
+        proposal_id: "proposal-sale-1",
+      }),
+    }));
   });
 
   it("POST /sales stores multiple line items and recalculates totals from them", async () => {
@@ -1344,6 +1394,7 @@ describe("accounting router", () => {
       p_representative_transaction_id: "tx-1",
       p_document_type: "standard_invoice",
       p_created_by: "user-1",
+      p_membership_id: null,
     }));
     expect(mockFrom).not.toHaveBeenCalledWith("accounting_journal_entries");
     expect(res.status).toHaveBeenCalledWith(201);
@@ -1932,6 +1983,7 @@ describe("accounting router", () => {
       p_payment_method: "bank_transfer",
       p_payment_account: "main_bank",
       p_created_by: "user-1",
+      p_membership_id: null,
     }));
     expect(mockFrom).not.toHaveBeenCalledWith("accounting_journal_entries");
     expect(res.status).toHaveBeenCalledWith(201);

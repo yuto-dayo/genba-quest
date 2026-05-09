@@ -320,6 +320,7 @@ export class SiteCompleteWithCloseService {
     siteId: string,
     rawInput: Record<string, unknown>,
     actor: ActorRef,
+    membershipId?: string | null,
   ): Promise<CompleteSiteWithCloseHttpResponse> {
     const normalizedSiteId = this.ensureUuid(siteId, "INVALID_SITE_ID");
     const input = this.normalizeInput(normalizedSiteId, rawInput);
@@ -425,6 +426,7 @@ export class SiteCompleteWithCloseService {
       completionResult = await this.siteCompletionService.completeSite({
         siteId: normalizedSiteId,
         actorUserId: actor.id,
+        membershipId: membershipId ?? null,
         effectiveCompletedAt: input.effective_completed_at,
       });
       attempt = await this.updateAttempt(attempt.id, {
@@ -497,7 +499,12 @@ export class SiteCompleteWithCloseService {
         return this.finalizeAttemptWithProposal(attempt, currentSite, recoveredProposal, true);
       }
 
-      const compensationResult = await this.compensateFailedSubmission(normalizedSiteId, attempt, actor.id);
+      const compensationResult = await this.compensateFailedSubmission(
+        normalizedSiteId,
+        attempt,
+        actor.id,
+        membershipId ?? null,
+      );
       if (!compensationResult.ok) {
         return this.recordAttemptResponse(
           attempt.id,
@@ -1080,6 +1087,7 @@ export class SiteCompleteWithCloseService {
     siteId: string,
     attempt: AttemptRecord,
     actorUserId: string,
+    membershipId?: string | null,
   ): Promise<{ ok: true; reversalEventId?: string | null } | { ok: false; errorCode?: string }> {
     try {
       let reversalResult: ReverseSiteCompletionResult | null = null;
@@ -1087,6 +1095,7 @@ export class SiteCompleteWithCloseService {
         reversalResult = await this.siteCompletionService.reverseSiteCompletion({
           siteId,
           actorUserId,
+          membershipId: membershipId ?? null,
           reason: "complete_with_close_compensation",
         });
       }
