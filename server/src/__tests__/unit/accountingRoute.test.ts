@@ -157,6 +157,7 @@ describe("accounting router", () => {
   const analyzeOcrHandler = getPostHandler("/ocr/analyze");
   const downloadInvoiceHandler = getGetHandler("/invoices/:id/download");
   const voidTransactionHandler = getPostHandler("/void/:id");
+  const getExpenseBucketsHandler = getGetHandler("/expense_buckets");
   const mockFrom = (supabaseAdmin as unknown as { from: jest.Mock }).from;
   const mockRpc = (supabaseAdmin as unknown as { rpc: jest.Mock }).rpc;
   const mockStorageFrom = (supabaseAdmin as unknown as { storage: { from: jest.Mock } }).storage.from;
@@ -815,7 +816,10 @@ describe("accounting router", () => {
       status: undefined,
       review_status: undefined,
     }));
-    expect(mockFrom).toHaveBeenCalledTimes(5);
+    // 6 == site lookup + idempotency claim + transaction insert + journal entry +
+    // proposal lineage insert + expense_field_change_log "registered" insert (S-3).
+    expect(mockFrom).toHaveBeenCalledTimes(6);
+    expect(mockFrom).toHaveBeenCalledWith("expense_field_change_log");
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
       status: "pending_review",
@@ -3547,5 +3551,92 @@ describe("accounting router", () => {
 
     expect(res.status).toHaveBeenCalledWith(409);
     expect(res.json).toHaveBeenCalledWith({ error: "取消で作成された逆仕訳は再度取消できません" });
+  });
+
+  it("GET /expense_buckets aggregates expenses into buckets by lifecycle and flags", async () => {
+    const expenseRows = [
+      // Unassigned (no scope) created 5 days ago
+      {
+        id: "exp-1",
+        amount_total: 5000,
+        expense_scope: null,
+        expense_lifecycle_state: "captured",
+        flags: [],
+        recorded_date: "2026-05-05",
+        created_at: new Date(Date.now() - 5 * 86_400_000).toISOString(),
+        status: "draft",
+      },
+      // Needs review: missing_invoice_number
+      {
+        id: "exp-2",
+        amount_total: 8000,
+        expense_scope: "job",
+        expense_lifecycle_state: "captured",
+        flags: ["missing_invoice_number"],
+        recorded_date: "2026-05-06",
+        created_at: new Date(Date.now() - 1 * 86_400_000).toISOString(),
+        status: "draft",
+      },
+      // Awaiting verify
+      {
+        id: "exp-3",
+        amount_total: 12000,
+        expense_scope: "job",
+        expense_lifecycle_state: "classified",
+        flags: [],
+        recorded_date: "2026-05-07",
+        created_at: new Date().toISOString(),
+        status: "draft",
+      },
+      // Posted with asset_candidate (overlaps two buckets on purpose)
+      {
+        id: "exp-4",
+        amount_total: 120000,
+        expense_scope: "overhead",
+        expense_lifecycle_state: "posted",
+        flags: ["asset_candidate"],
+        recorded_date: "2026-05-08",
+        created_at: new Date().toISOString(),
+        status: "posted",
+      },
+      // Advance stale
+      {
+        id: "exp-5",
+        amount_total: 35000,
+        expense_scope: "job_advance",
+        expense_lifecycle_state: "captured",
+        flags: ["advance_stale"],
+        recorded_date: "2026-02-01",
+        created_at: new Date(Date.now() - 100 * 86_400_000).toISOString(),
+        status: "draft",
+      },
+    ];
+
+    const queryChain = createChain({ data: expenseRows, error: null });
+    setupMockFromSequence(mockFrom, [queryChain]);
+
+    const req = { orgId: "org-1", query: { month: "2026-05" } } as any;
+    const res = createMockRes();
+
+    await getExpenseBucketsHandler(req, res);
+
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        month: "2026-05",
+        range: { from: "2026-05-01", to: "2026-05-31" },
+        buckets: expect.objectContaining({
+          unassigned: { count: 1, amount: 5000 },
+          needs_review: { count: 1, amount: 8000 },
+          awaiting_verify: { count: 1, amount: 12000 },
+          posted: { count: 1, amount: 120000 },
+          asset_candidates: { count: 1, amount: 120000 },
+          advance_stale: { count: 1, amount: 35000 },
+        }),
+        total_count: 5,
+      }),
+    );
+    // Posted overlaps with asset_candidate — both should count.
+    const payload = (res.json as any).mock.calls[0][0];
+    expect(payload.oldest_unassigned_age_days).toBeGreaterThanOrEqual(4);
   });
 });

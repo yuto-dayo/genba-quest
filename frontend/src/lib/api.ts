@@ -1626,6 +1626,33 @@ export const createExpense = (data: CreateExpenseRequest) =>
         body: JSON.stringify(withIdempotencyKey("accounting.expenses.create", data)),
     });
 
+// 経費バケット集計 (Money画面ダッシュボード用)
+// docs/MONEY_EXPENSE_FLOW.md §5.1
+export interface ExpenseBucketCounts {
+    count: number;
+    amount: number;
+}
+
+export interface ExpenseBucketsReport {
+    month: string;
+    range: { from: string; to: string };
+    buckets: {
+        unassigned: ExpenseBucketCounts;
+        needs_review: ExpenseBucketCounts;
+        awaiting_verify: ExpenseBucketCounts;
+        posted: ExpenseBucketCounts;
+        asset_candidates: ExpenseBucketCounts;
+        advance_stale: ExpenseBucketCounts;
+    };
+    oldest_unassigned_age_days: number | null;
+    total_count: number;
+}
+
+export const fetchExpenseBuckets = (month?: string) =>
+    api<ExpenseBucketsReport>(
+        `/api/v1/accounting/expense_buckets${month ? `?month=${encodeURIComponent(month)}` : ""}`,
+    );
+
 // 経費承認/否認
 export const reviewExpense = (id: string, action: "approve" | "reject", comment?: string) =>
     api<AccountingTransaction>(`/api/v1/accounting/expenses/${id}/review`, {
