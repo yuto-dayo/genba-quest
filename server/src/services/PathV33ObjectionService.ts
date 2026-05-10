@@ -391,15 +391,73 @@ export class PathV33ObjectionService {
       throw new Error(`Failed to rewrite draft tier: ${draftError.message}`);
     }
 
-    // 3. Mark the paired Proposal as executed (best-effort; non-fatal).
-    await supabaseAdmin
+    // 3. Mark the paired Proposal as executed. Audit #5: verify the proposal
+    //    exists first; if the wrapper creation had failed earlier (e.g.
+    //    duplicate idempotency), log it and continue rather than fail the
+    //    whole accept (the source-of-truth state is on level_objections).
+    const { data: pairedProposal } = await supabaseAdmin
       .from("proposals")
-      .update({ status: "executed", executed_at: now })
+      .select("id")
       .eq("org_id", this.orgId)
       .eq("type", "level.objection")
-      .contains("payload", { objection_id: objection.id });
+      .contains("payload", { objection_id: objection.id })
+      .maybeSingle();
+
+    if (pairedProposal?.id) {
+      const { error: updateError } = await supabaseAdmin
+        .from("proposals")
+        .update({ status: "executed", executed_at: now })
+        .eq("id", pairedProposal.id);
+      if (updateError) {
+        console.warn(
+          `[V33] Failed to mark objection proposal ${pairedProposal.id} as executed: ${updateError.message}`,
+        );
+      }
+    } else {
+      console.warn(
+        `[V33] No paired proposal found for accepted objection ${objection.id} — skipping status update`,
+      );
+    }
+
+    // 4. Notify the target member, the objector, and co-signers that the
+    //    judgment landed. Audit #8: spec §6 Step 5a explicitly calls for
+    //    "通知配信". Best-effort; failures are logged but don't undo accept.
+    await this.notifyAccepted(objection, coSigns).catch((err) => {
+      console.warn(`[V33] Failed to dispatch objection-accepted notifications:`, err);
+    });
 
     return this.normalizeRow(acceptedRow);
+  }
+
+  private async notifyAccepted(
+    objection: ObjectionRecord,
+    coSigns: CoSignEntry[],
+  ): Promise<void> {
+    const recipients = new Set<string>();
+    recipients.add(objection.target_member_id);
+    recipients.add(objection.objector_id);
+    for (const entry of coSigns) {
+      if (entry.user_id) recipients.add(entry.user_id);
+    }
+    const list = [...recipients].filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+    if (list.length === 0) return;
+
+    await supabaseAdmin.from("notifications").insert(
+      list.map((userId) => ({
+        user_id: userId,
+        type: "system_alert",
+        title: "レベル申告の異議が可決されました",
+        message: `${objection.target_month} のレベル申告について異議が承認され、tier が ${objection.proposed_tier} に書き換えられました。`,
+        data: {
+          task_type: "level_objection_accepted",
+          objection_id: objection.id,
+          target_member_id: objection.target_member_id,
+          target_draft_id: objection.target_draft_id,
+          proposed_tier: objection.proposed_tier,
+          target_month: objection.target_month,
+        },
+      })),
+    );
   }
 
   // Insert a Proposal wrapper through ProposalService so the objection

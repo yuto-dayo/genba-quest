@@ -3758,6 +3758,51 @@ export const fetchPathV33Objection = (objectionId: string) =>
         `/api/v1/path/module/v33/objections/${encodeURIComponent(objectionId)}`,
     ).then((response) => response.objection);
 
+// V3.3 Phase 5 month-end admin endpoints
+
+export interface PathV33LockResult {
+    month: string;
+    locked_draft_count: number;
+    recounted_drafts: number;
+}
+
+export interface PathV33ExpireResult {
+    month: string;
+    expired_objection_count: number;
+}
+
+export interface PathV33FinalizeMember {
+    member_id: string;
+    level: PathV33Level;
+    score: number;
+    weight_milli: number;
+    draft_count: number;
+    total_work_days: number;
+}
+
+export interface PathV33FinalizeResult {
+    month: string;
+    members: PathV33FinalizeMember[];
+}
+
+export const lockPathV33MonthDrafts = (month: string) =>
+    api<PathV33LockResult>(
+        `/api/v1/path/module/v33/month/${encodeURIComponent(month)}/lock-drafts`,
+        { method: "POST" },
+    );
+
+export const expirePathV33MonthObjections = (month: string) =>
+    api<PathV33ExpireResult>(
+        `/api/v1/path/module/v33/month/${encodeURIComponent(month)}/expire-objections`,
+        { method: "POST" },
+    );
+
+export const finalizePathV33Month = (month: string) =>
+    api<PathV33FinalizeResult>(
+        `/api/v1/path/module/v33/month/${encodeURIComponent(month)}/finalize`,
+        { method: "POST" },
+    );
+
 export const createPathV32SimpleLevelUpdateProposal = (data: {
     member_id: string;
     level: PathLevel;

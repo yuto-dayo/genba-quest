@@ -14,6 +14,7 @@ import { PathV31Service } from "../services/PathV31Service";
 import { PathV32SimpleRewardService } from "../services/PathV32SimpleRewardService";
 import { PathV33RewardService } from "../services/PathV33RewardService";
 import { PathV33ObjectionService } from "../services/PathV33ObjectionService";
+import { PathV33MonthService } from "../services/PathV33MonthService";
 import { assertV22WriteAllowed } from "../lib/pathV31Config";
 
 const router = Router();
@@ -140,6 +141,10 @@ function getPathV33RewardService(req: AuthenticatedRequest): PathV33RewardServic
 
 function getPathV33ObjectionService(req: AuthenticatedRequest): PathV33ObjectionService {
   return new PathV33ObjectionService(getOrgId(req));
+}
+
+function getPathV33MonthService(req: AuthenticatedRequest): PathV33MonthService {
+  return new PathV33MonthService(getOrgId(req));
 }
 
 function getPolicyService(req: AuthenticatedRequest): PathPolicyBundleService {
@@ -1026,5 +1031,42 @@ router.post(
     }
   },
 );
+
+// V3.3 month-end admin endpoints (Phase 5). Manually triggered via the
+// finalization modal; an external cron can call these on the spec timeline
+// (月末 +3 / +8) without further code changes.
+
+router.post("/v33/month/:month/lock-drafts", async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const month = getRouteParam(req.params.month as string | string[] | undefined);
+    const result = await getPathV33MonthService(req).lockDrafts(month);
+    res.json(result);
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+router.post(
+  "/v33/month/:month/expire-objections",
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const month = getRouteParam(req.params.month as string | string[] | undefined);
+      const result = await getPathV33MonthService(req).expireOpenObjections(month);
+      res.json(result);
+    } catch (error) {
+      handleError(res, error);
+    }
+  },
+);
+
+router.post("/v33/month/:month/finalize", async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const month = getRouteParam(req.params.month as string | string[] | undefined);
+    const result = await getPathV33MonthService(req).finalizeMonth(month);
+    res.json(result);
+  } catch (error) {
+    handleError(res, error);
+  }
+});
 
 export default router;

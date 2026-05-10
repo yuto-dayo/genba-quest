@@ -58,6 +58,7 @@ export function LevelDraftSheet({
     const [submitError, setSubmitError] = useState<string | null>(null);
     const [preview, setPreview] = useState<PathV33MonthlyPreview | null>(null);
     const [forecast, setForecast] = useState<PathV33MonthlyPreview | null>(null);
+    const [postSubmitBanner, setPostSubmitBanner] = useState<string | null>(null);
 
     useEffect(() => {
         if (!open || !memberId) {
@@ -133,15 +134,31 @@ export function LevelDraftSheet({
         if (!siteId) return;
         setSubmitting(true);
         setSubmitError(null);
+        setPostSubmitBanner(null);
         try {
             const result = await submitPathV33LevelDraft({
                 site_id: siteId,
                 tier,
                 self_comment: comment.trim() || undefined,
             });
+            // Audit #9: surface the server-recomputed level. If it differs
+            // from the local forecast (e.g. work_days drifted since load),
+            // show the actual before closing so the user isn't surprised.
+            const actualLevel = result.preview.current.level;
+            const forecastLevel = forecast?.current.level ?? null;
             setPreview(result.preview);
             onSubmitted?.();
-            onClose();
+            if (forecastLevel && actualLevel !== forecastLevel) {
+                setPostSubmitBanner(
+                    `申告を保存しました。実際の月見込みは ${actualLevel} (出勤日数の差で予想 ${forecastLevel} とズレ)。`,
+                );
+            } else {
+                setPostSubmitBanner(`申告を保存しました。今月の見込み: ${actualLevel}`);
+            }
+            // Auto-close after 1.5s so the user sees the confirmation.
+            window.setTimeout(() => {
+                onClose();
+            }, 1500);
         } catch (err) {
             setSubmitError(getErrorMessage(err));
         } finally {
@@ -272,6 +289,9 @@ export function LevelDraftSheet({
 
                             {submitError && (
                                 <p className={styles.submitError}>申告に失敗: {submitError}</p>
+                            )}
+                            {postSubmitBanner && (
+                                <p className={styles.postSubmitBanner}>{postSubmitBanner}</p>
                             )}
 
                             <footer className={styles.footer}>

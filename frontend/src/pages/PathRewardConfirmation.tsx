@@ -1,6 +1,7 @@
 import { type ChangeEvent, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { RewardConfirmationExperience } from "../components/luqo/rewardConfirmation/RewardConfirmationExperience";
+import { PathV33MonthFinalize } from "../components/PathV33MonthFinalize";
 import { PathV33PersonalDashboard } from "../components/PathV33PersonalDashboard";
 import { PathV33TeamFeedView } from "../components/PathV33TeamFeed";
 import { supabase } from "../lib/supabase";
@@ -13,11 +14,12 @@ import {
 } from "../lib/devAuth";
 import styles from "./PathRewardConfirmation.module.css";
 
-type TabKey = "personal" | "team" | "reward";
+type TabKey = "personal" | "team" | "finalize" | "reward";
 
 const TAB_LABEL: Record<TabKey, string> = {
     personal: "個人",
     team: "チーム",
+    finalize: "月確定",
     reward: "報酬確認",
 };
 
@@ -27,7 +29,7 @@ function currentMonth(): string {
 }
 
 function isTabKey(value: string | null): value is TabKey {
-    return value === "personal" || value === "team" || value === "reward";
+    return value === "personal" || value === "team" || value === "finalize" || value === "reward";
 }
 
 export default function PathRewardConfirmationPage() {
@@ -96,7 +98,7 @@ export default function PathRewardConfirmationPage() {
     return (
         <div className={styles.container}>
             <nav className={styles.tabRow} role="tablist" aria-label="PATH レベル表示">
-                {(["personal", "team", "reward"] as TabKey[]).map((key) => (
+                {(["personal", "team", "finalize", "reward"] as TabKey[]).map((key) => (
                     <button
                         key={key}
                         type="button"
@@ -119,6 +121,8 @@ export default function PathRewardConfirmationPage() {
             )}
 
             {activeTab === "team" && <PathV33TeamFeedView month={month} />}
+
+            {activeTab === "finalize" && <PathV33MonthFinalize month={month} />}
 
             {activeTab === "reward" && (
                 <RewardConfirmationExperience
