@@ -157,7 +157,7 @@ Do not run remote migration until all of these are accepted:
 
 - [ ] PR review accepts local migration order.
 - [ ] PR review accepts service_role compatibility retained on old base RPCs.
-- [x] `supabase db reset --local` passes from a clean local DB (34 / 34 migrations applied; see `clean_db_rebuild_test.md`).
+- [x] `supabase db reset --local` passes from a clean local DB (36 / 36 migrations applied; see `clean_db_rebuild_test.md`).
 - [x] `node artifacts/accounting-v2.2/local_rpc_hardening_negative_test.mjs` passes.
 - [x] `node artifacts/accounting-v2.2/local_pl_compare_invariants_test.mjs` passes.
 - [x] `cd server && npx tsc --noEmit` passes.
@@ -166,16 +166,9 @@ Do not run remote migration until all of these are accepted:
 - [x] rollback/repair plan is written for staging (`docs/runbooks/accounting-v22-staging-rollback.md`).
 - [ ] user explicitly approves remote DB migration.
 
-## Suggested Next Step
+## Status
 
-Push branch and open a draft PR after user approval.
+PR #9 is already pushed and open as a draft against `master`:
+<https://github.com/yuto-dayo/genba-quest/pull/9>.
 
-Suggested command sequence:
-
-```bash
-git status -sb
-git push -u origin codex/money-fix
-gh pr create --draft --base master --head codex/money-fix --title "Accounting v2.2: harden org/RPC boundaries and add canonical posting evidence" --body-file artifacts/accounting-v2.2/pr_review_package.md
-```
-
-Use the draft PR body above instead of the whole review package if creating manually in GitHub.
+Remote DB has not been touched. No agent (Claude / Codex / Gemini) is permitted to run `supabase db push`, `supabase migration repair`, or any remote write SQL until the user explicitly approves remote DB migration. Staging adoption follows `docs/runbooks/accounting-v22-staging-rollback.md`.

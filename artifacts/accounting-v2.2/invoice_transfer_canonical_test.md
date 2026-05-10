@@ -47,4 +47,3 @@ Remote DB migration was not executed. Local SQL was kept as a migration artifact
 - Created migration file: `supabase/migrations/20260509135652_canonical_invoice_transfer_posting_rpc.sql`
 - Runtime DB row counts: not collected
 - Before/after checksum: not collected
-

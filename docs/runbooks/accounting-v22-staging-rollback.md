@@ -5,7 +5,7 @@ Status: pre-flight document. v2.2 has not been applied to remote yet.
 
 ## Scope
 
-This runbook covers the 18 v2.2 migrations from `20260508133147_p0_accounting_integrity_guards.sql` through `20260510020100_wire_party_org_boundary_to_canonical_rpcs.sql`. They are visible in this branch but not on remote (`ggnxplgngmcelkdqhgfx`); remote is currently at `20260506094325`.
+This runbook covers the 20 v2.2 migrations from `20260508133147_p0_accounting_integrity_guards.sql` through `20260510020300_wire_idempotency_lookup_to_canonical_rpcs.sql`. They are visible in this branch but not on remote (`ggnxplgngmcelkdqhgfx`); remote is currently at `20260506094325`.
 
 The runbook is staging-first: apply on staging, validate, then promote. Any production action lives outside this document.
 
@@ -82,20 +82,26 @@ order by proname;
 -- expect 6 rows
 ```
 
-### Group D — boundary tightening (3 migrations)
+### Group D — boundary tightening (5 migrations)
 
 ```
 20260509153840 harden_legacy_accounting_base_rpcs
 20260510020000 add_party_org_boundary_helpers
 20260510020100 wire_party_org_boundary_to_canonical_rpcs
+20260510020200 add_idempotency_lookup_helper
+20260510020300 wire_idempotency_lookup_to_canonical_rpcs
 ```
 
 Checkpoint:
 ```sql
 select proname from pg_proc
 where pronamespace = 'private'::regnamespace
-  and proname in ('assert_customer_belongs_to_org','assert_member_belongs_to_org');
--- expect 2 rows
+  and proname in (
+    'assert_customer_belongs_to_org',
+    'assert_member_belongs_to_org',
+    'find_idempotent_execution'
+  );
+-- expect 3 rows
 ```
 
 ## Post-Apply Smoke Tests
@@ -112,7 +118,7 @@ If any smoke fails, go to "Rollback Procedure" before any traffic is routed.
 
 ## Rollback Procedure
 
-The 18 migrations split into two reversibility classes.
+The 20 migrations split into two reversibility classes.
 
 ### Class 1 — function-only changes (safely reversible)
 
@@ -120,6 +126,7 @@ These migrations only `CREATE OR REPLACE` functions or change grants / search_pa
 
 ```
 20260509100057 harden_accounting_rpc_membership
+20260509110041 accounting_existing_payment_allocation
 20260509112149 canonical_sales_posting_rpc
 20260509113639 canonical_sales_reversal_rpc
 20260509131814 canonical_expense_posting_rpc
@@ -130,17 +137,26 @@ These migrations only `CREATE OR REPLACE` functions or change grants / search_pa
 20260509153840 harden_legacy_accounting_base_rpcs
 20260510020000 add_party_org_boundary_helpers
 20260510020100 wire_party_org_boundary_to_canonical_rpcs
-20260509110041 accounting_existing_payment_allocation
+20260510020200 add_idempotency_lookup_helper
+20260510020300 wire_idempotency_lookup_to_canonical_rpcs
 ```
 
 To roll back a Class 1 migration: re-apply the previous definition by checking out the parent commit of that migration on staging and running its definition statements through `supabase db push --include-all` against a recovery branch. Functions revert atomically; no data is lost.
 
-Fast path for the two new migrations in this PR:
+Fast path for the helpers and wiring added in this PR:
 ```sql
+-- Drop the new helpers; do NOT drop or revoke find_idempotent_execution while
+-- canonical RPCs still call it. Drop ordering must be wiring-first, then
+-- helpers, to avoid leaving canonical RPCs in a broken state.
+
+-- 1) Re-run the prior CREATE OR REPLACE for each canonical RPC body using the
+--    parent migration files (20260509112149, 20260509113639, 20260509131814,
+--    20260509133923, 20260509134828, 20260509135652). This removes both the
+--    party/org assert and the idempotency helper call from the bodies.
+-- 2) Then drop the helpers:
+DROP FUNCTION IF EXISTS private.find_idempotent_execution(uuid, text, text);
 DROP FUNCTION IF EXISTS private.assert_customer_belongs_to_org(uuid, uuid);
 DROP FUNCTION IF EXISTS private.assert_member_belongs_to_org(uuid, uuid);
--- canonical RPCs revert by re-running the prior CREATE OR REPLACE from the
--- parent migration files (20260509112149, 20260509131814, 20260509133923).
 ```
 
 ### Class 2 — schema changes (reversible only with a forward-fix migration)

@@ -4,7 +4,7 @@ Generated: 2026-05-10 JST. Local DB only. Remote DB / push not executed.
 
 ## Goal
 
-Prove that `supabase db reset --local` produces a working DB from a fully clean state by applying all 34 migrations in order, with no manual intervention, and that all v2.2 evidence scripts still pass against the freshly built DB. This closes the `pre-remote checklist` line "supabase migration up --local passes from a clean local DB" in `pr_review_package.md`.
+Prove that `supabase db reset --local` produces a working DB from a fully clean state by applying all 36 migrations in order, with no manual intervention, and that all v2.2 evidence scripts still pass against the freshly built DB. This closes the `pre-remote checklist` line "supabase migration up --local passes from a clean local DB" in `pr_review_package.md`.
 
 ## Command
 
@@ -16,7 +16,7 @@ Full log: `/tmp/v22_db_reset.log` (local-only; not committed). Re-run produces a
 
 ## Result
 
-- Migrations applied: **34 / 34**
+- Migrations applied: **36 / 36**
 - Hard errors: **0**
 - Notice / skip lines: present and expected (CREATE OR REPLACE / DROP IF EXISTS produce idempotency notices when nothing exists yet)
 - Storage workaround: `20260506043949_add_private_site_drawings.sql` skips Storage bucket / object policy when `storage.buckets` is unavailable in local config; this is the existing v2.2 [H0023] guard, not a regression
@@ -57,10 +57,12 @@ Full log: `/tmp/v22_db_reset.log` (local-only; not committed). Re-run produces a
 20260509153529  harden_private_accounting_helpers
 20260509153840  harden_legacy_accounting_base_rpcs
 20260510020000  add_party_org_boundary_helpers              <-- this PR's helpers
-20260510020100  wire_party_org_boundary_to_canonical_rpcs   <-- this PR's wiring
+20260510020100  wire_party_org_boundary_to_canonical_rpcs   <-- party/org wiring
+20260510020200  add_idempotency_lookup_helper                <-- this PR's helpers
+20260510020300  wire_idempotency_lookup_to_canonical_rpcs    <-- this PR's wiring
 ```
 
-The 18 v2.2 migrations (from `20260508133147` onward) are not yet on remote; remote currently sits at `20260506094325`.
+The 20 v2.2 migrations (from `20260508133147` onward) are not yet on remote; remote currently sits at `20260506094325`.
 
 ## Post-Reset Evidence Replay
 
