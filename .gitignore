@@ -10,3 +10,4 @@ tmp/
 tools/ai-memory/.ai-memory/
 .playwright-cli/
 output/
+artifacts/**/backups/

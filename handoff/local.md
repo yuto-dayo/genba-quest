@@ -2,32 +2,34 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `User selected option (a): production migration repair + supabase db push. Pre-flight first; do not run db push until pre-flight is complete and the user re-confirms in this new session. Order: 1) enable PITR on genba-quest; 2) pg_dump production to a local file; 3) supabase migration repair --status reverted 20260506094218 20260506094252; 4) supabase migration repair --status applied 20260506093000 20260506094251; 5) supabase db push (applies the 20 v2.2 migrations); 6) re-run runbook checkpoints + advisor diff against production; 7) schedule v22-staging branch for deletion.`
-- SUCCESS_CRITERIA: `production main has migrations through 20260510020300, all 4 group checkpoints pass on production, security advisor diff is non-regressing, v22-staging branch is scheduled for deletion`
+- NEXT_CMD: `v2.2 production apply COMPLETE 2026-05-10T16:42:41+0900. Remaining: (1) on/after 2026-05-11 run 'supabase branches delete v22-staging --yes' to stop preview branch billing; (2) merge PR #9 to master once CI is green. (DB password was rotated 2026-05-10 after this session.)`
+- SUCCESS_CRITERIA: `production main has migrations through 20260510020300 ✅, all 4 group checkpoints PASS ✅, security advisor diff non-regressing ✅ (WARN 43→39, INFO 2→3 documented), v22-staging scheduled for deletion 2026-05-11 ✅, DB password rotated ✅ (2026-05-10), PR #9 merged ⏳`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/local.md`
+  - `/Users/yutoyoshino/Documents/genba-quest/artifacts/accounting-v2.2/backups/db-push-20260510-164234.log`
+  - `/Users/yutoyoshino/Documents/genba-quest/artifacts/accounting-v2.2/backups/prod-pre-v22-20260510-163542-schema.sql`
+  - `/Users/yutoyoshino/Documents/genba-quest/artifacts/accounting-v2.2/backups/prod-pre-v22-20260510-163542-data.sql`
   - `/Users/yutoyoshino/Documents/genba-quest/docs/runbooks/accounting-v22-staging-rollback.md`
-  - `/Users/yutoyoshino/Documents/genba-quest/artifacts/accounting-v2.2/branch_validation_test.md`
-  - `/Users/yutoyoshino/Documents/genba-quest/artifacts/accounting-v2.2/pr_review_package.md`
 - DO_NOT_READ:
-  - `docs/DESIGN_PHILOSOPHY.md` (full) — production apply does not require it
-  - large wiring migrations 20260510020100 / 20260510020300 (already validated)
+  - `docs/DESIGN_PHILOSOPHY.md` (full) — production apply complete
+  - all v2.2 migration files (already applied to prod)
 - VERIFY_FIRST:
-  - `gh pr view 9 --json state,mergeable,mergeStateStatus,isDraft` (expect OPEN / MERGEABLE / CLEAN / not draft)
-  - `curl -s -H "Authorization: Bearer <PAT>" https://api.supabase.com/v1/projects/ggnxplgngmcelkdqhgfx/branches | jq '.[].name'` (expect main + v22-staging)
+  - `supabase migration list --db-url "$POOLER_URL"` (expect 36 migrations through 20260510020300)
+  - `supabase branches list` (v22-staging still present until 2026-05-11)
 - STATE:
   - Branch: `codex/money-fix`
-  - Uncommitted: `0 files`
-  - PR: `#9 OPEN, MERGEABLE, CLEAN, ready for review (not draft)`
-  - Latest local migration: `20260510020300_wire_idempotency_lookup_to_canonical_rpcs.sql`
-  - Production main migration head: `20260506094325` (v2.2 not yet applied)
-  - Supabase preview branch: `v22-staging` (project_ref `meuhcmruuhfwpxuwigjk`) — v2.2 applied via Management API for validation, billed at $0.01344/h, schedule for deletion after production apply
-  - Tests: server `npx tsc --noEmit` PASS, accountingRoute 56/56 PASS, 6 v2.2 evidence scripts PASS
-  - SQL boundary guard: PASS
-  - git diff --check: clean
-
-  - HEAD: `a13e9ac`
-  - Updated: `2026-05-10T16:50:00+0900`
+  - PR: `#9 OPEN, MERGEABLE, CLEAN — ready to merge after password rotation`
+  - Production main migration head: `20260510020300` ✅ (v2.2 applied 2026-05-10T16:42:34→16:42:41+0900, 7 sec)
+  - Pre-apply backup: `artifacts/accounting-v2.2/backups/prod-pre-v22-20260510-163542-{schema,data}.sql` (schema 384K sha256:17d0…8906, data 1.0M sha256:5c61…5bbf)
+  - DB push log: `artifacts/accounting-v2.2/backups/db-push-20260510-164234.log`
+  - Migration repair: `--status reverted 20260506094218 20260506094252` + `--status applied 20260506093000 20260506094251` (executed before db push, both confirmed via list_migrations)
+  - Group checkpoints A/B/C/D: all PASS (3 cols / 1 fn / 6 fns / 3 fns)
+  - Security advisor: WARN 43→39 (-4 site_rpc execute revokes), INFO 2→3 (+1 documented `accounting_write_idempotency_keys` rls_no_policy)
+  - Performance advisor: WARN 53 unchanged ✅
+  - Supabase preview branch v22-staging: still running, scheduled deletion 2026-05-11 (24h observation window)
+  - DB password rotated 2026-05-10 (after apply, prior session-pasted credential invalidated)
+  - HEAD: `b7afb8e`
+  - Updated: `2026-05-10T16:55:00+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
