@@ -24,50 +24,53 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `別セッションのPathV33作業を待ち、必要に応じてuseCalendar側にも保険を入れる`. Source: realtime
+- [focus] NEXT_CMD: `現場ページ周辺の他バグ調査を継続`. Source: realtime
+- [H0030] Completed: chore(sites): 論理削除時の dead status='deleted' 書き込みを除去（deleted_at が唯一の真実）
+- [H0030] Remaining: 現場ページ周辺の他バグ調査を継続
 - [H0029] Completed: fix(sites): 連続施工+期間未入力をフロント/サーバー両面でブロック
 - [H0029] Remaining: 別セッションのPathV33作業を待ち、必要に応じてuseCalendar側にも保険を入れる
-- [H0028] Completed: feat(reward): V3.3 Phase 6 cutover — remap V3.2 history to V3.3 scale (migration) + fetchPriorMonthLevel defensive mapping (audit #7) + remove SiteDetailModal levelDraftSection + spec v1.0
-- [H0028] Remaining: V3.3 implementation complete; merge PR #14 after manual smoke test
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0030] Auto-captured decision: chore(sites): 論理削除時の dead status='deleted' 書き込みを除去（deleted_at が唯一の真実）
 - [H0029] Auto-captured decision: fix(sites): 連続施工+期間未入力をフロント/サーバー両面でブロック
 - [H0028] Auto-captured decision: feat(reward): V3.3 Phase 6 cutover — remap V3.2 history to V3.3 scale (migration) + fetchPriorMonthLevel defensive mapping (audit #7) + remove SiteDetailModal levelDraftSectio...
 - [H0027] Auto-captured decision: feat(reward): V3.3 Phase 5 — PathV33MonthService (lock/expire/finalize) + admin endpoints + finalization tab UI + audit #3/#5/#6/#8/#9 fixes
 - [H0026] Auto-captured decision: audit(reward-v33): close 4 HIGH findings — lock draft on accept (#1), reject locked re-submit (#2), block self-objection (#10), route objection proposal through ProposalServic...
-- [H0025] Auto-captured decision: feat(reward): V3.3 Phase 4 — PathV33ObjectionService + level.objection Proposal type + ObjectionBody in registry + ObjectionSubmitSheet on team feed (異議 button) + co-sign ...
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0029] No new landmines reported in this chunk.
+- [H0030] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0030] 現場ページ周辺の他バグ調査を継続
 - [H0029] 別セッションのPathV33作業を待ち、必要に応じてuseCalendar側にも保険を入れる
 - [H0028] V3.3 implementation complete; merge PR #14 after manual smoke test
 - [H0027] Phase 6: V3.2→V3.3 cutover + data migration + deprecate path.level.update proposals
 - [H0026] Phase 5: month-end lock cron + finalization modal + reward_run hook
-- [H0024] Phase 4: Objection + Co-sign proposal type + ObjectionBody UI + co-sign API
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `20`
-- last_compacted_at: `2026-05-11 05:54:12 +0900`
-- archived_entries: `9`
+- current_l3_entries: `12`
+- last_compacted_at: `2026-05-11 07:44:56 +0900`
+- archived_entries: `18`
 <!-- HANDOFF_L2_STATE_END -->
 
 ---
 
 ## 11. Incremental Updates
+
+> L3 compaction: archived 9 entries to `.session/handoff_archive/L3_compacted_20260511_074456.md` at 2026-05-11 07:44:56 +0900.
+
 
 > L3 compaction: archived 9 entries to `.session/handoff_archive/L3_compacted_20260511_055412.md` at 2026-05-11 05:54:12 +0900.
 
@@ -77,150 +80,6 @@
 <!-- HANDOFF_SESSION_EVENTS_START -->
 - (no events recorded yet)
 <!-- HANDOFF_SESSION_EVENTS_END -->
-
-### 2026-05-10 20:47:08 +0900
-
-- Entry-ID: `H0010`
-- Completed:
-  - [x] F-2 expense detail history view: GET /expenses/:id/history backend endpoint (org-scoped, append-only fetch); ExpenseHistoryTimeline component with 職人語 actor/source/field labels (registered + ocr_extracted + per-field old/new diffs); embedded in TransactionDetailModal for kind=expense. accountingRoute jest 62/62.
-- Remaining:
-  - [ ] F-3 capture flow scope chips for ExpenseModal
-- Changed Files:
-  - No file list provided (use --file "path - semantic description")
-- Working Context:
-  - Auto-captured decision: F-2 expense detail history view: GET /expenses/:id/history backend endpoint (org-scoped, append-only fetch); ExpenseHistoryTimeline component with 職人語 actor/source/field l...
-- Validation:
-  - `tsc clean (server + frontend), accountingRoute jest 62/62 incl. 2 new history endpoint tests, vite build clean`
-- Landmines:
-  - No new landmines reported in this chunk.
-
-### 2026-05-10 20:50:57 +0900
-
-- Entry-ID: `H0011`
-- Completed:
-  - [x] F-3 capture flow scope chips: 4-value chip picker (現場/先行仕入れ/共通在庫/本部・会社) replaces the SITE/HQ radio in ExpenseModal, with hint text per option, auto-derives cost_center, hides site selector for stockpile/overhead, label changes to '今日 (or 直近) に作業した現場の経費' style. CreateExpenseRequest gains expense_scope. tsc + vite build clean.
-- Remaining:
-  - [ ] S-2 threshold policy migration / S-4 dynamic flags / final PR review
-- Changed Files:
-  - No file list provided (use --file "path - semantic description")
-- Working Context:
-  - Auto-captured decision: F-3 capture flow scope chips: 4-value chip picker (現場/先行仕入れ/共通在庫/本部・会社) replaces the SITE/HQ radio in ExpenseModal, with hint text per option, au...
-- Validation:
-  - `frontend tsc clean, vite build clean`
-- Landmines:
-  - No new landmines reported in this chunk.
-
-### 2026-05-10 21:00:10 +0900
-
-- Entry-ID: `H0012`
-- Completed:
-  - [x] S-4 dynamic flag (partial): duplicate_suspected — same org/vendor/date/amount lookup at insert time. Cheap heuristic catches re-uploaded receipts. Added regression test asserting the dup query keys and the resulting flag. accountingRoute jest 63/63.
-- Remaining:
-  - [ ] S-2 threshold policy migration / advance_stale + budget_overrun batch / Phase 1 PR
-- Changed Files:
-  - No file list provided (use --file "path - semantic description")
-- Working Context:
-  - Auto-captured decision: S-4 dynamic flag (partial): duplicate_suspected — same org/vendor/date/amount lookup at insert time. Cheap heuristic catches re-uploaded receipts. Added regression test assert...
-- Validation:
-  - `tsc clean, accountingRoute jest 63/63`
-- Landmines:
-  - No new landmines reported in this chunk.
-
-### 2026-05-10 21:18:16 +0900
-
-- Entry-ID: `H0013`
-- Completed:
-  - [x] Browser E2E verification on remote Supabase (M-1..M-5 pushed via supabase db push): bucket dashboard renders, scope chips work, 201 on canonical RPC, missing_invoice_number flag → 要確認, history timeline shows fields in 職人語 (after fixing category to render via EXPENSE_CATEGORY_LABEL), void → reversal nets to zero. Cosmetic gap: reversal entries have NULL expense_scope and land in 未割当 — out of scope for this PR.
-- Remaining:
-  - [ ] Commit category label fix; open Phase 1 PR
-- Changed Files:
-  - No file list provided (use --file "path - semantic description")
-- Working Context:
-  - Auto-captured decision: Browser E2E verification on remote Supabase (M-1..M-5 pushed via supabase db push): bucket dashboard renders, scope chips work, 201 on canonical RPC, missing_invoice_number flag...
-- Validation:
-  - `Production-DB E2E happy path verified, jest 63/63`
-- Landmines:
-  - No new landmines reported in this chunk.
-
-### 2026-05-10 21:27:48 +0900
-
-- Entry-ID: `H0014`
-- Completed:
-  - [x] Fix CI lint failure: refactor MoneyBucketDashboard + ExpenseHistoryTimeline to derive loading from staleness instead of synchronous setLoading/setError inside useEffect (react-hooks/set-state-in-effect rule)
-- Remaining:
-  - [ ] Push, wait for CI, merge PR #11
-- Changed Files:
-  - No file list provided (use --file "path - semantic description")
-- Working Context:
-  - Auto-captured decision: Fix CI lint failure: refactor MoneyBucketDashboard + ExpenseHistoryTimeline to derive loading from staleness instead of synchronous setLoading/setError inside useEffect (react-h...
-- Validation:
-  - `eslint clean, tsc clean, vite build clean`
-- Landmines:
-  - No new landmines reported in this chunk.
-
-### 2026-05-11 00:40:52 +0900
-
-- Entry-ID: `H0015`
-- Completed:
-  - [x] feat(notify): unified bell + inbox bottom sheet (App.tsx state lift, NotificationInbox new component, ring motion on count change)
-- Remaining:
-  - [ ] Continue committing remaining 4 chunks then ask about push/PR
-- Changed Files:
-  - No file list provided (use --file "path - semantic description")
-- Working Context:
-  - Auto-captured decision: feat(notify): unified bell + inbox bottom sheet (App.tsx state lift, NotificationInbox new component, ring motion on count change)
-- Validation:
-  - `tsc green, vitest 119/125 (6 pre-existing failures), build clean`
-- Landmines:
-  - No new landmines reported in this chunk.
-
-### 2026-05-11 00:41:21 +0900
-
-- Entry-ID: `H0016`
-- Completed:
-  - [x] refactor(money): drop alertBanner + pathQueueSection, route entry through bell inbox, emit window events on mutation
-- Remaining:
-  - [ ] Continue with body registry refactor commit
-- Changed Files:
-  - No file list provided (use --file "path - semantic description")
-- Working Context:
-  - Auto-captured decision: refactor(money): drop alertBanner + pathQueueSection, route entry through bell inbox, emit window events on mutation
-- Validation:
-  - `Money tests 4/4 green via deep link`
-- Landmines:
-  - No new landmines reported in this chunk.
-
-### 2026-05-11 00:42:05 +0900
-
-- Entry-ID: `H0017`
-- Completed:
-  - [x] refactor(proposal): per-type body registry — PathReward / Accounting / Invoice / CommunicationTask / CommunicationReview / Generic; ProposalDetailModal slimmed 740→256 lines
-- Remaining:
-  - [ ] FAB margin fix commit
-- Changed Files:
-  - No file list provided (use --file "path - semantic description")
-- Working Context:
-  - Auto-captured decision: refactor(proposal): per-type body registry — PathReward / Accounting / Invoice / CommunicationTask / CommunicationReview / Generic; ProposalDetailModal slimmed 740→256 lines
-- Validation:
-  - `tsc green`
-- Landmines:
-  - No new landmines reported in this chunk.
-
-### 2026-05-11 00:42:36 +0900
-
-- Entry-ID: `H0018`
-- Completed:
-  - [x] fix(fab): raise FAB above bottom tab bar so 🔔 chip stays visible (FAB_MARGIN_BOTTOM 16→92, mobile media query bottom calc)
-- Remaining:
-  - [ ] Commit V3.3 design doc
-- Changed Files:
-  - No file list provided (use --file "path - semantic description")
-- Working Context:
-  - Auto-captured decision: fix(fab): raise FAB above bottom tab bar so 🔔 chip stays visible (FAB_MARGIN_BOTTOM 16→92, mobile media query bottom calc)
-- Validation:
-  - `FAB test updated 772→696`
-- Landmines:
-  - No new landmines reported in this chunk.
 
 ### 2026-05-11 00:43:04 +0900
 
@@ -395,5 +254,21 @@
   - Auto-captured decision: fix(sites): 連続施工+期間未入力をフロント/サーバー両面でブロック
 - Validation:
   - `frontend tsc --noEmit ✅ / server tsc --noEmit ✅`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-11 07:44:56 +0900
+
+- Entry-ID: `H0030`
+- Completed:
+  - [x] chore(sites): 論理削除時の dead status='deleted' 書き込みを除去（deleted_at が唯一の真実）
+- Remaining:
+  - [ ] 現場ページ周辺の他バグ調査を継続
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: chore(sites): 論理削除時の dead status='deleted' 書き込みを除去（deleted_at が唯一の真実）
+- Validation:
+  - `server tsc --noEmit ✅`
 - Landmines:
   - No new landmines reported in this chunk.

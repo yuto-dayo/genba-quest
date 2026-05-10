@@ -1326,7 +1326,6 @@ router.delete("/:id", async (req: AuthenticatedRequest, res: Response) => {
         const { data, error } = await supabaseAdmin
             .from("sites")
             .update({
-                status: "deleted",
                 deleted_at: new Date().toISOString(),
                 deleted_by: req.userId!,
                 deletion_reason: reason.trim(),
