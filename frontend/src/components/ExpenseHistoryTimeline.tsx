@@ -179,24 +179,23 @@ function renderEntryDetail(entry: ExpenseHistoryEntry) {
 }
 
 export function ExpenseHistoryTimeline({ expenseId }: Props) {
-    const [entries, setEntries] = useState<ExpenseHistoryEntry[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    // Tag fetched / errored state with the expenseId they belong to so we
+    // can derive `loading` from staleness instead of calling setLoading()
+    // synchronously inside the effect (react-hooks/set-state-in-effect).
+    const [fetched, setFetched] = useState<{ id: string; entries: ExpenseHistoryEntry[] } | null>(null);
+    const [error, setError] = useState<{ id: string; message: string } | null>(null);
 
     useEffect(() => {
         let cancelled = false;
-        setLoading(true);
-        setError(null);
-
         fetchExpenseHistory(expenseId)
             .then((res) => {
-                if (!cancelled) setEntries(res.entries);
+                if (!cancelled) {
+                    setFetched({ id: expenseId, entries: res.entries });
+                    setError(null);
+                }
             })
             .catch((err: unknown) => {
-                if (!cancelled) setError(getErrorMessage(err));
-            })
-            .finally(() => {
-                if (!cancelled) setLoading(false);
+                if (!cancelled) setError({ id: expenseId, message: getErrorMessage(err) });
             });
 
         return () => {
@@ -204,11 +203,16 @@ export function ExpenseHistoryTimeline({ expenseId }: Props) {
         };
     }, [expenseId]);
 
+    const isCurrentError = error?.id === expenseId;
+    const isCurrentFetched = fetched?.id === expenseId;
+    const loading = !isCurrentError && !isCurrentFetched;
+    const entries = fetched?.entries ?? [];
+
     return (
         <section className={styles.section} aria-label="編集履歴">
             <h4 className={styles.heading}>編集履歴</h4>
-            {error ? (
-                <div className={styles.error}>履歴を取得できませんでした: {error}</div>
+            {isCurrentError && error ? (
+                <div className={styles.error}>履歴を取得できませんでした: {error.message}</div>
             ) : loading ? (
                 <div className={styles.empty}>読み込み中…</div>
             ) : entries.length === 0 ? (

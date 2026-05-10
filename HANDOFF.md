@@ -24,43 +24,43 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `Commit category label fix; open Phase 1 PR`. Source: realtime
+- [focus] NEXT_CMD: `Push, wait for CI, merge PR #11`. Source: realtime
+- [H0014] Completed: Fix CI lint failure: refactor MoneyBucketDashboard + ExpenseHistoryTimeline to derive loading from staleness instead of synchronous setLoading/setError inside useEffect (react-hooks/set-state-in-effect rule)
+- [H0014] Remaining: Push, wait for CI, merge PR #11
 - [H0013] Completed: Browser E2E verification on remote Supabase (M-1..M-5 pushed via supabase db push): bucket dashboard renders, scope chips work, 201 on canonical RPC, missing_invoice_number flag → 要確認, history timeline shows fields in 職人語 (after fixing category to render via EXPENSE_CATEGORY_LABEL), void → reversal nets to zero. Cosmetic gap: reversal entries have NULL expense_scope and land in 未割当 — out of scope for this PR.
 - [H0013] Remaining: Commit category label fix; open Phase 1 PR
-- [H0012] Completed: S-4 dynamic flag (partial): duplicate_suspected — same org/vendor/date/amount lookup at insert time. Cheap heuristic catches re-uploaded receipts. Added regression test asserting the dup query keys and the resulting flag. accountingRoute jest 63/63.
-- [H0012] Remaining: S-2 threshold policy migration / advance_stale + budget_overrun batch / Phase 1 PR
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0014] Auto-captured decision: Fix CI lint failure: refactor MoneyBucketDashboard + ExpenseHistoryTimeline to derive loading from staleness instead of synchronous setLoading/setError inside useEffect (react-h...
 - [H0013] Auto-captured decision: Browser E2E verification on remote Supabase (M-1..M-5 pushed via supabase db push): bucket dashboard renders, scope chips work, 201 on canonical RPC, missing_invoice_number flag...
 - [H0012] Auto-captured decision: S-4 dynamic flag (partial): duplicate_suspected — same org/vendor/date/amount lookup at insert time. Cheap heuristic catches re-uploaded receipts. Added regression test assert...
 - [H0011] Auto-captured decision: F-3 capture flow scope chips: 4-value chip picker (現場/先行仕入れ/共通在庫/本部・会社) replaces the SITE/HQ radio in ExpenseModal, with hint text per option, au...
 - [H0010] Auto-captured decision: F-2 expense detail history view: GET /expenses/:id/history backend endpoint (org-scoped, append-only fetch); ExpenseHistoryTimeline component with 職人語 actor/source/field l...
-- [H0009] Auto-captured decision: F-1 bucket dashboard: new MoneyBucketDashboard component with 6 buckets (未割当/要確認/確認待ち/帳簿入り/高額な工具/先行仕入れ・古い), 職人語 label...
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0013] No new landmines reported in this chunk.
+- [H0014] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0014] Push, wait for CI, merge PR #11
 - [H0013] Commit category label fix; open Phase 1 PR
 - [H0012] S-2 threshold policy migration / advance_stale + budget_overrun batch / Phase 1 PR
 - [H0011] S-2 threshold policy migration / S-4 dynamic flags / final PR review
 - [H0010] F-3 capture flow scope chips for ExpenseModal
-- [H0009] F-2 detail view with field_change_log history; F-3 capture flow scope chips; S-2 policy migration; S-4 dynamic flags via batch job
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `13`
+- current_l3_entries: `14`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -280,5 +280,21 @@
   - Auto-captured decision: Browser E2E verification on remote Supabase (M-1..M-5 pushed via supabase db push): bucket dashboard renders, scope chips work, 201 on canonical RPC, missing_invoice_number flag...
 - Validation:
   - `Production-DB E2E happy path verified, jest 63/63`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-10 21:27:48 +0900
+
+- Entry-ID: `H0014`
+- Completed:
+  - [x] Fix CI lint failure: refactor MoneyBucketDashboard + ExpenseHistoryTimeline to derive loading from staleness instead of synchronous setLoading/setError inside useEffect (react-hooks/set-state-in-effect rule)
+- Remaining:
+  - [ ] Push, wait for CI, merge PR #11
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: Fix CI lint failure: refactor MoneyBucketDashboard + ExpenseHistoryTimeline to derive loading from staleness instead of synchronous setLoading/setError inside useEffect (react-h...
+- Validation:
+  - `eslint clean, tsc clean, vite build clean`
 - Landmines:
   - No new landmines reported in this chunk.

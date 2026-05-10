@@ -40,42 +40,44 @@ const DISPLAY_ORDER: BucketKey[] = [
 const formatYen = (value: number) => `¥${Math.abs(value).toLocaleString()}`;
 
 export function MoneyBucketDashboard({ month, onSelectBucket, refreshKey }: Props) {
-    const [report, setReport] = useState<ExpenseBucketsReport | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    // Track which (month, refreshKey) the data corresponds to so we can derive
+    // loading from "data is stale relative to current props" instead of
+    // calling setLoading() synchronously inside the effect (which trips
+    // react-hooks/set-state-in-effect — see CI lint).
+    const requestKey = `${month ?? ""}::${refreshKey ?? ""}`;
+    const [fetched, setFetched] = useState<{ key: string; data: ExpenseBucketsReport } | null>(null);
+    const [error, setError] = useState<{ key: string; message: string } | null>(null);
 
     useEffect(() => {
         let cancelled = false;
-        setLoading(true);
-        setError(null);
-
         fetchExpenseBuckets(month)
             .then((data) => {
                 if (!cancelled) {
-                    setReport(data);
+                    setFetched({ key: requestKey, data });
+                    setError(null);
                 }
             })
             .catch((err: unknown) => {
                 if (!cancelled) {
-                    setError(getErrorMessage(err));
-                }
-            })
-            .finally(() => {
-                if (!cancelled) {
-                    setLoading(false);
+                    setError({ key: requestKey, message: getErrorMessage(err) });
                 }
             });
 
         return () => {
             cancelled = true;
         };
-    }, [month, refreshKey]);
+    }, [month, refreshKey, requestKey]);
 
-    if (error) {
+    const isCurrentError = error?.key === requestKey;
+    const isCurrentReport = fetched?.key === requestKey;
+    const loading = !isCurrentError && !isCurrentReport;
+    const report = fetched?.data ?? null;
+
+    if (isCurrentError && error) {
         return (
             <section className={styles.section} aria-label="経費の状態">
                 <div className={styles.errorBox}>
-                    バケットを取得できませんでした: {error}
+                    バケットを取得できませんでした: {error.message}
                 </div>
             </section>
         );
