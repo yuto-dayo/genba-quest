@@ -883,7 +883,7 @@ export function Calendar() {
                             >
                                 <button
                                     type="button"
-                                    className={`${styles.segmentButton} ${scope === 'organization' ? `${styles.active} ${styles.scopeActive}` : ''}`}
+                                    className={`${styles.segmentButton} ${scope === 'organization' ? styles.scopeActive : ''}`}
                                     onClick={() => setScope('organization')}
                                     aria-pressed={scope === 'organization'}
                                 >
@@ -892,7 +892,7 @@ export function Calendar() {
                                 </button>
                                 <button
                                     type="button"
-                                    className={`${styles.segmentButton} ${scope === 'personal' ? `${styles.active} ${styles.scopeActive}` : ''}`}
+                                    className={`${styles.segmentButton} ${scope === 'personal' ? styles.scopeActive : ''}`}
                                     onClick={() => setScope('personal')}
                                     aria-pressed={scope === 'personal'}
                                 >
@@ -901,7 +901,7 @@ export function Calendar() {
                                 </button>
                                 <button
                                     type="button"
-                                    className={`${styles.segmentButton} ${styles.modeBoundary} ${viewMode === 'month' ? `${styles.active} ${styles.viewActive}` : ''}`}
+                                    className={`${styles.segmentButton} ${styles.modeBoundary} ${viewMode === 'month' ? styles.viewActive : ''}`}
                                     onClick={() => setViewMode('month')}
                                     aria-pressed={viewMode === 'month'}
                                 >
@@ -909,7 +909,7 @@ export function Calendar() {
                                 </button>
                                 <button
                                     type="button"
-                                    className={`${styles.segmentButton} ${viewMode === 'year' ? `${styles.active} ${styles.viewActive}` : ''}`}
+                                    className={`${styles.segmentButton} ${viewMode === 'year' ? styles.viewActive : ''}`}
                                     onClick={() => setViewMode('year')}
                                     aria-pressed={viewMode === 'year'}
                                 >
