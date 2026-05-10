@@ -2,30 +2,39 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `Decision: production 適用方法を3択から選ぶ。(a) production 側で migration_history desync を repair 後 supabase db push (b) Management API で SQL 直接適用 (history 不揃い残る) (c) いったん延期し review/data backup 強化。どれを取るかは user explicit approval。Remote DB migration / push remain blocked until explicit approval.`
-- SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
+- NEXT_CMD: `User selected option (a): production migration repair + supabase db push. Pre-flight first; do not run db push until pre-flight is complete and the user re-confirms in this new session. Order: 1) enable PITR on genba-quest; 2) pg_dump production to a local file; 3) supabase migration repair --status reverted 20260506094218 20260506094252; 4) supabase migration repair --status applied 20260506093000 20260506094251; 5) supabase db push (applies the 20 v2.2 migrations); 6) re-run runbook checkpoints + advisor diff against production; 7) schedule v22-staging branch for deletion.`
+- SUCCESS_CRITERIA: `production main has migrations through 20260510020300, all 4 group checkpoints pass on production, security advisor diff is non-regressing, v22-staging branch is scheduled for deletion`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/local.md`
-  - `/Users/yutoyoshino/Documents/genba-quest/docs/DESIGN_PHILOSOPHY.md`
+  - `/Users/yutoyoshino/Documents/genba-quest/docs/runbooks/accounting-v22-staging-rollback.md`
+  - `/Users/yutoyoshino/Documents/genba-quest/artifacts/accounting-v2.2/branch_validation_test.md`
+  - `/Users/yutoyoshino/Documents/genba-quest/artifacts/accounting-v2.2/pr_review_package.md`
 - DO_NOT_READ:
-  - `docs/DESIGN_PHILOSOPHY.md` (full)
+  - `docs/DESIGN_PHILOSOPHY.md` (full) — production apply does not require it
+  - large wiring migrations 20260510020100 / 20260510020300 (already validated)
 - VERIFY_FIRST:
-  - `sed -n '1,120p' docs/DESIGN_PHILOSOPHY.md`
+  - `gh pr view 9 --json state,mergeable,mergeStateStatus,isDraft` (expect OPEN / MERGEABLE / CLEAN / not draft)
+  - `curl -s -H "Authorization: Bearer <PAT>" https://api.supabase.com/v1/projects/ggnxplgngmcelkdqhgfx/branches | jq '.[].name'` (expect main + v22-staging)
 - STATE:
   - Branch: `codex/money-fix`
-  - Uncommitted: `5 files`
-  - DB migrations: `latest local: none found`
-  - Tests: `not run yet`
-  - Lint: `not run yet`
+  - Uncommitted: `0 files`
+  - PR: `#9 OPEN, MERGEABLE, CLEAN, ready for review (not draft)`
+  - Latest local migration: `20260510020300_wire_idempotency_lookup_to_canonical_rpcs.sql`
+  - Production main migration head: `20260506094325` (v2.2 not yet applied)
+  - Supabase preview branch: `v22-staging` (project_ref `meuhcmruuhfwpxuwigjk`) — v2.2 applied via Management API for validation, billed at $0.01344/h, schedule for deletion after production apply
+  - Tests: server `npx tsc --noEmit` PASS, accountingRoute 56/56 PASS, 6 v2.2 evidence scripts PASS
+  - SQL boundary guard: PASS
+  - git diff --check: clean
 
-  - HEAD: `3f2ddfd`
-  - Updated: `2026-05-10T16:13:53+0900`
+  - HEAD: `a13e9ac`
+  - Updated: `2026-05-10T16:50:00+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
 
 <!-- HANDOFF_SESSION_EVENTS_START -->
 - 2026-05-08 23:14:34 +0900 — started by codex
+- 2026-05-10 16:18:40 +0900 — ended by codex
 <!-- HANDOFF_SESSION_EVENTS_END -->
 
 ---
@@ -44,8 +53,8 @@
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
-- [H0040] Auto-captured decision: Supabase Branch (v22-staging) を作成して 20本の v2.2 migration を適用・検証完了。Production DB は未変更。supabase CLI db push が migration_history 時刻�...
-- [H0039] Auto-captured decision: PR #9 pre-staging cleanup を完了。origin/master を codex/money-fix にマージし conflict (handoff/local.md) を解消。docs を 36 migrations / 20 v2.2 migrations 表�...
+- [H0040] Auto-captured decision: Supabase Branch (v22-staging) を作成して 20本の v2.2 migration を適用・検証完了。Production DB は未変更。supabase CLI db push が migration_history 時刻�...
+- [H0039] Auto-captured decision: PR #9 pre-staging cleanup を完了。origin/master を codex/money-fix にマージし conflict (handoff/local.md) を解消。docs を 36 migrations / 20 v2.2 migrations 表�...
 - [H0038] Auto-captured decision: v2.2 idempotency lookup helper を追加し canonical posting RPC 6本を再生成。private.find_idempotent_execution(uuid, text, text) returns SETOF public.proposal_executions...
 - [H0037] Auto-captured decision: v2.2 clean local DB rebuild証跡追加 + staging rollback/repair runbook 起草。supabase db reset --local で 34 migrations が clean に適用、その後 v2.2 evidence scri...
 - [H0036] Auto-captured decision: v2.2 party/org boundary asserts wired into 3 canonical RPCs and validated. Added private.assert_customer_belongs_to_org and assert_member_belongs_to_org helpers, re-created rpc_...
@@ -166,10 +175,10 @@ cd frontend && npx eslint src/
 
 | Check | Result | Notes |
 | ----- | ------ | ----- |
-| server typecheck | PASS | cd server && npx tsc --noEmit |
-| frontend typecheck | SKIP | not run yet |
-| lint | SKIP | not run yet |
-| test | PASS | 13/13 party-org boundary + 56/56 accountingRoute + all v2.2 evidence scripts |
+| server typecheck | PASS | run by session-end (2026-05-10 16:18) |
+| frontend typecheck | PASS | run by session-end (2026-05-10 16:18) |
+| lint | PASS | frontend eslint src/ at 2026-05-10 16:18 |
+| test | FAIL | server npm test -- --runInBand at 2026-05-10 16:18 |
 
 ---
 
@@ -442,7 +451,7 @@ cd frontend && npx eslint src/
   - `docs/runbooks/accounting-v22-staging-rollback.md` - 18->20 migrations, expand Group D to 5 migrations with idempotency helper checkpoint, expand Class 1 list and rollback fast-path
   - `artifacts/accounting-v2.2/invoice_transfer_canonical_test.md` - trim trailing blank line
 - Working Context:
-  - Auto-captured decision: PR #9 pre-staging cleanup を完了。origin/master を codex/money-fix にマージし conflict (handoff/local.md) を解消。docs を 36 migrations / 20 v2.2 migrations 表�...
+  - Auto-captured decision: PR #9 pre-staging cleanup を完了。origin/master を codex/money-fix にマージし conflict (handoff/local.md) を解消。docs を 36 migrations / 20 v2.2 migrations 表�...
 - Validation:
   - `git merge origin/master => conflict in handoff/local.md only, resolved`
   - `supabase db reset --local => 36 migrations applied, 0 hard errors`
@@ -469,7 +478,7 @@ cd frontend && npx eslint src/
 - Changed Files:
   - `artifacts/accounting-v2.2/branch_validation_test.md` - branch apply + checkpoint + advisor diff evidence
 - Working Context:
-  - Auto-captured decision: Supabase Branch (v22-staging) を作成して 20本の v2.2 migration を適用・検証完了。Production DB は未変更。supabase CLI db push が migration_history 時刻�...
+  - Auto-captured decision: Supabase Branch (v22-staging) を作成して 20本の v2.2 migration を適用・検証完了。Production DB は未変更。supabase CLI db push が migration_history 時刻�...
 - Validation:
   - `20/20 v2.2 migrations applied to branch via Management API SQL endpoint => 0 hard errors`
   - `Group A/B/C/D checkpoints => 4/4 PASS`
