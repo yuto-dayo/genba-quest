@@ -420,6 +420,59 @@ describe("accounting router", () => {
     expect(mockFrom).not.toHaveBeenCalledWith("accounting_write_idempotency_keys");
   });
 
+  it("POST /expenses computes S-4 anomaly flags at create time", async () => {
+    // Tool over 100k with no receipt and no invoice_number should land
+    // with three static flags: missing_invoice_number, missing_receipt,
+    // asset_candidate.
+    const siteChain = createChain({ data: { id: "site-1", status: "active" }, error: null });
+    const txInsertChain = createChain({
+      data: {
+        id: "tx-flags-1",
+        kind: "expense",
+        amount_total: 120000,
+        recorded_date: "2026-05-10",
+      },
+      error: null,
+    });
+    const existingEntryChain = createChain({ data: null, error: null });
+    const entryInsertChain = createChain({ data: { id: "entry-flags-1" }, error: null });
+    const lineInsertChain = createChain({ data: null, error: null });
+    setupMockFromSequence(mockFrom, [
+      siteChain,
+      txInsertChain,
+      existingEntryChain,
+      entryInsertChain,
+      lineInsertChain,
+    ]);
+
+    const req = {
+      userId: "user-1",
+      orgId: "org-1",
+      body: {
+        idempotency_key: "expense-flags-tool-1",
+        cost_center: "SITE",
+        site_id: "site-1",
+        amount_total: 120000,
+        category: "tool",
+        expense_scope: "job",
+        // High risk path (tool > 30000) so it stays on the legacy insert
+        // path where flags pass through the insert payload directly.
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createExpenseHandler(req, res);
+
+    expect(txInsertChain.insert).toHaveBeenCalledWith(expect.objectContaining({
+      flags: expect.arrayContaining([
+        "missing_invoice_number",
+        "missing_receipt",
+        "asset_candidate",
+      ]),
+      invoice_number: null,
+    }));
+  });
+
   it("POST /expenses accepts the four expanded expense_scope values", async () => {
     // Just probe the scope validator: an unknown value should 400, while
     // each of the four valid values should pass past the scope gate. We do

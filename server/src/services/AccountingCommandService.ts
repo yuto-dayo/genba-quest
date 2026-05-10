@@ -55,6 +55,8 @@ export type ExpenseInsertPayload = {
     legacy_source_id?: string | null;
     metadata_json?: Record<string, unknown>;
     expense_scope?: "job" | "job_advance" | "stockpile" | "overhead";
+    flags?: string[];
+    invoice_number?: string | null;
     paid_by?: "org" | "member";
     claimant_member_id?: string | null;
     settlement_type?: "paid" | "unpaid";
@@ -470,6 +472,8 @@ export async function insertExpenseTransaction(payload: ExpenseInsertPayload) {
             "payment_account",
             "reimbursement_status",
             "recurring_template_id",
+            "flags",
+            "invoice_number",
         ];
         const missingV22Column = v22CompatColumns.find((column) => isMissingColumnError(error, column));
         if (missingV22Column) {

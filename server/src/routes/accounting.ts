@@ -1507,6 +1507,22 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
 
         const requiresReview = risk_level === "HIGH";
 
+        // S-4 anomaly detection (rule-based, computable at insert time).
+        // Dynamic flags (duplicate_suspected, advance_stale, budget_overrun)
+        // are out of scope here — they require cross-row queries or
+        // batch evaluation and will be added in a follow-up.
+        // docs/MONEY_EXPENSE_FLOW.md §6.2
+        const flagsAtCreate: string[] = [];
+        if (!normalizedInvoiceNumber) {
+            flagsAtCreate.push("missing_invoice_number");
+        }
+        if (!source_document_id) {
+            flagsAtCreate.push("missing_receipt");
+        }
+        if (normalizedCategory === "tool" && resolvedTotal >= 100000) {
+            flagsAtCreate.push("asset_candidate");
+        }
+
         // The canonical posting RPC currently understands only 'job' and
         // 'overhead' for expense_scope. New scopes (job_advance / stockpile)
         // fall through to the legacy insert path until the RPC is extended.
@@ -1547,23 +1563,31 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
             const canonicalData = canonicalResult?.transaction;
 
             if (canonicalData && typeof canonicalData === "object" && "id" in canonicalData) {
-                if (normalizedInvoiceNumber) {
+                {
                     const txId = (canonicalData as Record<string, unknown>).id;
-                    if (typeof txId === "string") {
+                    const patch: Record<string, unknown> = {};
+                    if (normalizedInvoiceNumber) {
                         const existingMetadata = (canonicalData as Record<string, unknown>).metadata_json;
-                        const mergedMetadata = {
+                        patch.metadata_json = {
                             ...(existingMetadata && typeof existingMetadata === "object" ? existingMetadata as Record<string, unknown> : {}),
                             invoice_number: normalizedInvoiceNumber,
                         };
-                        const { error: metadataPatchError } = await supabaseAdmin
+                        // T-FIX-1 also wants the typed column populated; M-5 added it.
+                        patch.invoice_number = normalizedInvoiceNumber;
+                    }
+                    if (flagsAtCreate.length > 0) {
+                        patch.flags = flagsAtCreate;
+                    }
+                    if (typeof txId === "string" && Object.keys(patch).length > 0) {
+                        const { error: patchError } = await supabaseAdmin
                             .from("accounting_transactions")
-                            .update({ metadata_json: mergedMetadata })
+                            .update(patch)
                             .eq("id", txId)
                             .eq("org_id", orgId);
-                        if (metadataPatchError) {
-                            console.error("Failed to persist invoice_number on canonical expense:", metadataPatchError);
+                        if (patchError) {
+                            console.error("Failed to persist invoice_number/flags on canonical expense:", patchError);
                         } else {
-                            (canonicalData as Record<string, unknown>).metadata_json = mergedMetadata;
+                            Object.assign(canonicalData as Record<string, unknown>, patch);
                         }
                     }
                 }
@@ -1666,6 +1690,8 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
             payment_account: normalizedPaymentAccount as "cash" | "bank" | null,
             reimbursement_status: normalizedReimbursementStatus as "unsubmitted" | "submitted" | "approved" | "reimbursed" | null,
             recurring_template_id: normalizedRecurringTemplateId,
+            flags: flagsAtCreate,
+            invoice_number: normalizedInvoiceNumber,
             created_by: req.userId!,
         });
 

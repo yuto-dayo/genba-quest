@@ -24,43 +24,43 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `S-2 threshold policy migration / S-4 anomaly rule engine (auto-set flags on insert) / F-1 bucket dashboard rendering`. Source: realtime
+- [focus] NEXT_CMD: `F-1 bucket dashboard frontend rendering, then S-4 dynamic flags (duplicate_suspected, advance_stale, budget_overrun) as a follow-up batch job, plus S-2 threshold policy migration`. Source: realtime
+- [H0008] Completed: S-4 minimal anomaly rules: missing_invoice_number, missing_receipt, asset_candidate flags computed and persisted at insert time on both canonical and legacy paths. Also persisted typed invoice_number column. accountingRoute jest 60/60.
+- [H0008] Remaining: F-1 bucket dashboard frontend rendering, then S-4 dynamic flags (duplicate_suspected, advance_stale, budget_overrun) as a follow-up batch job, plus S-2 threshold policy migration
 - [H0007] Completed: S-3 expense_field_change_log writer (registered + ocr_extracted entries on create, append-only via supabaseAdmin); S-5 GET /expense_buckets aggregation endpoint (6 buckets: unassigned/needs_review/awaiting_verify/posted/asset_candidates/advance_stale + oldest_unassigned_age_days). Frontend api client wired with fetchExpenseBuckets. accountingRoute jest 59/59.
 - [H0007] Remaining: S-2 threshold policy migration / S-4 anomaly rule engine (auto-set flags on insert) / F-1 bucket dashboard rendering
-- [H0006] Completed: S-1 server scope branching: route accepts 4 values (job/job_advance/stockpile/overhead), site requirement gated by scope, canonical RPC bypassed for new scopes (legacy insert path takes job_advance/stockpile until RPC migration). 58/58 tests passing.
-- [H0006] Remaining: S-2 policy migration / S-3 field_change_log writer / S-4 anomaly rules / S-5 bucket aggregation endpoint, then F-1..F-4 frontend
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0008] Auto-captured decision: S-4 minimal anomaly rules: missing_invoice_number, missing_receipt, asset_candidate flags computed and persisted at insert time on both canonical and legacy paths. Also persiste...
 - [H0007] Auto-captured decision: S-3 expense_field_change_log writer (registered + ocr_extracted entries on create, append-only via supabaseAdmin); S-5 GET /expense_buckets aggregation endpoint (6 buckets: unas...
 - [H0006] Auto-captured decision: S-1 server scope branching: route accepts 4 values (job/job_advance/stockpile/overhead), site requirement gated by scope, canonical RPC bypassed for new scopes (legacy insert pa...
 - [H0005] Auto-captured decision: M-1..M-5 DB migrations applied locally; expense_scope expanded to 4 values; flags TEXT[] + GIN; expense_field_change_log append-only RLS; expense_lifecycle_state with backfill; ...
 - [H0004] Auto-captured decision: Plain-language pass: added 職人語 vocabulary mapping to MONEY_EXPENSE_FLOW.md §11, replaced jargon (scope/posted/verified/missing_*) throughout HTML mock with 職人 readabl...
-- [H0003] Auto-captured decision: T-FIX-1: persist invoice_number end-to-end (api type, ExpenseModal payload, accounting destructure, T+13 format validation, metadata_json on legacy and canonical paths, proposal...
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0007] No new landmines reported in this chunk.
+- [H0008] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0008] F-1 bucket dashboard frontend rendering, then S-4 dynamic flags (duplicate_suspected, advance_stale, budget_overrun) as a follow-up batch job, plus S-2 threshold policy migration
 - [H0007] S-2 threshold policy migration / S-4 anomaly rule engine (auto-set flags on insert) / F-1 bucket dashboard rendering
 - [H0006] S-2 policy migration / S-3 field_change_log writer / S-4 anomaly rules / S-5 bucket aggregation endpoint, then F-1..F-4 frontend
 - [H0005] S-1..S-5 server: scope branching, invoice_number column writer, field_change_log writer, anomaly rules, bucket aggregation endpoint
 - [H0004] M-1..M-5 DB migrations
-- [H0003] M-1..M-5 DB migrations: scope 4-value CHECK, flags TEXT[] column, expense_field_change_log table (append-only RLS), review_status enum extension, invoice_number column with index
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `7`
+- current_l3_entries: `8`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -184,5 +184,21 @@
   - Auto-captured decision: S-3 expense_field_change_log writer (registered + ocr_extracted entries on create, append-only via supabaseAdmin); S-5 GET /expense_buckets aggregation endpoint (6 buckets: unas...
 - Validation:
   - `tsc clean (server + frontend), accountingRoute jest 59/59 including new bucket aggregation test`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-10 20:39:12 +0900
+
+- Entry-ID: `H0008`
+- Completed:
+  - [x] S-4 minimal anomaly rules: missing_invoice_number, missing_receipt, asset_candidate flags computed and persisted at insert time on both canonical and legacy paths. Also persisted typed invoice_number column. accountingRoute jest 60/60.
+- Remaining:
+  - [ ] F-1 bucket dashboard frontend rendering, then S-4 dynamic flags (duplicate_suspected, advance_stale, budget_overrun) as a follow-up batch job, plus S-2 threshold policy migration
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: S-4 minimal anomaly rules: missing_invoice_number, missing_receipt, asset_candidate flags computed and persisted at insert time on both canonical and legacy paths. Also persiste...
+- Validation:
+  - `tsc clean, accountingRoute jest 60/60 incl. anomaly flag computation test`
 - Landmines:
   - No new landmines reported in this chunk.
