@@ -24,43 +24,43 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `open PR; merge once CI green so Render deploys master`. Source: realtime
+- [focus] NEXT_CMD: `Phase 2: LevelDraftSheet UI + bell notification wiring + remove Today role chip`. Source: realtime
+- [H0022] Completed: feat(reward): V3.3 Phase 1 restored on rebased branch (migration + aggregateMonthlyLevel pure fn + 16 unit tests)
+- [H0022] Remaining: Phase 2: LevelDraftSheet UI + bell notification wiring + remove Today role chip
 - [H0021] Completed: fix(build): hotfix JSX namespace TS2503 errors on master — added 'import type { JSX } from react' to 7 files, removed now-unused @ts-expect-error in App.test.tsx
 - [H0021] Remaining: open PR; merge once CI green so Render deploys master
-- [H0020] Completed: fix(lint): split _shared.tsx → _shared-utils.ts (react-refresh/only-export-components), createElement(Body) instead of JSX (react-hooks/static-components), framer-motion mock filter pattern, drop unused getSiteLevelDraftSiteName
-- [H0020] Remaining: Wait CI green and merge
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0022] Auto-captured decision: feat(reward): V3.3 Phase 1 restored on rebased branch (migration + aggregateMonthlyLevel pure fn + 16 unit tests)
 - [H0021] Auto-captured decision: fix(build): hotfix JSX namespace TS2503 errors on master — added 'import type { JSX } from react' to 7 files, removed now-unused @ts-expect-error in App.test.tsx
 - [H0020] Auto-captured decision: fix(lint): split _shared.tsx → _shared-utils.ts (react-refresh/only-export-components), createElement(Body) instead of JSX (react-hooks/static-components), framer-motion mock ...
 - [H0019] Auto-captured decision: docs(reward): V3.3 transparent governance design (Phase 0) — 3-tier per-site self-report → weighted average → 5-tier monthly with 1.25 multiplier; team-visible peer review...
 - [H0018] Auto-captured decision: fix(fab): raise FAB above bottom tab bar so 🔔 chip stays visible (FAB_MARGIN_BOTTOM 16→92, mobile media query bottom calc)
-- [H0017] Auto-captured decision: refactor(proposal): per-type body registry — PathReward / Accounting / Invoice / CommunicationTask / CommunicationReview / Generic; ProposalDetailModal slimmed 740→256 lines
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0021] No new landmines reported in this chunk.
+- [H0022] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0022] Phase 2: LevelDraftSheet UI + bell notification wiring + remove Today role chip
 - [H0021] open PR; merge once CI green so Render deploys master
 - [H0020] Wait CI green and merge
 - [H0019] Implementation in new branch feat/path-reward-v33-transparent (Phase 1: schema + aggregation function)
 - [H0018] Commit V3.3 design doc
-- [H0017] FAB margin fix commit
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `12`
+- current_l3_entries: `13`
 - last_compacted_at: `2026-05-11 05:54:12 +0900`
 - archived_entries: `9`
 <!-- HANDOFF_L2_STATE_END -->
@@ -267,5 +267,21 @@
   - Auto-captured decision: fix(build): hotfix JSX namespace TS2503 errors on master — added 'import type { JSX } from react' to 7 files, removed now-unused @ts-expect-error in App.test.tsx
 - Validation:
   - `frontend build clean / eslint 0 / vitest App.test.tsx 25/25 / server tsc clean`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-11 05:58:30 +0900
+
+- Entry-ID: `H0022`
+- Completed:
+  - [x] feat(reward): V3.3 Phase 1 restored on rebased branch (migration + aggregateMonthlyLevel pure fn + 16 unit tests)
+- Remaining:
+  - [ ] Phase 2: LevelDraftSheet UI + bell notification wiring + remove Today role chip
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: feat(reward): V3.3 Phase 1 restored on rebased branch (migration + aggregateMonthlyLevel pure fn + 16 unit tests)
+- Validation:
+  - `jest PathV33RewardService.test.ts 16/16`
 - Landmines:
   - No new landmines reported in this chunk.
