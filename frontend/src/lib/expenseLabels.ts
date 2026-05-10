@@ -97,3 +97,30 @@ export const BUCKET_TONE: Record<BucketKey, "warn" | "bad" | "good" | "neutral">
     asset_candidates: "neutral",
     advance_stale: "bad",
 };
+
+/**
+ * 経費カテゴリ (内部 enum → 職人語表示).
+ * expense_item_code (parking/toll など雑費サブカテゴリ) は別扱い.
+ */
+export const EXPENSE_CATEGORY_LABEL: Record<string, string> = {
+    material: "材料費",
+    tool: "工具・備品",
+    travel: "交通費",
+    food: "食事・会議",
+    fuel: "燃料費",
+    utility: "光熱費",
+    other: "雑費・その他",
+};
+
+export const EXPENSE_TAX_CATEGORY_LABEL: Record<string, string> = {
+    "10_STANDARD": "課税 10%",
+    "08_REDUCED": "軽減 8%",
+    "00_EXEMPT": "非課税",
+    "00_TAXFREE": "不課税",
+};
+
+/** paid_by の値を職人語へ. */
+export const EXPENSE_PAID_BY_LABEL: Record<string, string> = {
+    org: "会社払い",
+    member: "立替払い",
+};

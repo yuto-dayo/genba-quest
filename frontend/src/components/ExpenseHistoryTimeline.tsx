@@ -11,7 +11,13 @@
 import { useEffect, useState } from "react";
 import { fetchExpenseHistory, type ExpenseHistoryEntry } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
-import { EXPENSE_SCOPE_LABEL, type ExpenseScope } from "../lib/expenseLabels";
+import {
+    EXPENSE_CATEGORY_LABEL,
+    EXPENSE_PAID_BY_LABEL,
+    EXPENSE_SCOPE_LABEL,
+    EXPENSE_TAX_CATEGORY_LABEL,
+    type ExpenseScope,
+} from "../lib/expenseLabels";
 import styles from "./ExpenseHistoryTimeline.module.css";
 
 interface Props {
@@ -67,8 +73,19 @@ function formatDateTime(iso: string): string {
 function renderValue(field: string, value: unknown): string {
     if (value === null || value === undefined || value === "") return "—";
     if (typeof value === "boolean") return value ? "はい" : "いいえ";
-    if (field === "expense_scope" && typeof value === "string") {
-        return EXPENSE_SCOPE_LABEL[value as ExpenseScope] ?? value;
+    if (typeof value === "string") {
+        if (field === "expense_scope") {
+            return EXPENSE_SCOPE_LABEL[value as ExpenseScope] ?? value;
+        }
+        if (field === "category") {
+            return EXPENSE_CATEGORY_LABEL[value] ?? value;
+        }
+        if (field === "tax_category") {
+            return EXPENSE_TAX_CATEGORY_LABEL[value] ?? value;
+        }
+        if (field === "paid_by") {
+            return EXPENSE_PAID_BY_LABEL[value] ?? value;
+        }
     }
     if (field === "amount_total" && typeof value === "number") {
         return `¥${value.toLocaleString()}`;
