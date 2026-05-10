@@ -23,8 +23,10 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { type Session } from "@supabase/supabase-js";
 import { CommunicationRecordSheet } from "./components/CommunicationRecordSheet";
+import { NotificationInbox } from "./components/NotificationInbox";
 import { Communications } from "./pages/Communications";
 import { Calendar } from "./pages/Calendar";
 import PathRewardConfirmationPage from "./pages/PathRewardConfirmation";
@@ -38,10 +40,14 @@ import {
   bootstrapFirstOrg,
   fetchAppEntryState,
   fetchNotifications,
+  fetchPendingApprovals,
+  fetchPendingProposals,
+  type AccountingTransaction,
   type AppEntryMembershipRecord,
   type AppEntryPendingInvite,
   type AppEntryStateRecord,
   type NotificationRecord,
+  type ProposalRecord,
 } from "./lib/api";
 import {
   clearDevAuthSession,
@@ -470,23 +476,53 @@ function Navigation({
             );
           })}
 
-          {bellEnabled && (
-            <button
-              type="button"
-              className={`${styles.navChip} ${styles.navChipAction} ${
-                bellNeedsAttention ? styles.navChipActionPending : ""
-              }`}
-              onClick={onOpenBell}
-              aria-label={bellLabel}
-              title={bellLabel}
-            >
-              <span className={styles.navChipSurface}>
-                <Bell size={16} className={styles.navChipIcon} aria-hidden="true" />
-                <span className={styles.navChipLabel}>確認</span>
-                {bellBadgeLabel && <span className={styles.navChipBadge}>{bellBadgeLabel}</span>}
-              </span>
-            </button>
-          )}
+          <AnimatePresence>
+            {bellEnabled && (
+              <motion.button
+                type="button"
+                className={`${styles.navChip} ${styles.navChipAction} ${
+                  bellNeedsAttention ? styles.navChipActionPending : ""
+                }`}
+                onClick={onOpenBell}
+                aria-label={bellLabel}
+                title={bellLabel}
+                initial={{ opacity: 0, scale: 0.6 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.6 }}
+                transition={{ type: "spring", stiffness: 460, damping: 22 }}
+              >
+                <span className={styles.navChipSurface}>
+                  <motion.span
+                    key={`bell-icon-${bellBadgeLabel || "0"}`}
+                    className={styles.navChipIcon}
+                    aria-hidden="true"
+                    initial={false}
+                    animate={
+                      bellNeedsAttention
+                        ? { rotate: [0, -10, 10, -6, 6, -3, 3, 0] }
+                        : { rotate: 0 }
+                    }
+                    transition={{ duration: 0.7, ease: "easeInOut" }}
+                    style={{ display: "inline-flex", transformOrigin: "center top" }}
+                  >
+                    <Bell size={16} />
+                  </motion.span>
+                  <span className={styles.navChipLabel}>確認</span>
+                  {bellBadgeLabel && (
+                    <motion.span
+                      key={`bell-badge-${bellBadgeLabel}`}
+                      className={styles.navChipBadge}
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ type: "spring", stiffness: 540, damping: 18 }}
+                    >
+                      {bellBadgeLabel}
+                    </motion.span>
+                  )}
+                </span>
+              </motion.button>
+            )}
+          </AnimatePresence>
         </nav>
       </div>
     </header>
@@ -1229,6 +1265,9 @@ function AppContent() {
   const navigate = useNavigate();
   const [communicationSheetOpen, setCommunicationSheetOpen] = useState(false);
   const [siteLevelDraftNotifications, setSiteLevelDraftNotifications] = useState<NotificationRecord[]>([]);
+  const [pendingApprovals, setPendingApprovals] = useState<AccountingTransaction[]>([]);
+  const [pendingProposals, setPendingProposals] = useState<ProposalRecord[]>([]);
+  const [inboxOpen, setInboxOpen] = useState(false);
   const [authSession, setAuthSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [passwordRecoveryActive, setPasswordRecoveryActive] = useState(false);
@@ -1306,6 +1345,9 @@ function AppContent() {
     setShowInviteHelp(false);
     setCommunicationSheetOpen(false);
     setSiteLevelDraftNotifications([]);
+    setPendingApprovals([]);
+    setPendingProposals([]);
+    setInboxOpen(false);
   }, [clearActiveOrg]);
 
   useEffect(() => {
@@ -1407,9 +1449,45 @@ function AppContent() {
     }
   }, [activeOrgId, appReady]);
 
+  const loadPendingApprovals = useCallback(async () => {
+    if (!appReady || !activeOrgId) {
+      setPendingApprovals([]);
+      return;
+    }
+    try {
+      const approvals = await fetchPendingApprovals();
+      setPendingApprovals(approvals);
+    } catch (error) {
+      console.error("Failed to load pending approvals:", error);
+      setPendingApprovals([]);
+    }
+  }, [activeOrgId, appReady]);
+
+  const loadPendingProposals = useCallback(async () => {
+    if (!appReady || !activeOrgId) {
+      setPendingProposals([]);
+      return;
+    }
+    try {
+      const proposals = await fetchPendingProposals();
+      setPendingProposals(proposals);
+    } catch (error) {
+      console.error("Failed to load pending proposals:", error);
+      setPendingProposals([]);
+    }
+  }, [activeOrgId, appReady]);
+
   useEffect(() => {
     void loadSiteLevelDraftNotifications();
   }, [loadSiteLevelDraftNotifications]);
+
+  useEffect(() => {
+    void loadPendingApprovals();
+  }, [loadPendingApprovals]);
+
+  useEffect(() => {
+    void loadPendingProposals();
+  }, [loadPendingProposals]);
 
   useEffect(() => {
     window.addEventListener("site-level-draft-updated", loadSiteLevelDraftNotifications);
@@ -1418,33 +1496,71 @@ function AppContent() {
     };
   }, [loadSiteLevelDraftNotifications]);
 
+  useEffect(() => {
+    const handler = () => {
+      void loadPendingApprovals();
+    };
+    window.addEventListener("pending-approvals-updated", handler);
+    return () => {
+      window.removeEventListener("pending-approvals-updated", handler);
+    };
+  }, [loadPendingApprovals]);
+
+  useEffect(() => {
+    const handler = () => {
+      void loadPendingProposals();
+    };
+    window.addEventListener("pending-proposals-updated", handler);
+    return () => {
+      window.removeEventListener("pending-proposals-updated", handler);
+    };
+  }, [loadPendingProposals]);
+
   const siteLevelDraftCount = siteLevelDraftNotifications.length;
-  const bellEnabled = appReady && Boolean(activeOrgId) && siteLevelDraftCount > 0;
-  const bellNeedsAttention = siteLevelDraftCount > 0;
-  const bellBadgeLabel = siteLevelDraftCount > 0 ? String(siteLevelDraftCount) : null;
+  const pendingApprovalsCount = pendingApprovals.length;
+  const pendingProposalsCount = pendingProposals.length;
+  const totalPendingCount = siteLevelDraftCount + pendingApprovalsCount + pendingProposalsCount;
+  const bellEnabled = appReady && Boolean(activeOrgId) && totalPendingCount > 0;
+  const bellNeedsAttention = totalPendingCount > 0;
+  const bellBadgeLabel = totalPendingCount > 0 ? String(totalPendingCount) : null;
   const bellLabel =
-    siteLevelDraftCount === 1
-      ? `${getSiteLevelDraftSiteName(siteLevelDraftNotifications[0])}のレベル入力があります`
-      : `完了現場のレベル入力が${siteLevelDraftCount}件あります`;
+    totalPendingCount === 0
+      ? "未処理はありません"
+      : `未処理が${totalPendingCount}件あります`;
 
   const openBell = useCallback(() => {
     if (!activeOrgId) {
       return;
     }
+    setInboxOpen(true);
+  }, [activeOrgId]);
 
-    const nextNotification = siteLevelDraftNotifications[0];
-    if (!nextNotification) {
-      return;
-    }
+  const handleSelectSiteDraft = useCallback(
+    (notification: NotificationRecord) => {
+      const siteId = getNotificationDataString(notification, "site_id");
+      const params = new URLSearchParams();
+      if (siteId) {
+        params.set("site", siteId);
+      }
+      params.set("levelDraft", notification.id);
+      setInboxOpen(false);
+      navigate(`/sites?${params.toString()}`);
+    },
+    [navigate],
+  );
 
-    const siteId = getNotificationDataString(nextNotification, "site_id");
-    const params = new URLSearchParams();
-    if (siteId) {
-      params.set("site", siteId);
-    }
-    params.set("levelDraft", nextNotification.id);
-    navigate(`/sites?${params.toString()}`);
-  }, [activeOrgId, navigate, siteLevelDraftNotifications]);
+  const handleSelectApproval = useCallback(() => {
+    setInboxOpen(false);
+    navigate("/money?inbox=approvals");
+  }, [navigate]);
+
+  const handleSelectProposal = useCallback(
+    (proposal: ProposalRecord) => {
+      setInboxOpen(false);
+      navigate(`/money?proposal=${proposal.id}`);
+    },
+    [navigate],
+  );
 
   const formatBootstrapError = useCallback((code: string) => {
     if (code === "SYSTEM_BOOTSTRAP_ALREADY_COMPLETED") {
@@ -1766,6 +1882,16 @@ function AppContent() {
               initialTargetKind="new_topic"
             />
           )}
+          <NotificationInbox
+            open={inboxOpen}
+            onClose={() => setInboxOpen(false)}
+            siteLevelDrafts={siteLevelDraftNotifications}
+            pendingApprovals={pendingApprovals}
+            pendingProposals={pendingProposals}
+            onSelectSiteDraft={handleSelectSiteDraft}
+            onSelectApproval={handleSelectApproval}
+            onSelectProposal={handleSelectProposal}
+          />
         </div>
       ) : (
         renderEntryGate()

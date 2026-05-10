@@ -10,6 +10,8 @@ const fetchAppEntryState = vi.fn();
 const bootstrapFirstOrg = vi.fn();
 const bootstrapOrg = vi.fn();
 const fetchNotifications = vi.fn();
+const fetchPendingApprovals = vi.fn();
+const fetchPendingProposals = vi.fn();
 const acceptOrgInvite = vi.fn();
 const getSession = vi.fn();
 const onAuthStateChange = vi.fn();
@@ -25,9 +27,30 @@ vi.mock("framer-motion", () => ({
     motion: new Proxy(
         {},
         {
-            get: () => ({ children, ...props }: ComponentProps<"div">) => (
-                <div {...props}>{children}</div>
-            ),
+            get: (_target, prop) => {
+                const Tag = (typeof prop === "string" ? prop : "div") as keyof JSX.IntrinsicElements;
+                return ({
+                    children,
+                    initial: _initial,
+                    animate: _animate,
+                    exit: _exit,
+                    transition: _transition,
+                    layout: _layout,
+                    layoutId: _layoutId,
+                    whileHover: _whileHover,
+                    whileTap: _whileTap,
+                    whileFocus: _whileFocus,
+                    whileDrag: _whileDrag,
+                    drag: _drag,
+                    dragConstraints: _dragConstraints,
+                    onAnimationStart: _onAnimationStart,
+                    onAnimationComplete: _onAnimationComplete,
+                    ...props
+                }: ComponentProps<"div"> & Record<string, unknown>) => (
+                    // @ts-expect-error dynamic tag mapping
+                    <Tag {...props}>{children}</Tag>
+                );
+            },
         },
     ),
     AnimatePresence: ({ children }: { children: ReactNode }) => <>{children}</>,
@@ -89,6 +112,8 @@ vi.mock("./lib/api", async () => {
         bootstrapFirstOrg: (...args: unknown[]) => bootstrapFirstOrg(...args),
         bootstrapOrg: (...args: unknown[]) => bootstrapOrg(...args),
         fetchNotifications: (...args: unknown[]) => fetchNotifications(...args),
+        fetchPendingApprovals: (...args: unknown[]) => fetchPendingApprovals(...args),
+        fetchPendingProposals: (...args: unknown[]) => fetchPendingProposals(...args),
         acceptOrgInvite: (...args: unknown[]) => acceptOrgInvite(...args),
     };
 });
@@ -118,6 +143,8 @@ describe("App entry gate", () => {
         useActiveOrgStore.setState({ activeOrgId: null, options: [] });
 
         fetchNotifications.mockResolvedValue([]);
+        fetchPendingApprovals.mockResolvedValue([]);
+        fetchPendingProposals.mockResolvedValue([]);
         acceptOrgInvite.mockResolvedValue({
             active_org: {
                 id: "org-1",
@@ -351,8 +378,11 @@ describe("App entry gate", () => {
 
         render(<App />);
 
-        const bell = await screen.findByRole("button", { name: "A棟クロスのレベル入力があります" });
+        const bell = await screen.findByRole("button", { name: "未処理が1件あります" });
         fireEvent.click(bell);
+
+        const inboxItem = await screen.findByRole("button", { name: /A棟クロス/ });
+        fireEvent.click(inboxItem);
 
         expect(await screen.findByText("sites-page")).toBeInTheDocument();
         expect(fetchNotifications).toHaveBeenCalledWith({ unread_only: true, limit: 50 });
