@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { ComponentProps, ReactNode } from "react";
+import type { ComponentProps, JSX, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import styles from "./App.module.css";
@@ -52,7 +52,6 @@ vi.mock("framer-motion", () => ({
                     FRAMER_MOTION_PROPS.forEach((key) => {
                         delete domProps[key];
                     });
-                    // @ts-expect-error dynamic tag mapping
                     return <Tag {...domProps}>{children}</Tag>;
                 };
             },
