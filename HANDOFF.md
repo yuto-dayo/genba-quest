@@ -18,3 +18,65 @@
 - Integration scope: `--domain integration/gmail` -> `handoff/integration/gmail.md`
 - Active session details: see `.session/active_session`
 - Legacy single-file mode: omit both `--profile` and `--domain` to write `HANDOFF.md`
+
+---
+
+## L1. Session Summary (Compacted)
+
+<!-- HANDOFF_L1_START -->
+- [focus] NEXT_CMD: `merge PR + verify Render auto-deploy + spot-check /money on production`. Source: realtime
+- [H0001] Completed: v2.2 hotfix: PostgREST embed FK disambiguation in accounting.ts (5 sites) — server tsc clean, accountingRoute 56/56 PASS
+- [H0001] Remaining: merge PR + verify Render auto-deploy + spot-check /money on production
+<!-- HANDOFF_L1_END -->
+
+## L2. Project Continuity (Compacted)
+
+### Decisions
+<!-- HANDOFF_L2_DECISIONS_START -->
+- [H0001] Auto-captured decision: v2.2 hotfix: PostgREST embed FK disambiguation in accounting.ts (5 sites) — server tsc clean, accountingRoute 56/56 PASS
+<!-- HANDOFF_L2_DECISIONS_END -->
+
+### Landmines
+<!-- HANDOFF_L2_LANDMINES_START -->
+- [H0001] No new landmines reported in this chunk.
+<!-- HANDOFF_L2_LANDMINES_END -->
+
+### Open Threads
+<!-- HANDOFF_L2_THREADS_START -->
+- [H0001] merge PR + verify Render auto-deploy + spot-check /money on production
+<!-- HANDOFF_L2_THREADS_END -->
+
+### Compaction State
+<!-- HANDOFF_L2_STATE_START -->
+- threshold: `20`
+- keep_recent: `12`
+- current_l3_entries: `1`
+- last_compacted_at: `never`
+- archived_entries: `0`
+<!-- HANDOFF_L2_STATE_END -->
+
+---
+
+## 11. Incremental Updates
+
+## Session Events (audit log)
+
+<!-- HANDOFF_SESSION_EVENTS_START -->
+- (no events recorded yet)
+<!-- HANDOFF_SESSION_EVENTS_END -->
+
+### 2026-05-10 17:09:12 +0900
+
+- Entry-ID: `H0001`
+- Completed:
+  - [x] v2.2 hotfix: PostgREST embed FK disambiguation in accounting.ts (5 sites) — server tsc clean, accountingRoute 56/56 PASS
+- Remaining:
+  - [ ] merge PR + verify Render auto-deploy + spot-check /money on production
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: v2.2 hotfix: PostgREST embed FK disambiguation in accounting.ts (5 sites) — server tsc clean, accountingRoute 56/56 PASS
+- Validation:
+  - `npx tsc --noEmit + jest accountingRoute`
+- Landmines:
+  - No new landmines reported in this chunk.
