@@ -14,6 +14,7 @@
 import { supabaseAdmin } from "../lib/supabaseAdmin";
 import { DEV_AUTH_USERS, isDevAuthMode } from "../config/devAuthUsers";
 import { ActorRef } from "./PolicyEngine";
+import { ProposalService } from "./ProposalService";
 import {
   PathV33Tier,
   PATH_V33_LEVEL_WEIGHT_MILLI,
@@ -109,6 +110,11 @@ export class PathV33ObjectionService {
     }
 
     const draft = await this.fetchDraft(draftId);
+    // Per spec §6 Step 1, the objector must be someone OTHER than the
+    // target. Self-correction is done by re-submitting the original draft.
+    if (objectorId === draft.member_id) {
+      throw new Error("PATH_V33_CANNOT_OBJECT_OWN_DRAFT");
+    }
     if (draft.tier === proposedTier) {
       throw new Error("PATH_V33_OBJECTION_NO_CHANGE");
     }
@@ -373,10 +379,12 @@ export class PathV33ObjectionService {
       throw new Error(`Failed to accept objection: ${acceptError?.message ?? "no row"}`);
     }
 
-    // 2. Rewrite the target draft tier to proposed_tier.
+    // 2. Rewrite the target draft tier to proposed_tier and lock it so the
+    //    original member can't reverse the judgment by re-submitting. The
+    //    lock is released only by the next-month rollover. Per audit #1.
     const { error: draftError } = await supabaseAdmin
       .from("site_member_level_drafts")
-      .update({ tier: objection.proposed_tier })
+      .update({ tier: objection.proposed_tier, locked_at: now })
       .eq("id", objection.target_draft_id)
       .eq("org_id", this.orgId);
     if (draftError) {
@@ -394,29 +402,47 @@ export class PathV33ObjectionService {
     return this.normalizeRow(acceptedRow);
   }
 
-  // Best-effort: insert a Proposal wrapper so the objection surfaces in the
-  // existing notification bell + inbox. The proposal stays pending until the
-  // objection accepts/expires (acceptObjection / expire cron transitions it).
+  // Insert a Proposal wrapper through ProposalService so the objection
+  // surfaces in the existing notification bell + inbox AND inherits proper
+  // anchor fields / governance events / idempotency. The proposal stays
+  // pending until the objection accepts (acceptObjection sets executed)
+  // or expires (Phase 5 cron sets rejected). The standard approve button
+  // is suppressed for type=level.objection in the proposal detail UI.
   private async createProposalWrapper(
     objection: ObjectionRecord,
     actor: ActorRef,
   ): Promise<void> {
-    await supabaseAdmin.from("proposals").insert({
-      org_id: this.orgId,
-      type: "level.objection",
-      status: "pending",
-      description: `${objection.target_month} レベル申告への異議`,
-      payload: {
-        objection_id: objection.id,
-        target_member_id: objection.target_member_id,
-        target_draft_id: objection.target_draft_id,
-        proposed_tier: objection.proposed_tier,
-        reason: objection.reason,
-        required_co_signs: objection.required_co_signs,
-        target_month: objection.target_month,
-      },
-      created_by: actor,
-    });
+    const proposalService = new ProposalService(this.orgId);
+    try {
+      const created = await proposalService.create({
+        type: "level.objection",
+        description: `${objection.target_month} レベル申告への異議`,
+        payload: {
+          objection_id: objection.id,
+          target_member_id: objection.target_member_id,
+          target_draft_id: objection.target_draft_id,
+          proposed_tier: objection.proposed_tier,
+          reason: objection.reason,
+          required_co_signs: objection.required_co_signs,
+          target_month: objection.target_month,
+        },
+        created_by: actor,
+        idempotency_key: `level.objection:${objection.id}`,
+      });
+      // Move from draft → pending so the bell picks it up. We bypass
+      // ProposalService.submit() to avoid auto-approving via the default
+      // any-member-1-approval policy; co-sign threshold is the real gate.
+      await supabaseAdmin
+        .from("proposals")
+        .update({ status: "pending" })
+        .eq("id", created.id)
+        .eq("org_id", this.orgId);
+    } catch (err) {
+      // Best-effort: the objection itself is created; if the proposal
+      // wrapper fails (e.g. duplicate idempotency), surface as a warning
+      // rather than rolling back the objection.
+      console.warn("[V33] Failed to create objection proposal wrapper:", err);
+    }
   }
 
   private normalizeRow(row: Record<string, unknown>): ObjectionRecord {

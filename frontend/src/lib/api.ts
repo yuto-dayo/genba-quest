@@ -142,6 +142,7 @@ export type ProposalType =
     | "reward.adjust"
     | "reward.pool.adjust"
     | "path.level.update"
+    | "level.objection"
     | "skill.achieve"
     | "skill.revoke"
     | "evaluation.submit"

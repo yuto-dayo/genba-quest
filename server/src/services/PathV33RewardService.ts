@@ -222,6 +222,24 @@ export class PathV33RewardService {
 
   // Compute work_days for (member, site, month) from site_day_logs (distinct dates).
   // V3.3 stores a snapshot at submit time so re-submitting refreshes the count.
+  private async fetchExistingDraft(
+    siteId: string,
+    memberId: string,
+  ): Promise<{ locked_at: string | null } | null> {
+    const { data, error } = await supabaseAdmin
+      .from("site_member_level_drafts")
+      .select("locked_at")
+      .eq("org_id", this.orgId)
+      .eq("site_id", siteId)
+      .eq("member_id", memberId)
+      .maybeSingle();
+    if (error) {
+      throw new Error(`Failed to fetch existing draft: ${error.message}`);
+    }
+    if (!data) return null;
+    return { locked_at: typeof data.locked_at === "string" ? data.locked_at : null };
+  }
+
   private async countWorkDays(
     memberId: string,
     siteId: string,
@@ -288,6 +306,14 @@ export class PathV33RewardService {
 
     const month = await this.resolveSiteMonth(siteId);
     const workDays = await this.countWorkDays(memberId, siteId, month);
+
+    // V3.3 governance: once a draft is locked (by month-end +3 freeze or by
+    // an accepted Objection rewriting its tier), the member cannot overwrite
+    // it via re-submission. Phase 4 fix per audit finding #1/#2.
+    const existing = await this.fetchExistingDraft(siteId, memberId);
+    if (existing?.locked_at) {
+      throw new Error("PATH_V33_DRAFT_LOCKED");
+    }
 
     const { data, error } = await supabaseAdmin
       .from("site_member_level_drafts")

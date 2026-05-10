@@ -25,31 +25,31 @@
 
 <!-- HANDOFF_L1_START -->
 - [focus] NEXT_CMD: `Phase 5: month-end lock cron + finalization modal + reward_run hook`. Source: realtime
+- [H0026] Completed: audit(reward-v33): close 4 HIGH findings — lock draft on accept (#1), reject locked re-submit (#2), block self-objection (#10), route objection proposal through ProposalService + suppress UI approve button (#4); document 6 deferred items for Phase 5/6
+- [H0026] Remaining: Phase 5: month-end lock cron + finalization modal + reward_run hook
 - [H0025] Completed: feat(reward): V3.3 Phase 4 — PathV33ObjectionService + level.objection Proposal type + ObjectionBody in registry + ObjectionSubmitSheet on team feed (異議 button) + co-sign auto-accept flow
 - [H0025] Remaining: Phase 5: month-end lock cron + finalization modal + reward_run hook
-- [H0024] Completed: feat(reward): V3.3 Phase 3 — GET /v33/team-feed + PathV33PersonalDashboard + PathV33TeamFeed + tabbed /path page (個人 / チーム / 報酬確認)
-- [H0024] Remaining: Phase 4: Objection + Co-sign proposal type + ObjectionBody UI + co-sign API
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0026] Auto-captured decision: audit(reward-v33): close 4 HIGH findings — lock draft on accept (#1), reject locked re-submit (#2), block self-objection (#10), route objection proposal through ProposalServic...
 - [H0025] Auto-captured decision: feat(reward): V3.3 Phase 4 — PathV33ObjectionService + level.objection Proposal type + ObjectionBody in registry + ObjectionSubmitSheet on team feed (異議 button) + co-sign ...
 - [H0024] Auto-captured decision: feat(reward): V3.3 Phase 3 — GET /v33/team-feed + PathV33PersonalDashboard + PathV33TeamFeed + tabbed /path page (個人 / チーム / 報酬確認)
 - [H0023] Auto-captured decision: feat(reward): V3.3 Phase 2 — POST/GET /api/v1/path/module/v33/level-drafts + LevelDraftSheet + bell rewires + Today 役割 button removed
 - [H0022] Auto-captured decision: feat(reward): V3.3 Phase 1 restored on rebased branch (migration + aggregateMonthlyLevel pure fn + 16 unit tests)
-- [H0021] Auto-captured decision: fix(build): hotfix JSX namespace TS2503 errors on master — added 'import type { JSX } from react' to 7 files, removed now-unused @ts-expect-error in App.test.tsx
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0025] No new landmines reported in this chunk.
+- [H0026] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
-- [H0025] Phase 5: month-end lock cron + finalization modal + reward_run hook
+- [H0026] Phase 5: month-end lock cron + finalization modal + reward_run hook
 - [H0024] Phase 4: Objection + Co-sign proposal type + ObjectionBody UI + co-sign API
 - [H0023] Phase 3: /path/team feed + personal dashboard
 - [H0022] Phase 2: LevelDraftSheet UI + bell notification wiring + remove Today role chip
@@ -60,7 +60,7 @@
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `16`
+- current_l3_entries: `17`
 - last_compacted_at: `2026-05-11 05:54:12 +0900`
 - archived_entries: `9`
 <!-- HANDOFF_L2_STATE_END -->
@@ -331,5 +331,21 @@
   - Auto-captured decision: feat(reward): V3.3 Phase 4 — PathV33ObjectionService + level.objection Proposal type + ObjectionBody in registry + ObjectionSubmitSheet on team feed (異議 button) + co-sign ...
 - Validation:
   - `server build ✓ / jest PathV33ObjectionService 4/4 ✓ / PathV33RewardService 16/16 ✓ / frontend build ✓ / eslint 0 ✓ / vitest 120 pass (no new failures)`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-11 07:09:17 +0900
+
+- Entry-ID: `H0026`
+- Completed:
+  - [x] audit(reward-v33): close 4 HIGH findings — lock draft on accept (#1), reject locked re-submit (#2), block self-objection (#10), route objection proposal through ProposalService + suppress UI approve button (#4); document 6 deferred items for Phase 5/6
+- Remaining:
+  - [ ] Phase 5: month-end lock cron + finalization modal + reward_run hook
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: audit(reward-v33): close 4 HIGH findings — lock draft on accept (#1), reject locked re-submit (#2), block self-objection (#10), route objection proposal through ProposalServic...
+- Validation:
+  - `server build ✓ / V3.3 jest 20/20 ✓ / frontend build ✓ / eslint 0 ✓ / vitest 120 pass (baseline)`
 - Landmines:
   - No new landmines reported in this chunk.

@@ -191,8 +191,9 @@ export function ProposalDetailModal({
                     </section>
                 )}
 
-                {/* Pending actions */}
-                {proposal.status === "pending" && (
+                {/* Pending actions — suppressed for V3.3 Objection which
+                    has its own Co-sign gate rendered inside ObjectionBody. */}
+                {proposal.status === "pending" && proposal.type !== "level.objection" && (
                     <section className={styles.section}>
                         <div className={styles.reasonField}>
                             <label className={styles.reasonLabel}>

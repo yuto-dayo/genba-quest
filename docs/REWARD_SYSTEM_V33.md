@@ -438,5 +438,27 @@ Phase 5 完了までは V3.2 と V3.3 を並行で計算し、reward run は V3.
 
 ---
 
-**版数**: 0.1.0 (Phase 0 確定)
+## 12. Phase 4 監査で見つかった残課題 (Phase 5/6 で扱う)
+
+Phases 1-4 実装後の通し監査 (2026-05-11) で確認された、現時点では shadow-mode 動作上問題ないが
+Phase 5 (月末ロック) / Phase 6 (V3.2→V3.3 切替) で必ず潰すべき項目:
+
+| # | 項目 | 落とし先 |
+|---|------|---------|
+| 3 | `countWorkDays` が `site_closes.status='finalized'` でフィルタしていない (現状は `site_day_logs` を月内範囲で全件) | Phase 5: 月末ロック時に `locked_by_site_close_id` 経由でフィルタ |
+| 5 | `acceptObjection` が `proposals.update` の前にペア Proposal の存在確認をしていない | Phase 5: cron expiry と一緒にエラーハンドリングを整理 |
+| 6 | `listSitesInMonth` が `completed_at` OR `created_at` で月帰属 (作成月と完了月の両方にヒット) | Phase 5: site_close 帰属に切り替え |
+| 7 | `fetchPriorMonthLevel` が V3.2 の L1-L4 をそのまま V3.3 にパススルー (§9 マッピング未適用) | Phase 6: 切替migration で `path_member_level_history` 既存行をマッピング書き換え |
+| 8 | 異議 accept 時の関係者通知 (target / co-signers / objector) が未実装 | Phase 5: month-end cron と同時に notify 配信 |
+| 9 | LevelDraftSheet の forecast が `work_days = existing ?? 1` で簡易計算しており、submit 後の実値とズレうる | Phase 5: submit 完了後 preview を再取得して差分を吸収 |
+
+監査で潰した HIGH 項目 (Phase 4 修正済み):
+- #1 異議 accept 後の draft 再提出による tier 巻き戻し → `acceptObjection` で `draft.locked_at` を設定
+- #2 ロック済み draft の上書き → `submitLevelDraft` で `existing.locked_at` をチェック
+- #4 ProposalService バイパスによる anchor field / governance event 抜け → `ProposalService.create` 経由に変更 + UI の標準 承認/却下 ボタンは `level.objection` 型で抑制
+- #10 自分の draft への異議提出 → `objectorId === draft.member_id` を `submit()` で拒否
+
+---
+
+**版数**: 0.1.1 (Phase 4 + 監査反映)
 **最終更新**: 2026-05-11
