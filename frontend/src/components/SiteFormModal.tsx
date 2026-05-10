@@ -463,6 +463,11 @@ export function SiteFormModal({ site, initialAction, onClose, onSuccess }: SiteF
                 return;
             }
 
+            if (scheduleMode === "continuous" && !startedAt && !expectedCompletionAt) {
+                setError("連続施工の場合は開始日または完了予定日を設定してください");
+                return;
+            }
+
             let lineItemsToPersist = [...lineItems];
 
             if (hasLineItemContent(lineItemDraft)) {

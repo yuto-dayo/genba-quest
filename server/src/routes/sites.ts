@@ -1070,6 +1070,15 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
             return;
         }
 
+        if (
+            normalizedScheduleMode === "continuous" &&
+            !(typeof started_at === "string" && started_at) &&
+            !(typeof expected_completion_at === "string" && expected_completion_at)
+        ) {
+            res.status(400).json({ error: "started_at or expected_completion_at is required when schedule_mode is continuous" });
+            return;
+        }
+
         if (client_id) {
             try {
                 await assertActiveClientForOrg(client_id, orgId);
@@ -1170,6 +1179,15 @@ router.put("/:id", async (req: AuthenticatedRequest, res: Response) => {
 
         if (normalizedScheduleMode === "custom" && (!normalizedCustomWorkDates || normalizedCustomWorkDates.length === 0)) {
             res.status(400).json({ error: "custom_work_dates is required when schedule_mode is custom" });
+            return;
+        }
+
+        if (
+            normalizedScheduleMode === "continuous" &&
+            !(typeof started_at === "string" && started_at) &&
+            !(typeof expected_completion_at === "string" && expected_completion_at)
+        ) {
+            res.status(400).json({ error: "started_at or expected_completion_at is required when schedule_mode is continuous" });
             return;
         }
 

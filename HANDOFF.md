@@ -24,43 +24,43 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `V3.3 implementation complete; merge PR #14 after manual smoke test`. Source: realtime
+- [focus] NEXT_CMD: `別セッションのPathV33作業を待ち、必要に応じてuseCalendar側にも保険を入れる`. Source: realtime
+- [H0029] Completed: fix(sites): 連続施工+期間未入力をフロント/サーバー両面でブロック
+- [H0029] Remaining: 別セッションのPathV33作業を待ち、必要に応じてuseCalendar側にも保険を入れる
 - [H0028] Completed: feat(reward): V3.3 Phase 6 cutover — remap V3.2 history to V3.3 scale (migration) + fetchPriorMonthLevel defensive mapping (audit #7) + remove SiteDetailModal levelDraftSection + spec v1.0
 - [H0028] Remaining: V3.3 implementation complete; merge PR #14 after manual smoke test
-- [H0027] Completed: feat(reward): V3.3 Phase 5 — PathV33MonthService (lock/expire/finalize) + admin endpoints + finalization tab UI + audit #3/#5/#6/#8/#9 fixes
-- [H0027] Remaining: Phase 6: V3.2→V3.3 cutover + data migration + deprecate path.level.update proposals
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0029] Auto-captured decision: fix(sites): 連続施工+期間未入力をフロント/サーバー両面でブロック
 - [H0028] Auto-captured decision: feat(reward): V3.3 Phase 6 cutover — remap V3.2 history to V3.3 scale (migration) + fetchPriorMonthLevel defensive mapping (audit #7) + remove SiteDetailModal levelDraftSectio...
 - [H0027] Auto-captured decision: feat(reward): V3.3 Phase 5 — PathV33MonthService (lock/expire/finalize) + admin endpoints + finalization tab UI + audit #3/#5/#6/#8/#9 fixes
 - [H0026] Auto-captured decision: audit(reward-v33): close 4 HIGH findings — lock draft on accept (#1), reject locked re-submit (#2), block self-objection (#10), route objection proposal through ProposalServic...
 - [H0025] Auto-captured decision: feat(reward): V3.3 Phase 4 — PathV33ObjectionService + level.objection Proposal type + ObjectionBody in registry + ObjectionSubmitSheet on team feed (異議 button) + co-sign ...
-- [H0024] Auto-captured decision: feat(reward): V3.3 Phase 3 — GET /v33/team-feed + PathV33PersonalDashboard + PathV33TeamFeed + tabbed /path page (個人 / チーム / 報酬確認)
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0028] No new landmines reported in this chunk.
+- [H0029] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0029] 別セッションのPathV33作業を待ち、必要に応じてuseCalendar側にも保険を入れる
 - [H0028] V3.3 implementation complete; merge PR #14 after manual smoke test
 - [H0027] Phase 6: V3.2→V3.3 cutover + data migration + deprecate path.level.update proposals
 - [H0026] Phase 5: month-end lock cron + finalization modal + reward_run hook
 - [H0024] Phase 4: Objection + Co-sign proposal type + ObjectionBody UI + co-sign API
-- [H0023] Phase 3: /path/team feed + personal dashboard
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `19`
+- current_l3_entries: `20`
 - last_compacted_at: `2026-05-11 05:54:12 +0900`
 - archived_entries: `9`
 <!-- HANDOFF_L2_STATE_END -->
@@ -379,5 +379,21 @@
   - Auto-captured decision: feat(reward): V3.3 Phase 6 cutover — remap V3.2 history to V3.3 scale (migration) + fetchPriorMonthLevel defensive mapping (audit #7) + remove SiteDetailModal levelDraftSectio...
 - Validation:
   - `server build ✓ / V3.3 jest 20/20 ✓ / frontend build ✓ / eslint 0 ✓ / vitest 120 pass (baseline)`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-11 07:36:13 +0900
+
+- Entry-ID: `H0029`
+- Completed:
+  - [x] fix(sites): 連続施工+期間未入力をフロント/サーバー両面でブロック
+- Remaining:
+  - [ ] 別セッションのPathV33作業を待ち、必要に応じてuseCalendar側にも保険を入れる
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: fix(sites): 連続施工+期間未入力をフロント/サーバー両面でブロック
+- Validation:
+  - `frontend tsc --noEmit ✅ / server tsc --noEmit ✅`
 - Landmines:
   - No new landmines reported in this chunk.
