@@ -1,0 +1,205 @@
+.overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    display: grid;
+    place-items: center;
+    padding: 20px 16px 84px;
+    background: rgba(7, 24, 22, 0.42);
+    backdrop-filter: blur(10px);
+}
+
+.sheet {
+    width: min(560px, 100%);
+    max-height: min(92vh, 880px);
+    overflow: auto;
+    border-radius: 32px;
+    border: 1px solid rgba(180, 83, 9, 0.18);
+    background:
+        radial-gradient(circle at top right, rgba(252, 211, 77, 0.18), transparent 40%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(254, 252, 232, 0.96));
+    box-shadow: 0 32px 64px rgba(7, 24, 22, 0.2);
+}
+
+.header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 22px 22px 12px;
+}
+
+.heading {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #92400e;
+    font: var(--md-sys-typescale-label-small);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.heading h2 {
+    margin: 0;
+    color: #1f2937;
+    font: var(--md-sys-typescale-headline-small);
+}
+
+.heading p {
+    margin: 4px 0 0;
+    color: #4b5563;
+    font: var(--md-sys-typescale-body-medium);
+    line-height: 1.6;
+}
+
+.closeButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border: 1px solid rgba(180, 83, 9, 0.18);
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.84);
+    color: #92400e;
+    cursor: pointer;
+}
+
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 8px 22px 22px;
+}
+
+.fieldLabel {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    color: #1f2937;
+    font: var(--md-sys-typescale-label-large);
+}
+
+.tierGroup {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.tierRow {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.tierButton {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px 12px;
+    border: 1px solid rgba(180, 83, 9, 0.18);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.82);
+    color: #1f2937;
+    cursor: pointer;
+    text-align: left;
+}
+
+.tierActive {
+    border-color: #92400e;
+    background: linear-gradient(180deg, rgba(252, 211, 77, 0.32), rgba(252, 211, 77, 0.12));
+    box-shadow: 0 6px 18px rgba(180, 83, 9, 0.18);
+}
+
+.tierCurrent {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.tierLabel {
+    font: var(--md-sys-typescale-title-medium);
+    font-weight: 600;
+}
+
+.tierHelper {
+    color: #6b7280;
+    font: var(--md-sys-typescale-body-small);
+    line-height: 1.4;
+}
+
+.textarea {
+    width: 100%;
+    min-height: 78px;
+    padding: 12px 14px;
+    border: 1px solid rgba(180, 83, 9, 0.18);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.92);
+    color: #1f2937;
+    font: var(--md-sys-typescale-body-medium);
+    resize: vertical;
+}
+
+.error {
+    color: #b91c1c;
+    font: var(--md-sys-typescale-body-medium);
+    margin: 0;
+}
+
+.warn {
+    color: #92400e;
+    font: var(--md-sys-typescale-body-small);
+    margin: 0;
+}
+
+.footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.primaryButton,
+.secondaryButton {
+    cursor: pointer;
+    border-radius: 999px;
+    padding: 10px 22px;
+    font: var(--md-sys-typescale-label-large);
+}
+
+.primaryButton {
+    background: linear-gradient(180deg, #b45309, #92400e);
+    color: #fffbeb;
+    border: 0;
+    box-shadow: 0 8px 20px rgba(180, 83, 9, 0.32);
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+    box-shadow: none;
+}
+
+.secondaryButton {
+    background: rgba(255, 255, 255, 0.86);
+    color: #92400e;
+    border: 1px solid rgba(180, 83, 9, 0.2);
+}
+
+@media (max-width: 480px) {
+    .sheet {
+        border-radius: 24px;
+    }
+
+    .tierRow {
+        grid-template-columns: 1fr;
+    }
+}

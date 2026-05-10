@@ -3,6 +3,7 @@ import { CommunicationReviewBody } from "./CommunicationReviewBody";
 import { CommunicationTaskBody } from "./CommunicationTaskBody";
 import { GenericBody } from "./GenericBody";
 import { InvoiceBody } from "./InvoiceBody";
+import { ObjectionBody } from "./ObjectionBody";
 import { PathRewardBody } from "./PathRewardBody";
 import type { ProposalBodyComponent } from "./types";
 
@@ -23,6 +24,8 @@ const REGISTRY: Record<string, ProposalBodyComponent> = {
 
     "communication.task": CommunicationTaskBody,
     "communication.review": CommunicationReviewBody,
+
+    "level.objection": ObjectionBody,
 };
 
 export function resolveProposalBody(type: string): ProposalBodyComponent {

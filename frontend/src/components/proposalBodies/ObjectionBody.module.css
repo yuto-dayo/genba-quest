@@ -1,0 +1,104 @@
+.muted {
+    color: #56716b;
+    font: var(--md-sys-typescale-body-medium);
+    margin: 0;
+}
+
+.error {
+    color: #b91c1c;
+    font: var(--md-sys-typescale-body-medium);
+    margin: 0;
+}
+
+.coSignList,
+.targetResponse,
+.actions {
+    border: 1px solid rgba(15, 118, 110, 0.16);
+    border-radius: 16px;
+    padding: 14px 16px;
+    background: rgba(255, 255, 255, 0.92);
+    margin-top: 12px;
+}
+
+.coSignList h4,
+.targetResponse h4 {
+    margin: 0 0 8px;
+    color: #123f3a;
+    font: var(--md-sys-typescale-title-small);
+}
+
+.coSignList ul {
+    list-style: disc;
+    margin: 0;
+    padding-left: 18px;
+    color: #1f3833;
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.comment {
+    color: #56716b;
+}
+
+.targetResponse p {
+    margin: 0;
+    color: #1f3833;
+}
+
+.actions {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.actionGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.actionLabel {
+    color: #56716b;
+    font: var(--md-sys-typescale-label-medium);
+}
+
+.actionInput {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid rgba(15, 118, 110, 0.18);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.96);
+    color: #1f3833;
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.responseButtons {
+    display: flex;
+    gap: 8px;
+}
+
+.primaryButton,
+.secondaryButton {
+    border-radius: 999px;
+    padding: 8px 18px;
+    font: var(--md-sys-typescale-label-large);
+    cursor: pointer;
+}
+
+.primaryButton {
+    background: linear-gradient(180deg, #0f766e, #115e59);
+    color: #ecfdf5;
+    border: 0;
+    align-self: flex-start;
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+.secondaryButton {
+    background: rgba(255, 255, 255, 0.92);
+    color: #0f766e;
+    border: 1px solid rgba(15, 118, 110, 0.2);
+}

@@ -3692,6 +3692,71 @@ export const fetchPathV33TeamFeed = (month: string) =>
         `/api/v1/path/module/v33/team-feed?month=${encodeURIComponent(month)}`,
     ).then((response) => response.feed);
 
+export interface PathV33CoSign {
+    user_id: string;
+    user_name: string;
+    signed_at: string;
+    comment: string;
+}
+
+export interface PathV33TargetResponse {
+    agreed: boolean;
+    comment: string;
+    responded_at: string;
+}
+
+export interface PathV33Objection {
+    id: string;
+    org_id: string;
+    target_member_id: string;
+    target_month: string;
+    target_draft_id: string;
+    objector_id: string;
+    proposed_tier: PathV33Tier;
+    reason: string;
+    evidence: Record<string, unknown>;
+    co_signs: PathV33CoSign[];
+    target_self_response: PathV33TargetResponse | null;
+    required_co_signs: number;
+    status: "open" | "accepted" | "rejected" | "expired";
+    expires_at: string;
+    resolved_at: string | null;
+    resolved_tier: PathV33Tier | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export const submitPathV33Objection = (data: {
+    target_draft_id: string;
+    proposed_tier: PathV33Tier;
+    reason: string;
+    evidence?: Record<string, unknown>;
+}) =>
+    api<{ objection: PathV33Objection }>("/api/v1/path/module/v33/objections", {
+        method: "POST",
+        body: JSON.stringify(data),
+    }).then((response) => response.objection);
+
+export const coSignPathV33Objection = (objectionId: string, comment?: string) =>
+    api<{ objection: PathV33Objection }>(
+        `/api/v1/path/module/v33/objections/${encodeURIComponent(objectionId)}/co-sign`,
+        { method: "POST", body: JSON.stringify({ comment: comment ?? "" }) },
+    ).then((response) => response.objection);
+
+export const respondToPathV33Objection = (
+    objectionId: string,
+    data: { agreed: boolean; comment?: string },
+) =>
+    api<{ objection: PathV33Objection }>(
+        `/api/v1/path/module/v33/objections/${encodeURIComponent(objectionId)}/target-response`,
+        { method: "POST", body: JSON.stringify(data) },
+    ).then((response) => response.objection);
+
+export const fetchPathV33Objection = (objectionId: string) =>
+    api<{ objection: PathV33Objection }>(
+        `/api/v1/path/module/v33/objections/${encodeURIComponent(objectionId)}`,
+    ).then((response) => response.objection);
+
 export const createPathV32SimpleLevelUpdateProposal = (data: {
     member_id: string;
     level: PathLevel;

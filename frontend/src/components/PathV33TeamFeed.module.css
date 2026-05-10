@@ -161,6 +161,21 @@
     font: var(--md-sys-typescale-body-small);
 }
 
+.objectionButton {
+    border: 1px solid rgba(180, 83, 9, 0.28);
+    background: rgba(254, 243, 199, 0.72);
+    color: #92400e;
+    border-radius: 999px;
+    padding: 4px 12px;
+    font: var(--md-sys-typescale-label-small);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.objectionButton:hover {
+    background: rgba(252, 211, 77, 0.42);
+}
+
 .comment {
     margin: 0;
     color: #56716b;

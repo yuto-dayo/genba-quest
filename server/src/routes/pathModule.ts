@@ -13,6 +13,7 @@ import { ActorRef } from "../services/PolicyEngine";
 import { PathV31Service } from "../services/PathV31Service";
 import { PathV32SimpleRewardService } from "../services/PathV32SimpleRewardService";
 import { PathV33RewardService } from "../services/PathV33RewardService";
+import { PathV33ObjectionService } from "../services/PathV33ObjectionService";
 import { assertV22WriteAllowed } from "../lib/pathV31Config";
 
 const router = Router();
@@ -64,6 +65,19 @@ const PATH_MODULE_ERROR_STATUS_MAP: Record<string, number> = {
   PATH_V33_INVALID_TIER: 400,
   PATH_V33_INVALID_TEAM_SIZE: 400,
   PATH_V33_HUMAN_ACTOR_REQUIRED: 403,
+  PATH_V33_OBJECTION_REASON_REQUIRED: 400,
+  PATH_V33_OBJECTION_NO_CHANGE: 400,
+  PATH_V33_OBJECTION_LOCKED_DRAFT: 409,
+  PATH_V33_OBJECTION_NOT_OPEN: 409,
+  PATH_V33_OBJECTION_NOT_FOUND: 404,
+  PATH_V33_TARGET_CANNOT_COSIGN: 403,
+  PATH_V33_ALREADY_COSIGNED: 409,
+  PATH_V33_NOT_TARGET_MEMBER: 403,
+  PATH_V33_DRAFT_NOT_FOUND: 404,
+  INVALID_OBJECTION_ID: 400,
+  INVALID_OBJECTOR_ID: 400,
+  INVALID_SIGNER_ID: 400,
+  INVALID_RESPONDER_ID: 400,
   INVALID_DATE_FORMAT: 400,
   INVALID_CREDITED_UNIT: 400,
   INVALID_CREDITED_UNIT_INCREMENT: 400,
@@ -120,6 +134,10 @@ function getPathV32SimpleRewardService(req: AuthenticatedRequest): PathV32Simple
 
 function getPathV33RewardService(req: AuthenticatedRequest): PathV33RewardService {
   return new PathV33RewardService(getOrgId(req));
+}
+
+function getPathV33ObjectionService(req: AuthenticatedRequest): PathV33ObjectionService {
+  return new PathV33ObjectionService(getOrgId(req));
 }
 
 function getPolicyService(req: AuthenticatedRequest): PathPolicyBundleService {
@@ -922,5 +940,89 @@ router.get("/v33/team-feed", async (req: AuthenticatedRequest, res: Response) =>
     handleError(res, error);
   }
 });
+
+// ─── V3.3 Objection + Co-sign (Phase 4) ───────────────────────────────────
+// Spec §6. Peer-review replaces 番頭 single-approver gating.
+
+router.get("/v33/objections", async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const objections = await getPathV33ObjectionService(req).listOpen();
+    res.json({ objections });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+router.get("/v33/objections/:objectionId", async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const objection = await getPathV33ObjectionService(req).getById(
+      getRouteParam(req.params.objectionId as string | string[] | undefined),
+    );
+    res.json({ objection });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+router.post("/v33/objections", async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const actor = buildHumanActor(req);
+    const rawTier = Number(req.body?.proposed_tier);
+    const tier = rawTier === 1 || rawTier === 2 || rawTier === 3 ? rawTier : 0;
+    const objection = await getPathV33ObjectionService(req).submit(
+      {
+        target_draft_id:
+          typeof req.body?.target_draft_id === "string" ? req.body.target_draft_id : "",
+        proposed_tier: tier as 1 | 2 | 3,
+        reason: typeof req.body?.reason === "string" ? req.body.reason : "",
+        evidence:
+          req.body?.evidence && typeof req.body.evidence === "object"
+            ? (req.body.evidence as Record<string, unknown>)
+            : undefined,
+      },
+      actor,
+    );
+    res.status(201).json({ objection });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+router.post(
+  "/v33/objections/:objectionId/co-sign",
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const actor = buildHumanActor(req);
+      const objection = await getPathV33ObjectionService(req).coSign(
+        getRouteParam(req.params.objectionId as string | string[] | undefined),
+        { comment: typeof req.body?.comment === "string" ? req.body.comment : "" },
+        actor,
+      );
+      res.json({ objection });
+    } catch (error) {
+      handleError(res, error);
+    }
+  },
+);
+
+router.post(
+  "/v33/objections/:objectionId/target-response",
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const actor = buildHumanActor(req);
+      const objection = await getPathV33ObjectionService(req).targetRespond(
+        getRouteParam(req.params.objectionId as string | string[] | undefined),
+        {
+          agreed: Boolean(req.body?.agreed),
+          comment: typeof req.body?.comment === "string" ? req.body.comment : "",
+        },
+        actor,
+      );
+      res.json({ objection });
+    } catch (error) {
+      handleError(res, error);
+    }
+  },
+);
 
 export default router;

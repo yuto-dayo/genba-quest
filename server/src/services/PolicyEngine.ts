@@ -26,6 +26,7 @@ export type ProposalType =
   | 'reward.adjust'
   | 'reward.pool.adjust'
   | 'path.level.update'
+  | 'level.objection'
   // スキル・評価
   | 'skill.achieve'
   | 'skill.revoke'
