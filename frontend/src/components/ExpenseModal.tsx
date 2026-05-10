@@ -413,6 +413,7 @@ export function ExpenseModal({
                 expense_item_other: formData.category === "other" && formData.expense_item_code === "other"
                     ? formData.expense_item_other.trim() || undefined
                     : undefined,
+                invoice_number: formData.invoice_number.trim() || undefined,
                 description: formData.description || undefined,
                 cost_center: formData.cost_center,
                 site_id: formData.cost_center === "SITE" ? formData.site_id : undefined,

@@ -152,6 +152,25 @@ function isOrgScopedStoragePath(orgId: string, storagePath: string | null | unde
     return typeof storagePath === "string" && storagePath.startsWith(`${orgId}/`);
 }
 
+/**
+ * インボイス制度のT番号を正規化する。
+ * 形式: T + 13桁 (法人/個人事業主の登録番号)。
+ * 半角化・前後空白除去のみ行い、形式不正なら null を返す。
+ * 形式チェックを通過した値のみが metadata_json に保存される。
+ */
+function normalizeInvoiceNumber(value: unknown): string | null {
+    const text = normalizeText(value);
+    if (!text) {
+        return null;
+    }
+
+    const halfWidth = text.replace(/[Ｔ]/g, "T").replace(/[０-９]/g, (ch) =>
+        String.fromCharCode(ch.charCodeAt(0) - 0xFEE0)
+    );
+    const compact = halfWidth.replace(/[\s-]/g, "").toUpperCase();
+    return /^T\d{13}$/.test(compact) ? compact : null;
+}
+
 function normalizeExpenseCategory(value: unknown): ExpenseCategory | null {
     const normalized = normalizeText(value)?.toLowerCase();
     if (!normalized) {
@@ -1221,6 +1240,7 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
             tax_category,
             expense_item_code,
             expense_item_other,
+            invoice_number,
             source_document_id,
             input_sources,
             expense_scope,
@@ -1236,6 +1256,7 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
         const normalizedTaxCategory = normalizeExpenseTaxCategory(tax_category) || "10_STANDARD";
         const normalizedExpenseItemCode = normalizeText(expense_item_code);
         const normalizedExpenseItemOther = normalizeText(expense_item_other);
+        const normalizedInvoiceNumber = normalizeInvoiceNumber(invoice_number);
         const normalizedExpenseScope = normalizeText(expense_scope) || (cost_center === "HQ" ? "overhead" : "job");
         const normalizedPaidBy = normalizeText(paid_by) || "org";
         const normalizedClaimantMemberId = normalizeText(claimant_member_id);
@@ -1302,6 +1323,12 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
 
         if (normalizedCategory === "other" && normalizedExpenseItemCode === "other" && !normalizedExpenseItemOther) {
             res.status(400).json({ error: "expense_item_other is required when expense_item_code is other" });
+            return;
+        }
+
+        const rawInvoiceNumber = normalizeText(invoice_number);
+        if (rawInvoiceNumber && !normalizedInvoiceNumber) {
+            res.status(400).json({ error: "invoice_number must match the format T followed by 13 digits" });
             return;
         }
 
@@ -1397,6 +1424,27 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
             const canonicalData = canonicalResult?.transaction;
 
             if (canonicalData && typeof canonicalData === "object" && "id" in canonicalData) {
+                if (normalizedInvoiceNumber) {
+                    const txId = (canonicalData as Record<string, unknown>).id;
+                    if (typeof txId === "string") {
+                        const existingMetadata = (canonicalData as Record<string, unknown>).metadata_json;
+                        const mergedMetadata = {
+                            ...(existingMetadata && typeof existingMetadata === "object" ? existingMetadata as Record<string, unknown> : {}),
+                            invoice_number: normalizedInvoiceNumber,
+                        };
+                        const { error: metadataPatchError } = await supabaseAdmin
+                            .from("accounting_transactions")
+                            .update({ metadata_json: mergedMetadata })
+                            .eq("id", txId)
+                            .eq("org_id", orgId);
+                        if (metadataPatchError) {
+                            console.error("Failed to persist invoice_number on canonical expense:", metadataPatchError);
+                        } else {
+                            (canonicalData as Record<string, unknown>).metadata_json = mergedMetadata;
+                        }
+                    }
+                }
+
                 const canonicalProposal = canonicalResult.proposal && typeof canonicalResult.proposal === "object"
                     ? canonicalResult.proposal as Record<string, unknown>
                     : null;
@@ -1462,6 +1510,7 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
                 payment_account: normalizedPaymentAccount,
                 reimbursement_status: normalizedReimbursementStatus,
                 recurring_template_id: normalizedRecurringTemplateId,
+                invoice_number: normalizedInvoiceNumber,
             },
             expense_scope: normalizedExpenseScope as "job" | "overhead",
             paid_by: normalizedPaidBy as "org" | "member",
@@ -1510,6 +1559,7 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
                     expense_item_code: normalizedExpenseItemCode,
                     expense_item_other: normalizedExpenseItemOther,
                     tax_category: normalizedTaxCategory,
+                    invoice_number: normalizedInvoiceNumber,
                     risk_level,
                     review_required: requiresReview,
                     source_document_id,

@@ -419,6 +419,33 @@ describe("accounting router", () => {
     expect(mockFrom).not.toHaveBeenCalledWith("accounting_write_idempotency_keys");
   });
 
+  it("POST /expenses rejects malformed invoice_number before reaching the DB", async () => {
+    const siteChain = createChain({ data: { id: "site-1", status: "active" }, error: null });
+    setupMockFromSequence(mockFrom, [siteChain]);
+
+    const req = {
+      userId: "user-1",
+      orgId: "org-1",
+      body: {
+        idempotency_key: "expense-bad-tnum-1",
+        cost_center: "SITE",
+        site_id: "site-1",
+        amount_total: 1100,
+        category: "material",
+        invoice_number: "T1234",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createExpenseHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      error: "invoice_number must match the format T followed by 13 digits",
+    });
+    expect(mockFrom).not.toHaveBeenCalledWith("accounting_write_idempotency_keys");
+  });
+
   it("POST /expenses replays a completed idempotent write without inserting another transaction", async () => {
     const siteChain = createChain({ data: { id: "site-1", status: "active" }, error: null });
     const txInsertChain = createChain({ data: { id: "tx-new" }, error: null });
