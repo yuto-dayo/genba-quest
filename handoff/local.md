@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `Pick next remote-Go blocker: write rollback/repair plan for staging (#5) or capture clean local DB rebuild evidence (#4). Remote DB migration / push remain blocked until explicit approval.`
+- NEXT_CMD: `Pick next remote-Go blocker: #2 idempotency共通化 (assert_idempotency_replay helper化, 1h) または ここで一旦区切ってPRレビュー待ち。Remote DB migration / push remain blocked until explicit approval.`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/local.md`
@@ -18,8 +18,8 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `7730dd8`
-  - Updated: `2026-05-10T11:30:18+0900`
+  - HEAD: `5f4e146`
+  - Updated: `2026-05-10T11:36:12+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
@@ -33,47 +33,47 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `Pick next remote-Go blocker: write rollback/repair plan for staging (#5) or capture clean local DB rebuild evidence (#4). Remote DB migration / push remain blocked until explicit approval.`. Source: realtime
+- [focus] NEXT_CMD: `Pick next remote-Go blocker: #2 idempotency共通化 (assert_idempotency_replay helper化, 1h) または ここで一旦区切ってPRレビュー待ち。Remote DB migration / push remain blocked until explicit approval.`. Source: realtime
+- [H0037] Completed: v2.2 clean local DB rebuild証跡追加 + staging rollback/repair runbook 起草。supabase db reset --local で 34 migrations が clean に適用、その後 v2.2 evidence script 6本 + accountingRoute 56/56 が fresh DB で再現することを確認。docs/runbooks/accounting-v22-staging-rollback.md に pre-flight、4グループapply順、smoke、Class1/Class2 rollback、migration history repair、decision matrix を整備。pr_review_package.md の checklist 7項目を [x] 化。
+- [H0037] Remaining: Pick next remote-Go blocker: #2 idempotency共通化 (assert_idempotency_replay helper化, 1h) または ここで一旦区切ってPRレビュー待ち。Remote DB migration / push remain blocked until explicit approval.
 - [H0036] Completed: v2.2 party/org boundary asserts wired into 3 canonical RPCs and validated. Added private.assert_customer_belongs_to_org and assert_member_belongs_to_org helpers, re-created rpc_post_accounting_expense_canonical / rpc_post_accounting_sale_canonical / rpc_record_accounting_payment_event_canonical to call the matching helper right after assert_rpc_active_membership. Caught and fixed two latent fixture bugs that passed user_id where membership_id was expected.
 - [H0036] Remaining: Pick next remote-Go blocker: write rollback/repair plan for staging (#5) or capture clean local DB rebuild evidence (#4). Remote DB migration / push remain blocked until explicit approval.
-- [H0035] Completed: Pushed codex/money-fix and opened draft PR #9 for accounting v2.2. PR body uses artifacts/accounting-v2.2/pr_body.md and explicitly states remote DB migration/push/migration repair were not executed.
-- [H0035] Remaining: Next: review PR #9 and wait for explicit approval before any remote DB migration or migration repair.
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0037] Auto-captured decision: v2.2 clean local DB rebuild証跡追加 + staging rollback/repair runbook 起草。supabase db reset --local で 34 migrations が clean に適用、その後 v2.2 evidence scri...
 - [H0036] Auto-captured decision: v2.2 party/org boundary asserts wired into 3 canonical RPCs and validated. Added private.assert_customer_belongs_to_org and assert_member_belongs_to_org helpers, re-created rpc_...
 - [H0035] Auto-captured decision: Pushed codex/money-fix and opened draft PR #9 for accounting v2.2. PR body uses artifacts/accounting-v2.2/pr_body.md and explicitly states remote DB migration/push/migration rep...
 - [H0034] Auto-captured decision: Added clean PR body artifact for accounting v2.2 draft PR creation.
 - [H0033] Auto-captured decision: v2.2 PR review package drafted. Added artifacts/accounting-v2.2/pr_review_package.md with draft PR title/body, evidence index, pre-remote go/no-go checklist, and explicit note t...
-- [H0032] Auto-captured decision: v2.2 legacy accounting base RPC search_path hardening added locally. Hardened public.rpc_create_accounting_invoice(no-membership base) and deprecated public.rpc_record_accountin...
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
+- [H0037] Migration history repair section warns against --include-all on supabase db push; it can re-execute already-applied migrations like 20260504084000_seed_accounting_master_data.sql.
+- [H0037] Storage workaround in 20260506043949_add_private_site_drawings.sql intentionally skips bucket/policy creation when local Storage metadata is unavailable; remote Supabase has Storage enabled and applies the full migration.
 - [H0036] Canonical RPCs now hard-fail on foreign customer/member ids; any future test that mocks party ids must use real org_memberships.id and clients.id rows or pass NULL.
 - [H0035] PR/push completed, but remote DB migration remains unexecuted and must not be run without explicit approval.
 - [H0034] No new landmines reported in this chunk.
-- [H0033] PR body should mention remote DB migration not executed; do not include raw review package wrapper if manually copying only the PR body block.
-- [H0032] service_role execute intentionally retained for old base RPCs; do not revoke until wrapper/canonical internal calls and any deployment fallback paths are separately sunset.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0037] Pick next remote-Go blocker: #2 idempotency共通化 (assert_idempotency_replay helper化, 1h) または ここで一旦区切ってPRレビュー待ち。Remote DB migration / push remain blocked until explicit approval.
 - [H0036] Pick next remote-Go blocker: write rollback/repair plan for staging (#5) or capture clean local DB rebuild evidence (#4). Remote DB migration / push remain blocked until explicit approval.
 - [H0035] Next: review PR #9 and wait for explicit approval before any remote DB migration or migration repair.
 - [H0034] Push codex/money-fix and create draft PR using artifacts/accounting-v2.2/pr_body.md. Remote DB migration remains blocked until explicit approval.
 - [H0033] Next: after user approval, push codex/money-fix and open a draft PR using the review package. Do not run remote DB migration or migration repair without explicit approval.
-- [H0032] Next: review/commit this slice, then decide whether remaining non-accounting legacy site/proposal SECURITY DEFINER functions need separate classification, or pause for PR review. Remote DB migration/push remains blocked until explicit approval.
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `18`
+- current_l3_entries: `19`
 - last_compacted_at: `2026-05-10 00:35:04 +0900`
 - archived_entries: `18`
 <!-- HANDOFF_L2_STATE_END -->
@@ -104,6 +104,7 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] v2.2 clean local DB rebuild証跡追加 + staging rollback/repair runbook 起草。supabase db reset --local で 34 migrations が clean に適用、その後 v2.2 evidence script 6本 + accountingRoute 56/56 が fresh DB で再現することを確認。docs/runbooks/accounting-v22-staging-rollback.md に pre-flight、4グループapply順、smoke、Class1/Class2 rollback、migration history repair、decision matrix を整備。pr_review_package.md の checklist 7項目を [x] 化。
 - [x] v2.2 party/org boundary asserts wired into 3 canonical RPCs and validated. Added private.assert_customer_belongs_to_org and assert_member_belongs_to_org helpers, re-created rpc_post_accounting_expense_canonical / rpc_post_accounting_sale_canonical / rpc_record_accounting_payment_event_canonical to call the matching helper right after assert_rpc_active_membership. Caught and fixed two latent fixture bugs that passed user_id where membership_id was expected.
 - [x] Pushed codex/money-fix and opened draft PR #9 for accounting v2.2. PR body uses artifacts/accounting-v2.2/pr_body.md and explicitly states remote DB migration/push/migration repair were not executed.
 - [x] Added clean PR body artifact for accounting v2.2 draft PR creation.
@@ -113,22 +114,24 @@ Phase: A-0/A-1
 - [x] v2.2 legacy RPC search_path reachability classification added. Local-only inventory classifies current accounting SECURITY DEFINER residue: canonical/member-aware RPCs OK with pg_catalog; old invoice base RPC is internal legacy base; old payment allocation create+allocate RPC is deprecated/no-new-route; private helper/trigger functions are next safe hardening target.
 - [x] v2.2 PL compare/posted journal invariants evidence added: local_pl_compare_invariants_test.mjs creates fresh local org, runs canonical sale/expense/invoice/payment/allocation/reversal, calls real /pl legacy|journal|compare API, and verifies posted journal UPDATE/DELETE fail with POSTED_JOURNAL_IMMUTABLE. Fixed /pl journal relation embeds and invoice-kind skip so local HTTP compare returns diff=0 after invoice/payment/reversal.
 - [x] v2.2 document/PDF/OCR/signed URL org boundaryを実装・証跡化。site documentsはdocuments.org_idで絞り、new storage_pathをorg_id/sites/site_id/documents配下に変更、unprefixed pathにはsigned_urlを出さず、accounting OCRはorg prefix外storage_pathをStorage download前に403で拒否。invoice PDF新規生成pathもorg prefix先頭に変更。local APIでforeign site documents/drawingsが404になることを確認
-- [x] v2.2 SECURITY DEFINER hardening local DB evidenceを追加。16 protected RPC signatureでpublic/anon/authenticated EXECUTE=false、service_role EXECUTE=trueを確認し、membership-aware/canonical 12本はsearch_path=pg_catalog、anon/auth直RPCはpermission denied、service_roleでもorg/user/membership不一致はRPC_MEMBERSHIP_REQUIREDで失敗することを確認
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: Pick next remote-Go blocker: write rollback/repair plan for staging (#5) or capture clean local DB rebuild evidence (#4). Remote DB migration / push remain blocked until explicit approval.
+- [ ] **P0**: Pick next remote-Go blocker: #2 idempotency共通化 (assert_idempotency_replay helper化, 1h) または ここで一旦区切ってPRレビュー待ち。Remote DB migration / push remain blocked until explicit approval.
+- [ ] **P1**: Pick next remote-Go blocker: write rollback/repair plan for staging (#5) or capture clean local DB rebuild evidence (#4). Remote DB migration / push remain blocked until explicit approval.
 - [ ] **P1**: Next: review PR #9 and wait for explicit approval before any remote DB migration or migration repair.
 - [ ] **P1**: Push codex/money-fix and create draft PR using artifacts/accounting-v2.2/pr_body.md. Remote DB migration remains blocked until explicit approval.
 - [ ] **P1**: Next: after user approval, push codex/money-fix and open a draft PR using the review package. Do not run remote DB migration or migration repair without explicit approval.
-- [ ] **P1**: Next: review/commit this slice, then decide whether remaining non-accounting legacy site/proposal SECURITY DEFINER functions need separate classification, or pause for PR review. Remote DB migration/push remains blocked until explicit approval.
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
+| `artifacts/accounting-v2.2/pr_review_package.md` | checked off 7 satisfied pre-remote checklist items |
+| `docs/runbooks/accounting-v22-staging-rollback.md` | new staging rollback/repair runbook (pre-flight, 4 apply groups, smoke, Class1/Class2 rollback, migration repair, decision matrix) |
+| `artifacts/accounting-v2.2/clean_db_rebuild_test.md` | clean rebuild evidence with 34 migrations apply order and post-reset replay summary |
 | `artifacts/accounting-v2.2/local_idempotency_concurrency_test.mjs` | fix latent claimant_member_id fixture bug |
 | `artifacts/accounting-v2.2/local_pl_compare_invariants_test.mjs` | fix latent claimant_member_id fixture bug |
 | `artifacts/accounting-v2.2/party_org_boundary_test.md` | evidence summary |
@@ -146,9 +149,6 @@ Phase: A-0/A-1
 | `supabase/migrations/20260509153529_harden_private_accounting_helpers.sql` | narrow private accounting helper/trigger search_path and grant hardening |
 | `artifacts/accounting-v2.2/legacy_rpc_search_path_classification.md` | local-only legacy RPC search_path reachability classification and next migration recommendation |
 | `server/src/routes/accounting.ts` | disambiguate PL journal PostgREST embeds and count revenue journals by posting group rather than invoice projection kind |
-| `artifacts/accounting-v2.2/pl_compare_posted_journal_invariants.md` | captured v2.2 local evidence summary |
-| `artifacts/accounting-v2.2/local_pl_compare_invariants_test.mjs` | local API/DB PL compare, reversal, posted journal immutability evidence runner |
-| `artifacts/accounting-v2.2/document_boundary_test.md` | document boundary evidence |
 ---
 
 ## 6. Locked Files（編集中 - 他エージェント触らない）
@@ -183,11 +183,11 @@ cd frontend && npx eslint src/
 
 ## 9. Risks / Blockers
 
+- Migration history repair section warns against --include-all on supabase db push; it can re-execute already-applied migrations like 20260504084000_seed_accounting_master_data.sql.
+- Storage workaround in 20260506043949_add_private_site_drawings.sql intentionally skips bucket/policy creation when local Storage metadata is unavailable; remote Supabase has Storage enabled and applies the full migration.
 - Canonical RPCs now hard-fail on foreign customer/member ids; any future test that mocks party ids must use real org_memberships.id and clients.id rows or pass NULL.
 - PR/push completed, but remote DB migration remains unexecuted and must not be run without explicit approval.
 - PR body should mention remote DB migration not executed; do not include raw review package wrapper if manually copying only the PR body block.
-- service_role execute intentionally retained for old base RPCs; do not revoke until wrapper/canonical internal calls and any deployment fallback paths are separately sunset.
-- Old internal base RPCs are still intentionally not changed; invoice base is called by wrapper/canonical internals, so harden it only with focused local replay.
 ---
 
 ## 10. References
@@ -535,3 +535,29 @@ cd frontend && npx eslint src/
   - `scripts/db/check-sql-boundaries.sh => PASS`
 - Landmines:
   - Canonical RPCs now hard-fail on foreign customer/member ids; any future test that mocks party ids must use real org_memberships.id and clients.id rows or pass NULL.
+
+### 2026-05-10 11:36:12 +0900
+
+- Entry-ID: `H0037`
+- Completed:
+  - [x] v2.2 clean local DB rebuild証跡追加 + staging rollback/repair runbook 起草。supabase db reset --local で 34 migrations が clean に適用、その後 v2.2 evidence script 6本 + accountingRoute 56/56 が fresh DB で再現することを確認。docs/runbooks/accounting-v22-staging-rollback.md に pre-flight、4グループapply順、smoke、Class1/Class2 rollback、migration history repair、decision matrix を整備。pr_review_package.md の checklist 7項目を [x] 化。
+- Remaining:
+  - [ ] Pick next remote-Go blocker: #2 idempotency共通化 (assert_idempotency_replay helper化, 1h) または ここで一旦区切ってPRレビュー待ち。Remote DB migration / push remain blocked until explicit approval.
+- Changed Files:
+  - `artifacts/accounting-v2.2/clean_db_rebuild_test.md` - clean rebuild evidence with 34 migrations apply order and post-reset replay summary
+  - `docs/runbooks/accounting-v22-staging-rollback.md` - new staging rollback/repair runbook (pre-flight, 4 apply groups, smoke, Class1/Class2 rollback, migration repair, decision matrix)
+  - `artifacts/accounting-v2.2/pr_review_package.md` - checked off 7 satisfied pre-remote checklist items
+- Working Context:
+  - Auto-captured decision: v2.2 clean local DB rebuild証跡追加 + staging rollback/repair runbook 起草。supabase db reset --local で 34 migrations が clean に適用、その後 v2.2 evidence scri...
+- Validation:
+  - `supabase db reset --local => 34 migrations applied, 0 hard errors`
+  - `node artifacts/accounting-v2.2/local_party_org_boundary_test.mjs => 13/13 PASS on fresh DB`
+  - `node artifacts/accounting-v2.2/local_rpc_hardening_negative_test.mjs => PASS on fresh DB`
+  - `node artifacts/accounting-v2.2/local_org_boundary_negative_test.mjs => PASS on fresh DB`
+  - `node artifacts/accounting-v2.2/local_idempotency_concurrency_test.mjs => PASS on fresh DB`
+  - `node artifacts/accounting-v2.2/local_pl_compare_invariants_test.mjs => PASS on fresh DB`
+  - `node artifacts/accounting-v2.2/local_document_boundary_negative_test.mjs => PASS on fresh DB`
+  - `cd server && npm test -- accountingRoute.test.ts --runInBand => 56/56 PASS`
+- Landmines:
+  - Storage workaround in 20260506043949_add_private_site_drawings.sql intentionally skips bucket/policy creation when local Storage metadata is unavailable; remote Supabase has Storage enabled and applies the full migration.
+  - Migration history repair section warns against --include-all on supabase db push; it can re-execute already-applied migrations like 20260504084000_seed_accounting_master_data.sql.

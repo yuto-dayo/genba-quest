@@ -142,13 +142,13 @@ Do not run remote migration until all of these are accepted:
 
 - [ ] PR review accepts local migration order.
 - [ ] PR review accepts service_role compatibility retained on old base RPCs.
-- [ ] `supabase migration up --local` passes from a clean local DB.
-- [ ] `node artifacts/accounting-v2.2/local_rpc_hardening_negative_test.mjs` passes.
-- [ ] `node artifacts/accounting-v2.2/local_pl_compare_invariants_test.mjs` passes.
-- [ ] `cd server && npx tsc --noEmit` passes.
-- [ ] `cd server && npm test -- --runTestsByPath src/__tests__/unit/accountingRoute.test.ts --runInBand` passes.
-- [ ] `scripts/db/check-sql-boundaries.sh` passes.
-- [ ] rollback/repair plan is written for staging.
+- [x] `supabase db reset --local` passes from a clean local DB (34 / 34 migrations applied; see `clean_db_rebuild_test.md`).
+- [x] `node artifacts/accounting-v2.2/local_rpc_hardening_negative_test.mjs` passes.
+- [x] `node artifacts/accounting-v2.2/local_pl_compare_invariants_test.mjs` passes.
+- [x] `cd server && npx tsc --noEmit` passes.
+- [x] `cd server && npm test -- --runTestsByPath src/__tests__/unit/accountingRoute.test.ts --runInBand` passes.
+- [x] `scripts/db/check-sql-boundaries.sh` passes.
+- [x] rollback/repair plan is written for staging (`docs/runbooks/accounting-v22-staging-rollback.md`).
 - [ ] user explicitly approves remote DB migration.
 
 ## Suggested Next Step
