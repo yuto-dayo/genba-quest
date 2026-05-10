@@ -54,7 +54,7 @@ export type ExpenseInsertPayload = {
     legacy_source_route?: string | null;
     legacy_source_id?: string | null;
     metadata_json?: Record<string, unknown>;
-    expense_scope?: "job" | "overhead";
+    expense_scope?: "job" | "job_advance" | "stockpile" | "overhead";
     paid_by?: "org" | "member";
     claimant_member_id?: string | null;
     settlement_type?: "paid" | "unpaid";

@@ -1265,13 +1265,20 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
         const normalizedReimbursementStatus = normalizeText(reimbursement_status)
             || (normalizedPaidBy === "member" ? "unsubmitted" : null);
         const normalizedRecurringTemplateId = normalizeText(recurring_template_id);
-        const resolvedCostCenter = normalizedExpenseScope === "overhead" ? "HQ" : (cost_center || "SITE");
-        const resolvedSiteId = normalizedExpenseScope === "overhead" ? null : site_id;
 
-        if (normalizedExpenseScope !== "job" && normalizedExpenseScope !== "overhead") {
-            res.status(400).json({ error: "expense_scope must be one of job, overhead" });
+        // Scope 4-value branching (M-1).
+        //   job          現場の経費 (site_id 必須, cost_center=SITE)
+        //   job_advance  着工前の先行仕入れ (site_id 必須, cost_center=SITE)
+        //   stockpile    共通在庫 (site_id 不要, cost_center=HQ)
+        //   overhead     本部・会社 (site_id 不要, cost_center=HQ)
+        const VALID_EXPENSE_SCOPES = ["job", "job_advance", "stockpile", "overhead"] as const;
+        if (!VALID_EXPENSE_SCOPES.includes(normalizedExpenseScope as typeof VALID_EXPENSE_SCOPES[number])) {
+            res.status(400).json({ error: "expense_scope must be one of job, job_advance, stockpile, overhead" });
             return;
         }
+        const scopeRequiresSite = normalizedExpenseScope === "job" || normalizedExpenseScope === "job_advance";
+        const resolvedCostCenter = scopeRequiresSite ? (cost_center || "SITE") : "HQ";
+        const resolvedSiteId = scopeRequiresSite ? site_id : null;
 
         if (normalizedPaidBy !== "org" && normalizedPaidBy !== "member") {
             res.status(400).json({ error: "paid_by must be one of org, member" });
@@ -1390,7 +1397,13 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
 
         const requiresReview = risk_level === "HIGH";
 
-        if (!requiresReview) {
+        // The canonical posting RPC currently understands only 'job' and
+        // 'overhead' for expense_scope. New scopes (job_advance / stockpile)
+        // fall through to the legacy insert path until the RPC is extended.
+        const canonicalSupportsScope =
+            normalizedExpenseScope === "job" || normalizedExpenseScope === "overhead";
+
+        if (!requiresReview && canonicalSupportsScope) {
             const canonicalResult = await postCanonicalExpense({
                 orgId,
                 membershipId: req.orgMembershipId || null,
@@ -1410,7 +1423,7 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
                 riskLevel: risk_level,
                 sourceDocumentId: source_document_id,
                 inputSources: input_sources || {},
-                expenseScope: normalizedExpenseScope as "job" | "overhead",
+                expenseScope: normalizedExpenseScope as "job" | "overhead", // canonical RPC currently supports only these two; gate above ensures we only enter this branch with one of them
                 paidBy: normalizedPaidBy as "org" | "member",
                 claimantMemberId: normalizedClaimantMemberId,
                 settlementType: normalizedSettlementType as "paid" | "unpaid",
@@ -1512,7 +1525,7 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
                 recurring_template_id: normalizedRecurringTemplateId,
                 invoice_number: normalizedInvoiceNumber,
             },
-            expense_scope: normalizedExpenseScope as "job" | "overhead",
+            expense_scope: normalizedExpenseScope as "job" | "job_advance" | "stockpile" | "overhead",
             paid_by: normalizedPaidBy as "org" | "member",
             claimant_member_id: normalizedClaimantMemberId,
             settlement_type: normalizedSettlementType as "paid" | "unpaid",

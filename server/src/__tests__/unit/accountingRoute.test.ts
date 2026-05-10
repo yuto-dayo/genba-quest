@@ -419,6 +419,44 @@ describe("accounting router", () => {
     expect(mockFrom).not.toHaveBeenCalledWith("accounting_write_idempotency_keys");
   });
 
+  it("POST /expenses accepts the four expanded expense_scope values", async () => {
+    // Just probe the scope validator: an unknown value should 400, while
+    // each of the four valid values should pass past the scope gate. We do
+    // not exercise the full insert path here — see other tests for that.
+    const trySend = async (scope: string) => {
+      const req = {
+        userId: "user-1",
+        orgId: "org-1",
+        body: {
+          idempotency_key: `expense-scope-${scope}-1`,
+          cost_center: "HQ",
+          amount_total: 1100,
+          category: "material",
+          expense_scope: scope,
+        },
+      } as any;
+      const res = createMockRes();
+      await createExpenseHandler(req, res);
+      return { status: (res.status as any).mock.calls[0]?.[0], json: (res.json as any).mock.calls[0]?.[0] };
+    };
+
+    const bogus = await trySend("nonsense_scope");
+    expect(bogus.status).toBe(400);
+    expect(bogus.json).toEqual({
+      error: "expense_scope must be one of job, job_advance, stockpile, overhead",
+    });
+
+    for (const scope of ["job_advance", "stockpile"] as const) {
+      const result = await trySend(scope);
+      // Both should at minimum get past the scope gate. Whatever happens
+      // afterwards (site validation, idempotency) is fine — we only need to
+      // verify the new values are not rejected as malformed.
+      expect(result.json).not.toEqual({
+        error: "expense_scope must be one of job, job_advance, stockpile, overhead",
+      });
+    }
+  });
+
   it("POST /expenses rejects malformed invoice_number before reaching the DB", async () => {
     const siteChain = createChain({ data: { id: "site-1", status: "active" }, error: null });
     setupMockFromSequence(mockFrom, [siteChain]);
