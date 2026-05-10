@@ -1930,6 +1930,61 @@ router.get("/expense_buckets", async (req: AuthenticatedRequest, res: Response) 
     }
 });
 
+/**
+ * 経費の編集履歴取得 (F-2 サポート).
+ * append-only な expense_field_change_log を時系列で返す。
+ * 詳細ビューのタイムライン表示に使う。
+ *
+ * docs/MONEY_EXPENSE_FLOW.md §5.3, §11.4
+ */
+router.get("/expenses/:id/history", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const orgId = req.orgId!;
+        const expenseId = req.params.id;
+        if (!expenseId) {
+            res.status(400).json({ error: "expense id is required" });
+            return;
+        }
+
+        // 組織境界の確認 — 経費自体が同 org に属すること.
+        const { data: expense, error: expenseError } = await supabaseAdmin
+            .from("accounting_transactions")
+            .select("id")
+            .eq("id", expenseId)
+            .eq("org_id", orgId)
+            .eq("kind", "expense")
+            .maybeSingle();
+
+        if (expenseError) {
+            console.error("expense lookup error:", expenseError);
+            res.status(500).json({ error: "Internal server error" });
+            return;
+        }
+        if (!expense) {
+            res.status(404).json({ error: "expense not found" });
+            return;
+        }
+
+        const { data, error } = await supabaseAdmin
+            .from("expense_field_change_log")
+            .select("id, field, old_value, new_value, changed_by, changed_at, source, reason")
+            .eq("expense_id", expenseId)
+            .eq("org_id", orgId)
+            .order("changed_at", { ascending: true });
+
+        if (error) {
+            console.error("expense history query error:", error);
+            res.status(500).json({ error: "Internal server error" });
+            return;
+        }
+
+        res.json({ expense_id: expenseId, entries: data ?? [] });
+    } catch (err) {
+        console.error("expense history unexpected error:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
 // 経費承認/否認
 router.post("/expenses/:id/review", async (req: AuthenticatedRequest, res: Response) => {
     try {

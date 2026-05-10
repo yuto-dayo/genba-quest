@@ -1,0 +1,154 @@
+/* ============================================================
+   Expense History Timeline (F-2)
+   docs/MONEY_EXPENSE_FLOW.md §5.3
+   ============================================================ */
+
+.section {
+    margin-top: 18px;
+    padding: 14px 16px 16px;
+    background: var(--md-sys-color-surface, #ffffff);
+    border: 1px solid var(--md-sys-color-outline-variant, #d8dee5);
+    border-radius: 12px;
+}
+
+.heading {
+    margin: 0 0 12px;
+    font-size: 11px;
+    color: var(--md-sys-color-on-surface-variant, #5b6470);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+}
+
+.empty {
+    font-size: 12px;
+    color: var(--md-sys-color-on-surface-variant, #5b6470);
+    opacity: 0.7;
+    padding: 8px 0;
+}
+
+.error {
+    font-size: 12px;
+    color: #b22d39;
+    background: rgba(220, 53, 69, 0.06);
+    padding: 8px 10px;
+    border-radius: 8px;
+}
+
+.list {
+    position: relative;
+    padding-left: 16px;
+}
+
+.list::before {
+    content: "";
+    position: absolute;
+    left: 5px;
+    top: 4px;
+    bottom: 4px;
+    width: 2px;
+    background: var(--md-sys-color-outline-variant, #d8dee5);
+}
+
+.entry {
+    position: relative;
+    padding: 6px 0 12px;
+    font-size: 12px;
+}
+
+.entry::before {
+    content: "";
+    position: absolute;
+    left: -14px;
+    top: 9px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #4dabff;
+    border: 2px solid var(--md-sys-color-surface, #ffffff);
+}
+
+.entry.ai::before {
+    background: #ffb84d;
+}
+
+.entry.system::before {
+    background: #a3acb6;
+}
+
+.time {
+    color: var(--md-sys-color-on-surface-variant, #5b6470);
+    font-size: 10.5px;
+    margin-bottom: 2px;
+}
+
+.actor {
+    font-weight: 600;
+    color: var(--md-sys-color-on-surface, #1a1f27);
+    margin-bottom: 2px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.actorTag {
+    font-size: 9.5px;
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--md-sys-color-on-surface-variant, #5b6470);
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-weight: 500;
+}
+
+.entry.ai .actorTag {
+    background: rgba(255, 184, 77, 0.18);
+    color: #ad7a17;
+}
+
+.entry.system .actorTag {
+    background: rgba(125, 133, 144, 0.16);
+    color: #5b6470;
+}
+
+.detail {
+    color: var(--md-sys-color-on-surface-variant, #5b6470);
+    font-size: 11.5px;
+    line-height: 1.55;
+}
+
+.detail code,
+.detail .keyChip {
+    background: rgba(0, 0, 0, 0.04);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 10.5px;
+    color: var(--md-sys-color-on-surface, #1a1f27);
+    font-family: ui-monospace, monospace;
+}
+
+.fieldsList {
+    margin: 4px 0 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.fieldsList li {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.fieldKey {
+    color: var(--md-sys-color-on-surface-variant, #5b6470);
+    min-width: 90px;
+}
+
+.fieldVal {
+    color: var(--md-sys-color-on-surface, #1a1f27);
+    font-weight: 500;
+    word-break: break-all;
+}

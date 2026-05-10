@@ -1653,6 +1653,35 @@ export const fetchExpenseBuckets = (month?: string) =>
         `/api/v1/accounting/expense_buckets${month ? `?month=${encodeURIComponent(month)}` : ""}`,
     );
 
+// 経費の編集履歴 (詳細ビュー用)
+// docs/MONEY_EXPENSE_FLOW.md §5.3
+export interface ExpenseHistoryActor {
+    type: "human" | "ai" | "system" | "integration";
+    id: string;
+    name?: string | null;
+}
+
+export interface ExpenseHistoryEntry {
+    id: string;
+    field: string;
+    old_value: unknown;
+    new_value: unknown;
+    changed_by: ExpenseHistoryActor;
+    changed_at: string;
+    source: "manual" | "ai_inference" | "system_auto";
+    reason?: string | null;
+}
+
+export interface ExpenseHistoryResponse {
+    expense_id: string;
+    entries: ExpenseHistoryEntry[];
+}
+
+export const fetchExpenseHistory = (expenseId: string) =>
+    api<ExpenseHistoryResponse>(
+        `/api/v1/accounting/expenses/${encodeURIComponent(expenseId)}/history`,
+    );
+
 // 経費承認/否認
 export const reviewExpense = (id: string, action: "approve" | "reject", comment?: string) =>
     api<AccountingTransaction>(`/api/v1/accounting/expenses/${id}/review`, {

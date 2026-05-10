@@ -158,6 +158,7 @@ describe("accounting router", () => {
   const downloadInvoiceHandler = getGetHandler("/invoices/:id/download");
   const voidTransactionHandler = getPostHandler("/void/:id");
   const getExpenseBucketsHandler = getGetHandler("/expense_buckets");
+  const getExpenseHistoryHandler = getGetHandler("/expenses/:id/history");
   const mockFrom = (supabaseAdmin as unknown as { from: jest.Mock }).from;
   const mockRpc = (supabaseAdmin as unknown as { rpc: jest.Mock }).rpc;
   const mockStorageFrom = (supabaseAdmin as unknown as { storage: { from: jest.Mock } }).storage.from;
@@ -3604,6 +3605,54 @@ describe("accounting router", () => {
 
     expect(res.status).toHaveBeenCalledWith(409);
     expect(res.json).toHaveBeenCalledWith({ error: "取消で作成された逆仕訳は再度取消できません" });
+  });
+
+  it("GET /expenses/:id/history returns 404 when the expense does not belong to the org", async () => {
+    const lookupChain = createChain({ data: null, error: null });
+    setupMockFromSequence(mockFrom, [lookupChain]);
+
+    const req = { orgId: "org-1", params: { id: "exp-other-org" } } as any;
+    const res = createMockRes();
+
+    await getExpenseHistoryHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ error: "expense not found" });
+  });
+
+  it("GET /expenses/:id/history returns the append-only entries in order", async () => {
+    const lookupChain = createChain({ data: { id: "exp-1" }, error: null });
+    const entries = [
+      {
+        id: "log-1",
+        field: "registered",
+        old_value: null,
+        new_value: { amount_total: 8400, vendor_name: "ホムセン橋本店" },
+        changed_by: { type: "human", id: "user-1", name: "田中" },
+        changed_at: "2026-05-08T05:23:00Z",
+        source: "manual",
+        reason: null,
+      },
+      {
+        id: "log-2",
+        field: "ocr_extracted",
+        old_value: null,
+        new_value: { invoice_number: "T1234567890123" },
+        changed_by: { type: "system", id: "ocr", name: "レシート読み取り" },
+        changed_at: "2026-05-08T05:23:01Z",
+        source: "system_auto",
+        reason: null,
+      },
+    ];
+    const historyChain = createChain({ data: entries, error: null });
+    setupMockFromSequence(mockFrom, [lookupChain, historyChain]);
+
+    const req = { orgId: "org-1", params: { id: "exp-1" } } as any;
+    const res = createMockRes();
+
+    await getExpenseHistoryHandler(req, res);
+
+    expect(res.json).toHaveBeenCalledWith({ expense_id: "exp-1", entries });
   });
 
   it("GET /expense_buckets aggregates expenses into buckets by lifecycle and flags", async () => {
