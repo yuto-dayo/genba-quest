@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `Next: review PR #9 and wait for explicit approval before any remote DB migration or migration repair.`
+- NEXT_CMD: `Pick next remote-Go blocker: write rollback/repair plan for staging (#5) or capture clean local DB rebuild evidence (#4). Remote DB migration / push remain blocked until explicit approval.`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/local.md`
@@ -18,8 +18,8 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `313e2fc`
-  - Updated: `2026-05-10T00:45:57+0900`
+  - HEAD: `7730dd8`
+  - Updated: `2026-05-10T11:30:18+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
@@ -33,47 +33,47 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `Next: review PR #9 and wait for explicit approval before any remote DB migration or migration repair.`. Source: realtime
+- [focus] NEXT_CMD: `Pick next remote-Go blocker: write rollback/repair plan for staging (#5) or capture clean local DB rebuild evidence (#4). Remote DB migration / push remain blocked until explicit approval.`. Source: realtime
+- [H0036] Completed: v2.2 party/org boundary asserts wired into 3 canonical RPCs and validated. Added private.assert_customer_belongs_to_org and assert_member_belongs_to_org helpers, re-created rpc_post_accounting_expense_canonical / rpc_post_accounting_sale_canonical / rpc_record_accounting_payment_event_canonical to call the matching helper right after assert_rpc_active_membership. Caught and fixed two latent fixture bugs that passed user_id where membership_id was expected.
+- [H0036] Remaining: Pick next remote-Go blocker: write rollback/repair plan for staging (#5) or capture clean local DB rebuild evidence (#4). Remote DB migration / push remain blocked until explicit approval.
 - [H0035] Completed: Pushed codex/money-fix and opened draft PR #9 for accounting v2.2. PR body uses artifacts/accounting-v2.2/pr_body.md and explicitly states remote DB migration/push/migration repair were not executed.
 - [H0035] Remaining: Next: review PR #9 and wait for explicit approval before any remote DB migration or migration repair.
-- [H0034] Completed: Added clean PR body artifact for accounting v2.2 draft PR creation.
-- [H0034] Remaining: Push codex/money-fix and create draft PR using artifacts/accounting-v2.2/pr_body.md. Remote DB migration remains blocked until explicit approval.
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0036] Auto-captured decision: v2.2 party/org boundary asserts wired into 3 canonical RPCs and validated. Added private.assert_customer_belongs_to_org and assert_member_belongs_to_org helpers, re-created rpc_...
 - [H0035] Auto-captured decision: Pushed codex/money-fix and opened draft PR #9 for accounting v2.2. PR body uses artifacts/accounting-v2.2/pr_body.md and explicitly states remote DB migration/push/migration rep...
 - [H0034] Auto-captured decision: Added clean PR body artifact for accounting v2.2 draft PR creation.
 - [H0033] Auto-captured decision: v2.2 PR review package drafted. Added artifacts/accounting-v2.2/pr_review_package.md with draft PR title/body, evidence index, pre-remote go/no-go checklist, and explicit note t...
 - [H0032] Auto-captured decision: v2.2 legacy accounting base RPC search_path hardening added locally. Hardened public.rpc_create_accounting_invoice(no-membership base) and deprecated public.rpc_record_accountin...
-- [H0031] Auto-captured decision: v2.2 private accounting helper hardening migration added locally. Hardened private.assert_accounting_journal_entry_balanced, private.assert_invoice_revenue_allocation_capacity, ...
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
+- [H0036] Canonical RPCs now hard-fail on foreign customer/member ids; any future test that mocks party ids must use real org_memberships.id and clients.id rows or pass NULL.
 - [H0035] PR/push completed, but remote DB migration remains unexecuted and must not be run without explicit approval.
 - [H0034] No new landmines reported in this chunk.
 - [H0033] PR body should mention remote DB migration not executed; do not include raw review package wrapper if manually copying only the PR body block.
 - [H0032] service_role execute intentionally retained for old base RPCs; do not revoke until wrapper/canonical internal calls and any deployment fallback paths are separately sunset.
-- [H0031] Old internal base RPCs are still intentionally not changed; invoice base is called by wrapper/canonical internals, so harden it only with focused local replay.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0036] Pick next remote-Go blocker: write rollback/repair plan for staging (#5) or capture clean local DB rebuild evidence (#4). Remote DB migration / push remain blocked until explicit approval.
 - [H0035] Next: review PR #9 and wait for explicit approval before any remote DB migration or migration repair.
 - [H0034] Push codex/money-fix and create draft PR using artifacts/accounting-v2.2/pr_body.md. Remote DB migration remains blocked until explicit approval.
 - [H0033] Next: after user approval, push codex/money-fix and open a draft PR using the review package. Do not run remote DB migration or migration repair without explicit approval.
 - [H0032] Next: review/commit this slice, then decide whether remaining non-accounting legacy site/proposal SECURITY DEFINER functions need separate classification, or pause for PR review. Remote DB migration/push remains blocked until explicit approval.
-- [H0031] Next: decide whether to harden old internal base RPCs rpc_create_accounting_invoice(no membership) and deprecated rpc_record_accounting_payment_allocation old create+allocate form, or pause for PR review. Remote DB migration/push remains blocked until explicit approval.
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `17`
+- current_l3_entries: `18`
 - last_compacted_at: `2026-05-10 00:35:04 +0900`
 - archived_entries: `18`
 <!-- HANDOFF_L2_STATE_END -->
@@ -104,6 +104,7 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] v2.2 party/org boundary asserts wired into 3 canonical RPCs and validated. Added private.assert_customer_belongs_to_org and assert_member_belongs_to_org helpers, re-created rpc_post_accounting_expense_canonical / rpc_post_accounting_sale_canonical / rpc_record_accounting_payment_event_canonical to call the matching helper right after assert_rpc_active_membership. Caught and fixed two latent fixture bugs that passed user_id where membership_id was expected.
 - [x] Pushed codex/money-fix and opened draft PR #9 for accounting v2.2. PR body uses artifacts/accounting-v2.2/pr_body.md and explicitly states remote DB migration/push/migration repair were not executed.
 - [x] Added clean PR body artifact for accounting v2.2 draft PR creation.
 - [x] v2.2 PR review package drafted. Added artifacts/accounting-v2.2/pr_review_package.md with draft PR title/body, evidence index, pre-remote go/no-go checklist, and explicit note that remote DB migration/push/migration repair are not executed.
@@ -113,22 +114,27 @@ Phase: A-0/A-1
 - [x] v2.2 PL compare/posted journal invariants evidence added: local_pl_compare_invariants_test.mjs creates fresh local org, runs canonical sale/expense/invoice/payment/allocation/reversal, calls real /pl legacy|journal|compare API, and verifies posted journal UPDATE/DELETE fail with POSTED_JOURNAL_IMMUTABLE. Fixed /pl journal relation embeds and invoice-kind skip so local HTTP compare returns diff=0 after invoice/payment/reversal.
 - [x] v2.2 document/PDF/OCR/signed URL org boundaryを実装・証跡化。site documentsはdocuments.org_idで絞り、new storage_pathをorg_id/sites/site_id/documents配下に変更、unprefixed pathにはsigned_urlを出さず、accounting OCRはorg prefix外storage_pathをStorage download前に403で拒否。invoice PDF新規生成pathもorg prefix先頭に変更。local APIでforeign site documents/drawingsが404になることを確認
 - [x] v2.2 SECURITY DEFINER hardening local DB evidenceを追加。16 protected RPC signatureでpublic/anon/authenticated EXECUTE=false、service_role EXECUTE=trueを確認し、membership-aware/canonical 12本はsearch_path=pg_catalog、anon/auth直RPCはpermission denied、service_roleでもorg/user/membership不一致はRPC_MEMBERSHIP_REQUIREDで失敗することを確認
-- [x] v2.2 multi-org org boundary negative local API evidenceを追加。同一userがorg A/B両方所属、active org=Aでorg Bのtransaction/invoice/payment/document IDを渡すと対象APIが404を返し、org Aに会計/証憑rowが作られないことを確認
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: Next: review PR #9 and wait for explicit approval before any remote DB migration or migration repair.
+- [ ] **P0**: Pick next remote-Go blocker: write rollback/repair plan for staging (#5) or capture clean local DB rebuild evidence (#4). Remote DB migration / push remain blocked until explicit approval.
+- [ ] **P1**: Next: review PR #9 and wait for explicit approval before any remote DB migration or migration repair.
 - [ ] **P1**: Push codex/money-fix and create draft PR using artifacts/accounting-v2.2/pr_body.md. Remote DB migration remains blocked until explicit approval.
 - [ ] **P1**: Next: after user approval, push codex/money-fix and open a draft PR using the review package. Do not run remote DB migration or migration repair without explicit approval.
 - [ ] **P1**: Next: review/commit this slice, then decide whether remaining non-accounting legacy site/proposal SECURITY DEFINER functions need separate classification, or pause for PR review. Remote DB migration/push remains blocked until explicit approval.
-- [ ] **P1**: Next: decide whether to harden old internal base RPCs rpc_create_accounting_invoice(no membership) and deprecated rpc_record_accounting_payment_allocation old create+allocate form, or pause for PR review. Remote DB migration/push remains blocked until explicit approval.
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
+| `artifacts/accounting-v2.2/local_idempotency_concurrency_test.mjs` | fix latent claimant_member_id fixture bug |
+| `artifacts/accounting-v2.2/local_pl_compare_invariants_test.mjs` | fix latent claimant_member_id fixture bug |
+| `artifacts/accounting-v2.2/party_org_boundary_test.md` | evidence summary |
+| `artifacts/accounting-v2.2/local_party_org_boundary_test.mjs` | SQL-level negative + wiring + grant evidence runner |
+| `supabase/migrations/20260510020100_wire_party_org_boundary_to_canonical_rpcs.sql` | wires asserts into 3 canonical RPCs |
+| `supabase/migrations/20260510020000_add_party_org_boundary_helpers.sql` | new helpers |
 | `handoff/local.md` | PR creation handoff update |
 | `artifacts/accounting-v2.2/pr_body.md` | clean draft PR body for GitHub |
 | `artifacts/accounting-v2.2/pr_review_package.md` | draft PR body, evidence index, and pre-remote checklist |
@@ -143,12 +149,6 @@ Phase: A-0/A-1
 | `artifacts/accounting-v2.2/pl_compare_posted_journal_invariants.md` | captured v2.2 local evidence summary |
 | `artifacts/accounting-v2.2/local_pl_compare_invariants_test.mjs` | local API/DB PL compare, reversal, posted journal immutability evidence runner |
 | `artifacts/accounting-v2.2/document_boundary_test.md` | document boundary evidence |
-| `artifacts/accounting-v2.2/local_document_boundary_negative_test.mjs` | local API foreign site document/drawing boundary script |
-| `server/src/__tests__/unit/accountingRoute.test.ts` | OCR prefix guard and invoice PDF path contract |
-| `server/src/__tests__/unit/sitesRoute.test.ts` | site document signed URL/upload path contracts |
-| `server/src/services/InvoicePdfService.ts` | org-prefixed invoice PDF path for new PDFs |
-| `server/src/routes/accounting.ts` | OCR storage_path org-prefix gate |
-| `server/src/routes/sites.ts` | site document org_id filter, org-prefixed upload path, signed URL prefix gate |
 ---
 
 ## 6. Locked Files（編集中 - 他エージェント触らない）
@@ -166,10 +166,10 @@ cd frontend && npx eslint src/
 
 | Check | Result | Notes |
 | ----- | ------ | ----- |
-| server typecheck | PASS | `cd server && npx tsc --noEmit` |
+| server typecheck | PASS | cd server && npx tsc --noEmit |
 | frontend typecheck | SKIP | not run yet |
 | lint | SKIP | not run yet |
-| test | PASS | `cd server && npm test -- accountingRoute.test.ts --runInBand` (38 tests) |
+| test | PASS | 13/13 party-org boundary + 56/56 accountingRoute + all v2.2 evidence scripts |
 
 ---
 
@@ -183,11 +183,11 @@ cd frontend && npx eslint src/
 
 ## 9. Risks / Blockers
 
+- Canonical RPCs now hard-fail on foreign customer/member ids; any future test that mocks party ids must use real org_memberships.id and clients.id rows or pass NULL.
 - PR/push completed, but remote DB migration remains unexecuted and must not be run without explicit approval.
 - PR body should mention remote DB migration not executed; do not include raw review package wrapper if manually copying only the PR body block.
 - service_role execute intentionally retained for old base RPCs; do not revoke until wrapper/canonical internal calls and any deployment fallback paths are separately sunset.
 - Old internal base RPCs are still intentionally not changed; invoice base is called by wrapper/canonical internals, so harden it only with focused local replay.
-- Do not broad-sweep ALTER all SECURITY DEFINER functions; old invoice base RPC is still called internally by membership wrapper/canonical RPC, so harden/revoke only with focused local replay evidence.
 ---
 
 ## 10. References
@@ -507,3 +507,31 @@ cd frontend && npx eslint src/
   - `git push -u origin codex/money-fix=pass; gh pr create --draft=pass https://github.com/yuto-dayo/genba-quest/pull/9`
 - Landmines:
   - PR/push completed, but remote DB migration remains unexecuted and must not be run without explicit approval.
+
+### 2026-05-10 11:30:18 +0900
+
+- Entry-ID: `H0036`
+- Completed:
+  - [x] v2.2 party/org boundary asserts wired into 3 canonical RPCs and validated. Added private.assert_customer_belongs_to_org and assert_member_belongs_to_org helpers, re-created rpc_post_accounting_expense_canonical / rpc_post_accounting_sale_canonical / rpc_record_accounting_payment_event_canonical to call the matching helper right after assert_rpc_active_membership. Caught and fixed two latent fixture bugs that passed user_id where membership_id was expected.
+- Remaining:
+  - [ ] Pick next remote-Go blocker: write rollback/repair plan for staging (#5) or capture clean local DB rebuild evidence (#4). Remote DB migration / push remain blocked until explicit approval.
+- Changed Files:
+  - `supabase/migrations/20260510020000_add_party_org_boundary_helpers.sql` - new helpers
+  - `supabase/migrations/20260510020100_wire_party_org_boundary_to_canonical_rpcs.sql` - wires asserts into 3 canonical RPCs
+  - `artifacts/accounting-v2.2/local_party_org_boundary_test.mjs` - SQL-level negative + wiring + grant evidence runner
+  - `artifacts/accounting-v2.2/party_org_boundary_test.md` - evidence summary
+  - `artifacts/accounting-v2.2/local_pl_compare_invariants_test.mjs` - fix latent claimant_member_id fixture bug
+  - `artifacts/accounting-v2.2/local_idempotency_concurrency_test.mjs` - fix latent claimant_member_id fixture bug
+- Working Context:
+  - Auto-captured decision: v2.2 party/org boundary asserts wired into 3 canonical RPCs and validated. Added private.assert_customer_belongs_to_org and assert_member_belongs_to_org helpers, re-created rpc_...
+- Validation:
+  - `node artifacts/accounting-v2.2/local_party_org_boundary_test.mjs => 13/13 PASS`
+  - `node artifacts/accounting-v2.2/local_pl_compare_invariants_test.mjs => PASS`
+  - `node artifacts/accounting-v2.2/local_idempotency_concurrency_test.mjs => PASS`
+  - `node artifacts/accounting-v2.2/local_org_boundary_negative_test.mjs => PASS`
+  - `node artifacts/accounting-v2.2/local_rpc_hardening_negative_test.mjs => PASS`
+  - `cd server && npm test -- accountingRoute.test.ts --runInBand => 56/56 PASS`
+  - `cd server && npx tsc --noEmit => PASS`
+  - `scripts/db/check-sql-boundaries.sh => PASS`
+- Landmines:
+  - Canonical RPCs now hard-fail on foreign customer/member ids; any future test that mocks party ids must use real org_memberships.id and clients.id rows or pass NULL.

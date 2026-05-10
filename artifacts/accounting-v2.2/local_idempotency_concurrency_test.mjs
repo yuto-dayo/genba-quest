@@ -39,7 +39,7 @@ async function main() {
     cost_center: "HQ",
     expense_scope: "overhead",
     paid_by: "member",
-    claimant_member_id: actorUserId,
+    claimant_member_id: membershipId,
     settlement_type: "unpaid",
     reimbursement_status: "submitted",
     vendor_name: "v2.2 Concurrent Vendor",

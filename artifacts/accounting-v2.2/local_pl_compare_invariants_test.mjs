@@ -361,7 +361,7 @@ select public.rpc_post_accounting_expense_canonical(
   ${sqlJson({ scenario: "v22_pl_compare" })},
   'overhead',
   'member',
-  ${sqlString(claimantUserId)}::uuid,
+  ${sqlString(claimantMembershipId)}::uuid,
   'unpaid',
   null,
   'submitted',
