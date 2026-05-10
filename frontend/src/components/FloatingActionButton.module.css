@@ -5,6 +5,7 @@
 .fabContainer {
     position: fixed;
     right: 24px;
+    /* デスクトップは底にタブバーが無いので 24px、モバイルは @media で底タブバー(76px)を避ける */
     bottom: max(24px, env(safe-area-inset-bottom, 24px));
     z-index: 800;
 }
@@ -239,9 +240,10 @@
     order: 1;
 }
 
-@media (max-width: 480px) {
+@media (max-width: 768px) {
     .fabContainer {
         right: 16px;
-        bottom: max(16px, env(safe-area-inset-bottom, 16px));
+        /* 底タブバー高 ~76px + safe-area + 余白 16px を確保して🔔チップに重ならない */
+        bottom: calc(76px + env(safe-area-inset-bottom, 0px) + 16px);
     }
 }

@@ -58,9 +58,11 @@ describe("FloatingActionButton", () => {
             const fabButton = screen.getByRole("button", { name: "メニューを開く" });
             const fixedContainer = fabButton.parentElement;
 
+            // FAB_MARGIN_BOTTOM = 92 (clears bottom tab bar where 🔔 chip lives)
+            // top = innerHeight - FAB_SIZE - FAB_MARGIN_BOTTOM = 844 - 56 - 92 = 696
             expect(fixedContainer).toHaveStyle({
                 left: "326px",
-                top: "772px",
+                top: "696px",
                 width: "56px",
                 height: "56px",
             });

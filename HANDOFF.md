@@ -24,43 +24,43 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `FAB margin fix commit`. Source: realtime
+- [focus] NEXT_CMD: `Commit V3.3 design doc`. Source: realtime
+- [H0018] Completed: fix(fab): raise FAB above bottom tab bar so 🔔 chip stays visible (FAB_MARGIN_BOTTOM 16→92, mobile media query bottom calc)
+- [H0018] Remaining: Commit V3.3 design doc
 - [H0017] Completed: refactor(proposal): per-type body registry — PathReward / Accounting / Invoice / CommunicationTask / CommunicationReview / Generic; ProposalDetailModal slimmed 740→256 lines
 - [H0017] Remaining: FAB margin fix commit
-- [H0016] Completed: refactor(money): drop alertBanner + pathQueueSection, route entry through bell inbox, emit window events on mutation
-- [H0016] Remaining: Continue with body registry refactor commit
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0018] Auto-captured decision: fix(fab): raise FAB above bottom tab bar so 🔔 chip stays visible (FAB_MARGIN_BOTTOM 16→92, mobile media query bottom calc)
 - [H0017] Auto-captured decision: refactor(proposal): per-type body registry — PathReward / Accounting / Invoice / CommunicationTask / CommunicationReview / Generic; ProposalDetailModal slimmed 740→256 lines
 - [H0016] Auto-captured decision: refactor(money): drop alertBanner + pathQueueSection, route entry through bell inbox, emit window events on mutation
 - [H0015] Auto-captured decision: feat(notify): unified bell + inbox bottom sheet (App.tsx state lift, NotificationInbox new component, ring motion on count change)
 - [H0014] Auto-captured decision: Fix CI lint failure: refactor MoneyBucketDashboard + ExpenseHistoryTimeline to derive loading from staleness instead of synchronous setLoading/setError inside useEffect (react-h...
-- [H0013] Auto-captured decision: Browser E2E verification on remote Supabase (M-1..M-5 pushed via supabase db push): bucket dashboard renders, scope chips work, 201 on canonical RPC, missing_invoice_number flag...
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0017] No new landmines reported in this chunk.
+- [H0018] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0018] Commit V3.3 design doc
 - [H0017] FAB margin fix commit
 - [H0016] Continue with body registry refactor commit
 - [H0015] Continue committing remaining 4 chunks then ask about push/PR
 - [H0014] Push, wait for CI, merge PR #11
-- [H0013] Commit category label fix; open Phase 1 PR
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `17`
+- current_l3_entries: `18`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -344,5 +344,21 @@
   - Auto-captured decision: refactor(proposal): per-type body registry — PathReward / Accounting / Invoice / CommunicationTask / CommunicationReview / Generic; ProposalDetailModal slimmed 740→256 lines
 - Validation:
   - `tsc green`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-11 00:42:36 +0900
+
+- Entry-ID: `H0018`
+- Completed:
+  - [x] fix(fab): raise FAB above bottom tab bar so 🔔 chip stays visible (FAB_MARGIN_BOTTOM 16→92, mobile media query bottom calc)
+- Remaining:
+  - [ ] Commit V3.3 design doc
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: fix(fab): raise FAB above bottom tab bar so 🔔 chip stays visible (FAB_MARGIN_BOTTOM 16→92, mobile media query bottom calc)
+- Validation:
+  - `FAB test updated 772→696`
 - Landmines:
   - No new landmines reported in this chunk.
