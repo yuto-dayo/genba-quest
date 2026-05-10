@@ -185,11 +185,13 @@ describe("accounting router", () => {
       },
       error: null,
     });
+    const dupCheckChain = createChain({ data: [], error: null });
     const existingEntryChain = createChain({ data: null, error: null });
     const entryInsertChain = createChain({ data: { id: "entry-1" }, error: null });
     const lineInsertChain = createChain({ data: null, error: null });
     setupMockFromSequence(mockFrom, [
       siteChain,
+      dupCheckChain,
       txInsertChain,
       existingEntryChain,
       entryInsertChain,
@@ -419,6 +421,53 @@ describe("accounting router", () => {
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith({ error: "claimant_member_id is required when paid_by is member" });
     expect(mockFrom).not.toHaveBeenCalledWith("accounting_write_idempotency_keys");
+  });
+
+  it("POST /expenses sets duplicate_suspected when same vendor/date/amount already exists", async () => {
+    const siteChain = createChain({ data: { id: "site-1", status: "active" }, error: null });
+    // Duplicate lookup hits one existing row.
+    const dupCheckChain = createChain({ data: [{ id: "tx-existing-9" }], error: null });
+    const txInsertChain = createChain({
+      data: { id: "tx-dup-1", kind: "expense", recorded_date: "2026-05-10" },
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [
+      siteChain,
+      dupCheckChain,
+      txInsertChain,
+    ]);
+
+    const req = {
+      userId: "user-1",
+      orgId: "org-1",
+      body: {
+        idempotency_key: "expense-dup-1",
+        cost_center: "SITE",
+        site_id: "site-1",
+        vendor_name: "ENEOS 城南店",
+        recorded_date: "2026-05-10",
+        amount_total: 5800,
+        category: "fuel",
+        // High-risk path so the legacy insert receives flags directly.
+        // (food/travel > 5000 → HIGH; fuel currently rides default LOW;
+        // we force HIGH by category=tool > 30000? No — easier: just
+        // assert the dup chain was queried with the right keys.)
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createExpenseHandler(req, res);
+
+    // The dup chain should have been queried with vendor / date / amount.
+    expect(dupCheckChain.eq).toHaveBeenCalledWith("vendor_name", "ENEOS 城南店");
+    expect(dupCheckChain.eq).toHaveBeenCalledWith("recorded_date", "2026-05-10");
+    expect(dupCheckChain.eq).toHaveBeenCalledWith("amount_total", 5800);
+
+    // Whichever path the insert ends up on, duplicate_suspected should
+    // be present in the flags it carries.
+    expect(txInsertChain.insert).toHaveBeenCalledWith(expect.objectContaining({
+      flags: expect.arrayContaining(["duplicate_suspected"]),
+    }));
   });
 
   it("POST /expenses computes S-4 anomaly flags at create time", async () => {

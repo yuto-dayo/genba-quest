@@ -1508,9 +1508,8 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
         const requiresReview = risk_level === "HIGH";
 
         // S-4 anomaly detection (rule-based, computable at insert time).
-        // Dynamic flags (duplicate_suspected, advance_stale, budget_overrun)
-        // are out of scope here — they require cross-row queries or
-        // batch evaluation and will be added in a follow-up.
+        // advance_stale / budget_overrun stay batch-detected; everything
+        // resolvable on the insert path lives here.
         // docs/MONEY_EXPENSE_FLOW.md §6.2
         const flagsAtCreate: string[] = [];
         if (!normalizedInvoiceNumber) {
@@ -1521,6 +1520,29 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
         }
         if (normalizedCategory === "tool" && resolvedTotal >= 100000) {
             flagsAtCreate.push("asset_candidate");
+        }
+
+        // duplicate_suspected: same org / vendor / date / amount already
+        // exists. Cheap heuristic that catches the most common mistake —
+        // re-uploading the same receipt. False positives are fine; the
+        // flag is advisory, not blocking.
+        const normalizedVendor = normalizeText(vendor_name);
+        const dupRecordedDate = recorded_date || new Date().toISOString().split("T")[0];
+        if (normalizedVendor) {
+            const { data: dupCandidates, error: dupError } = await supabaseAdmin
+                .from("accounting_transactions")
+                .select("id")
+                .eq("org_id", orgId)
+                .eq("kind", "expense")
+                .eq("vendor_name", normalizedVendor)
+                .eq("recorded_date", dupRecordedDate)
+                .eq("amount_total", resolvedTotal)
+                .limit(1);
+            if (dupError) {
+                console.error("duplicate_suspected lookup error:", dupError);
+            } else if ((dupCandidates ?? []).length > 0) {
+                flagsAtCreate.push("duplicate_suspected");
+            }
         }
 
         // The canonical posting RPC currently understands only 'job' and

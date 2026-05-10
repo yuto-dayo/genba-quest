@@ -24,43 +24,43 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `S-2 threshold policy migration / S-4 dynamic flags / final PR review`. Source: realtime
+- [focus] NEXT_CMD: `S-2 threshold policy migration / advance_stale + budget_overrun batch / Phase 1 PR`. Source: realtime
+- [H0012] Completed: S-4 dynamic flag (partial): duplicate_suspected — same org/vendor/date/amount lookup at insert time. Cheap heuristic catches re-uploaded receipts. Added regression test asserting the dup query keys and the resulting flag. accountingRoute jest 63/63.
+- [H0012] Remaining: S-2 threshold policy migration / advance_stale + budget_overrun batch / Phase 1 PR
 - [H0011] Completed: F-3 capture flow scope chips: 4-value chip picker (現場/先行仕入れ/共通在庫/本部・会社) replaces the SITE/HQ radio in ExpenseModal, with hint text per option, auto-derives cost_center, hides site selector for stockpile/overhead, label changes to '今日 (or 直近) に作業した現場の経費' style. CreateExpenseRequest gains expense_scope. tsc + vite build clean.
 - [H0011] Remaining: S-2 threshold policy migration / S-4 dynamic flags / final PR review
-- [H0010] Completed: F-2 expense detail history view: GET /expenses/:id/history backend endpoint (org-scoped, append-only fetch); ExpenseHistoryTimeline component with 職人語 actor/source/field labels (registered + ocr_extracted + per-field old/new diffs); embedded in TransactionDetailModal for kind=expense. accountingRoute jest 62/62.
-- [H0010] Remaining: F-3 capture flow scope chips for ExpenseModal
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0012] Auto-captured decision: S-4 dynamic flag (partial): duplicate_suspected — same org/vendor/date/amount lookup at insert time. Cheap heuristic catches re-uploaded receipts. Added regression test assert...
 - [H0011] Auto-captured decision: F-3 capture flow scope chips: 4-value chip picker (現場/先行仕入れ/共通在庫/本部・会社) replaces the SITE/HQ radio in ExpenseModal, with hint text per option, au...
 - [H0010] Auto-captured decision: F-2 expense detail history view: GET /expenses/:id/history backend endpoint (org-scoped, append-only fetch); ExpenseHistoryTimeline component with 職人語 actor/source/field l...
 - [H0009] Auto-captured decision: F-1 bucket dashboard: new MoneyBucketDashboard component with 6 buckets (未割当/要確認/確認待ち/帳簿入り/高額な工具/先行仕入れ・古い), 職人語 label...
 - [H0008] Auto-captured decision: S-4 minimal anomaly rules: missing_invoice_number, missing_receipt, asset_candidate flags computed and persisted at insert time on both canonical and legacy paths. Also persiste...
-- [H0007] Auto-captured decision: S-3 expense_field_change_log writer (registered + ocr_extracted entries on create, append-only via supabaseAdmin); S-5 GET /expense_buckets aggregation endpoint (6 buckets: unas...
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0011] No new landmines reported in this chunk.
+- [H0012] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0012] S-2 threshold policy migration / advance_stale + budget_overrun batch / Phase 1 PR
 - [H0011] S-2 threshold policy migration / S-4 dynamic flags / final PR review
 - [H0010] F-3 capture flow scope chips for ExpenseModal
 - [H0009] F-2 detail view with field_change_log history; F-3 capture flow scope chips; S-2 policy migration; S-4 dynamic flags via batch job
 - [H0008] F-1 bucket dashboard frontend rendering, then S-4 dynamic flags (duplicate_suspected, advance_stale, budget_overrun) as a follow-up batch job, plus S-2 threshold policy migration
-- [H0007] S-2 threshold policy migration / S-4 anomaly rule engine (auto-set flags on insert) / F-1 bucket dashboard rendering
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `11`
+- current_l3_entries: `12`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -248,5 +248,21 @@
   - Auto-captured decision: F-3 capture flow scope chips: 4-value chip picker (現場/先行仕入れ/共通在庫/本部・会社) replaces the SITE/HQ radio in ExpenseModal, with hint text per option, au...
 - Validation:
   - `frontend tsc clean, vite build clean`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-10 21:00:10 +0900
+
+- Entry-ID: `H0012`
+- Completed:
+  - [x] S-4 dynamic flag (partial): duplicate_suspected — same org/vendor/date/amount lookup at insert time. Cheap heuristic catches re-uploaded receipts. Added regression test asserting the dup query keys and the resulting flag. accountingRoute jest 63/63.
+- Remaining:
+  - [ ] S-2 threshold policy migration / advance_stale + budget_overrun batch / Phase 1 PR
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: S-4 dynamic flag (partial): duplicate_suspected — same org/vendor/date/amount lookup at insert time. Cheap heuristic catches re-uploaded receipts. Added regression test assert...
+- Validation:
+  - `tsc clean, accountingRoute jest 63/63`
 - Landmines:
   - No new landmines reported in this chunk.
