@@ -23,33 +23,38 @@ const resetPasswordForEmail = vi.fn();
 const updateUser = vi.fn();
 let authStateCallback: ((event: string, session: unknown) => void) | null = null;
 
+const FRAMER_MOTION_PROPS = [
+    "initial",
+    "animate",
+    "exit",
+    "transition",
+    "layout",
+    "layoutId",
+    "whileHover",
+    "whileTap",
+    "whileFocus",
+    "whileDrag",
+    "drag",
+    "dragConstraints",
+    "onAnimationStart",
+    "onAnimationComplete",
+];
+
 vi.mock("framer-motion", () => ({
     motion: new Proxy(
         {},
         {
             get: (_target, prop) => {
                 const Tag = (typeof prop === "string" ? prop : "div") as keyof JSX.IntrinsicElements;
-                return ({
-                    children,
-                    initial: _initial,
-                    animate: _animate,
-                    exit: _exit,
-                    transition: _transition,
-                    layout: _layout,
-                    layoutId: _layoutId,
-                    whileHover: _whileHover,
-                    whileTap: _whileTap,
-                    whileFocus: _whileFocus,
-                    whileDrag: _whileDrag,
-                    drag: _drag,
-                    dragConstraints: _dragConstraints,
-                    onAnimationStart: _onAnimationStart,
-                    onAnimationComplete: _onAnimationComplete,
-                    ...props
-                }: ComponentProps<"div"> & Record<string, unknown>) => (
+                return (motionProps: ComponentProps<"div"> & Record<string, unknown>) => {
+                    const { children, ...rest } = motionProps;
+                    const domProps = { ...rest } as Record<string, unknown>;
+                    FRAMER_MOTION_PROPS.forEach((key) => {
+                        delete domProps[key];
+                    });
                     // @ts-expect-error dynamic tag mapping
-                    <Tag {...props}>{children}</Tag>
-                );
+                    return <Tag {...domProps}>{children}</Tag>;
+                };
             },
         },
     ),

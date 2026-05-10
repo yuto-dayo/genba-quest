@@ -1,13 +1,15 @@
 import {
-    ACTOR_TYPE_LABELS,
     BodyHeader,
     DecisionSummaryGrid,
     DescriptionBlock,
     TechnicalDetails,
+} from "./_shared";
+import {
+    ACTOR_TYPE_LABELS,
     getLedgerImpactLabel,
     getRiskLabel,
     getStatusLabel,
-} from "./_shared";
+} from "./_shared-utils";
 import type { ProposalBodyProps } from "./types";
 
 const FALLBACK_TYPE_LABELS: Record<string, string> = {

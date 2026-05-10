@@ -222,9 +222,6 @@ function isSiteLevelDraftNotification(notification: NotificationRecord): boolean
   return getNotificationDataString(notification, "task_type") === "site_level_draft";
 }
 
-function getSiteLevelDraftSiteName(notification: NotificationRecord | undefined): string {
-  return getNotificationDataString(notification, "site_name") || "完了現場";
-}
 
 function buildActiveOrgOptions(memberships: AppEntryMembershipRecord[]): ActiveOrgOption[] {
   return memberships.map((membership) => ({

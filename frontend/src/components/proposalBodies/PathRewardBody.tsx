@@ -1,5 +1,4 @@
 import {
-    ACTOR_TYPE_LABELS,
     AmountHero,
     BodyHeader,
     DecisionSummaryGrid,
@@ -7,6 +6,11 @@ import {
     ReasonsList,
     StatsGrid,
     TechnicalDetails,
+    type ReasonEntry,
+    type StatItem,
+} from "./_shared";
+import {
+    ACTOR_TYPE_LABELS,
     formatYen,
     getLedgerImpactLabel,
     getRiskLabel,
@@ -14,9 +18,7 @@ import {
     isRecord,
     toFiniteNumber,
     toMonthLabel,
-    type ReasonEntry,
-    type StatItem,
-} from "./_shared";
+} from "./_shared-utils";
 import { buildPathProposalHref } from "../../lib/pathProposal";
 import type { ProposalBodyProps } from "./types";
 

@@ -1,18 +1,20 @@
 import {
-    ACTOR_TYPE_LABELS,
     AmountHero,
     BodyHeader,
     DecisionSummaryGrid,
     DescriptionBlock,
     StatsGrid,
     TechnicalDetails,
+} from "./_shared";
+import {
+    ACTOR_TYPE_LABELS,
     formatRecordedDate,
     getLedgerImpactLabel,
     getRiskLabel,
     getStatusLabel,
     isRecord,
     toFiniteNumber,
-} from "./_shared";
+} from "./_shared-utils";
 import type { ProposalBodyProps } from "./types";
 
 const TYPE_LABELS: Record<string, string> = {

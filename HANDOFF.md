@@ -24,43 +24,43 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `Implementation in new branch feat/path-reward-v33-transparent (Phase 1: schema + aggregation function)`. Source: realtime
+- [focus] NEXT_CMD: `Wait CI green and merge`. Source: realtime
+- [H0020] Completed: fix(lint): split _shared.tsx → _shared-utils.ts (react-refresh/only-export-components), createElement(Body) instead of JSX (react-hooks/static-components), framer-motion mock filter pattern, drop unused getSiteLevelDraftSiteName
+- [H0020] Remaining: Wait CI green and merge
 - [H0019] Completed: docs(reward): V3.3 transparent governance design (Phase 0) — 3-tier per-site self-report → weighted average → 5-tier monthly with 1.25 multiplier; team-visible peer review (Objection + Co-sign) replaces 番頭 approval
 - [H0019] Remaining: Implementation in new branch feat/path-reward-v33-transparent (Phase 1: schema + aggregation function)
-- [H0018] Completed: fix(fab): raise FAB above bottom tab bar so 🔔 chip stays visible (FAB_MARGIN_BOTTOM 16→92, mobile media query bottom calc)
-- [H0018] Remaining: Commit V3.3 design doc
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0020] Auto-captured decision: fix(lint): split _shared.tsx → _shared-utils.ts (react-refresh/only-export-components), createElement(Body) instead of JSX (react-hooks/static-components), framer-motion mock ...
 - [H0019] Auto-captured decision: docs(reward): V3.3 transparent governance design (Phase 0) — 3-tier per-site self-report → weighted average → 5-tier monthly with 1.25 multiplier; team-visible peer review...
 - [H0018] Auto-captured decision: fix(fab): raise FAB above bottom tab bar so 🔔 chip stays visible (FAB_MARGIN_BOTTOM 16→92, mobile media query bottom calc)
 - [H0017] Auto-captured decision: refactor(proposal): per-type body registry — PathReward / Accounting / Invoice / CommunicationTask / CommunicationReview / Generic; ProposalDetailModal slimmed 740→256 lines
 - [H0016] Auto-captured decision: refactor(money): drop alertBanner + pathQueueSection, route entry through bell inbox, emit window events on mutation
-- [H0015] Auto-captured decision: feat(notify): unified bell + inbox bottom sheet (App.tsx state lift, NotificationInbox new component, ring motion on count change)
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0019] No new landmines reported in this chunk.
+- [H0020] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0020] Wait CI green and merge
 - [H0019] Implementation in new branch feat/path-reward-v33-transparent (Phase 1: schema + aggregation function)
 - [H0018] Commit V3.3 design doc
 - [H0017] FAB margin fix commit
 - [H0016] Continue with body registry refactor commit
-- [H0015] Continue committing remaining 4 chunks then ask about push/PR
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `19`
+- current_l3_entries: `20`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -376,5 +376,21 @@
   - Auto-captured decision: docs(reward): V3.3 transparent governance design (Phase 0) — 3-tier per-site self-report → weighted average → 5-tier monthly with 1.25 multiplier; team-visible peer review...
 - Validation:
   - `design doc reviewed, all 11 design questions resolved`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-11 00:53:48 +0900
+
+- Entry-ID: `H0020`
+- Completed:
+  - [x] fix(lint): split _shared.tsx → _shared-utils.ts (react-refresh/only-export-components), createElement(Body) instead of JSX (react-hooks/static-components), framer-motion mock filter pattern, drop unused getSiteLevelDraftSiteName
+- Remaining:
+  - [ ] Wait CI green and merge
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: fix(lint): split _shared.tsx → _shared-utils.ts (react-refresh/only-export-components), createElement(Body) instead of JSX (react-hooks/static-components), framer-motion mock ...
+- Validation:
+  - `eslint 0 errors (was 26), tsc 0, vitest 119/125 (pre-existing 6 fails), build clean`
 - Landmines:
   - No new landmines reported in this chunk.

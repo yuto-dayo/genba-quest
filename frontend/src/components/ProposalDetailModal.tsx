@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { createElement, useState } from "react";
 import { motion } from "framer-motion";
 import { CheckCircle, MessageSquare, X, XCircle, Zap } from "lucide-react";
 import type { ProposalRecord } from "../lib/api";
@@ -58,8 +58,6 @@ export function ProposalDetailModal({
         100,
     );
 
-    const Body = resolveProposalBody(proposal.type);
-
     const handleApprove = async () => {
         await onApprove(proposal.id, reason.trim() || undefined);
     };
@@ -105,8 +103,10 @@ export function ProposalDetailModal({
                     <X size={20} />
                 </button>
 
-                {/* Type-specific body, dispatched via registry */}
-                <Body proposal={proposal} />
+                {/* Type-specific body, dispatched via registry. createElement avoids
+                    react-hooks/static-components by not introducing a per-render JSX-named
+                    component variable. */}
+                {createElement(resolveProposalBody(proposal.type), { proposal })}
 
                 {/* Approval Progress (shared) */}
                 <section className={styles.section}>
