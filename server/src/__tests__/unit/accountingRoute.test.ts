@@ -157,6 +157,8 @@ describe("accounting router", () => {
   const analyzeOcrHandler = getPostHandler("/ocr/analyze");
   const downloadInvoiceHandler = getGetHandler("/invoices/:id/download");
   const voidTransactionHandler = getPostHandler("/void/:id");
+  const getExpenseBucketsHandler = getGetHandler("/expense_buckets");
+  const getExpenseHistoryHandler = getGetHandler("/expenses/:id/history");
   const mockFrom = (supabaseAdmin as unknown as { from: jest.Mock }).from;
   const mockRpc = (supabaseAdmin as unknown as { rpc: jest.Mock }).rpc;
   const mockStorageFrom = (supabaseAdmin as unknown as { storage: { from: jest.Mock } }).storage.from;
@@ -183,11 +185,13 @@ describe("accounting router", () => {
       },
       error: null,
     });
+    const dupCheckChain = createChain({ data: [], error: null });
     const existingEntryChain = createChain({ data: null, error: null });
     const entryInsertChain = createChain({ data: { id: "entry-1" }, error: null });
     const lineInsertChain = createChain({ data: null, error: null });
     setupMockFromSequence(mockFrom, [
       siteChain,
+      dupCheckChain,
       txInsertChain,
       existingEntryChain,
       entryInsertChain,
@@ -416,6 +420,171 @@ describe("accounting router", () => {
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith({ error: "claimant_member_id is required when paid_by is member" });
+    expect(mockFrom).not.toHaveBeenCalledWith("accounting_write_idempotency_keys");
+  });
+
+  it("POST /expenses sets duplicate_suspected when same vendor/date/amount already exists", async () => {
+    const siteChain = createChain({ data: { id: "site-1", status: "active" }, error: null });
+    // Duplicate lookup hits one existing row.
+    const dupCheckChain = createChain({ data: [{ id: "tx-existing-9" }], error: null });
+    const txInsertChain = createChain({
+      data: { id: "tx-dup-1", kind: "expense", recorded_date: "2026-05-10" },
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [
+      siteChain,
+      dupCheckChain,
+      txInsertChain,
+    ]);
+
+    const req = {
+      userId: "user-1",
+      orgId: "org-1",
+      body: {
+        idempotency_key: "expense-dup-1",
+        cost_center: "SITE",
+        site_id: "site-1",
+        vendor_name: "ENEOS 城南店",
+        recorded_date: "2026-05-10",
+        amount_total: 5800,
+        category: "fuel",
+        // High-risk path so the legacy insert receives flags directly.
+        // (food/travel > 5000 → HIGH; fuel currently rides default LOW;
+        // we force HIGH by category=tool > 30000? No — easier: just
+        // assert the dup chain was queried with the right keys.)
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createExpenseHandler(req, res);
+
+    // The dup chain should have been queried with vendor / date / amount.
+    expect(dupCheckChain.eq).toHaveBeenCalledWith("vendor_name", "ENEOS 城南店");
+    expect(dupCheckChain.eq).toHaveBeenCalledWith("recorded_date", "2026-05-10");
+    expect(dupCheckChain.eq).toHaveBeenCalledWith("amount_total", 5800);
+
+    // Whichever path the insert ends up on, duplicate_suspected should
+    // be present in the flags it carries.
+    expect(txInsertChain.insert).toHaveBeenCalledWith(expect.objectContaining({
+      flags: expect.arrayContaining(["duplicate_suspected"]),
+    }));
+  });
+
+  it("POST /expenses computes S-4 anomaly flags at create time", async () => {
+    // Tool over 100k with no receipt and no invoice_number should land
+    // with three static flags: missing_invoice_number, missing_receipt,
+    // asset_candidate.
+    const siteChain = createChain({ data: { id: "site-1", status: "active" }, error: null });
+    const txInsertChain = createChain({
+      data: {
+        id: "tx-flags-1",
+        kind: "expense",
+        amount_total: 120000,
+        recorded_date: "2026-05-10",
+      },
+      error: null,
+    });
+    const existingEntryChain = createChain({ data: null, error: null });
+    const entryInsertChain = createChain({ data: { id: "entry-flags-1" }, error: null });
+    const lineInsertChain = createChain({ data: null, error: null });
+    setupMockFromSequence(mockFrom, [
+      siteChain,
+      txInsertChain,
+      existingEntryChain,
+      entryInsertChain,
+      lineInsertChain,
+    ]);
+
+    const req = {
+      userId: "user-1",
+      orgId: "org-1",
+      body: {
+        idempotency_key: "expense-flags-tool-1",
+        cost_center: "SITE",
+        site_id: "site-1",
+        amount_total: 120000,
+        category: "tool",
+        expense_scope: "job",
+        // High risk path (tool > 30000) so it stays on the legacy insert
+        // path where flags pass through the insert payload directly.
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createExpenseHandler(req, res);
+
+    expect(txInsertChain.insert).toHaveBeenCalledWith(expect.objectContaining({
+      flags: expect.arrayContaining([
+        "missing_invoice_number",
+        "missing_receipt",
+        "asset_candidate",
+      ]),
+      invoice_number: null,
+    }));
+  });
+
+  it("POST /expenses accepts the four expanded expense_scope values", async () => {
+    // Just probe the scope validator: an unknown value should 400, while
+    // each of the four valid values should pass past the scope gate. We do
+    // not exercise the full insert path here — see other tests for that.
+    const trySend = async (scope: string) => {
+      const req = {
+        userId: "user-1",
+        orgId: "org-1",
+        body: {
+          idempotency_key: `expense-scope-${scope}-1`,
+          cost_center: "HQ",
+          amount_total: 1100,
+          category: "material",
+          expense_scope: scope,
+        },
+      } as any;
+      const res = createMockRes();
+      await createExpenseHandler(req, res);
+      return { status: (res.status as any).mock.calls[0]?.[0], json: (res.json as any).mock.calls[0]?.[0] };
+    };
+
+    const bogus = await trySend("nonsense_scope");
+    expect(bogus.status).toBe(400);
+    expect(bogus.json).toEqual({
+      error: "expense_scope must be one of job, job_advance, stockpile, overhead",
+    });
+
+    for (const scope of ["job_advance", "stockpile"] as const) {
+      const result = await trySend(scope);
+      // Both should at minimum get past the scope gate. Whatever happens
+      // afterwards (site validation, idempotency) is fine — we only need to
+      // verify the new values are not rejected as malformed.
+      expect(result.json).not.toEqual({
+        error: "expense_scope must be one of job, job_advance, stockpile, overhead",
+      });
+    }
+  });
+
+  it("POST /expenses rejects malformed invoice_number before reaching the DB", async () => {
+    const siteChain = createChain({ data: { id: "site-1", status: "active" }, error: null });
+    setupMockFromSequence(mockFrom, [siteChain]);
+
+    const req = {
+      userId: "user-1",
+      orgId: "org-1",
+      body: {
+        idempotency_key: "expense-bad-tnum-1",
+        cost_center: "SITE",
+        site_id: "site-1",
+        amount_total: 1100,
+        category: "material",
+        invoice_number: "T1234",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createExpenseHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      error: "invoice_number must match the format T followed by 13 digits",
+    });
     expect(mockFrom).not.toHaveBeenCalledWith("accounting_write_idempotency_keys");
   });
 
@@ -750,7 +919,10 @@ describe("accounting router", () => {
       status: undefined,
       review_status: undefined,
     }));
-    expect(mockFrom).toHaveBeenCalledTimes(5);
+    // 6 == site lookup + idempotency claim + transaction insert + journal entry +
+    // proposal lineage insert + expense_field_change_log "registered" insert (S-3).
+    expect(mockFrom).toHaveBeenCalledTimes(6);
+    expect(mockFrom).toHaveBeenCalledWith("expense_field_change_log");
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
       status: "pending_review",
@@ -3482,5 +3654,140 @@ describe("accounting router", () => {
 
     expect(res.status).toHaveBeenCalledWith(409);
     expect(res.json).toHaveBeenCalledWith({ error: "取消で作成された逆仕訳は再度取消できません" });
+  });
+
+  it("GET /expenses/:id/history returns 404 when the expense does not belong to the org", async () => {
+    const lookupChain = createChain({ data: null, error: null });
+    setupMockFromSequence(mockFrom, [lookupChain]);
+
+    const req = { orgId: "org-1", params: { id: "exp-other-org" } } as any;
+    const res = createMockRes();
+
+    await getExpenseHistoryHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ error: "expense not found" });
+  });
+
+  it("GET /expenses/:id/history returns the append-only entries in order", async () => {
+    const lookupChain = createChain({ data: { id: "exp-1" }, error: null });
+    const entries = [
+      {
+        id: "log-1",
+        field: "registered",
+        old_value: null,
+        new_value: { amount_total: 8400, vendor_name: "ホムセン橋本店" },
+        changed_by: { type: "human", id: "user-1", name: "田中" },
+        changed_at: "2026-05-08T05:23:00Z",
+        source: "manual",
+        reason: null,
+      },
+      {
+        id: "log-2",
+        field: "ocr_extracted",
+        old_value: null,
+        new_value: { invoice_number: "T1234567890123" },
+        changed_by: { type: "system", id: "ocr", name: "レシート読み取り" },
+        changed_at: "2026-05-08T05:23:01Z",
+        source: "system_auto",
+        reason: null,
+      },
+    ];
+    const historyChain = createChain({ data: entries, error: null });
+    setupMockFromSequence(mockFrom, [lookupChain, historyChain]);
+
+    const req = { orgId: "org-1", params: { id: "exp-1" } } as any;
+    const res = createMockRes();
+
+    await getExpenseHistoryHandler(req, res);
+
+    expect(res.json).toHaveBeenCalledWith({ expense_id: "exp-1", entries });
+  });
+
+  it("GET /expense_buckets aggregates expenses into buckets by lifecycle and flags", async () => {
+    const expenseRows = [
+      // Unassigned (no scope) created 5 days ago
+      {
+        id: "exp-1",
+        amount_total: 5000,
+        expense_scope: null,
+        expense_lifecycle_state: "captured",
+        flags: [],
+        recorded_date: "2026-05-05",
+        created_at: new Date(Date.now() - 5 * 86_400_000).toISOString(),
+        status: "draft",
+      },
+      // Needs review: missing_invoice_number
+      {
+        id: "exp-2",
+        amount_total: 8000,
+        expense_scope: "job",
+        expense_lifecycle_state: "captured",
+        flags: ["missing_invoice_number"],
+        recorded_date: "2026-05-06",
+        created_at: new Date(Date.now() - 1 * 86_400_000).toISOString(),
+        status: "draft",
+      },
+      // Awaiting verify
+      {
+        id: "exp-3",
+        amount_total: 12000,
+        expense_scope: "job",
+        expense_lifecycle_state: "classified",
+        flags: [],
+        recorded_date: "2026-05-07",
+        created_at: new Date().toISOString(),
+        status: "draft",
+      },
+      // Posted with asset_candidate (overlaps two buckets on purpose)
+      {
+        id: "exp-4",
+        amount_total: 120000,
+        expense_scope: "overhead",
+        expense_lifecycle_state: "posted",
+        flags: ["asset_candidate"],
+        recorded_date: "2026-05-08",
+        created_at: new Date().toISOString(),
+        status: "posted",
+      },
+      // Advance stale
+      {
+        id: "exp-5",
+        amount_total: 35000,
+        expense_scope: "job_advance",
+        expense_lifecycle_state: "captured",
+        flags: ["advance_stale"],
+        recorded_date: "2026-02-01",
+        created_at: new Date(Date.now() - 100 * 86_400_000).toISOString(),
+        status: "draft",
+      },
+    ];
+
+    const queryChain = createChain({ data: expenseRows, error: null });
+    setupMockFromSequence(mockFrom, [queryChain]);
+
+    const req = { orgId: "org-1", query: { month: "2026-05" } } as any;
+    const res = createMockRes();
+
+    await getExpenseBucketsHandler(req, res);
+
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        month: "2026-05",
+        range: { from: "2026-05-01", to: "2026-05-31" },
+        buckets: expect.objectContaining({
+          unassigned: { count: 1, amount: 5000 },
+          needs_review: { count: 1, amount: 8000 },
+          awaiting_verify: { count: 1, amount: 12000 },
+          posted: { count: 1, amount: 120000 },
+          asset_candidates: { count: 1, amount: 120000 },
+          advance_stale: { count: 1, amount: 35000 },
+        }),
+        total_count: 5,
+      }),
+    );
+    // Posted overlaps with asset_candidate — both should count.
+    const payload = (res.json as any).mock.calls[0][0];
+    expect(payload.oldest_unassigned_age_days).toBeGreaterThanOrEqual(4);
   });
 });

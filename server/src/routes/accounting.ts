@@ -152,6 +152,25 @@ function isOrgScopedStoragePath(orgId: string, storagePath: string | null | unde
     return typeof storagePath === "string" && storagePath.startsWith(`${orgId}/`);
 }
 
+/**
+ * インボイス制度のT番号を正規化する。
+ * 形式: T + 13桁 (法人/個人事業主の登録番号)。
+ * 半角化・前後空白除去のみ行い、形式不正なら null を返す。
+ * 形式チェックを通過した値のみが metadata_json に保存される。
+ */
+function normalizeInvoiceNumber(value: unknown): string | null {
+    const text = normalizeText(value);
+    if (!text) {
+        return null;
+    }
+
+    const halfWidth = text.replace(/[Ｔ]/g, "T").replace(/[０-９]/g, (ch) =>
+        String.fromCharCode(ch.charCodeAt(0) - 0xFEE0)
+    );
+    const compact = halfWidth.replace(/[\s-]/g, "").toUpperCase();
+    return /^T\d{13}$/.test(compact) ? compact : null;
+}
+
 function normalizeExpenseCategory(value: unknown): ExpenseCategory | null {
     const normalized = normalizeText(value)?.toLowerCase();
     if (!normalized) {
@@ -646,6 +665,116 @@ async function assertSiteSalesMutable(siteId: string, orgId: string): Promise<vo
 
     if (String(data.status ?? "") === "completed") {
         throw new Error("SITE_COMPLETED_SALES_IMMUTABLE");
+    }
+}
+
+/**
+ * Append-only log writer for the expense audit trail (S-3).
+ * Best-effort: failures are logged but do not abort the parent operation,
+ * since the source-of-truth row has already been written. The parent
+ * transaction's success matters more than the log entry's perfect arrival.
+ *
+ * field='registered'      → 起票時の全フィールドを new_value JSON に詰める
+ * field='ocr_extracted'   → OCRが抽出したフィールドを new_value JSON に詰める
+ * field='<column_name>'   → 個別フィールド編集
+ *
+ * 詳細: docs/MONEY_EXPENSE_FLOW.md §2.4
+ */
+type ExpenseLogActor = { type: "human" | "ai" | "system" | "integration"; id: string; name?: string | null };
+type ExpenseLogSource = "manual" | "ai_inference" | "system_auto";
+
+async function recordExpenseLogEntry(args: {
+    orgId: string;
+    expenseId: string;
+    field: string;
+    oldValue?: unknown;
+    newValue?: unknown;
+    actor: ExpenseLogActor;
+    source: ExpenseLogSource;
+    reason?: string | null;
+}): Promise<void> {
+    try {
+        const { error } = await supabaseAdmin
+            .from("expense_field_change_log")
+            .insert({
+                org_id: args.orgId,
+                expense_id: args.expenseId,
+                field: args.field,
+                old_value: args.oldValue === undefined ? null : args.oldValue,
+                new_value: args.newValue === undefined ? null : args.newValue,
+                changed_by: args.actor,
+                source: args.source,
+                reason: args.reason ?? null,
+            });
+        if (error) {
+            console.error(
+                `expense_field_change_log insert failed (expense=${args.expenseId}, field=${args.field}):`,
+                error,
+            );
+        }
+    } catch (err) {
+        console.error("expense_field_change_log unexpected error:", err);
+    }
+}
+
+/** Returns the subset of input_sources whose origin is OCR. */
+function ocrSubset(inputSources: unknown): Record<string, true> {
+    if (!inputSources || typeof inputSources !== "object") {
+        return {};
+    }
+    return Object.entries(inputSources as Record<string, unknown>).reduce<Record<string, true>>(
+        (acc, [field, source]) => {
+            if (source === "ocr") {
+                acc[field] = true;
+            }
+            return acc;
+        },
+        {},
+    );
+}
+
+/**
+ * Emit the audit-log entries for a fresh expense registration. Writes
+ *   1. a 'registered' entry with the full payload (always)
+ *   2. an 'ocr_extracted' entry listing only the fields whose values
+ *      came from OCR (only when at least one such field exists)
+ *
+ * Both entries share the wall-clock created_at, so the timeline shows
+ * "registered" and "ocr_extracted" side-by-side in chronological order.
+ */
+async function writeExpenseRegistrationLog(args: {
+    orgId: string;
+    expenseId: string;
+    inputSources: unknown;
+    actor: ExpenseLogActor;
+    payload: Record<string, unknown>;
+}): Promise<void> {
+    await recordExpenseLogEntry({
+        orgId: args.orgId,
+        expenseId: args.expenseId,
+        field: "registered",
+        newValue: args.payload,
+        actor: args.actor,
+        source: "manual",
+    });
+
+    const ocrFields = ocrSubset(args.inputSources);
+    const ocrFieldNames = Object.keys(ocrFields);
+    if (ocrFieldNames.length > 0) {
+        const ocrPayload = ocrFieldNames.reduce<Record<string, unknown>>((acc, field) => {
+            if (Object.prototype.hasOwnProperty.call(args.payload, field)) {
+                acc[field] = args.payload[field];
+            }
+            return acc;
+        }, {});
+        await recordExpenseLogEntry({
+            orgId: args.orgId,
+            expenseId: args.expenseId,
+            field: "ocr_extracted",
+            newValue: ocrPayload,
+            actor: { type: "system", id: "ocr", name: "レシート読み取り" },
+            source: "system_auto",
+        });
     }
 }
 
@@ -1221,6 +1350,7 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
             tax_category,
             expense_item_code,
             expense_item_other,
+            invoice_number,
             source_document_id,
             input_sources,
             expense_scope,
@@ -1236,6 +1366,7 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
         const normalizedTaxCategory = normalizeExpenseTaxCategory(tax_category) || "10_STANDARD";
         const normalizedExpenseItemCode = normalizeText(expense_item_code);
         const normalizedExpenseItemOther = normalizeText(expense_item_other);
+        const normalizedInvoiceNumber = normalizeInvoiceNumber(invoice_number);
         const normalizedExpenseScope = normalizeText(expense_scope) || (cost_center === "HQ" ? "overhead" : "job");
         const normalizedPaidBy = normalizeText(paid_by) || "org";
         const normalizedClaimantMemberId = normalizeText(claimant_member_id);
@@ -1244,13 +1375,20 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
         const normalizedReimbursementStatus = normalizeText(reimbursement_status)
             || (normalizedPaidBy === "member" ? "unsubmitted" : null);
         const normalizedRecurringTemplateId = normalizeText(recurring_template_id);
-        const resolvedCostCenter = normalizedExpenseScope === "overhead" ? "HQ" : (cost_center || "SITE");
-        const resolvedSiteId = normalizedExpenseScope === "overhead" ? null : site_id;
 
-        if (normalizedExpenseScope !== "job" && normalizedExpenseScope !== "overhead") {
-            res.status(400).json({ error: "expense_scope must be one of job, overhead" });
+        // Scope 4-value branching (M-1).
+        //   job          現場の経費 (site_id 必須, cost_center=SITE)
+        //   job_advance  着工前の先行仕入れ (site_id 必須, cost_center=SITE)
+        //   stockpile    共通在庫 (site_id 不要, cost_center=HQ)
+        //   overhead     本部・会社 (site_id 不要, cost_center=HQ)
+        const VALID_EXPENSE_SCOPES = ["job", "job_advance", "stockpile", "overhead"] as const;
+        if (!VALID_EXPENSE_SCOPES.includes(normalizedExpenseScope as typeof VALID_EXPENSE_SCOPES[number])) {
+            res.status(400).json({ error: "expense_scope must be one of job, job_advance, stockpile, overhead" });
             return;
         }
+        const scopeRequiresSite = normalizedExpenseScope === "job" || normalizedExpenseScope === "job_advance";
+        const resolvedCostCenter = scopeRequiresSite ? (cost_center || "SITE") : "HQ";
+        const resolvedSiteId = scopeRequiresSite ? site_id : null;
 
         if (normalizedPaidBy !== "org" && normalizedPaidBy !== "member") {
             res.status(400).json({ error: "paid_by must be one of org, member" });
@@ -1302,6 +1440,12 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
 
         if (normalizedCategory === "other" && normalizedExpenseItemCode === "other" && !normalizedExpenseItemOther) {
             res.status(400).json({ error: "expense_item_other is required when expense_item_code is other" });
+            return;
+        }
+
+        const rawInvoiceNumber = normalizeText(invoice_number);
+        if (rawInvoiceNumber && !normalizedInvoiceNumber) {
+            res.status(400).json({ error: "invoice_number must match the format T followed by 13 digits" });
             return;
         }
 
@@ -1363,7 +1507,51 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
 
         const requiresReview = risk_level === "HIGH";
 
-        if (!requiresReview) {
+        // S-4 anomaly detection (rule-based, computable at insert time).
+        // advance_stale / budget_overrun stay batch-detected; everything
+        // resolvable on the insert path lives here.
+        // docs/MONEY_EXPENSE_FLOW.md §6.2
+        const flagsAtCreate: string[] = [];
+        if (!normalizedInvoiceNumber) {
+            flagsAtCreate.push("missing_invoice_number");
+        }
+        if (!source_document_id) {
+            flagsAtCreate.push("missing_receipt");
+        }
+        if (normalizedCategory === "tool" && resolvedTotal >= 100000) {
+            flagsAtCreate.push("asset_candidate");
+        }
+
+        // duplicate_suspected: same org / vendor / date / amount already
+        // exists. Cheap heuristic that catches the most common mistake —
+        // re-uploading the same receipt. False positives are fine; the
+        // flag is advisory, not blocking.
+        const normalizedVendor = normalizeText(vendor_name);
+        const dupRecordedDate = recorded_date || new Date().toISOString().split("T")[0];
+        if (normalizedVendor) {
+            const { data: dupCandidates, error: dupError } = await supabaseAdmin
+                .from("accounting_transactions")
+                .select("id")
+                .eq("org_id", orgId)
+                .eq("kind", "expense")
+                .eq("vendor_name", normalizedVendor)
+                .eq("recorded_date", dupRecordedDate)
+                .eq("amount_total", resolvedTotal)
+                .limit(1);
+            if (dupError) {
+                console.error("duplicate_suspected lookup error:", dupError);
+            } else if ((dupCandidates ?? []).length > 0) {
+                flagsAtCreate.push("duplicate_suspected");
+            }
+        }
+
+        // The canonical posting RPC currently understands only 'job' and
+        // 'overhead' for expense_scope. New scopes (job_advance / stockpile)
+        // fall through to the legacy insert path until the RPC is extended.
+        const canonicalSupportsScope =
+            normalizedExpenseScope === "job" || normalizedExpenseScope === "overhead";
+
+        if (!requiresReview && canonicalSupportsScope) {
             const canonicalResult = await postCanonicalExpense({
                 orgId,
                 membershipId: req.orgMembershipId || null,
@@ -1383,7 +1571,7 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
                 riskLevel: risk_level,
                 sourceDocumentId: source_document_id,
                 inputSources: input_sources || {},
-                expenseScope: normalizedExpenseScope as "job" | "overhead",
+                expenseScope: normalizedExpenseScope as "job" | "overhead", // canonical RPC currently supports only these two; gate above ensures we only enter this branch with one of them
                 paidBy: normalizedPaidBy as "org" | "member",
                 claimantMemberId: normalizedClaimantMemberId,
                 settlementType: normalizedSettlementType as "paid" | "unpaid",
@@ -1397,6 +1585,35 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
             const canonicalData = canonicalResult?.transaction;
 
             if (canonicalData && typeof canonicalData === "object" && "id" in canonicalData) {
+                {
+                    const txId = (canonicalData as Record<string, unknown>).id;
+                    const patch: Record<string, unknown> = {};
+                    if (normalizedInvoiceNumber) {
+                        const existingMetadata = (canonicalData as Record<string, unknown>).metadata_json;
+                        patch.metadata_json = {
+                            ...(existingMetadata && typeof existingMetadata === "object" ? existingMetadata as Record<string, unknown> : {}),
+                            invoice_number: normalizedInvoiceNumber,
+                        };
+                        // T-FIX-1 also wants the typed column populated; M-5 added it.
+                        patch.invoice_number = normalizedInvoiceNumber;
+                    }
+                    if (flagsAtCreate.length > 0) {
+                        patch.flags = flagsAtCreate;
+                    }
+                    if (typeof txId === "string" && Object.keys(patch).length > 0) {
+                        const { error: patchError } = await supabaseAdmin
+                            .from("accounting_transactions")
+                            .update(patch)
+                            .eq("id", txId)
+                            .eq("org_id", orgId);
+                        if (patchError) {
+                            console.error("Failed to persist invoice_number/flags on canonical expense:", patchError);
+                        } else {
+                            Object.assign(canonicalData as Record<string, unknown>, patch);
+                        }
+                    }
+                }
+
                 const canonicalProposal = canonicalResult.proposal && typeof canonicalResult.proposal === "object"
                     ? canonicalResult.proposal as Record<string, unknown>
                     : null;
@@ -1424,6 +1641,30 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
                     mode: "canonical_expense_posting",
                     projection: canonicalProjection,
                     postingMetadata: canonicalPosting,
+                });
+
+                await writeExpenseRegistrationLog({
+                    orgId,
+                    expenseId: String((canonicalData as Record<string, unknown>).id),
+                    inputSources: input_sources,
+                    actor: {
+                        type: "human",
+                        id: req.userId!,
+                        name: req.userName || req.userEmail || null,
+                    },
+                    payload: {
+                        amount_total: resolvedTotal,
+                        vendor_name: vendor_name ?? null,
+                        recorded_date: recorded_date || new Date().toISOString().split("T")[0],
+                        expense_scope: normalizedExpenseScope,
+                        site_id: resolvedSiteId ?? null,
+                        cost_center: resolvedCostCenter,
+                        category: normalizedCategory ?? "other",
+                        expense_item_code: normalizedExpenseItemCode,
+                        invoice_number: normalizedInvoiceNumber,
+                        tax_category: normalizedTaxCategory,
+                        paid_by: normalizedPaidBy,
+                    },
                 });
 
                 await completeAccountingWriteIdempotency(idempotency, 201, responseBody);
@@ -1462,14 +1703,17 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
                 payment_account: normalizedPaymentAccount,
                 reimbursement_status: normalizedReimbursementStatus,
                 recurring_template_id: normalizedRecurringTemplateId,
+                invoice_number: normalizedInvoiceNumber,
             },
-            expense_scope: normalizedExpenseScope as "job" | "overhead",
+            expense_scope: normalizedExpenseScope as "job" | "job_advance" | "stockpile" | "overhead",
             paid_by: normalizedPaidBy as "org" | "member",
             claimant_member_id: normalizedClaimantMemberId,
             settlement_type: normalizedSettlementType as "paid" | "unpaid",
             payment_account: normalizedPaymentAccount as "cash" | "bank" | null,
             reimbursement_status: normalizedReimbursementStatus as "unsubmitted" | "submitted" | "approved" | "reimbursed" | null,
             recurring_template_id: normalizedRecurringTemplateId,
+            flags: flagsAtCreate,
+            invoice_number: normalizedInvoiceNumber,
             created_by: req.userId!,
         });
 
@@ -1510,6 +1754,7 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
                     expense_item_code: normalizedExpenseItemCode,
                     expense_item_other: normalizedExpenseItemOther,
                     tax_category: normalizedTaxCategory,
+                    invoice_number: normalizedInvoiceNumber,
                     risk_level,
                     review_required: requiresReview,
                     source_document_id,
@@ -1541,6 +1786,31 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
                 : legacyProjection,
         });
 
+        await writeExpenseRegistrationLog({
+            orgId,
+            expenseId: String(data.id),
+            inputSources: input_sources,
+            actor: {
+                type: "human",
+                id: req.userId!,
+                name: req.userName || req.userEmail || null,
+            },
+            payload: {
+                amount_total: resolvedTotal,
+                vendor_name: vendor_name ?? null,
+                recorded_date: data.recorded_date,
+                expense_scope: normalizedExpenseScope,
+                site_id: resolvedSiteId ?? null,
+                cost_center: resolvedCostCenter,
+                category: normalizedCategory ?? "other",
+                expense_item_code: normalizedExpenseItemCode,
+                invoice_number: normalizedInvoiceNumber,
+                tax_category: normalizedTaxCategory,
+                paid_by: normalizedPaidBy,
+                requires_review: requiresReview,
+            },
+        });
+
         await completeAccountingWriteIdempotency(idempotency, 201, responseBody);
         res.status(201).json(responseBody);
     } catch (err: any) {
@@ -1550,6 +1820,189 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
             return;
         }
         console.error("Expense create error:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+/**
+ * 経費バケット集計 (S-5).
+ * Money画面のダッシュボードを駆動する。バケットは独立した「観察ビュー」で、
+ * ある経費が複数のバケットに同時にカウントされる場合がある (例: posted な
+ * のに asset_candidate でもある工具)。これは仕様 — それぞれが「この観点で
+ * 見るとこう」を表す。
+ *
+ * docs/MONEY_EXPENSE_FLOW.md §5.1, §11.2-11.3
+ */
+router.get("/expense_buckets", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const orgId = req.orgId!;
+        const monthParam = typeof req.query.month === "string" ? req.query.month : "";
+
+        let startDate: string;
+        let endDate: string;
+        if (/^\d{4}-\d{2}$/.test(monthParam)) {
+            const [yearStr, monthStr] = monthParam.split("-");
+            const year = Number(yearStr);
+            const month = Number(monthStr);
+            const lastDay = new Date(year, month, 0).getDate();
+            startDate = `${monthParam}-01`;
+            endDate = `${monthParam}-${String(lastDay).padStart(2, "0")}`;
+        } else {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = now.getMonth() + 1;
+            const lastDay = new Date(year, month, 0).getDate();
+            const monthLabel = `${year}-${String(month).padStart(2, "0")}`;
+            startDate = `${monthLabel}-01`;
+            endDate = `${monthLabel}-${String(lastDay).padStart(2, "0")}`;
+        }
+
+        const { data, error } = await supabaseAdmin
+            .from("accounting_transactions")
+            .select("id, amount_total, expense_scope, expense_lifecycle_state, flags, recorded_date, created_at, status")
+            .eq("org_id", orgId)
+            .eq("kind", "expense")
+            .gte("recorded_date", startDate)
+            .lte("recorded_date", endDate);
+
+        if (error) {
+            console.error("expense_buckets query error:", error);
+            res.status(500).json({ error: "Internal server error" });
+            return;
+        }
+
+        const REVIEW_FLAGS = new Set([
+            "missing_invoice_number",
+            "missing_receipt",
+            "duplicate_suspected",
+            "out_of_pattern",
+            "budget_overrun",
+        ]);
+
+        type Bucket = { count: number; amount: number };
+        const empty = (): Bucket => ({ count: 0, amount: 0 });
+        const buckets = {
+            unassigned: empty(),
+            needs_review: empty(),
+            awaiting_verify: empty(),
+            posted: empty(),
+            asset_candidates: empty(),
+            advance_stale: empty(),
+        };
+
+        const nowMs = Date.now();
+        let oldestUnassignedAgeDays: number | null = null;
+
+        for (const row of data ?? []) {
+            const amount = Number(row.amount_total) || 0;
+            const flags = Array.isArray(row.flags) ? (row.flags as string[]) : [];
+            const lifecycle = typeof row.expense_lifecycle_state === "string"
+                ? row.expense_lifecycle_state
+                : "captured";
+            const scope = typeof row.expense_scope === "string" ? row.expense_scope : null;
+
+            const isUnassigned = !scope || scope === "unassigned" || flags.includes("missing_job");
+            if (isUnassigned) {
+                buckets.unassigned.count += 1;
+                buckets.unassigned.amount += amount;
+                if (typeof row.created_at === "string") {
+                    const ageDays = Math.floor((nowMs - new Date(row.created_at).getTime()) / 86_400_000);
+                    if (oldestUnassignedAgeDays === null || ageDays > oldestUnassignedAgeDays) {
+                        oldestUnassignedAgeDays = ageDays;
+                    }
+                }
+            }
+
+            if (flags.some((flag) => REVIEW_FLAGS.has(flag))) {
+                buckets.needs_review.count += 1;
+                buckets.needs_review.amount += amount;
+            }
+
+            if (lifecycle === "classified") {
+                buckets.awaiting_verify.count += 1;
+                buckets.awaiting_verify.amount += amount;
+            }
+
+            if (lifecycle === "posted" || row.status === "posted") {
+                buckets.posted.count += 1;
+                buckets.posted.amount += amount;
+            }
+
+            if (flags.includes("asset_candidate")) {
+                buckets.asset_candidates.count += 1;
+                buckets.asset_candidates.amount += amount;
+            }
+
+            if (flags.includes("advance_stale")) {
+                buckets.advance_stale.count += 1;
+                buckets.advance_stale.amount += amount;
+            }
+        }
+
+        res.json({
+            month: monthParam || `${startDate.slice(0, 7)}`,
+            range: { from: startDate, to: endDate },
+            buckets,
+            oldest_unassigned_age_days: oldestUnassignedAgeDays,
+            total_count: (data ?? []).length,
+        });
+    } catch (err) {
+        console.error("expense_buckets unexpected error:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+/**
+ * 経費の編集履歴取得 (F-2 サポート).
+ * append-only な expense_field_change_log を時系列で返す。
+ * 詳細ビューのタイムライン表示に使う。
+ *
+ * docs/MONEY_EXPENSE_FLOW.md §5.3, §11.4
+ */
+router.get("/expenses/:id/history", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const orgId = req.orgId!;
+        const expenseId = req.params.id;
+        if (!expenseId) {
+            res.status(400).json({ error: "expense id is required" });
+            return;
+        }
+
+        // 組織境界の確認 — 経費自体が同 org に属すること.
+        const { data: expense, error: expenseError } = await supabaseAdmin
+            .from("accounting_transactions")
+            .select("id")
+            .eq("id", expenseId)
+            .eq("org_id", orgId)
+            .eq("kind", "expense")
+            .maybeSingle();
+
+        if (expenseError) {
+            console.error("expense lookup error:", expenseError);
+            res.status(500).json({ error: "Internal server error" });
+            return;
+        }
+        if (!expense) {
+            res.status(404).json({ error: "expense not found" });
+            return;
+        }
+
+        const { data, error } = await supabaseAdmin
+            .from("expense_field_change_log")
+            .select("id, field, old_value, new_value, changed_by, changed_at, source, reason")
+            .eq("expense_id", expenseId)
+            .eq("org_id", orgId)
+            .order("changed_at", { ascending: true });
+
+        if (error) {
+            console.error("expense history query error:", error);
+            res.status(500).json({ error: "Internal server error" });
+            return;
+        }
+
+        res.json({ expense_id: expenseId, entries: data ?? [] });
+    } catch (err) {
+        console.error("expense history unexpected error:", err);
         res.status(500).json({ error: "Internal server error" });
     }
 });

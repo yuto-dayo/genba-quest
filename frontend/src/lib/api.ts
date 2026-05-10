@@ -1626,6 +1626,62 @@ export const createExpense = (data: CreateExpenseRequest) =>
         body: JSON.stringify(withIdempotencyKey("accounting.expenses.create", data)),
     });
 
+// 経費バケット集計 (Money画面ダッシュボード用)
+// docs/MONEY_EXPENSE_FLOW.md §5.1
+export interface ExpenseBucketCounts {
+    count: number;
+    amount: number;
+}
+
+export interface ExpenseBucketsReport {
+    month: string;
+    range: { from: string; to: string };
+    buckets: {
+        unassigned: ExpenseBucketCounts;
+        needs_review: ExpenseBucketCounts;
+        awaiting_verify: ExpenseBucketCounts;
+        posted: ExpenseBucketCounts;
+        asset_candidates: ExpenseBucketCounts;
+        advance_stale: ExpenseBucketCounts;
+    };
+    oldest_unassigned_age_days: number | null;
+    total_count: number;
+}
+
+export const fetchExpenseBuckets = (month?: string) =>
+    api<ExpenseBucketsReport>(
+        `/api/v1/accounting/expense_buckets${month ? `?month=${encodeURIComponent(month)}` : ""}`,
+    );
+
+// 経費の編集履歴 (詳細ビュー用)
+// docs/MONEY_EXPENSE_FLOW.md §5.3
+export interface ExpenseHistoryActor {
+    type: "human" | "ai" | "system" | "integration";
+    id: string;
+    name?: string | null;
+}
+
+export interface ExpenseHistoryEntry {
+    id: string;
+    field: string;
+    old_value: unknown;
+    new_value: unknown;
+    changed_by: ExpenseHistoryActor;
+    changed_at: string;
+    source: "manual" | "ai_inference" | "system_auto";
+    reason?: string | null;
+}
+
+export interface ExpenseHistoryResponse {
+    expense_id: string;
+    entries: ExpenseHistoryEntry[];
+}
+
+export const fetchExpenseHistory = (expenseId: string) =>
+    api<ExpenseHistoryResponse>(
+        `/api/v1/accounting/expenses/${encodeURIComponent(expenseId)}/history`,
+    );
+
 // 経費承認/否認
 export const reviewExpense = (id: string, action: "approve" | "reject", comment?: string) =>
     api<AccountingTransaction>(`/api/v1/accounting/expenses/${id}/review`, {
@@ -1930,6 +1986,8 @@ export interface CreateExpenseRequest {
     expense_item_code?: string;
     expense_item_other?: string;
     tax_category?: "10_STANDARD" | "08_REDUCED" | "00_EXEMPT" | "00_TAXFREE";
+    invoice_number?: string;
+    expense_scope?: "job" | "job_advance" | "stockpile" | "overhead";
     source_document_id?: string;
     input_sources?: Record<string, "ocr" | "manual">;
 }

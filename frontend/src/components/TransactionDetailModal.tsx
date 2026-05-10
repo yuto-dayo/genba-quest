@@ -20,6 +20,7 @@ import {
 } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
 import { InvoiceCorrectionModal } from "./InvoiceCorrectionModal";
+import { ExpenseHistoryTimeline } from "./ExpenseHistoryTimeline";
 import styles from "./TransactionDetailModal.module.css";
 
 interface TransactionDetailModalProps {
@@ -443,6 +444,10 @@ export function TransactionDetailModal({
                         )}
                     </div>
                 </section>
+
+                {transaction.kind === "expense" && (
+                    <ExpenseHistoryTimeline expenseId={transaction.id} />
+                )}
 
                 <section className={styles.section}>
                     <div className={styles.sectionHeader}>
