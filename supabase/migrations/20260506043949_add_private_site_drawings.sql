@@ -1,41 +1,47 @@
 -- Private site drawing storage and immutable version metadata.
 -- Client direct writes stay closed; the server service role owns uploads and version promotion.
 
-INSERT INTO storage.buckets (
-  id,
-  name,
-  public,
-  file_size_limit,
-  allowed_mime_types
-)
-VALUES (
-  'genba-drawings',
-  'genba-drawings',
-  false,
-  104857600,
-  ARRAY[
-    'application/pdf',
-    'image/png',
-    'image/jpeg',
-    'image/webp',
-    'image/tiff',
-    'application/octet-stream',
-    'application/acad',
-    'application/x-acad',
-    'application/dwg',
-    'application/x-dwg',
-    'application/vnd.dwg',
-    'application/dxf',
-    'application/x-dxf',
-    'image/vnd.dwg',
-    'image/vnd.dxf'
-  ]::text[]
-)
-ON CONFLICT (id) DO UPDATE
-SET
-  public = false,
-  file_size_limit = EXCLUDED.file_size_limit,
-  allowed_mime_types = EXCLUDED.allowed_mime_types;
+DO $$
+BEGIN
+  IF to_regclass('storage.buckets') IS NOT NULL THEN
+    INSERT INTO storage.buckets (
+      id,
+      name,
+      public,
+      file_size_limit,
+      allowed_mime_types
+    )
+    VALUES (
+      'genba-drawings',
+      'genba-drawings',
+      false,
+      104857600,
+      ARRAY[
+        'application/pdf',
+        'image/png',
+        'image/jpeg',
+        'image/webp',
+        'image/tiff',
+        'application/octet-stream',
+        'application/acad',
+        'application/x-acad',
+        'application/dwg',
+        'application/x-dwg',
+        'application/vnd.dwg',
+        'application/dxf',
+        'application/x-dxf',
+        'image/vnd.dwg',
+        'image/vnd.dxf'
+      ]::text[]
+    )
+    ON CONFLICT (id) DO UPDATE
+    SET
+      public = false,
+      file_size_limit = EXCLUDED.file_size_limit,
+      allowed_mime_types = EXCLUDED.allowed_mime_types;
+  END IF;
+END;
+$$;
 
 CREATE TABLE IF NOT EXISTS public.site_drawings (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -142,19 +148,25 @@ BEGIN
 END;
 $$;
 
-DROP POLICY IF EXISTS "Read org drawing storage objects" ON storage.objects;
-CREATE POLICY "Read org drawing storage objects"
-  ON storage.objects
-  FOR SELECT
-  TO authenticated
-  USING (
-    bucket_id = 'genba-drawings'
-    AND CASE
-      WHEN (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
-        THEN private.is_active_member(((storage.foldername(name))[1])::uuid)
-      ELSE false
-    END
-  );
+DO $$
+BEGIN
+  IF to_regclass('storage.objects') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "Read org drawing storage objects" ON storage.objects;
+    CREATE POLICY "Read org drawing storage objects"
+      ON storage.objects
+      FOR SELECT
+      TO authenticated
+      USING (
+        bucket_id = 'genba-drawings'
+        AND CASE
+          WHEN (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+            THEN private.is_active_member(((storage.foldername(name))[1])::uuid)
+          ELSE false
+        END
+      );
+  END IF;
+END;
+$$;
 
 GRANT SELECT ON TABLE
   public.site_drawings,

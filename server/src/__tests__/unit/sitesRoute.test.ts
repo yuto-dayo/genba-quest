@@ -6,6 +6,9 @@ const mockResolveActiveOrgMembership = jest.fn();
 jest.mock("../../lib/supabaseClient", () => ({
   supabaseAdmin: {
     from: jest.fn(),
+    storage: {
+      from: jest.fn(),
+    },
   },
 }));
 
@@ -74,15 +77,31 @@ function getPostHandler(path: string) {
   return layer.route.stack[0].handle as (req: any, res: any) => Promise<void>;
 }
 
+function getGetHandler(path: string) {
+  const layer = (sitesRouter as any).stack.find(
+    (entry: any) => entry.route?.path === path && entry.route?.methods?.get
+  );
+
+  if (!layer) {
+    throw new Error(`GET handler not found for path: ${path}`);
+  }
+
+  return layer.route.stack[0].handle as (req: any, res: any) => Promise<void>;
+}
+
 describe("sites router completion endpoints", () => {
+  const listDocumentsHandler = getGetHandler("/:id/documents");
+  const uploadDocumentHandler = getPostHandler("/:id/documents");
   const completeWithCloseHandler = getPostHandler("/:id/complete-with-close");
   const completeHandler = getPostHandler("/:id/complete");
   const reverseHandler = getPostHandler("/:id/complete/reverse");
   const mockSiteCompletionServiceCtor = SiteCompletionService as unknown as jest.Mock;
   const mockFrom = (supabaseAdmin as unknown as { from: jest.Mock }).from;
+  const mockStorageFrom = (supabaseAdmin as unknown as { storage: { from: jest.Mock } }).storage.from;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockStorageFrom.mockReset();
     mockResolveActiveOrgMembership.mockResolvedValue({
       org_id: "11111111-1111-4111-8111-111111111111",
       user_id: "user-1",
@@ -93,6 +112,103 @@ describe("sites router completion endpoints", () => {
       proposals: createChain({ data: [], error: null }),
       site_closes: createChain({ data: [], error: null }),
     });
+  });
+
+  it("GET /:id/documents scopes documents and signed URLs to the active org", async () => {
+    const siteChain = createChain({ data: { id: "site-1", org_id: "org-1", name: "Site" }, error: null });
+    const docsChain = createChain({
+      data: [
+        {
+          id: "doc-1",
+          storage_path: "org-1/sites/site-1/documents/user-1/1000.pdf",
+        },
+        {
+          id: "doc-legacy",
+          storage_path: "user-1/legacy.pdf",
+        },
+      ],
+      error: null,
+    });
+    const createSignedUrl = jest.fn().mockResolvedValue({
+      data: { signedUrl: "https://signed.example/doc-1" },
+      error: null,
+    });
+    mockStorageFrom.mockReturnValue({ createSignedUrl });
+    setupMockFrom(mockFrom, {
+      sites: siteChain,
+      documents: docsChain,
+      proposals: createChain({ data: [], error: null }),
+      site_closes: createChain({ data: [], error: null }),
+    });
+
+    const req = {
+      params: { id: "site-1" },
+      orgId: "org-1",
+    } as any;
+    const res = createMockRes();
+
+    await listDocumentsHandler(req, res);
+
+    expect(docsChain.eq).toHaveBeenCalledWith("org_id", "org-1");
+    expect(docsChain.eq).toHaveBeenCalledWith("site_id", "site-1");
+    expect(createSignedUrl).toHaveBeenCalledTimes(1);
+    expect(createSignedUrl).toHaveBeenCalledWith("org-1/sites/site-1/documents/user-1/1000.pdf", 3600);
+    expect(res.json).toHaveBeenCalledWith([
+      expect.objectContaining({ id: "doc-1", signed_url: "https://signed.example/doc-1" }),
+      expect.objectContaining({ id: "doc-legacy", signed_url: null }),
+    ]);
+  });
+
+  it("POST /:id/documents stores files under an org-prefixed site document path", async () => {
+    const dateSpy = jest.spyOn(Date, "now").mockReturnValue(1710000000000);
+    const siteChain = createChain({ data: { id: "site-1", org_id: "org-1", name: "Site" }, error: null });
+    const insertChain = createChain({
+      data: {
+        id: "doc-1",
+        org_id: "org-1",
+        site_id: "site-1",
+        storage_path: "org-1/sites/site-1/documents/user-1/1710000000000.pdf",
+      },
+      error: null,
+    });
+    const upload = jest.fn().mockResolvedValue({ error: null });
+    mockStorageFrom.mockReturnValue({ upload });
+    setupMockFrom(mockFrom, {
+      sites: siteChain,
+      documents: insertChain,
+      proposals: createChain({ data: [], error: null }),
+      site_closes: createChain({ data: [], error: null }),
+    });
+
+    const req = {
+      params: { id: "site-1" },
+      body: {
+        file_base64: Buffer.from("pdf").toString("base64"),
+        mime_type: "application/pdf",
+        original_filename: "drawing.pdf",
+      },
+      userId: "user-1",
+      orgId: "org-1",
+    } as any;
+    const res = createMockRes();
+
+    await uploadDocumentHandler(req, res);
+
+    expect(upload).toHaveBeenCalledWith(
+      "org-1/sites/site-1/documents/user-1/1710000000000.pdf",
+      expect.any(Buffer),
+      expect.objectContaining({ contentType: "application/pdf", upsert: false }),
+    );
+    expect(insertChain.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        org_id: "org-1",
+        site_id: "site-1",
+        storage_path: "org-1/sites/site-1/documents/user-1/1710000000000.pdf",
+      }),
+    );
+    expect(res.status).toHaveBeenCalledWith(201);
+
+    dateSpy.mockRestore();
   });
 
   it("POST /:id/complete-with-close delegates to SiteCompleteWithCloseService", async () => {
@@ -161,6 +277,7 @@ describe("sites router completion endpoints", () => {
         id: "user-1",
         name: "担当者",
       },
+      undefined,
     );
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(

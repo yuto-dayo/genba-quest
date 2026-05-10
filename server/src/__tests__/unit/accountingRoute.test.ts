@@ -1,4 +1,4 @@
-import { createChain, setupMockFromSequence } from "../helpers/mockSupabase";
+import { createChain } from "../helpers/mockSupabase";
 
 jest.mock("../../lib/supabaseClient", () => ({
   supabaseAdmin: {
@@ -84,6 +84,62 @@ function getPutHandler(path: string) {
   return layer.route.stack[0].handle as (req: any, res: any) => Promise<void>;
 }
 
+function setupMockFromSequence(
+  mockFrom: jest.Mock,
+  chains: ReturnType<typeof createChain>[],
+  idempotencyChains: ReturnType<typeof createChain>[] = [],
+  proposalChains: ReturnType<typeof createChain>[] = []
+): void {
+  let callIndex = 0;
+  let idempotencyIndex = 0;
+  let proposalIndex = 0;
+
+  mockFrom.mockImplementation((table: string) => {
+    if (table === "accounting_write_idempotency_keys") {
+      if (idempotencyChains.length > 0) {
+        return idempotencyChains.shift()!;
+      }
+
+      idempotencyIndex += 1;
+      if (idempotencyIndex % 2 === 1) {
+        return createChain({
+          data: {
+            id: `idem-${idempotencyIndex}`,
+            request_hash: null,
+            status: "in_progress",
+            response_status: 200,
+            response_json: null,
+          },
+          error: null,
+        });
+      }
+
+      return createChain({ data: null, error: null });
+    }
+
+    if (table === "proposals") {
+      if (proposalChains.length > 0) {
+        return proposalChains.shift()!;
+      }
+
+      proposalIndex += 1;
+      return createChain({
+        data: {
+          id: `proposal-${proposalIndex}`,
+          type: "expense.create",
+          status: "executed",
+          policy_ref: "legacy_direct_transition",
+        },
+        error: null,
+      });
+    }
+
+    const chain = chains[callIndex] || createChain();
+    callIndex += 1;
+    return chain;
+  });
+}
+
 describe("accounting router", () => {
   const createExpenseHandler = getPostHandler("/expenses");
   const createSaleHandler = getPostHandler("/sales");
@@ -96,6 +152,9 @@ describe("accounting router", () => {
   const createInvoiceHandler = getPostHandler("/invoices");
   const correctInvoiceHandler = getPostHandler("/invoices/:id/correct");
   const createInvoiceSupplementHandler = getPostHandler("/invoices/:id/supplement");
+  const createPaymentHandler = getPostHandler("/payments");
+  const createPaymentAllocationHandler = getPostHandler("/payments/allocations");
+  const analyzeOcrHandler = getPostHandler("/ocr/analyze");
   const downloadInvoiceHandler = getGetHandler("/invoices/:id/download");
   const voidTransactionHandler = getPostHandler("/void/:id");
   const mockFrom = (supabaseAdmin as unknown as { from: jest.Mock }).from;
@@ -105,10 +164,12 @@ describe("accounting router", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockRpc.mockReset();
     mockStorageFrom.mockReset();
   });
 
   it("POST /expenses posts low-risk expense immediately and creates journal entries", async () => {
+    const siteChain = createChain({ data: { id: "site-1", status: "active" }, error: null });
     const txInsertChain = createChain({
       data: {
         id: "tx-1",
@@ -126,6 +187,7 @@ describe("accounting router", () => {
     const entryInsertChain = createChain({ data: { id: "entry-1" }, error: null });
     const lineInsertChain = createChain({ data: null, error: null });
     setupMockFromSequence(mockFrom, [
+      siteChain,
       txInsertChain,
       existingEntryChain,
       entryInsertChain,
@@ -134,7 +196,9 @@ describe("accounting router", () => {
 
     const req = {
       userId: "user-1",
+      orgId: "org-1",
       body: {
+        idempotency_key: "expense-low-risk-1",
         cost_center: "SITE",
         site_id: "site-1",
         vendor_name: "資材屋",
@@ -143,6 +207,11 @@ describe("accounting router", () => {
         amount_total: 1100,
         category: "material",
         description: "ビス購入",
+        expense_scope: "job",
+        paid_by: "member",
+        claimant_member_id: "member-1",
+        settlement_type: "unpaid",
+        reimbursement_status: "submitted",
       },
     } as any;
     const res = createMockRes();
@@ -157,10 +226,23 @@ describe("accounting router", () => {
       risk_level: "LOW",
       status: "posted",
       review_status: "not_required",
+      projection_source: "transition_lineage",
+      expense_scope: "job",
+      paid_by: "member",
+      claimant_member_id: "member-1",
+      settlement_type: "unpaid",
+      reimbursement_status: "submitted",
+      metadata_json: expect.objectContaining({
+        expense_scope: "job",
+        paid_by: "member",
+        settlement_type: "unpaid",
+        reimbursement_status: "submitted",
+      }),
       created_by: "user-1",
     }));
     expect(existingEntryChain.maybeSingle).toHaveBeenCalled();
     expect(entryInsertChain.insert).toHaveBeenCalledWith(expect.objectContaining({
+      org_id: "org-1",
       transaction_id: "tx-1",
       created_by: "user-1",
     }));
@@ -172,6 +254,249 @@ describe("accounting router", () => {
     expect(res.status).toHaveBeenCalledWith(201);
   });
 
+  it("POST /expenses uses canonical expense posting RPC when available", async () => {
+    const siteChain = createChain({ data: { id: "site-1", status: "active" }, error: null });
+    setupMockFromSequence(mockFrom, [siteChain]);
+    mockRpc.mockResolvedValue({
+      data: {
+        org_id: "org-1",
+        transaction: {
+          id: "expense-canonical-1",
+          org_id: "org-1",
+          kind: "expense",
+          site_id: "site-1",
+          description: "ビス購入",
+          recorded_date: "2026-03-18",
+          amount_subtotal: 1000,
+          tax_amount: 100,
+          amount_total: 1100,
+          projection_source: "canonical_posting_projection",
+          proposal_id: "proposal-expense-canonical-1",
+          proposal_execution_id: "execution-expense-canonical-1",
+          posting_group_id: "posting-group-expense-canonical-1",
+          journal_entry_id: "journal-expense-canonical-1",
+        },
+        proposal: {
+          id: "proposal-expense-canonical-1",
+          type: "expense.create",
+          status: "posted_canonical_projection",
+          db_status: "executed",
+          lineage_mode: "transition",
+          lifecycle_engine: "money_transition",
+          full_proposal_lifecycle: false,
+          source_route: "accounting.expenses.create",
+          source_idempotency_key: "expense-canonical-1",
+        },
+        projection: {
+          legacy_transaction_id: "expense-canonical-1",
+          legacy_transaction_kind: "expense",
+          projection_source: "canonical_posting_projection",
+          proposal_id: "proposal-expense-canonical-1",
+          proposal_execution_id: "execution-expense-canonical-1",
+          posting_group_id: "posting-group-expense-canonical-1",
+          journal_entry_id: "journal-expense-canonical-1",
+        },
+        posting: {
+          status: "posted",
+          mode: "canonical_expense_posting",
+          affects_pl: true,
+          affects_revenue: false,
+          affects_ar: false,
+        },
+      },
+      error: null,
+    });
+
+    const req = {
+      userId: "user-1",
+      userName: "山田",
+      orgId: "org-1",
+      orgMembershipId: "membership-1",
+      body: {
+        idempotency_key: "expense-canonical-1",
+        cost_center: "SITE",
+        site_id: "site-1",
+        vendor_name: "資材屋",
+        amount_subtotal: 1000,
+        tax_amount: 100,
+        amount_total: 1100,
+        category: "material",
+        description: "ビス購入",
+        expense_scope: "job",
+        paid_by: "member",
+        claimant_member_id: "member-1",
+        settlement_type: "unpaid",
+        reimbursement_status: "submitted",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createExpenseHandler(req, res);
+
+    expect(mockRpc).toHaveBeenCalledWith("rpc_post_accounting_expense_canonical", expect.objectContaining({
+      p_org_id: "org-1",
+      p_actor_user_id: "user-1",
+      p_membership_id: "membership-1",
+      p_idempotency_key: "expense-canonical-1",
+      p_site_id: "site-1",
+      p_amount_total: 1100,
+      p_category: "material",
+      p_expense_scope: "job",
+      p_paid_by: "member",
+      p_claimant_member_id: "member-1",
+      p_settlement_type: "unpaid",
+      p_reimbursement_status: "submitted",
+    }));
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      id: "expense-canonical-1",
+      proposal: expect.objectContaining({
+        id: "proposal-expense-canonical-1",
+        status: "posted_canonical_projection",
+        lifecycle_engine: "money_transition",
+        full_proposal_lifecycle: false,
+      }),
+      posting: expect.objectContaining({
+        status: "posted",
+        mode: "canonical_expense_posting",
+        affects_pl: true,
+        affects_revenue: false,
+        affects_ar: false,
+      }),
+      projection: expect.objectContaining({
+        projection_source: "canonical_posting_projection",
+        proposal_execution_id: "execution-expense-canonical-1",
+        posting_group_id: "posting-group-expense-canonical-1",
+        journal_entry_id: "journal-expense-canonical-1",
+      }),
+    }));
+  });
+
+  it("POST /expenses requires an idempotency key for accounting writes", async () => {
+    const siteChain = createChain({ data: { id: "site-1", status: "active" }, error: null });
+    setupMockFromSequence(mockFrom, [siteChain]);
+
+    const req = {
+      userId: "user-1",
+      orgId: "org-1",
+      body: {
+        cost_center: "SITE",
+        site_id: "site-1",
+        amount_total: 1100,
+        category: "material",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createExpenseHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: "idempotency_key is required" });
+  });
+
+  it("POST /expenses requires claimant_member_id for member-paid reimbursements", async () => {
+    const siteChain = createChain({ data: { id: "site-1", status: "active" }, error: null });
+    setupMockFromSequence(mockFrom, [siteChain]);
+
+    const req = {
+      userId: "user-1",
+      orgId: "org-1",
+      body: {
+        idempotency_key: "expense-member-missing-claimant-1",
+        cost_center: "SITE",
+        site_id: "site-1",
+        amount_total: 1100,
+        category: "material",
+        paid_by: "member",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createExpenseHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: "claimant_member_id is required when paid_by is member" });
+    expect(mockFrom).not.toHaveBeenCalledWith("accounting_write_idempotency_keys");
+  });
+
+  it("POST /expenses replays a completed idempotent write without inserting another transaction", async () => {
+    const siteChain = createChain({ data: { id: "site-1", status: "active" }, error: null });
+    const txInsertChain = createChain({ data: { id: "tx-new" }, error: null });
+    const idempotencyInsertChain = createChain({
+      data: null,
+      error: { code: "23505", message: "duplicate key value violates unique constraint" },
+    });
+    const idempotencyExistingChain = createChain({
+      data: {
+        id: "idem-existing",
+        request_hash: null,
+        status: "succeeded",
+        response_status: 201,
+        response_json: { id: "tx-existing", kind: "expense" },
+      },
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [siteChain, txInsertChain], [idempotencyInsertChain, idempotencyExistingChain]);
+
+    const req = {
+      userId: "user-1",
+      orgId: "org-1",
+      body: {
+        idempotency_key: "expense-replay-1",
+        cost_center: "SITE",
+        site_id: "site-1",
+        amount_total: 1100,
+        category: "material",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createExpenseHandler(req, res);
+
+    expect(txInsertChain.insert).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({ id: "tx-existing", kind: "expense" });
+  });
+
+  it("POST /expenses rejects an idempotency key reused with a different payload", async () => {
+    const siteChain = createChain({ data: { id: "site-1", status: "active" }, error: null });
+    const txInsertChain = createChain({ data: { id: "tx-new" }, error: null });
+    const idempotencyInsertChain = createChain({
+      data: null,
+      error: { code: "23505", message: "duplicate key value violates unique constraint" },
+    });
+    const idempotencyExistingChain = createChain({
+      data: {
+        id: "idem-existing",
+        request_hash: "hash-from-a-different-payload",
+        status: "succeeded",
+        response_status: 201,
+        response_json: { id: "tx-existing", kind: "expense" },
+      },
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [siteChain, txInsertChain], [idempotencyInsertChain, idempotencyExistingChain]);
+
+    const req = {
+      userId: "user-1",
+      orgId: "org-1",
+      body: {
+        idempotency_key: "expense-conflict-1",
+        cost_center: "SITE",
+        site_id: "site-1",
+        amount_total: 2200,
+        category: "material",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createExpenseHandler(req, res);
+
+    expect(txInsertChain.insert).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({ error: "IDEMPOTENCY_CONFLICT" });
+  });
+
   it("GET /transactions applies creator and month filters", async () => {
     const queryChain = createChain({
       data: [],
@@ -180,6 +505,7 @@ describe("accounting router", () => {
     setupMockFromSequence(mockFrom, [queryChain]);
 
     const req = {
+      orgId: "org-1",
       query: {
         kind: "expense",
         created_by: "user-42",
@@ -193,6 +519,7 @@ describe("accounting router", () => {
 
     await getTransactionsHandler(req, res);
 
+    expect(queryChain.eq).toHaveBeenCalledWith("org_id", "org-1");
     expect(queryChain.eq).toHaveBeenCalledWith("kind", "expense");
     expect(queryChain.eq).toHaveBeenCalledWith("created_by", "user-42");
     expect(queryChain.gte).toHaveBeenCalledWith("recorded_date", "2026-04-01");
@@ -201,6 +528,7 @@ describe("accounting router", () => {
   });
 
   it("POST /expenses stores misc expenses as tax-free when selected", async () => {
+    const siteChain = createChain({ data: { id: "site-1", status: "active" }, error: null });
     const txInsertChain = createChain({
       data: {
         id: "tx-misc",
@@ -217,16 +545,28 @@ describe("accounting router", () => {
     const existingEntryChain = createChain({ data: null, error: null });
     const entryInsertChain = createChain({ data: { id: "entry-misc" }, error: null });
     const lineInsertChain = createChain({ data: null, error: null });
+    const proposalChain = createChain({
+      data: {
+        id: "proposal-expense-misc",
+        type: "expense.create",
+        status: "executed",
+        policy_ref: "legacy_direct_transition",
+      },
+      error: null,
+    });
     setupMockFromSequence(mockFrom, [
+      siteChain,
       txInsertChain,
       existingEntryChain,
       entryInsertChain,
       lineInsertChain,
-    ]);
+    ], [], [proposalChain]);
 
     const req = {
       userId: "user-1",
+      orgId: "org-1",
       body: {
+        idempotency_key: "expense-misc-1",
         cost_center: "SITE",
         site_id: "site-1",
         amount_total: 5000,
@@ -255,10 +595,55 @@ describe("accounting router", () => {
     expect(lineInsertChain.insert).toHaveBeenCalledWith(expect.not.arrayContaining([
       expect.objectContaining({ account_code: "1500" }),
     ]));
+    expect(proposalChain.insert).toHaveBeenCalledWith(expect.objectContaining({
+      org_id: "org-1",
+      type: "expense.create",
+      status: "executed",
+      policy_ref: "legacy_direct_transition",
+      idempotency_key: "accounting.expenses.create:expense-misc-1",
+      payload: expect.objectContaining({
+        lineage_mode: "transition",
+        lifecycle_engine: "money_transition",
+        full_proposal_lifecycle: false,
+        transition_status: "posted_legacy_projection",
+        source_route: "accounting.expenses.create",
+        source_idempotency_key: "expense-misc-1",
+        category: "other",
+        amount_total: 5000,
+        projection: expect.objectContaining({
+          legacy_transaction_id: "tx-misc",
+          legacy_transaction_kind: "expense",
+        }),
+        transition: expect.objectContaining({
+          mode: "legacy_direct_projection",
+          endpoint_name: "accounting.expenses.create",
+          full_proposal_lifecycle: false,
+        }),
+      }),
+    }));
     expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      proposal: expect.objectContaining({
+        id: "proposal-expense-misc",
+        type: "expense.create",
+        status: "posted_legacy_projection",
+        db_status: "executed",
+        lineage_mode: "transition",
+        full_proposal_lifecycle: false,
+      }),
+      execution: expect.objectContaining({
+        mode: "legacy_direct_projection",
+        proposal_id: "proposal-expense-misc",
+      }),
+      projection: expect.objectContaining({
+        legacy_transaction_id: "tx-misc",
+        proposal_id: "proposal-expense-misc",
+      }),
+    }));
   });
 
   it("POST /expenses retries without misc columns when schema migrations are missing", async () => {
+    const siteChain = createChain({ data: { id: "site-1", status: "active" }, error: null });
     const txInsertMissingCategoryChain = createChain({
       data: null,
       error: { message: "Could not find the 'category' column of 'accounting_transactions' in the schema cache" },
@@ -283,6 +668,7 @@ describe("accounting router", () => {
     const entryInsertChain = createChain({ data: { id: "entry-misc-compat" }, error: null });
     const lineInsertChain = createChain({ data: null, error: null });
     setupMockFromSequence(mockFrom, [
+      siteChain,
       txInsertMissingCategoryChain,
       txInsertMissingMiscChain,
       txInsertSuccessChain,
@@ -293,7 +679,9 @@ describe("accounting router", () => {
 
     const req = {
       userId: "user-1",
+      orgId: "org-1",
       body: {
+        idempotency_key: "expense-misc-retry-1",
         cost_center: "SITE",
         site_id: "site-1",
         amount_total: 5000,
@@ -326,6 +714,7 @@ describe("accounting router", () => {
   });
 
   it("POST /expenses keeps high-risk expense in review flow", async () => {
+    const siteChain = createChain({ data: { id: "site-1", status: "active" }, error: null });
     const txInsertChain = createChain({
       data: {
         id: "tx-2",
@@ -338,11 +727,13 @@ describe("accounting router", () => {
       },
       error: null,
     });
-    setupMockFromSequence(mockFrom, [txInsertChain]);
+    setupMockFromSequence(mockFrom, [siteChain, txInsertChain]);
 
     const req = {
       userId: "user-1",
+      orgId: "org-1",
       body: {
+        idempotency_key: "expense-high-risk-1",
         cost_center: "SITE",
         site_id: "site-1",
         amount_total: 40000,
@@ -359,7 +750,7 @@ describe("accounting router", () => {
       status: undefined,
       review_status: undefined,
     }));
-    expect(mockFrom).toHaveBeenCalledTimes(1);
+    expect(mockFrom).toHaveBeenCalledTimes(5);
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
       status: "pending_review",
@@ -370,6 +761,7 @@ describe("accounting router", () => {
   it("POST /expenses rejects invalid category before hitting DB constraints", async () => {
     const req = {
       userId: "user-1",
+      orgId: "org-1",
       body: {
         cost_center: "SITE",
         site_id: "site-1",
@@ -426,6 +818,127 @@ describe("accounting router", () => {
     expect(mockFrom).not.toHaveBeenCalled();
   });
 
+  it("POST /sales uses canonical sales posting RPC when available", async () => {
+    const siteLookupChain = createChain({
+      data: {
+        id: "site-1",
+        status: "active",
+      },
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [siteLookupChain]);
+    mockRpc.mockResolvedValue({
+      data: {
+        org_id: "org-1",
+        transaction: {
+          id: "sale-canonical-1",
+          org_id: "org-1",
+          kind: "sale",
+          site_id: "site-1",
+          description: "足場工事",
+          recorded_date: "2026-03-18",
+          amount_subtotal: 100000,
+          tax_amount: 10000,
+          amount_total: 110000,
+          projection_source: "canonical_posting_projection",
+          proposal_id: "proposal-sale-canonical-1",
+          proposal_execution_id: "execution-sale-canonical-1",
+          posting_group_id: "posting-group-sale-canonical-1",
+          journal_entry_id: "journal-sale-canonical-1",
+        },
+        proposal: {
+          id: "proposal-sale-canonical-1",
+          type: "income.create",
+          status: "posted_canonical_projection",
+          db_status: "executed",
+          lineage_mode: "transition",
+          lifecycle_engine: "money_transition",
+          full_proposal_lifecycle: false,
+          source_route: "accounting.sales.adjust",
+          source_idempotency_key: "sale-canonical-1",
+        },
+        projection: {
+          legacy_transaction_id: "sale-canonical-1",
+          legacy_transaction_kind: "sale",
+          projection_source: "canonical_posting_projection",
+          proposal_id: "proposal-sale-canonical-1",
+          proposal_execution_id: "execution-sale-canonical-1",
+          posting_group_id: "posting-group-sale-canonical-1",
+          journal_entry_id: "journal-sale-canonical-1",
+        },
+        posting: {
+          status: "posted",
+          mode: "canonical_sales_posting",
+          affects_pl: true,
+          affects_revenue: true,
+          affects_ar: true,
+        },
+      },
+      error: null,
+    });
+
+    const req = {
+      userId: "user-1",
+      userName: "山田",
+      orgId: "org-1",
+      orgMembershipId: "membership-1",
+      body: {
+        idempotency_key: "sale-canonical-1",
+        site_id: "site-1",
+        description: "足場工事",
+        unit_price: 50000,
+        quantity: 2,
+        amount_subtotal: 100000,
+        tax_amount: 10000,
+        amount_total: 110000,
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createSaleHandler(req, res);
+
+    expect(mockRpc).toHaveBeenCalledWith("rpc_post_accounting_sale_canonical", expect.objectContaining({
+      p_org_id: "org-1",
+      p_actor_user_id: "user-1",
+      p_membership_id: "membership-1",
+      p_idempotency_key: "sale-canonical-1",
+      p_site_id: "site-1",
+      p_amount_total: 110000,
+      p_items: [
+        {
+          item_name: "足場工事",
+          unit_name: "式",
+          unit_price: 50000,
+          quantity: 2,
+          amount: 100000,
+        },
+      ],
+    }));
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      id: "sale-canonical-1",
+      proposal: expect.objectContaining({
+        id: "proposal-sale-canonical-1",
+        status: "posted_canonical_projection",
+        lifecycle_engine: "money_transition",
+        full_proposal_lifecycle: false,
+      }),
+      posting: expect.objectContaining({
+        status: "posted",
+        mode: "canonical_sales_posting",
+        affects_pl: true,
+        affects_revenue: true,
+        affects_ar: true,
+      }),
+      projection: expect.objectContaining({
+        projection_source: "canonical_posting_projection",
+        proposal_execution_id: "execution-sale-canonical-1",
+        posting_group_id: "posting-group-sale-canonical-1",
+        journal_entry_id: "journal-sale-canonical-1",
+      }),
+    }));
+  });
+
   it("POST /sales stores a single item when unit price and quantity are provided", async () => {
     const siteLookupChain = createChain({
       data: {
@@ -449,6 +962,15 @@ describe("accounting router", () => {
     const existingEntryChain = createChain({ data: null, error: null });
     const entryInsertChain = createChain({ data: { id: "entry-2" }, error: null });
     const lineInsertChain = createChain({ data: null, error: null });
+    const proposalChain = createChain({
+      data: {
+        id: "proposal-sale-1",
+        type: "income.create",
+        status: "executed",
+        policy_ref: "legacy_direct_transition",
+      },
+      error: null,
+    });
     setupMockFromSequence(mockFrom, [
       siteLookupChain,
       txInsertChain,
@@ -456,11 +978,13 @@ describe("accounting router", () => {
       existingEntryChain,
       entryInsertChain,
       lineInsertChain,
-    ]);
+    ], [], [proposalChain]);
 
     const req = {
       userId: "user-1",
+      orgId: "org-1",
       body: {
+        idempotency_key: "sale-single-1",
         site_id: "site-1",
         description: "足場工事",
         unit_price: 50000,
@@ -475,6 +999,7 @@ describe("accounting router", () => {
     await createSaleHandler(req, res);
 
     expect(txInsertChain.insert).toHaveBeenCalledWith(expect.objectContaining({
+      org_id: "org-1",
       kind: "sale",
       site_id: "site-1",
       amount_total: 110000,
@@ -482,6 +1007,7 @@ describe("accounting router", () => {
     }));
     expect(saleItemInsertChain.insert).toHaveBeenCalledWith([
       {
+        org_id: "org-1",
         transaction_id: "sale-1",
         item_name: "足場工事",
         unit_name: "式",
@@ -490,6 +1016,7 @@ describe("accounting router", () => {
       },
     ]);
     expect(entryInsertChain.insert).toHaveBeenCalledWith(expect.objectContaining({
+      org_id: "org-1",
       transaction_id: "sale-1",
       created_by: "user-1",
     }));
@@ -498,7 +1025,38 @@ describe("accounting router", () => {
       expect.objectContaining({ account_code: "4100", debit: 0, credit: 100000 }),
       expect.objectContaining({ account_code: "2500", debit: 0, credit: 10000 }),
     ]));
+    expect(proposalChain.insert).toHaveBeenCalledWith(expect.objectContaining({
+      org_id: "org-1",
+      type: "income.create",
+      status: "executed",
+      idempotency_key: "accounting.sales.adjust:sale-single-1",
+      payload: expect.objectContaining({
+        lineage_mode: "transition",
+        lifecycle_engine: "money_transition",
+        full_proposal_lifecycle: false,
+        transition_status: "posted_legacy_projection",
+        source_route: "accounting.sales.adjust",
+        source_idempotency_key: "sale-single-1",
+        projection: expect.objectContaining({
+          legacy_transaction_id: "sale-1",
+          legacy_transaction_kind: "sale",
+        }),
+      }),
+    }));
     expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      proposal: expect.objectContaining({
+        id: "proposal-sale-1",
+        type: "income.create",
+        status: "posted_legacy_projection",
+        db_status: "executed",
+        full_proposal_lifecycle: false,
+      }),
+      projection: expect.objectContaining({
+        legacy_transaction_id: "sale-1",
+        proposal_id: "proposal-sale-1",
+      }),
+    }));
   });
 
   it("POST /sales stores multiple line items and recalculates totals from them", async () => {
@@ -536,7 +1094,9 @@ describe("accounting router", () => {
 
     const req = {
       userId: "user-1",
+      orgId: "org-1",
       body: {
+        idempotency_key: "sale-multiple-1",
         site_id: "site-1",
         description: "",
         amount_subtotal: 1,
@@ -563,6 +1123,7 @@ describe("accounting router", () => {
     await createSaleHandler(req, res);
 
     expect(txInsertChain.insert).toHaveBeenCalledWith(expect.objectContaining({
+      org_id: "org-1",
       kind: "sale",
       site_id: "site-1",
       description: "床工事、クロス工事",
@@ -573,6 +1134,7 @@ describe("accounting router", () => {
     }));
     expect(saleItemInsertChain.insert).toHaveBeenCalledWith([
       {
+        org_id: "org-1",
         transaction_id: "sale-2",
         item_name: "床工事",
         unit_name: "㎡",
@@ -580,6 +1142,7 @@ describe("accounting router", () => {
         quantity: 20,
       },
       {
+        org_id: "org-1",
         transaction_id: "sale-2",
         item_name: "クロス工事",
         unit_name: "人工",
@@ -588,7 +1151,7 @@ describe("accounting router", () => {
       },
     ]);
     expect(lineInsertChain.insert).toHaveBeenCalledWith(expect.arrayContaining([
-      expect.objectContaining({ account_code: "1200", debit: 187000, credit: 0 }),
+      expect.objectContaining({ org_id: "org-1", account_code: "1200", debit: 187000, credit: 0 }),
       expect.objectContaining({ account_code: "4100", debit: 0, credit: 170000 }),
       expect.objectContaining({ account_code: "2500", debit: 0, credit: 17000 }),
     ]));
@@ -1070,6 +1633,7 @@ describe("accounting router", () => {
       userId: "user-1",
       orgId: "11111111-1111-4111-8111-111111111111",
       body: {
+        idempotency_key: "invoice-standard-1",
         transaction_id: "tx-1",
         billing_name: "株式会社現場",
       },
@@ -1083,11 +1647,12 @@ describe("accounting router", () => {
     expect(mockRpc).not.toHaveBeenCalled();
   });
 
-  it("POST /invoices stores standard invoice snapshots when issuer is not registered", async () => {
+  it("POST /invoices creates standard invoice through the canonical no-PL-revenue RPC when available", async () => {
     const transactionChain = createChain({
       data: {
         id: "tx-1",
         kind: "sale",
+        site_id: "site-1",
         recorded_date: "2026-03-10",
         amount_subtotal: 100000,
         tax_amount: 10000,
@@ -1100,6 +1665,232 @@ describe("accounting router", () => {
     const settingsChain = createChain({ data: null, error: null });
     const sourceLinksChain = createChain({ data: [], error: null });
     const existingInvoicesFallbackChain = createChain({ data: [], error: null });
+    const revenueBasisPreflightChain = createChain({
+      data: [{
+        id: "rb-1",
+        site_id: "site-1",
+        recognition_date: "2026-03-10",
+        recognized_on: "2026-03-10",
+        amount_inc_tax: 220000,
+        receivable_account_type: "accounts_receivable",
+      }],
+      error: null,
+    });
+    const invoiceAllocationExistingChain = createChain({ data: [], error: null });
+    setupMockFromSequence(mockFrom, [
+      transactionChain,
+      settingsChain,
+      sourceLinksChain,
+      existingInvoicesFallbackChain,
+      revenueBasisPreflightChain,
+      invoiceAllocationExistingChain,
+    ]);
+    mockRpc.mockResolvedValue({
+      data: {
+        invoice: {
+          id: "inv-atomic",
+          invoice_no: "INV-2026-0002",
+          document_type: "standard_invoice",
+          pdf_render_status: "pending",
+        },
+        proposal: {
+          id: "proposal-invoice-1",
+          type: "invoice.create",
+          status: "posted_canonical_projection",
+          lineage_mode: "transition",
+          lifecycle_engine: "money_transition",
+          full_proposal_lifecycle: false,
+          source_route: "accounting.invoices.create",
+          source_idempotency_key: "invoice-atomic-1",
+        },
+        execution: {
+          id: "execution-invoice-1",
+          proposal_id: "proposal-invoice-1",
+          status: "succeeded",
+        },
+        posting: {
+          status: "not_required",
+          mode: "invoice_issue_no_pl_revenue",
+          affects_pl: false,
+          affects_revenue: false,
+          affects_ar: true,
+        },
+        projection: {
+          projection_source: "canonical_posting_projection",
+          legacy_invoice_id: "inv-atomic",
+          legacy_transaction_id: "tx-1",
+          source_transaction_ids: ["tx-1"],
+          proposal_id: "proposal-invoice-1",
+          proposal_execution_id: "execution-invoice-1",
+          posting_group_id: null,
+          journal_entry_id: null,
+        },
+        posting_group_id: null,
+        journal_entry_id: null,
+      },
+      error: null,
+    });
+
+    const req = {
+      userId: "user-1",
+      orgId: "11111111-1111-4111-8111-111111111111",
+      body: {
+        idempotency_key: "invoice-atomic-1",
+        transaction_id: "tx-1",
+        billing_name: "株式会社現場",
+        requested_document_type: "auto",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createInvoiceHandler(req, res);
+
+    expect(mockRpc).toHaveBeenCalledWith("rpc_create_accounting_invoice_canonical", expect.objectContaining({
+      p_org_id: "11111111-1111-4111-8111-111111111111",
+      p_source_transaction_ids: ["tx-1"],
+      p_representative_transaction_id: "tx-1",
+      p_document_type: "standard_invoice",
+      p_created_by: "user-1",
+      p_membership_id: null,
+      p_idempotency_key: "invoice-atomic-1",
+    }));
+    expect(mockFrom).not.toHaveBeenCalledWith("proposals");
+    expect(mockFrom).not.toHaveBeenCalledWith("accounting_journal_entries");
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      id: "inv-atomic",
+      proposal: expect.objectContaining({
+        id: "proposal-invoice-1",
+        type: "invoice.create",
+        status: "posted_canonical_projection",
+        full_proposal_lifecycle: false,
+      }),
+      execution: expect.objectContaining({
+        id: "execution-invoice-1",
+        proposal_id: "proposal-invoice-1",
+      }),
+      posting: expect.objectContaining({
+        status: "not_required",
+        mode: "invoice_issue_no_pl_revenue",
+        affects_pl: false,
+        affects_revenue: false,
+        affects_ar: true,
+      }),
+      posting_group_id: null,
+      journal_entry_id: null,
+      projection: expect.objectContaining({
+        projection_source: "canonical_posting_projection",
+        legacy_invoice_id: "inv-atomic",
+        legacy_transaction_id: "tx-1",
+        proposal_id: "proposal-invoice-1",
+        proposal_execution_id: "execution-invoice-1",
+      }),
+      eligibility: expect.objectContaining({
+        resolved_document_type: "standard_invoice",
+      }),
+    }));
+  });
+
+  it("POST /invoices replays a completed idempotent response before duplicate invoice checks", async () => {
+    const transactionChain = createChain({
+      data: {
+        id: "tx-1",
+        kind: "sale",
+        site_id: "site-1",
+        recorded_date: "2026-03-10",
+        amount_subtotal: 100000,
+        tax_amount: 10000,
+        amount_total: 110000,
+        tax_category: "10_STANDARD",
+        currency: "JPY",
+      },
+      error: null,
+    });
+    const duplicateIdempotencyChain = createChain({
+      data: null,
+      error: { code: "23505", message: "duplicate key value violates unique constraint" },
+    });
+    const replayBody = {
+      id: "inv-replay",
+      invoice_no: "INV-2026-0009",
+      proposal: {
+        id: "proposal-invoice-replay",
+        status: "posted_canonical_projection",
+        full_proposal_lifecycle: false,
+      },
+      posting: {
+        status: "not_required",
+        mode: "invoice_issue_no_pl_revenue",
+        affects_pl: false,
+        affects_revenue: false,
+      },
+      projection: {
+        legacy_invoice_id: "inv-replay",
+        proposal_id: "proposal-invoice-replay",
+      },
+    };
+    const existingIdempotencyChain = createChain({
+      data: {
+        id: "idem-invoice-replay",
+        request_hash: null,
+        status: "succeeded",
+        response_status: 201,
+        response_json: replayBody,
+      },
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [transactionChain], [duplicateIdempotencyChain, existingIdempotencyChain]);
+
+    const req = {
+      userId: "user-1",
+      orgId: "11111111-1111-4111-8111-111111111111",
+      body: {
+        idempotency_key: "invoice-replay-1",
+        transaction_id: "tx-1",
+        billing_name: "株式会社現場",
+        requested_document_type: "auto",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createInvoiceHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(replayBody);
+    expect(mockRpc).not.toHaveBeenCalled();
+    expect(mockFrom).not.toHaveBeenCalledWith("accounting_invoices");
+  });
+
+  it("POST /invoices stores standard invoice snapshots when issuer is not registered", async () => {
+    const transactionChain = createChain({
+      data: {
+        id: "tx-1",
+        kind: "sale",
+        site_id: "site-1",
+        recorded_date: "2026-03-10",
+        amount_subtotal: 100000,
+        tax_amount: 10000,
+        amount_total: 110000,
+        tax_category: "10_STANDARD",
+        currency: "JPY",
+      },
+      error: null,
+    });
+    const settingsChain = createChain({ data: null, error: null });
+    const sourceLinksChain = createChain({ data: [], error: null });
+    const existingInvoicesFallbackChain = createChain({ data: [], error: null });
+    const revenueBasisPreflightChain = createChain({
+      data: [{
+        id: "rb-1",
+        site_id: "site-1",
+        recognition_date: "2026-03-10",
+        recognized_on: "2026-03-10",
+        amount_inc_tax: 220000,
+        receivable_account_type: "accounts_receivable",
+      }],
+      error: null,
+    });
+    const invoiceAllocationExistingChain = createChain({ data: [], error: null });
     const invoiceInsertChain = createChain({
       data: {
         id: "inv-2",
@@ -1110,22 +1901,51 @@ describe("accounting router", () => {
       error: null,
     });
     const invoiceSourcesInsertChain = createChain({ data: null, error: null });
+    const revenueBasisChain = createChain({
+      data: [{
+        id: "rb-1",
+        site_id: "site-1",
+        recognition_date: "2026-03-10",
+        recognized_on: "2026-03-10",
+        amount_inc_tax: 220000,
+        receivable_account_type: "accounts_receivable",
+      }],
+      error: null,
+    });
+    const invoiceAllocationInsertChain = createChain({ data: null, error: null });
     const txUpdateChain = createChain({ data: null, error: null });
     setupMockFromSequence(mockFrom, [
       transactionChain,
       settingsChain,
       sourceLinksChain,
       existingInvoicesFallbackChain,
+      revenueBasisPreflightChain,
+      invoiceAllocationExistingChain,
       invoiceInsertChain,
       invoiceSourcesInsertChain,
+      revenueBasisChain,
+      invoiceAllocationInsertChain,
       txUpdateChain,
     ]);
-    mockRpc.mockResolvedValue({ data: "INV-2026-0002", error: null });
+    mockRpc.mockImplementation((functionName: string) => {
+      if (functionName === "rpc_create_accounting_invoice") {
+        return Promise.resolve({
+          data: null,
+          error: {
+            code: "PGRST202",
+            message: "Could not find the function public.rpc_create_accounting_invoice",
+          },
+        });
+      }
+
+      return Promise.resolve({ data: "INV-2026-0002", error: null });
+    });
 
     const req = {
       userId: "user-1",
       orgId: "11111111-1111-4111-8111-111111111111",
       body: {
+        idempotency_key: "invoice-standard-1",
         transaction_id: "tx-1",
         billing_name: "株式会社現場",
         requested_document_type: "auto",
@@ -1148,12 +1968,33 @@ describe("accounting router", () => {
     }));
     expect(invoiceSourcesInsertChain.insert).toHaveBeenCalledWith(expect.arrayContaining([
       expect.objectContaining({
+        org_id: "11111111-1111-4111-8111-111111111111",
         invoice_id: "inv-2",
         source_transaction_id: "tx-1",
         is_primary_document: true,
       }),
     ]));
+    expect(revenueBasisPreflightChain.in).toHaveBeenCalledWith("site_id", ["site-1"]);
+    expect(invoiceAllocationExistingChain.in).toHaveBeenCalledWith("revenue_basis_id", ["rb-1"]);
+    expect(revenueBasisChain.in).toHaveBeenCalledWith("site_id", ["site-1"]);
+    expect(invoiceAllocationInsertChain.insert).toHaveBeenCalledWith([
+      expect.objectContaining({
+        org_id: "11111111-1111-4111-8111-111111111111",
+        invoice_id: "inv-2",
+        invoice_line_key: "source_transaction:tx-1",
+        revenue_basis_id: "rb-1",
+        allocation_amount_ex_tax: 100000,
+        tax_amount: 10000,
+        amount_inc_tax: 110000,
+        allocation_kind: "invoice_issue",
+        metadata_json: expect.objectContaining({
+          source_transaction_id: "tx-1",
+          posting_mode: "invoice_issue_no_pl_revenue",
+        }),
+      }),
+    ]);
     expect(txUpdateChain.in).toHaveBeenCalledWith("id", ["tx-1"]);
+    expect(mockFrom).not.toHaveBeenCalledWith("accounting_journal_entries");
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
       eligibility: expect.objectContaining({
@@ -1161,6 +2002,70 @@ describe("accounting router", () => {
         reason_codes: ["ISSUER_NOT_REGISTERED"],
       }),
     }));
+  });
+
+  it("POST /invoices rejects allocations that exceed the revenue basis uninvoiced balance before issuing a number", async () => {
+    const transactionChain = createChain({
+      data: {
+        id: "tx-1",
+        kind: "sale",
+        site_id: "site-1",
+        recorded_date: "2026-03-10",
+        amount_subtotal: 100000,
+        tax_amount: 10000,
+        amount_total: 110000,
+        tax_category: "10_STANDARD",
+        currency: "JPY",
+      },
+      error: null,
+    });
+    const settingsChain = createChain({ data: null, error: null });
+    const sourceLinksChain = createChain({ data: [], error: null });
+    const existingInvoicesFallbackChain = createChain({ data: [], error: null });
+    const revenueBasisPreflightChain = createChain({
+      data: [{
+        id: "rb-1",
+        site_id: "site-1",
+        recognition_date: "2026-03-10",
+        recognized_on: "2026-03-10",
+        amount_inc_tax: 110000,
+        receivable_account_type: "accounts_receivable",
+      }],
+      error: null,
+    });
+    const invoiceAllocationExistingChain = createChain({
+      data: [{
+        revenue_basis_id: "rb-1",
+        amount_inc_tax: 100000,
+      }],
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [
+      transactionChain,
+      settingsChain,
+      sourceLinksChain,
+      existingInvoicesFallbackChain,
+      revenueBasisPreflightChain,
+      invoiceAllocationExistingChain,
+    ]);
+
+    const req = {
+      userId: "user-1",
+      orgId: "11111111-1111-4111-8111-111111111111",
+      body: {
+        idempotency_key: "invoice-over-allocated-1",
+        transaction_id: "tx-1",
+        billing_name: "株式会社現場",
+        requested_document_type: "auto",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createInvoiceHandler(req, res);
+
+    expect(mockRpc).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({ error: "INVOICE_ALLOCATION_EXCEEDS_UNINVOICED_BALANCE" });
   });
 
   it("POST /invoices rejects explicit qualified invoice requests when eligibility fails", async () => {
@@ -1185,6 +2090,7 @@ describe("accounting router", () => {
       userId: "user-1",
       orgId: "11111111-1111-4111-8111-111111111111",
       body: {
+        idempotency_key: "invoice-qualified-reject-1",
         transaction_id: "tx-1",
         billing_name: "株式会社現場",
         requested_document_type: "qualified_invoice",
@@ -1498,6 +2404,536 @@ describe("accounting router", () => {
     }));
   });
 
+  it("POST /payments records an unapplied payment event without PL revenue", async () => {
+    setupMockFromSequence(mockFrom, []);
+    mockRpc.mockResolvedValue({
+      data: {
+        payment: {
+          id: "payment-event-1",
+          amount: 110000,
+          unapplied_amount: 110000,
+          status: "received",
+        },
+        proposal: {
+          id: "proposal-payment-event-1",
+          type: "payment.record",
+          status: "posted_canonical_projection",
+          db_status: "executed",
+          lifecycle_engine: "money_transition",
+          full_proposal_lifecycle: false,
+        },
+        projection: {
+          projection_source: "canonical_posting_projection",
+          legacy_payment_id: "payment-event-1",
+          proposal_id: "proposal-payment-event-1",
+          proposal_execution_id: "execution-payment-event-1",
+          posting_group_id: "posting-group-payment-event-1",
+          journal_entry_id: "journal-payment-event-1",
+        },
+        posting: {
+          status: "posted",
+          mode: "payment_received_no_pl_revenue",
+          affects_pl: false,
+          affects_revenue: false,
+          affects_ar: true,
+        },
+      },
+      error: null,
+    });
+
+    const req = {
+      userId: "user-1",
+      orgId: "11111111-1111-4111-8111-111111111111",
+      body: {
+        idempotency_key: "payment-event-1",
+        received_on: "2026-03-31",
+        amount: 110000,
+        payment_method: "bank_transfer",
+        payment_account: "bank",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createPaymentHandler(req, res);
+
+    expect(mockRpc).toHaveBeenCalledWith("rpc_record_accounting_payment_event_canonical", expect.objectContaining({
+      p_org_id: "11111111-1111-4111-8111-111111111111",
+      p_actor_user_id: "user-1",
+      p_membership_id: null,
+      p_idempotency_key: "payment-event-1",
+      p_received_on: "2026-03-31",
+      p_amount: 110000,
+      p_customer_id: null,
+      p_payment_method: "bank_transfer",
+      p_payment_account: "bank",
+    }));
+    expect(mockFrom).not.toHaveBeenCalledWith("accounting_journal_entries");
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      payment: expect.objectContaining({
+        id: "payment-event-1",
+        unapplied_amount: 110000,
+        status: "received",
+      }),
+      proposal: expect.objectContaining({
+        id: "proposal-payment-event-1",
+        type: "payment.record",
+        status: "posted_canonical_projection",
+        full_proposal_lifecycle: false,
+      }),
+      posting: expect.objectContaining({
+        mode: "payment_received_no_pl_revenue",
+        affects_pl: false,
+        affects_revenue: false,
+        affects_ar: true,
+      }),
+      projection: expect.objectContaining({
+        projection_source: "canonical_posting_projection",
+        legacy_payment_id: "payment-event-1",
+        proposal_id: "proposal-payment-event-1",
+        proposal_execution_id: "execution-payment-event-1",
+        posting_group_id: "posting-group-payment-event-1",
+        journal_entry_id: "journal-payment-event-1",
+      }),
+    }));
+  });
+
+  it("POST /payments falls back to transition lineage when canonical payment receipt RPC is unavailable", async () => {
+    const proposalChain = createChain({
+      data: {
+        id: "proposal-payment-event-legacy-1",
+        type: "payment.record",
+        status: "executed",
+        policy_ref: "legacy_direct_transition",
+      },
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [], [], [proposalChain]);
+    mockRpc.mockImplementation((functionName: string) => {
+      if (functionName === "rpc_record_accounting_payment_event_canonical") {
+        return Promise.resolve({
+          data: null,
+          error: {
+            code: "PGRST202",
+            message: "Could not find the function public.rpc_record_accounting_payment_event_canonical",
+          },
+        });
+      }
+
+      return Promise.resolve({
+        data: {
+          payment: {
+            id: "payment-event-legacy-1",
+            amount: 110000,
+            unapplied_amount: 110000,
+            status: "received",
+          },
+        },
+        error: null,
+      });
+    });
+
+    const req = {
+      userId: "user-1",
+      orgId: "11111111-1111-4111-8111-111111111111",
+      body: {
+        idempotency_key: "payment-event-legacy-1",
+        received_on: "2026-03-31",
+        amount: 110000,
+        payment_account: "cash",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createPaymentHandler(req, res);
+
+    expect(mockRpc).toHaveBeenNthCalledWith(1, "rpc_record_accounting_payment_event_canonical", expect.any(Object));
+    expect(mockRpc).toHaveBeenNthCalledWith(2, "rpc_record_accounting_payment_event", expect.objectContaining({
+      p_org_id: "11111111-1111-4111-8111-111111111111",
+      p_actor_user_id: "user-1",
+      p_payment_account: "cash",
+    }));
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      payment: expect.objectContaining({ id: "payment-event-legacy-1" }),
+      proposal: expect.objectContaining({
+        id: "proposal-payment-event-legacy-1",
+        status: "posted_legacy_projection",
+      }),
+      projection: expect.objectContaining({
+        projection_source: "transition_lineage",
+        legacy_payment_id: "payment-event-legacy-1",
+        proposal_id: "proposal-payment-event-legacy-1",
+      }),
+    }));
+  });
+
+  it("POST /payments rejects invalid payment_account before recording a payment", async () => {
+    setupMockFromSequence(mockFrom, []);
+
+    const req = {
+      userId: "user-1",
+      orgId: "11111111-1111-4111-8111-111111111111",
+      body: {
+        idempotency_key: "payment-event-invalid-account-1",
+        amount: 110000,
+        payment_account: "wallet",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createPaymentHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: "payment_account must be one of cash, bank" });
+    expect(mockRpc).not.toHaveBeenCalled();
+  });
+
+  it("POST /payments rejects an in-progress duplicate before recording another payment", async () => {
+    const idempotencyInsertChain = createChain({
+      data: null,
+      error: { code: "23505", message: "duplicate key value violates unique constraint" },
+    });
+    const idempotencyExistingChain = createChain({
+      data: {
+        id: "idem-payment-in-progress",
+        request_hash: null,
+        status: "in_progress",
+        response_status: 200,
+        response_json: null,
+      },
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [], [idempotencyInsertChain, idempotencyExistingChain]);
+
+    const req = {
+      userId: "user-1",
+      orgId: "11111111-1111-4111-8111-111111111111",
+      body: {
+        idempotency_key: "payment-event-in-progress-1",
+        received_on: "2026-03-31",
+        amount: 110000,
+        payment_account: "bank",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createPaymentHandler(req, res);
+
+    expect(mockRpc).not.toHaveBeenCalled();
+    expect(mockFrom).not.toHaveBeenCalledWith("proposals");
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({ error: "IDEMPOTENCY_IN_PROGRESS" });
+  });
+
+  it("POST /payments/allocations records payment allocation through the canonical RPC without PL revenue", async () => {
+    setupMockFromSequence(mockFrom, []);
+    mockRpc.mockResolvedValue({
+      data: {
+        payment: { id: "payment-1", amount: 110000, status: "allocated" },
+        allocation: { id: "allocation-1", invoice_id: "inv-1", allocated_amount: 110000 },
+        invoice: { id: "inv-1", amount_total: 110000, allocated_total: 110000, uncollected_balance: 0 },
+        proposal: {
+          id: "proposal-payment-1",
+          type: "payment.allocate",
+          status: "posted_canonical_projection",
+          db_status: "executed",
+          lifecycle_engine: "money_transition",
+          full_proposal_lifecycle: false,
+        },
+        projection: {
+          projection_source: "canonical_posting_projection",
+          legacy_payment_id: "payment-1",
+          legacy_payment_allocation_id: "allocation-1",
+          legacy_invoice_id: "inv-1",
+          proposal_id: "proposal-payment-1",
+          proposal_execution_id: "execution-payment-allocation-1",
+          posting_group_id: "posting-group-payment-allocation-1",
+          journal_entry_id: "journal-payment-allocation-1",
+        },
+        posting: {
+          status: "posted",
+          mode: "payment_allocation_no_pl_revenue",
+          affects_pl: false,
+          affects_revenue: false,
+          affects_ar: true,
+        },
+      },
+      error: null,
+    });
+
+    const req = {
+      userId: "user-1",
+      orgId: "11111111-1111-4111-8111-111111111111",
+      body: {
+        idempotency_key: "payment-allocation-1",
+        payment_id: "payment-1",
+        invoice_id: "inv-1",
+        allocated_on: "2026-03-31",
+        amount: 110000,
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createPaymentAllocationHandler(req, res);
+
+    expect(mockRpc).toHaveBeenCalledWith("rpc_allocate_accounting_payment_canonical", expect.objectContaining({
+      p_org_id: "11111111-1111-4111-8111-111111111111",
+      p_actor_user_id: "user-1",
+      p_membership_id: null,
+      p_idempotency_key: "payment-allocation-1",
+      p_payment_id: "payment-1",
+      p_invoice_id: "inv-1",
+      p_allocated_on: "2026-03-31",
+      p_amount: 110000,
+    }));
+    expect(mockFrom).not.toHaveBeenCalledWith("accounting_journal_entries");
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      payment: expect.objectContaining({ id: "payment-1" }),
+      allocation: expect.objectContaining({ id: "allocation-1" }),
+      proposal: expect.objectContaining({
+        id: "proposal-payment-1",
+        type: "payment.allocate",
+        status: "posted_canonical_projection",
+        full_proposal_lifecycle: false,
+      }),
+      posting: expect.objectContaining({
+        mode: "payment_allocation_no_pl_revenue",
+        affects_pl: false,
+        affects_revenue: false,
+        affects_ar: true,
+      }),
+      projection: expect.objectContaining({
+        projection_source: "canonical_posting_projection",
+        legacy_payment_id: "payment-1",
+        legacy_payment_allocation_id: "allocation-1",
+        legacy_invoice_id: "inv-1",
+        proposal_id: "proposal-payment-1",
+        proposal_execution_id: "execution-payment-allocation-1",
+        posting_group_id: "posting-group-payment-allocation-1",
+        journal_entry_id: "journal-payment-allocation-1",
+      }),
+    }));
+  });
+
+  it("POST /payments/allocations falls back to transition lineage when canonical allocation RPC is unavailable", async () => {
+    const proposalChain = createChain({
+      data: {
+        id: "proposal-payment-legacy-1",
+        type: "payment.allocate",
+        status: "executed",
+        policy_ref: "legacy_direct_transition",
+      },
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [], [], [proposalChain]);
+    mockRpc.mockImplementation((functionName: string) => {
+      if (functionName === "rpc_allocate_accounting_payment_canonical") {
+        return Promise.resolve({
+          data: null,
+          error: {
+            code: "PGRST202",
+            message: "Could not find the function public.rpc_allocate_accounting_payment_canonical",
+          },
+        });
+      }
+
+      return Promise.resolve({
+        data: {
+          payment: { id: "payment-legacy-1", amount: 110000, status: "allocated" },
+          allocation: { id: "allocation-legacy-1", invoice_id: "inv-1", allocated_amount: 110000 },
+          invoice: { id: "inv-1", amount_total: 110000, allocated_total: 110000, uncollected_balance: 0 },
+        },
+        error: null,
+      });
+    });
+
+    const req = {
+      userId: "user-1",
+      orgId: "11111111-1111-4111-8111-111111111111",
+      body: {
+        idempotency_key: "payment-allocation-legacy-1",
+        payment_id: "payment-legacy-1",
+        invoice_id: "inv-1",
+        allocated_on: "2026-03-31",
+        amount: 110000,
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createPaymentAllocationHandler(req, res);
+
+    expect(mockRpc).toHaveBeenNthCalledWith(1, "rpc_allocate_accounting_payment_canonical", expect.any(Object));
+    expect(mockRpc).toHaveBeenNthCalledWith(2, "rpc_allocate_accounting_payment", expect.objectContaining({
+      p_payment_id: "payment-legacy-1",
+      p_invoice_id: "inv-1",
+    }));
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      proposal: expect.objectContaining({
+        id: "proposal-payment-legacy-1",
+        status: "posted_legacy_projection",
+      }),
+      projection: expect.objectContaining({
+        projection_source: "transition_lineage",
+        legacy_payment_id: "payment-legacy-1",
+        legacy_payment_allocation_id: "allocation-legacy-1",
+        legacy_invoice_id: "inv-1",
+        proposal_id: "proposal-payment-legacy-1",
+      }),
+    }));
+  });
+
+  it("POST /payments/allocations rejects over-collection without recording a payment", async () => {
+    setupMockFromSequence(mockFrom, []);
+    mockRpc.mockResolvedValue({
+      data: null,
+      error: { message: "PAYMENT_ALLOCATION_EXCEEDS_UNCOLLECTED_BALANCE" },
+    });
+
+    const req = {
+      userId: "user-1",
+      orgId: "11111111-1111-4111-8111-111111111111",
+      body: {
+        idempotency_key: "payment-over-allocated-1",
+        payment_id: "payment-1",
+        invoice_id: "inv-1",
+        allocated_on: "2026-03-31",
+        amount: 120000,
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createPaymentAllocationHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({ error: "PAYMENT_ALLOCATION_EXCEEDS_UNCOLLECTED_BALANCE" });
+  });
+
+  it("POST /payments/allocations rejects over-allocation of unapplied payment balance", async () => {
+    setupMockFromSequence(mockFrom, []);
+    mockRpc.mockResolvedValue({
+      data: null,
+      error: { message: "PAYMENT_ALLOCATION_EXCEEDS_UNAPPLIED_BALANCE" },
+    });
+
+    const req = {
+      userId: "user-1",
+      orgId: "11111111-1111-4111-8111-111111111111",
+      body: {
+        idempotency_key: "payment-unapplied-over-allocated-1",
+        payment_id: "payment-1",
+        invoice_id: "inv-1",
+        allocated_on: "2026-03-31",
+        amount: 120000,
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createPaymentAllocationHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({ error: "PAYMENT_ALLOCATION_EXCEEDS_UNAPPLIED_BALANCE" });
+  });
+
+  it("POST /payments/allocations replays the same response snapshot without another allocation", async () => {
+    const replaySnapshot = {
+      payment: { id: "payment-existing", status: "allocated" },
+      allocation: { id: "allocation-existing", invoice_id: "inv-1", allocated_amount: 110000 },
+      proposal: { id: "proposal-existing", status: "posted_legacy_projection" },
+      projection: {
+        legacy_payment_id: "payment-existing",
+        legacy_payment_allocation_id: "allocation-existing",
+        legacy_invoice_id: "inv-1",
+        proposal_id: "proposal-existing",
+      },
+    };
+    const idempotencyInsertChain = createChain({
+      data: null,
+      error: { code: "23505", message: "duplicate key value violates unique constraint" },
+    });
+    const idempotencyExistingChain = createChain({
+      data: {
+        id: "idem-payment-allocation-replay",
+        request_hash: null,
+        status: "succeeded",
+        response_status: 201,
+        response_json: replaySnapshot,
+      },
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [], [idempotencyInsertChain, idempotencyExistingChain]);
+
+    const req = {
+      userId: "user-1",
+      orgId: "11111111-1111-4111-8111-111111111111",
+      body: {
+        idempotency_key: "payment-allocation-replay-1",
+        payment_id: "payment-existing",
+        invoice_id: "inv-1",
+        allocated_on: "2026-03-31",
+        amount: 110000,
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createPaymentAllocationHandler(req, res);
+
+    expect(mockRpc).not.toHaveBeenCalled();
+    expect(mockFrom).not.toHaveBeenCalledWith("proposals");
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(replaySnapshot);
+  });
+
+  it("POST /payments/allocations requires an existing payment_id", async () => {
+    setupMockFromSequence(mockFrom, []);
+
+    const req = {
+      userId: "user-1",
+      orgId: "11111111-1111-4111-8111-111111111111",
+      body: {
+        idempotency_key: "payment-allocation-missing-payment-1",
+        invoice_id: "inv-1",
+        amount: 110000,
+      },
+    } as any;
+    const res = createMockRes();
+
+    await createPaymentAllocationHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: "payment_id is required" });
+    expect(mockRpc).not.toHaveBeenCalled();
+  });
+
+  it("POST /ocr/analyze rejects document storage paths outside the active org", async () => {
+    const documentChain = createChain({
+      data: {
+        id: "doc-1",
+        org_id: "11111111-1111-4111-8111-111111111111",
+        storage_path: "user-1/legacy.pdf",
+        mime_type: "application/pdf",
+      },
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [documentChain]);
+
+    const req = {
+      orgId: "11111111-1111-4111-8111-111111111111",
+      body: {
+        document_id: "doc-1",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await analyzeOcrHandler(req, res);
+
+    expect(mockStorageFrom).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({ error: "Document storage path is outside active org" });
+  });
+
   it("GET /invoices/:id/download streams the stored invoice PDF", async () => {
     const pdfBlob = new Blob([Buffer.from("%PDF-1.4 test")], { type: "application/pdf" });
     const download = jest.fn().mockResolvedValue({ data: pdfBlob, error: null });
@@ -1505,7 +2941,7 @@ describe("accounting router", () => {
     mockEnsureInvoicePdfStored.mockResolvedValue({
       invoiceId: "inv-1",
       invoiceNo: "INV-2026-0001",
-      storagePath: "generated/invoices/org/inv-1/INV-2026-0001.pdf",
+      storagePath: "org/generated/invoices/inv-1/INV-2026-0001.pdf",
       filename: "INV-2026-0001.pdf",
     });
 
@@ -1522,7 +2958,7 @@ describe("accounting router", () => {
       orgId: "11111111-1111-4111-8111-111111111111",
     });
     expect(mockStorageFrom).toHaveBeenCalledWith("genba-documents");
-    expect(download).toHaveBeenCalledWith("generated/invoices/org/inv-1/INV-2026-0001.pdf");
+    expect(download).toHaveBeenCalledWith("org/generated/invoices/inv-1/INV-2026-0001.pdf");
     expect(res.setHeader).toHaveBeenCalledWith("Content-Type", "application/pdf");
     expect(res.setHeader).toHaveBeenCalledWith("Cache-Control", "no-store, no-cache, must-revalidate");
     expect(res.setHeader).toHaveBeenCalledWith("Pragma", "no-cache");
@@ -1575,12 +3011,14 @@ describe("accounting router", () => {
     setupMockFromSequence(mockFrom, [plChain]);
 
     const req = {
+      orgId: "org-1",
       query: { month: "2026-05" },
     } as any;
     const res = createMockRes();
 
     await getPlHandler(req, res);
 
+    expect(plChain.eq).toHaveBeenCalledWith("org_id", "org-1");
     expect(plChain.in).toHaveBeenCalledWith("status", ["posted", "approved", "voided"]);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
       sales: 0,
@@ -1588,6 +3026,290 @@ describe("accounting router", () => {
       profit: 0,
       distributable: 0,
       transaction_count: 2,
+    }));
+  });
+
+  it("GET /pl source=journal aggregates net accounting totals from posted journal lines", async () => {
+    const journalChain = createChain({
+      data: [
+        {
+          id: "entry-sale-1",
+          entry_date: "2026-05-07",
+          posted_at: "2026-05-07T00:00:00Z",
+          transaction: { id: "tx-sale-1", kind: "sale", cost_center: "SITE", site_id: "site-1" },
+          posting_group: { id: "posting-sale-1", group_type: "manual_adjustment" },
+          lines: [
+            { id: "line-ar", account_code: "1200", debit: 110000, credit: 0, site_id: "site-1" },
+            { id: "line-revenue", account_code: "4100", debit: 0, credit: 100000, site_id: "site-1" },
+            { id: "line-output-tax", account_code: "2500", debit: 0, credit: 10000, site_id: "site-1" },
+          ],
+        },
+        {
+          id: "entry-expense-1",
+          entry_date: "2026-05-08",
+          posted_at: "2026-05-08T00:00:00Z",
+          transaction: { id: "tx-expense-1", kind: "expense", cost_center: "SITE", site_id: "site-1" },
+          posting_group: { id: "posting-expense-1", group_type: "manual_adjustment" },
+          lines: [
+            { id: "line-expense", account_code: "5100", debit: 30000, credit: 0, site_id: "site-1" },
+            { id: "line-input-tax", account_code: "1500", debit: 3000, credit: 0, site_id: "site-1" },
+            { id: "line-cash", account_code: "1100", debit: 0, credit: 33000, site_id: "site-1" },
+          ],
+        },
+      ],
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [journalChain]);
+
+    const req = {
+      orgId: "org-1",
+      query: { month: "2026-05", source: "journal", site_id: "site-1", cost_center: "SITE" },
+    } as any;
+    const res = createMockRes();
+
+    await getPlHandler(req, res);
+
+    expect(mockFrom).toHaveBeenCalledWith("accounting_journal_entries");
+    expect(journalChain.eq).toHaveBeenCalledWith("org_id", "org-1");
+    expect(journalChain.gte).toHaveBeenCalledWith("entry_date", "2026-05-01");
+    expect(journalChain.lte).toHaveBeenCalledWith("entry_date", "2026-05-31");
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      month: "2026-05",
+      source: "journal",
+      basis: "net_accounting",
+      sales: 100000,
+      expenses: 30000,
+      profit: 70000,
+      distributable: 49000,
+      journal_entry_count: 2,
+      journal_line_count: 2,
+    }));
+  });
+
+  it("GET /pl source=compare returns legacy and journal diff and excludes invoice/payment revenue journals", async () => {
+    const legacyChain = createChain({
+      data: [
+        {
+          id: "tx-sale-1",
+          kind: "sale",
+          status: "posted",
+          amount_total: 110000,
+          recorded_date: "2026-05-07",
+        },
+        {
+          id: "tx-expense-1",
+          kind: "expense",
+          status: "posted",
+          amount_total: 33000,
+          recorded_date: "2026-05-08",
+        },
+      ],
+      error: null,
+    });
+    const journalChain = createChain({
+      data: [
+        {
+          id: "entry-sale-1",
+          entry_date: "2026-05-07",
+          posted_at: "2026-05-07T00:00:00Z",
+          transaction: { id: "tx-sale-1", kind: "sale", cost_center: "SITE", site_id: "site-1" },
+          posting_group: { id: "posting-sale-1", group_type: "manual_adjustment" },
+          lines: [
+            { id: "line-ar", account_code: "1200", debit: 110000, credit: 0, site_id: "site-1" },
+            { id: "line-revenue", account_code: "4100", debit: 0, credit: 100000, site_id: "site-1" },
+            { id: "line-output-tax", account_code: "2500", debit: 0, credit: 10000, site_id: "site-1" },
+          ],
+        },
+        {
+          id: "entry-expense-1",
+          entry_date: "2026-05-08",
+          posted_at: "2026-05-08T00:00:00Z",
+          transaction: { id: "tx-expense-1", kind: "expense", cost_center: "SITE", site_id: "site-1" },
+          posting_group: { id: "posting-expense-1", group_type: "manual_adjustment" },
+          lines: [
+            { id: "line-expense", account_code: "5100", debit: 30000, credit: 0, site_id: "site-1" },
+            { id: "line-input-tax", account_code: "1500", debit: 3000, credit: 0, site_id: "site-1" },
+            { id: "line-cash", account_code: "1100", debit: 0, credit: 33000, site_id: "site-1" },
+          ],
+        },
+        {
+          id: "entry-invoice-ignored",
+          entry_date: "2026-05-09",
+          posted_at: "2026-05-09T00:00:00Z",
+          transaction: { id: "tx-invoice-1", kind: "invoice", cost_center: "SITE", site_id: "site-1" },
+          posting_group: { id: "posting-invoice-1", group_type: "invoice_transfer" },
+          lines: [
+            { id: "line-invoice-revenue", account_code: "4100", debit: 0, credit: 999999, site_id: "site-1" },
+          ],
+        },
+        {
+          id: "entry-payment-receipt-ignored",
+          entry_date: "2026-05-09",
+          posted_at: "2026-05-09T00:00:00Z",
+          transaction: { id: "tx-payment-1", kind: "payment", cost_center: "SITE", site_id: "site-1" },
+          posting_group: { id: "posting-payment-receipt-1", group_type: "payment_receipt" },
+          lines: [
+            { id: "line-payment-fake-revenue", account_code: "4100", debit: 0, credit: 777777, site_id: "site-1" },
+          ],
+        },
+        {
+          id: "entry-payment-allocation-ignored",
+          entry_date: "2026-05-09",
+          posted_at: "2026-05-09T00:00:00Z",
+          transaction: { id: "tx-payment-allocation-1", kind: "payment", cost_center: "SITE", site_id: "site-1" },
+          posting_group: { id: "posting-payment-allocation-1", group_type: "payment_allocation" },
+          lines: [
+            { id: "line-payment-allocation-fake-revenue", account_code: "4100", debit: 0, credit: 666666, site_id: "site-1" },
+          ],
+        },
+      ],
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [legacyChain, journalChain]);
+
+    const req = {
+      orgId: "org-1",
+      query: { month: "2026-05", source: "compare" },
+    } as any;
+    const res = createMockRes();
+
+    await getPlHandler(req, res);
+
+    expect(mockFrom).toHaveBeenNthCalledWith(1, "accounting_transactions");
+    expect(mockFrom).toHaveBeenNthCalledWith(2, "accounting_journal_entries");
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      month: "2026-05",
+      source: "compare",
+      basis: {
+        legacy: "gross",
+        journal: "net_accounting",
+        diff: "gross_compat",
+      },
+      tax_basis_warning: true,
+      legacy: expect.objectContaining({
+        sales: 110000,
+        expenses: 33000,
+        profit: 77000,
+        transaction_count: 2,
+      }),
+      journal: expect.objectContaining({
+        sales: 100000,
+        expenses: 30000,
+        profit: 70000,
+        journal_entry_count: 2,
+        journal_line_count: 2,
+      }),
+      journal_gross_compat: expect.objectContaining({
+        sales: 110000,
+        expenses: 33000,
+        profit: 77000,
+        journal_entry_count: 2,
+        journal_line_count: 4,
+      }),
+      diff: {
+        sales: 0,
+        expenses: 0,
+        profit: 0,
+        distributable: 0,
+      },
+      mismatches: [],
+    }));
+  });
+
+  it("POST /void/:id uses canonical sales reversal RPC when available", async () => {
+    setupMockFromSequence(mockFrom, []);
+    mockRpc.mockResolvedValue({
+      data: {
+        org_id: "11111111-1111-4111-8111-111111111111",
+        original_voided: "tx-sale-void-1",
+        original_reversed: "tx-sale-void-1",
+        reversal_created: "tx-sale-reversal-canonical-1",
+        reversal: {
+          id: "tx-sale-reversal-canonical-1",
+          kind: "sale",
+          amount_subtotal: -100000,
+          tax_amount: -10000,
+          amount_total: -110000,
+          projection_source: "canonical_posting_projection",
+          proposal_id: "proposal-sales-reversal-1",
+          proposal_execution_id: "execution-sales-reversal-1",
+          posting_group_id: "posting-sales-reversal-1",
+          journal_entry_id: "journal-sales-reversal-1",
+        },
+        proposal: {
+          id: "proposal-sales-reversal-1",
+          type: "income.reverse",
+          status: "reversed",
+          db_status: "executed",
+          lineage_mode: "transition",
+          lifecycle_engine: "money_transition",
+          full_proposal_lifecycle: false,
+          source_route: "accounting.void.create",
+          source_idempotency_key: "void-sales-canonical-1",
+        },
+        projection: {
+          projection_source: "canonical_posting_projection",
+          legacy_transaction_id: "tx-sale-reversal-canonical-1",
+          reverses_transaction_id: "tx-sale-void-1",
+          proposal_id: "proposal-sales-reversal-1",
+          proposal_execution_id: "execution-sales-reversal-1",
+          posting_group_id: "posting-sales-reversal-1",
+          journal_entry_id: "journal-sales-reversal-1",
+        },
+        posting: {
+          status: "posted",
+          mode: "canonical_sales_reversal",
+          affects_pl: true,
+          affects_revenue: true,
+          affects_ar: true,
+        },
+      },
+      error: null,
+    });
+
+    const req = {
+      userId: "user-1",
+      userName: "山田",
+      orgId: "11111111-1111-4111-8111-111111111111",
+      orgMembershipId: "membership-1",
+      params: { id: "tx-sale-void-1" },
+      body: { idempotency_key: "void-sales-canonical-1", reason: "売上入力ミス" },
+    } as any;
+    const res = createMockRes();
+
+    await voidTransactionHandler(req, res);
+
+    expect(mockRpc).toHaveBeenCalledWith("rpc_reverse_accounting_sale_canonical", expect.objectContaining({
+      p_org_id: "11111111-1111-4111-8111-111111111111",
+      p_actor_user_id: "user-1",
+      p_membership_id: "membership-1",
+      p_idempotency_key: "void-sales-canonical-1",
+      p_transaction_id: "tx-sale-void-1",
+      p_reason: "売上入力ミス",
+    }));
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      original_voided: "tx-sale-void-1",
+      original_reversed: "tx-sale-void-1",
+      reversal_created: "tx-sale-reversal-canonical-1",
+      proposal: expect.objectContaining({
+        id: "proposal-sales-reversal-1",
+        type: "income.reverse",
+        status: "reversed",
+        full_proposal_lifecycle: false,
+      }),
+      posting: expect.objectContaining({
+        status: "posted",
+        mode: "canonical_sales_reversal",
+        affects_pl: true,
+      }),
+      projection: expect.objectContaining({
+        projection_source: "canonical_posting_projection",
+        legacy_transaction_id: "tx-sale-reversal-canonical-1",
+        reverses_transaction_id: "tx-sale-void-1",
+        proposal_execution_id: "execution-sales-reversal-1",
+        posting_group_id: "posting-sales-reversal-1",
+        journal_entry_id: "journal-sales-reversal-1",
+      }),
     }));
   });
 
@@ -1631,6 +3353,15 @@ describe("accounting router", () => {
     const existingEntryChain = createChain({ data: null, error: null });
     const entryInsertChain = createChain({ data: { id: "journal-1" }, error: null });
     const lineInsertChain = createChain({ data: null, error: null });
+    const proposalChain = createChain({
+      data: {
+        id: "proposal-void-1",
+        type: "transaction.reverse",
+        status: "executed",
+        policy_ref: "legacy_direct_transition",
+      },
+      error: null,
+    });
     setupMockFromSequence(mockFrom, [
       originalFetchChain,
       invoiceSourceLinksChain,
@@ -1640,19 +3371,29 @@ describe("accounting router", () => {
       existingEntryChain,
       entryInsertChain,
       lineInsertChain,
-    ]);
+    ], [], [proposalChain]);
+    mockRpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: "CANONICAL_SALES_REVERSE_UNSUPPORTED_KIND" },
+    });
 
     const req = {
       userId: "user-1",
       orgId: "11111111-1111-4111-8111-111111111111",
       params: { id: "tx-void-1" },
-      body: { reason: "入力ミス" },
+      body: { idempotency_key: "void-success-1", reason: "入力ミス" },
     } as any;
     const res = createMockRes();
 
     await voidTransactionHandler(req, res);
 
-    expect(mockFrom).toHaveBeenCalledTimes(8);
+    expect(mockFrom).toHaveBeenCalledTimes(11);
+    expect(mockRpc).toHaveBeenCalledWith("rpc_reverse_accounting_sale_canonical", expect.objectContaining({
+      p_transaction_id: "tx-void-1",
+      p_reason: "入力ミス",
+    }));
+    expect(originalFetchChain.eq).toHaveBeenCalledWith("org_id", "11111111-1111-4111-8111-111111111111");
+    expect(existingReversalChain.eq).toHaveBeenCalledWith("org_id", "11111111-1111-4111-8111-111111111111");
     expect(reversalInsertChain.insert).toHaveBeenCalledWith(expect.objectContaining({
       status: "posted",
       voids_transaction_id: "tx-void-1",
@@ -1666,11 +3407,22 @@ describe("accounting router", () => {
       expect.objectContaining({ account_code: "5100", debit: 0, credit: 3100 }),
       expect.objectContaining({ account_code: "1500", debit: 0, credit: 310 }),
     ]);
-    expect(res.json).toHaveBeenCalledWith({
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
       original_voided: "tx-void-1",
       original_reversed: "tx-void-1",
       reversal_created: "tx-reversal-1",
-    });
+      proposal: expect.objectContaining({
+        id: "proposal-void-1",
+        type: "transaction.reverse",
+        status: "reversed",
+        full_proposal_lifecycle: false,
+      }),
+      projection: expect.objectContaining({
+        legacy_transaction_id: "tx-reversal-1",
+        reverses_transaction_id: "tx-void-1",
+        proposal_id: "proposal-void-1",
+      }),
+    }));
   });
 
   it("POST /void/:id rejects re-voiding a transaction that already has a reversal", async () => {
@@ -1697,7 +3449,7 @@ describe("accounting router", () => {
       userId: "user-1",
       orgId: "11111111-1111-4111-8111-111111111111",
       params: { id: "tx-void-2" },
-      body: { reason: "再取消テスト" },
+      body: { idempotency_key: "void-existing-reversal-1", reason: "再取消テスト" },
     } as any;
     const res = createMockRes();
 
@@ -1722,7 +3474,7 @@ describe("accounting router", () => {
     const req = {
       userId: "user-1",
       params: { id: "tx-reversal-2" },
-      body: { reason: "やり直し" },
+      body: { idempotency_key: "void-reversal-1", reason: "やり直し" },
     } as any;
     const res = createMockRes();
 

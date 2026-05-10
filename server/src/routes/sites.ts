@@ -31,6 +31,7 @@ const SITE_SCHEDULE_MODES = ["continuous", "weekdays", "custom"] as const;
 const SITE_COMPLETION_ERROR_STATUS_MAP: Record<string, number> = {
     USER_CONTEXT_REQUIRED: 403,
     ORG_MEMBERSHIP_REQUIRED: 403,
+    RPC_MEMBERSHIP_REQUIRED: 403,
     ORG_ONBOARDING_REQUIRED: 403,
     ORG_SELECTION_REQUIRED: 403,
     ORG_ROLE_REQUIRED: 403,
@@ -57,6 +58,31 @@ const SITE_COMPLETION_ERROR_STATUS_MAP: Record<string, number> = {
 };
 
 type SiteScheduleMode = typeof SITE_SCHEDULE_MODES[number];
+
+function sanitizeStoragePathSegment(value: string): string {
+    return value.replace(/[^A-Za-z0-9_-]/g, "_");
+}
+
+function isOrgScopedStoragePath(orgId: string, storagePath: string | null | undefined): storagePath is string {
+    return typeof storagePath === "string" && storagePath.startsWith(`${orgId}/`);
+}
+
+function buildSiteDocumentStoragePath(input: {
+    orgId: string;
+    siteId: string;
+    userId: string;
+    timestamp: number;
+    extension: string;
+}): string {
+    return [
+        sanitizeStoragePathSegment(input.orgId),
+        "sites",
+        sanitizeStoragePathSegment(input.siteId),
+        "documents",
+        sanitizeStoragePathSegment(input.userId),
+        `${input.timestamp}.${sanitizeStoragePathSegment(input.extension || "bin")}`,
+    ].join("/");
+}
 
 function normalizeText(value: unknown): string | null {
     if (typeof value !== "string") {
@@ -562,6 +588,7 @@ router.get("/members", async (req: AuthenticatedRequest, res: Response) => {
             code === "USER_CONTEXT_REQUIRED" ||
             code === "ORG_ONBOARDING_REQUIRED" ||
             code === "ORG_MEMBERSHIP_REQUIRED" ||
+            code === "RPC_MEMBERSHIP_REQUIRED" ||
             code === "ORG_ROLE_REQUIRED"
         ) {
             res.status(403).json({ error: code });
@@ -793,6 +820,7 @@ router.get("/:id/documents", async (req: AuthenticatedRequest, res: Response) =>
         const { data, error } = await supabaseAdmin
             .from("documents")
             .select("id, doc_type, original_filename, mime_type, file_size, storage_path, drive_file_url, created_at")
+            .eq("org_id", orgId)
             .eq("site_id", siteId)
             .order("created_at", { ascending: false });
 
@@ -801,7 +829,7 @@ router.get("/:id/documents", async (req: AuthenticatedRequest, res: Response) =>
         // storage_path がある場合は署名付きURLを生成
         const docsWithUrls = await Promise.all(
             (data || []).map(async (doc) => {
-                if (doc.storage_path) {
+                if (isOrgScopedStoragePath(orgId, doc.storage_path)) {
                     const { data: urlData } = await supabaseAdmin.storage
                         .from("genba-documents")
                         .createSignedUrl(doc.storage_path, 3600); // 1時間有効
@@ -847,7 +875,13 @@ router.post("/:id/documents", async (req: AuthenticatedRequest, res: Response) =
 
         const timestamp = Date.now();
         const ext = original_filename?.split(".").pop() || "jpg";
-        const storagePath = `${req.userId!}/${timestamp}.${ext}`;
+        const storagePath = buildSiteDocumentStoragePath({
+            orgId,
+            siteId,
+            userId: req.userId!,
+            timestamp,
+            extension: ext,
+        });
 
         const { error: uploadError } = await supabaseAdmin.storage
             .from("genba-documents")
@@ -1437,7 +1471,12 @@ router.post("/:id/complete-with-close", async (req: AuthenticatedRequest, res: R
 
         const response: CompleteSiteWithCloseHttpResponse = await createSiteCompleteWithCloseService(
             membership.org_id,
-        ).execute(siteId, ((req.body as Record<string, unknown> | undefined) || {}), buildHumanActor(req));
+        ).execute(
+            siteId,
+            ((req.body as Record<string, unknown> | undefined) || {}),
+            buildHumanActor(req),
+            membership.id,
+        );
 
         const maybeSite = response.body.site;
         if (
@@ -1470,6 +1509,7 @@ router.post("/:id/complete", async (req: AuthenticatedRequest, res: Response) =>
         const result = await new SiteCompletionService(membership.org_id).completeSite({
             siteId,
             actorUserId: getActorUserId(req),
+            membershipId: membership.id,
             effectiveCompletedAt: normalizeOptionalTimestamp(
                 (req.body as Record<string, unknown> | undefined)?.effective_completed_at,
                 "INVALID_EFFECTIVE_COMPLETED_AT"
@@ -1502,6 +1542,7 @@ router.post("/:id/complete/reverse", async (req: AuthenticatedRequest, res: Resp
         const result = await new SiteCompletionService(membership.org_id).reverseSiteCompletion({
             siteId,
             actorUserId: getActorUserId(req),
+            membershipId: membership.id,
             effectiveReversedAt: normalizeOptionalTimestamp(
                 body.effective_reversed_at,
                 "INVALID_EFFECTIVE_REVERSED_AT"

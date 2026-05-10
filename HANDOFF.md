@@ -1,11 +1,11 @@
-# Project Handoff Profile / Domain Index - 2026-05-08
+# Project Handoff Profile / Domain Index - 2026-05-10
 
 ## Active Domains
 
 | Domain | File | Last Updated | Status |
 | ------ | ---- | ------------ | ------ |
 | deploy/production | `handoff/deploy/production.md` | 2026-05-07 | Open production /money in browser if visual smoke is needed |
-| local | `handoff/local.md` | 2026-05-08 | stage, commit, push codex/a, merge to master, push master |
+| local | `handoff/local.md` | 2026-05-10 | User selected option (a): production migration repair + s... |
 
 ## Domain Selection Guide
 

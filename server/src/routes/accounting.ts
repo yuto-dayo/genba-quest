@@ -1,11 +1,29 @@
 import { Router, Response } from "express";
+import { createHash } from "crypto";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import { supabaseAdmin } from "../lib/supabaseClient";
+import { resolveActiveOrgMembership } from "../lib/orgAccess";
 import { analyzeDocument, assessExpenseRisk, OcrResult } from "../services/ocrService";
 import { getDriveStorageService } from "../services/DriveStorageService";
 import { ensureInvoicePdfStored, INVOICE_PDF_BUCKET } from "../services/InvoicePdfService";
 import { buildInvoiceDisplayLineItems } from "../services/InvoiceLineItemsService";
 import { assertActiveClientForOrg } from "../services/ClientDirectoryService";
+import {
+    AccountingCommandError,
+    createAccountingCommandProposalLineage,
+    createAccountingInvoice,
+    createJournalEntry,
+    createVoidReversal,
+    insertExpenseTransaction,
+    insertInvoiceRecord,
+    insertInvoiceSourceLinks,
+    insertSaleTransactionWithItems,
+    postCanonicalExpense,
+    postCanonicalSale,
+    recordPaymentEvent,
+    recordPaymentAllocation,
+    reverseCanonicalSale,
+} from "../services/AccountingCommandService";
 import {
     buildDefaultInvoiceSettings,
     buildInvoiceSourceSummarySnapshot,
@@ -18,7 +36,6 @@ import {
     isRequestedInvoiceDocumentType,
     isValidQualifiedInvoiceRegistrationNumber,
     type InvoiceTransaction,
-    resolveTaxRate,
     resolveRequestedDocumentType,
 } from "../services/InvoiceEligibilityService";
 
@@ -29,16 +46,31 @@ const EXPENSE_REVIEW_NOT_REQUIRED = "not_required";
 const POSTED_STATUS = "posted";
 const EXPENSE_CATEGORIES = ["material", "tool", "travel", "food", "fuel", "utility", "other"] as const;
 const EXPENSE_TAX_CATEGORIES = ["10_STANDARD", "08_REDUCED", "00_EXEMPT", "00_TAXFREE"] as const;
-const DEFAULT_ORG_ID = process.env.DEFAULT_ORG_ID || "00000000-0000-0000-0000-000000000001";
 const INVOICE_SETTINGS_MANAGER_ROLES = new Set(["admin", "manager"]);
 const DEFAULT_SALE_TAX_CATEGORY = "10_STANDARD";
 const DEFAULT_SALE_TAX_RATE = 0.1;
 const DEFAULT_SALE_UNIT_NAME = "式";
-const VOIDABLE_TRANSACTION_STATUSES = ["posted", "approved"] as const;
 const LEDGER_AGGREGATION_STATUSES = ["posted", "approved", "voided"] as const;
+const PL_SOURCES = ["legacy", "journal", "compare"] as const;
+const PL_REVENUE_NET_ACCOUNT_CODES = new Set(["4100"]);
+const PL_EXPENSE_NET_ACCOUNT_CODES = new Set(["5100", "5110", "5120", "5130", "5140", "5200", "5300", "5400", "5900"]);
+const PL_REVENUE_GROSS_COMPAT_ACCOUNT_CODES = new Set([...PL_REVENUE_NET_ACCOUNT_CODES, "2500"]);
+const PL_EXPENSE_GROSS_COMPAT_ACCOUNT_CODES = new Set([...PL_EXPENSE_NET_ACCOUNT_CODES, "1500"]);
+const PL_NO_REVENUE_POSTING_GROUP_TYPES = new Set(["invoice_transfer", "payment_receipt", "payment_allocation"]);
 
 type ExpenseCategory = typeof EXPENSE_CATEGORIES[number];
 type ExpenseTaxCategory = typeof EXPENSE_TAX_CATEGORIES[number];
+type PlSource = typeof PL_SOURCES[number];
+type PlJournalBasis = "net_accounting" | "gross_compat";
+type PlSummary = {
+    sales: number;
+    expenses: number;
+    profit: number;
+    distributable: number;
+    transaction_count?: number;
+    journal_entry_count?: number;
+    journal_line_count?: number;
+};
 type SaleItemPayload = {
     item_name: string;
     quantity: number;
@@ -55,15 +87,49 @@ type SupplementLineItemPayload = {
     amount: number | null;
 };
 
-const EXPENSE_ACCOUNT_MAP: Record<ExpenseCategory, { code: string; name: string }> = {
-    material: { code: "5100", name: "材料費" },
-    tool: { code: "5200", name: "工具備品費" },
-    travel: { code: "5300", name: "交通費" },
-    food: { code: "5400", name: "会議費" },
-    fuel: { code: "5900", name: "燃料費" },
-    utility: { code: "5900", name: "光熱費" },
-    other: { code: "5900", name: "その他経費" },
-};
+type AccountingWriteEndpoint =
+    | "accounting.expenses.create"
+    | "accounting.sales.adjust"
+    | "accounting.invoices.create"
+    | "accounting.payments.create"
+    | "accounting.payments.allocate"
+    | "accounting.void.create";
+
+type AccountingIdempotencyStart =
+    | {
+        mode: "created";
+        id: string;
+        endpointName: AccountingWriteEndpoint;
+        idempotencyKey: string;
+        requestHash: string;
+    }
+    | {
+        mode: "replay";
+        responseStatus: number;
+        responseJson: unknown;
+    };
+
+class AccountingRouteError extends Error {
+    status: number;
+
+    constructor(status: number, message: string) {
+        super(message);
+        this.status = status;
+    }
+}
+
+router.use(async (req: AuthenticatedRequest, res, next) => {
+    try {
+        const membership = await resolveActiveOrgMembership(req, "member");
+        req.orgId = membership.org_id;
+        req.orgMembershipId = membership.id ?? null;
+        next();
+    } catch (err) {
+        const message = err instanceof Error ? err.message : "ORG_ACCESS_ERROR";
+        const status = message === "INVALID_ORG_ID" ? 400 : 403;
+        res.status(status).json({ error: message });
+    }
+});
 
 function isDevAuthBypassEnabled(): boolean {
     return process.env.NODE_ENV === "development" && process.env.DEV_SKIP_AUTH === "true";
@@ -80,6 +146,10 @@ function normalizeText(value: unknown): string | null {
 
     const trimmed = value.trim();
     return trimmed ? trimmed : null;
+}
+
+function isOrgScopedStoragePath(orgId: string, storagePath: string | null | undefined): storagePath is string {
+    return typeof storagePath === "string" && storagePath.startsWith(`${orgId}/`);
 }
 
 function normalizeExpenseCategory(value: unknown): ExpenseCategory | null {
@@ -102,21 +172,6 @@ function normalizeExpenseTaxCategory(value: unknown): ExpenseTaxCategory | null 
     return EXPENSE_TAX_CATEGORIES.includes(normalized as ExpenseTaxCategory)
         ? normalized as ExpenseTaxCategory
         : null;
-}
-
-function resolveExpenseTaxType(taxCategory: string | null | undefined): "taxable" | "exempt" | "taxfree" {
-    if (taxCategory === "00_EXEMPT") {
-        return "exempt";
-    }
-    if (taxCategory === "00_TAXFREE") {
-        return "taxfree";
-    }
-    return "taxable";
-}
-
-function resolveExpenseAccount(category: unknown): { code: string; name: string } {
-    const normalizedCategory = normalizeExpenseCategory(category) || "other";
-    return EXPENSE_ACCOUNT_MAP[normalizedCategory];
 }
 
 function parseNumericInput(value: unknown): number | null {
@@ -170,32 +225,171 @@ function roundMoney(value: number): number {
     return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-function isVoidableStatus(status: unknown): status is typeof VOIDABLE_TRANSACTION_STATUSES[number] {
-    return VOIDABLE_TRANSACTION_STATUSES.includes(status as typeof VOIDABLE_TRANSACTION_STATUSES[number]);
+function toMoneyNumber(value: unknown): number {
+    if (typeof value === "number" && Number.isFinite(value)) {
+        return value;
+    }
+
+    if (typeof value === "string" && value.trim()) {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    return 0;
 }
 
-type ExpenseInsertPayload = {
-    org_id: string;
-    kind: "expense";
-    cost_center: string;
-    site_id: string | null;
-    vendor_name: unknown;
-    description: unknown;
-    recorded_date: string;
-    amount_subtotal: number;
-    tax_amount: number;
-    amount_total: number;
-    category: ExpenseCategory;
-    expense_item_code: string | null;
-    expense_item_other: string | null;
-    tax_category: ExpenseTaxCategory;
-    risk_level: "LOW" | "HIGH";
-    status?: string;
-    review_status?: string;
-    source_document_id: unknown;
-    input_sources: Record<string, unknown>;
-    created_by: string;
-};
+function normalizePlSource(value: unknown): PlSource {
+    return typeof value === "string" && PL_SOURCES.includes(value as PlSource)
+        ? value as PlSource
+        : "legacy";
+}
+
+function completePlSummary(input: {
+    sales: number;
+    expenses: number;
+    transactionCount?: number;
+    journalEntryCount?: number;
+    journalLineCount?: number;
+}): PlSummary {
+    const sales = roundMoney(input.sales);
+    const expenses = roundMoney(input.expenses);
+    const profit = roundMoney(sales - expenses);
+    const distributable = roundMoney(Math.max(profit, 0) * 0.7);
+
+    return {
+        sales,
+        expenses,
+        profit,
+        distributable,
+        ...(input.transactionCount !== undefined ? { transaction_count: input.transactionCount } : {}),
+        ...(input.journalEntryCount !== undefined ? { journal_entry_count: input.journalEntryCount } : {}),
+        ...(input.journalLineCount !== undefined ? { journal_line_count: input.journalLineCount } : {}),
+    };
+}
+
+function summarizeLegacyPlRows(rows: Array<Record<string, unknown>>): PlSummary {
+    let sales = 0;
+    let expenses = 0;
+
+    for (const tx of rows) {
+        if (tx.kind === "sale" || tx.kind === "invoice") {
+            sales += toMoneyNumber(tx.amount_total);
+        } else if (tx.kind === "expense") {
+            expenses += toMoneyNumber(tx.amount_total);
+        }
+    }
+
+    return completePlSummary({
+        sales,
+        expenses,
+        transactionCount: rows.length,
+    });
+}
+
+function firstNestedRecord(value: unknown): Record<string, unknown> | null {
+    if (Array.isArray(value)) {
+        const first = value[0];
+        return first && typeof first === "object" ? first as Record<string, unknown> : null;
+    }
+
+    return value && typeof value === "object" ? value as Record<string, unknown> : null;
+}
+
+function shouldSkipJournalEntryForPl(
+    entry: Record<string, unknown>,
+    costCenterFilter: unknown,
+): boolean {
+    if (!entry.posted_at) {
+        return true;
+    }
+
+    const postingGroup = firstNestedRecord(entry.posting_group);
+    const groupType = postingGroup?.group_type;
+    if (typeof groupType === "string" && PL_NO_REVENUE_POSTING_GROUP_TYPES.has(groupType)) {
+        return true;
+    }
+
+    if (typeof costCenterFilter === "string" && costCenterFilter) {
+        const transaction = firstNestedRecord(entry.transaction);
+        return transaction?.cost_center !== costCenterFilter;
+    }
+
+    return false;
+}
+
+function summarizeJournalPlRows(
+    entries: Array<Record<string, unknown>>,
+    filters: { siteId?: unknown; costCenter?: unknown },
+    basis: PlJournalBasis = "net_accounting",
+): PlSummary {
+    let sales = 0;
+    let expenses = 0;
+    let journalEntryCount = 0;
+    let journalLineCount = 0;
+    const revenueAccountCodes = basis === "gross_compat"
+        ? PL_REVENUE_GROSS_COMPAT_ACCOUNT_CODES
+        : PL_REVENUE_NET_ACCOUNT_CODES;
+    const expenseAccountCodes = basis === "gross_compat"
+        ? PL_EXPENSE_GROSS_COMPAT_ACCOUNT_CODES
+        : PL_EXPENSE_NET_ACCOUNT_CODES;
+
+    for (const entry of entries) {
+        if (shouldSkipJournalEntryForPl(entry, filters.costCenter)) {
+            continue;
+        }
+
+        const transaction = firstNestedRecord(entry.transaction);
+        const linesValue = entry.lines ?? entry.accounting_journal_lines;
+        const lines = Array.isArray(linesValue) ? linesValue : [];
+        let countedEntry = false;
+
+        for (const rawLine of lines) {
+            if (!rawLine || typeof rawLine !== "object") {
+                continue;
+            }
+
+            const line = rawLine as Record<string, unknown>;
+            const lineSiteId = line.site_id ?? transaction?.site_id;
+            if (typeof filters.siteId === "string" && filters.siteId && lineSiteId !== filters.siteId) {
+                continue;
+            }
+
+            const accountCode = typeof line.account_code === "string" ? line.account_code : "";
+            const debit = toMoneyNumber(line.debit);
+            const credit = toMoneyNumber(line.credit);
+
+            if (revenueAccountCodes.has(accountCode)) {
+                sales += credit - debit;
+                journalLineCount += 1;
+                countedEntry = true;
+            } else if (expenseAccountCodes.has(accountCode)) {
+                expenses += debit - credit;
+                journalLineCount += 1;
+                countedEntry = true;
+            }
+        }
+
+        if (countedEntry) {
+            journalEntryCount += 1;
+        }
+    }
+
+    return completePlSummary({
+        sales,
+        expenses,
+        journalEntryCount,
+        journalLineCount,
+    });
+}
+
+function buildPlDiff(legacy: PlSummary, journal: PlSummary): Pick<PlSummary, "sales" | "expenses" | "profit" | "distributable"> {
+    return {
+        sales: roundMoney(journal.sales - legacy.sales),
+        expenses: roundMoney(journal.expenses - legacy.expenses),
+        profit: roundMoney(journal.profit - legacy.profit),
+        distributable: roundMoney(journal.distributable - legacy.distributable),
+    };
+}
 
 function isMissingColumnError(error: unknown, columnName: string): boolean {
     if (!error || typeof error !== "object") {
@@ -223,15 +417,6 @@ function isMissingRelationError(error: unknown, relationName: string): boolean {
     );
 }
 
-function isPostgrestNoRowsError(error: unknown): boolean {
-    return Boolean(
-        error
-        && typeof error === "object"
-        && "code" in error
-        && error.code === "PGRST116"
-    );
-}
-
 function isDuplicateKeyError(error: unknown): boolean {
     if (!error || typeof error !== "object") {
         return false;
@@ -242,7 +427,201 @@ function isDuplicateKeyError(error: unknown): boolean {
     return code === "23505" || message.includes("duplicate key value") || message.includes("23505");
 }
 
-async function assertSiteSalesMutable(siteId: string, orgId: string): Promise<void> {
+function canonicalizeForHash(value: unknown): unknown {
+    if (Array.isArray(value)) {
+        return value.map(canonicalizeForHash);
+    }
+
+    if (value && typeof value === "object") {
+        return Object.keys(value as Record<string, unknown>)
+            .sort()
+            .reduce<Record<string, unknown>>((acc, key) => {
+                if (key !== "idempotency_key") {
+                    acc[key] = canonicalizeForHash((value as Record<string, unknown>)[key]);
+                }
+                return acc;
+            }, {});
+    }
+
+    return value;
+}
+
+function buildRequestHash(body: unknown): string {
+    return createHash("sha256")
+        .update(JSON.stringify(canonicalizeForHash(body)))
+        .digest("hex");
+}
+
+function withAccountingCommandEnvelope<T extends Record<string, unknown>>(
+    legacyPayload: T,
+    input: {
+        endpointName: AccountingWriteEndpoint;
+        projection: Record<string, unknown>;
+        proposal?: Record<string, unknown> | null;
+        approvalStatus?: string;
+        execution?: Record<string, unknown> | null;
+        postingStatus?: string;
+        mode?: string;
+        postingMetadata?: Record<string, unknown>;
+    },
+): T & {
+    proposal: Record<string, unknown> | null;
+    approval: Record<string, unknown>;
+    execution: Record<string, unknown>;
+    posting: Record<string, unknown>;
+    projection: Record<string, unknown>;
+} {
+    return {
+        ...legacyPayload,
+        proposal: input.proposal ?? null,
+        approval: {
+            status: input.approvalStatus || "legacy_direct",
+            mode: input.mode || "legacy_direct",
+        },
+        execution: input.execution
+            ? {
+                ...input.execution,
+                status: input.execution.status || "succeeded",
+                mode: input.mode || input.execution.mode || "legacy_direct",
+                endpoint_name: input.endpointName,
+                proposal_id: input.execution.proposal_id ?? input.proposal?.id ?? null,
+            }
+            : {
+                status: "succeeded",
+                mode: input.mode || "legacy_direct",
+                endpoint_name: input.endpointName,
+                proposal_id: input.proposal?.id ?? null,
+            },
+        posting: {
+            status: input.postingStatus || "legacy_projection",
+            mode: input.mode || "legacy_projection",
+            ...(input.postingMetadata || {}),
+        },
+        projection: input.projection,
+    };
+}
+
+function readIdempotencyKey(body: unknown): string {
+    const value = body && typeof body === "object"
+        ? (body as Record<string, unknown>).idempotency_key
+        : null;
+
+    if (typeof value !== "string" || !value.trim()) {
+        throw new AccountingRouteError(400, "idempotency_key is required");
+    }
+
+    return value.trim();
+}
+
+async function beginAccountingWriteIdempotency(input: {
+    orgId: string;
+    endpointName: AccountingWriteEndpoint;
+    idempotencyKey: string;
+    requestBody: unknown;
+}): Promise<AccountingIdempotencyStart> {
+    const requestHash = buildRequestHash(input.requestBody);
+    const insertResult = await supabaseAdmin
+        .from("accounting_write_idempotency_keys")
+        .insert({
+            org_id: input.orgId,
+            endpoint_name: input.endpointName,
+            idempotency_key: input.idempotencyKey,
+            request_hash: requestHash,
+            status: "in_progress",
+            locked_at: new Date().toISOString(),
+        })
+        .select("id,request_hash,status,response_status,response_json")
+        .single();
+
+    if (!insertResult.error && insertResult.data) {
+        return {
+            mode: "created",
+            id: insertResult.data.id,
+            endpointName: input.endpointName,
+            idempotencyKey: input.idempotencyKey,
+            requestHash,
+        };
+    }
+
+    if (!isDuplicateKeyError(insertResult.error)) {
+        throw insertResult.error;
+    }
+
+    const { data: existing, error: existingError } = await supabaseAdmin
+        .from("accounting_write_idempotency_keys")
+        .select("id,request_hash,status,response_status,response_json")
+        .eq("org_id", input.orgId)
+        .eq("endpoint_name", input.endpointName)
+        .eq("idempotency_key", input.idempotencyKey)
+        .maybeSingle();
+
+    if (existingError) {
+        throw existingError;
+    }
+
+    if (!existing) {
+        throw new AccountingRouteError(409, "IDEMPOTENCY_STATE_CONFLICT");
+    }
+
+    if (existing.request_hash && existing.request_hash !== requestHash) {
+        throw new AccountingRouteError(409, "IDEMPOTENCY_CONFLICT");
+    }
+
+    if (existing.status === "succeeded") {
+        return {
+            mode: "replay",
+            responseStatus: typeof existing.response_status === "number" ? existing.response_status : 200,
+            responseJson: existing.response_json || {},
+        };
+    }
+
+    throw new AccountingRouteError(409, `IDEMPOTENCY_${String(existing.status || "in_progress").toUpperCase()}`);
+}
+
+async function completeAccountingWriteIdempotency(
+    idempotency: AccountingIdempotencyStart | null,
+    responseStatus: number,
+    responseJson: unknown,
+): Promise<void> {
+    if (!idempotency || idempotency.mode !== "created") {
+        return;
+    }
+
+    const { error } = await supabaseAdmin
+        .from("accounting_write_idempotency_keys")
+        .update({
+            status: "succeeded",
+            response_status: responseStatus,
+            response_json: responseJson || {},
+            completed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+        })
+        .eq("id", idempotency.id);
+
+    if (error) {
+        throw error;
+    }
+}
+
+async function failAccountingWriteIdempotency(
+    idempotency: AccountingIdempotencyStart | null,
+    errorCode: string,
+): Promise<void> {
+    if (!idempotency || idempotency.mode !== "created") {
+        return;
+    }
+
+    await supabaseAdmin
+        .from("accounting_write_idempotency_keys")
+        .update({
+            status: "failed",
+            response_json: { error: errorCode },
+            updated_at: new Date().toISOString(),
+        })
+        .eq("id", idempotency.id);
+}
+
+async function assertSiteBelongsToOrg(siteId: string, orgId: string) {
     const { data, error } = await supabaseAdmin
         .from("sites")
         .select("id, status")
@@ -259,47 +638,15 @@ async function assertSiteSalesMutable(siteId: string, orgId: string): Promise<vo
         throw new Error("SITE_NOT_FOUND");
     }
 
+    return data;
+}
+
+async function assertSiteSalesMutable(siteId: string, orgId: string): Promise<void> {
+    const data = await assertSiteBelongsToOrg(siteId, orgId);
+
     if (String(data.status ?? "") === "completed") {
         throw new Error("SITE_COMPLETED_SALES_IMMUTABLE");
     }
-}
-
-async function insertExpenseTransaction(payload: ExpenseInsertPayload) {
-    let insertPayload: Record<string, unknown> = { ...payload };
-
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-        const { data, error } = await supabaseAdmin
-            .from("accounting_transactions")
-            .insert(insertPayload)
-            .select()
-            .single();
-
-        if (!error) {
-            return data;
-        }
-
-        if ("category" in insertPayload && isMissingColumnError(error, "category")) {
-            const { category: _category, ...rest } = insertPayload;
-            insertPayload = rest;
-            continue;
-        }
-
-        if ("expense_item_code" in insertPayload && isMissingColumnError(error, "expense_item_code")) {
-            const { expense_item_code: _expenseItemCode, expense_item_other: _expenseItemOther, ...rest } = insertPayload;
-            insertPayload = rest;
-            continue;
-        }
-
-        if ("expense_item_other" in insertPayload && isMissingColumnError(error, "expense_item_other")) {
-            const { expense_item_other: _expenseItemOther, ...rest } = insertPayload;
-            insertPayload = rest;
-            continue;
-        }
-
-        throw error;
-    }
-
-    throw new Error("Failed to insert expense transaction after schema compatibility retries");
 }
 
 function buildSaleDescription(description: string | null, items: SaleItemPayload[]): string {
@@ -458,7 +805,7 @@ type InvoiceSourceLinkRecord = {
     is_primary_document: boolean;
 };
 
-async function getInvoiceTransactionsByIds(transactionIds: string[]): Promise<InvoiceTransaction[]> {
+async function getInvoiceTransactionsByIds(transactionIds: string[], orgId: string): Promise<InvoiceTransaction[]> {
     if (transactionIds.length === 0) {
         return [];
     }
@@ -480,6 +827,7 @@ async function getInvoiceTransactionsByIds(transactionIds: string[]): Promise<In
             site:sites(id, name),
             client:clients(id, name)
         `)
+        .eq("org_id", orgId)
         .in("id", transactionIds);
 
     if (error) {
@@ -503,13 +851,14 @@ async function getInvoiceTransactionsByIds(transactionIds: string[]): Promise<In
         .filter((transaction): transaction is InvoiceTransaction => Boolean(transaction));
 }
 
-async function getInvoiceTransaction(transactionId: string) {
-    const [transaction] = await getInvoiceTransactionsByIds([transactionId]);
+async function getInvoiceTransaction(transactionId: string, orgId: string) {
+    const [transaction] = await getInvoiceTransactionsByIds([transactionId], orgId);
     return transaction || null;
 }
 
 async function getInvoiceSourceLinksByTransactionIds(
     transactionIds: string[],
+    orgId: string,
     options?: { primaryOnly?: boolean }
 ): Promise<InvoiceSourceLinkRecord[]> {
     if (transactionIds.length === 0) {
@@ -519,6 +868,7 @@ async function getInvoiceSourceLinksByTransactionIds(
     const { data, error } = await supabaseAdmin
         .from("accounting_invoice_sources")
         .select("invoice_id, source_transaction_id, source_transaction_date, sort_order, is_primary_document")
+        .eq("org_id", orgId)
         .in("source_transaction_id", transactionIds);
 
     if (error) {
@@ -537,7 +887,7 @@ async function getInvoiceSourceLinksByTransactionIds(
         : sourceLinks;
 }
 
-async function getInvoiceSourceLinksByInvoiceIds(invoiceIds: string[]): Promise<InvoiceSourceLinkRecord[]> {
+async function getInvoiceSourceLinksByInvoiceIds(invoiceIds: string[], orgId: string): Promise<InvoiceSourceLinkRecord[]> {
     if (invoiceIds.length === 0) {
         return [];
     }
@@ -545,6 +895,7 @@ async function getInvoiceSourceLinksByInvoiceIds(invoiceIds: string[]): Promise<
     const { data, error } = await supabaseAdmin
         .from("accounting_invoice_sources")
         .select("invoice_id, source_transaction_id, source_transaction_date, sort_order, is_primary_document")
+        .eq("org_id", orgId)
         .in("invoice_id", invoiceIds)
         .order("sort_order", { ascending: true });
 
@@ -565,7 +916,7 @@ async function getExistingInvoicesForSourceTransactions(
     orgId: string,
     options?: { primaryOnly?: boolean }
 ) {
-    const sourceLinks = await getInvoiceSourceLinksByTransactionIds(transactionIds, options);
+    const sourceLinks = await getInvoiceSourceLinksByTransactionIds(transactionIds, orgId, options);
     const invoiceIds = Array.from(new Set(sourceLinks.map((link) => link.invoice_id)));
 
     if (invoiceIds.length === 0) {
@@ -599,37 +950,8 @@ async function getExistingInvoicesForSourceTransactions(
     return Array.isArray(data) ? data : [];
 }
 
-async function getExistingInvoicesForTransaction(transactionId: string, orgId = DEFAULT_ORG_ID) {
+async function getExistingInvoicesForTransaction(transactionId: string, orgId: string) {
     return getExistingInvoicesForSourceTransactions([transactionId], orgId);
-}
-
-async function insertInvoiceSourceLinks(input: {
-    invoiceId: string;
-    transactions: InvoiceTransaction[];
-    isPrimaryDocument: boolean;
-}) {
-    if (input.transactions.length === 0) {
-        return;
-    }
-
-    const rows = input.transactions.map((transaction, index) => ({
-        invoice_id: input.invoiceId,
-        source_transaction_id: transaction.id,
-        source_transaction_date: transaction.recorded_date,
-        sort_order: index,
-        is_primary_document: input.isPrimaryDocument,
-    }));
-
-    const { error } = await supabaseAdmin
-        .from("accounting_invoice_sources")
-        .insert(rows);
-
-    if (error) {
-        if (isMissingRelationError(error, "accounting_invoice_sources")) {
-            return;
-        }
-        throw error;
-    }
 }
 
 function buildInvoiceListSelect(includeSourceSummarySnapshot: boolean): string {
@@ -689,32 +1011,6 @@ async function fetchInvoiceListRows(input: {
     return runQuery(false);
 }
 
-async function insertInvoiceRecord(row: Record<string, unknown>) {
-    let insertPayload = { ...row };
-
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-        const result = await supabaseAdmin
-            .from("accounting_invoices")
-            .insert(insertPayload)
-            .select()
-            .single();
-
-        if (!result.error) {
-            return result;
-        }
-
-        if ("source_summary_snapshot" in insertPayload && isMissingColumnError(result.error, "source_summary_snapshot")) {
-            const { source_summary_snapshot: _sourceSummarySnapshot, ...rest } = insertPayload;
-            insertPayload = rest;
-            continue;
-        }
-
-        return result;
-    }
-
-    return { data: null, error: new Error("Failed to insert invoice after compatibility retries") };
-}
-
 async function getInvoiceById(invoiceId: string, orgId: string) {
     const { data, error } = await supabaseAdmin
         .from("accounting_invoices")
@@ -750,7 +1046,7 @@ function buildInvoiceCorrectionSnapshot(existingSnapshot: any, correction: Recor
 router.post("/documents", async (req: AuthenticatedRequest, res: Response) => {
     try {
         const { file_base64, mime_type, original_filename, doc_type, site_id, client_id } = req.body;
-        const orgId = req.orgId || DEFAULT_ORG_ID;
+        const orgId = req.orgId!;
 
         if (!file_base64 || !mime_type || !doc_type) {
             res.status(400).json({ error: "file_base64, mime_type, doc_type are required" });
@@ -766,6 +1062,15 @@ router.post("/documents", async (req: AuthenticatedRequest, res: Response) => {
             }
         }
 
+        if (site_id) {
+            try {
+                await assertSiteBelongsToOrg(site_id, orgId);
+            } catch {
+                res.status(400).json({ error: "site_id is invalid or unavailable" });
+                return;
+            }
+        }
+
         // Base64 → Buffer
         const fileBuffer = Buffer.from(file_base64, "base64");
         const fileSize = fileBuffer.length;
@@ -777,7 +1082,7 @@ router.post("/documents", async (req: AuthenticatedRequest, res: Response) => {
         // Storage にアップロード
         const timestamp = Date.now();
         const ext = original_filename?.split(".").pop() || "jpg";
-        const storagePath = `${req.userId!}/${timestamp}.${ext}`;
+        const storagePath = `${orgId}/${req.userId!}/${timestamp}.${ext}`;
 
         const { error: uploadError } = await supabaseAdmin.storage
             .from("genba-documents")
@@ -829,6 +1134,7 @@ router.post("/ocr/analyze", async (req: AuthenticatedRequest, res: Response) => 
             .from("documents")
             .select("*")
             .eq("id", document_id)
+            .eq("org_id", req.orgId!)
             .single();
 
         if (docError || !doc) {
@@ -844,6 +1150,11 @@ router.post("/ocr/analyze", async (req: AuthenticatedRequest, res: Response) => 
             fileBuffer = driveFile.buffer;
             mimeType = driveFile.mimeType || mimeType;
         } else if (doc.storage_path) {
+            if (!isOrgScopedStoragePath(req.orgId!, doc.storage_path)) {
+                res.status(403).json({ error: "Document storage path is outside active org" });
+                return;
+            }
+
             const { data: fileData, error: downloadError } = await supabaseAdmin.storage
                 .from("genba-documents")
                 .download(doc.storage_path);
@@ -878,6 +1189,7 @@ router.post("/ocr/analyze", async (req: AuthenticatedRequest, res: Response) => 
                 }, {} as Record<string, any>),
             })
             .eq("id", document_id)
+            .eq("org_id", req.orgId!)
             .select()
             .single();
 
@@ -894,6 +1206,7 @@ router.post("/ocr/analyze", async (req: AuthenticatedRequest, res: Response) => 
 // ============================================================
 
 router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
+    let idempotency: AccountingIdempotencyStart | null = null;
     try {
         const {
             cost_center,
@@ -910,14 +1223,64 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
             expense_item_other,
             source_document_id,
             input_sources,
+            expense_scope,
+            paid_by,
+            claimant_member_id,
+            settlement_type,
+            payment_account,
+            reimbursement_status,
+            recurring_template_id,
         } = req.body;
-        const orgId = req.orgId || DEFAULT_ORG_ID;
+        const orgId = req.orgId!;
         const normalizedCategory = normalizeExpenseCategory(category);
         const normalizedTaxCategory = normalizeExpenseTaxCategory(tax_category) || "10_STANDARD";
         const normalizedExpenseItemCode = normalizeText(expense_item_code);
         const normalizedExpenseItemOther = normalizeText(expense_item_other);
+        const normalizedExpenseScope = normalizeText(expense_scope) || (cost_center === "HQ" ? "overhead" : "job");
+        const normalizedPaidBy = normalizeText(paid_by) || "org";
+        const normalizedClaimantMemberId = normalizeText(claimant_member_id);
+        const normalizedSettlementType = normalizeText(settlement_type) || "paid";
+        const normalizedPaymentAccount = normalizeText(payment_account);
+        const normalizedReimbursementStatus = normalizeText(reimbursement_status)
+            || (normalizedPaidBy === "member" ? "unsubmitted" : null);
+        const normalizedRecurringTemplateId = normalizeText(recurring_template_id);
+        const resolvedCostCenter = normalizedExpenseScope === "overhead" ? "HQ" : (cost_center || "SITE");
+        const resolvedSiteId = normalizedExpenseScope === "overhead" ? null : site_id;
 
-        if (cost_center !== "HQ" && !site_id) {
+        if (normalizedExpenseScope !== "job" && normalizedExpenseScope !== "overhead") {
+            res.status(400).json({ error: "expense_scope must be one of job, overhead" });
+            return;
+        }
+
+        if (normalizedPaidBy !== "org" && normalizedPaidBy !== "member") {
+            res.status(400).json({ error: "paid_by must be one of org, member" });
+            return;
+        }
+
+        if (normalizedPaidBy === "member" && !normalizedClaimantMemberId) {
+            res.status(400).json({ error: "claimant_member_id is required when paid_by is member" });
+            return;
+        }
+
+        if (normalizedSettlementType !== "paid" && normalizedSettlementType !== "unpaid") {
+            res.status(400).json({ error: "settlement_type must be one of paid, unpaid" });
+            return;
+        }
+
+        if (normalizedPaymentAccount && normalizedPaymentAccount !== "cash" && normalizedPaymentAccount !== "bank") {
+            res.status(400).json({ error: "payment_account must be one of cash, bank" });
+            return;
+        }
+
+        if (
+            normalizedReimbursementStatus
+            && !["unsubmitted", "submitted", "approved", "reimbursed"].includes(normalizedReimbursementStatus)
+        ) {
+            res.status(400).json({ error: "reimbursement_status must be one of unsubmitted, submitted, approved, reimbursed" });
+            return;
+        }
+
+        if (resolvedCostCenter !== "HQ" && !resolvedSiteId) {
             res.status(400).json({ error: "site_id is required when cost_center is SITE" });
             return;
         }
@@ -942,6 +1305,27 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
             return;
         }
 
+        if (resolvedSiteId) {
+            try {
+                await assertSiteBelongsToOrg(resolvedSiteId, orgId);
+            } catch {
+                res.status(400).json({ error: "site_id is invalid or unavailable" });
+                return;
+            }
+        }
+
+        idempotency = await beginAccountingWriteIdempotency({
+            orgId,
+            endpointName: "accounting.expenses.create",
+            idempotencyKey: readIdempotencyKey(req.body),
+            requestBody: req.body,
+        });
+
+        if (idempotency.mode === "replay") {
+            res.status(idempotency.responseStatus).json(idempotency.responseJson);
+            return;
+        }
+
         const resolvedTotal = parseNumericInput(amount_total) || 0;
         let resolvedTaxAmount = parseNumericInput(tax_amount) || 0;
         let resolvedSubtotal = parseNumericInput(amount_subtotal);
@@ -959,6 +1343,7 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
                 .from("documents")
                 .select("ocr_fields")
                 .eq("id", source_document_id)
+                .eq("org_id", orgId)
                 .single();
 
             if (doc?.ocr_fields) {
@@ -978,11 +1363,80 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
 
         const requiresReview = risk_level === "HIGH";
 
+        if (!requiresReview) {
+            const canonicalResult = await postCanonicalExpense({
+                orgId,
+                membershipId: req.orgMembershipId || null,
+                idempotencyKey: idempotency.idempotencyKey,
+                costCenter: resolvedCostCenter,
+                siteId: typeof resolvedSiteId === "string" ? resolvedSiteId : null,
+                vendorName: vendor_name,
+                description,
+                recordedDate: recorded_date || new Date().toISOString().split("T")[0],
+                amountSubtotal: resolvedSubtotal,
+                taxAmount: resolvedTaxAmount,
+                amountTotal: resolvedTotal,
+                category: normalizedCategory || "other",
+                expenseItemCode: normalizedExpenseItemCode,
+                expenseItemOther: normalizedExpenseItemOther,
+                taxCategory: normalizedTaxCategory,
+                riskLevel: risk_level,
+                sourceDocumentId: source_document_id,
+                inputSources: input_sources || {},
+                expenseScope: normalizedExpenseScope as "job" | "overhead",
+                paidBy: normalizedPaidBy as "org" | "member",
+                claimantMemberId: normalizedClaimantMemberId,
+                settlementType: normalizedSettlementType as "paid" | "unpaid",
+                paymentAccount: normalizedPaymentAccount as "cash" | "bank" | null,
+                reimbursementStatus: normalizedReimbursementStatus as "unsubmitted" | "submitted" | "approved" | "reimbursed" | null,
+                recurringTemplateId: normalizedRecurringTemplateId,
+                createdBy: req.userId!,
+                actorName: req.userName || req.userEmail || null,
+            });
+
+            const canonicalData = canonicalResult?.transaction;
+
+            if (canonicalData && typeof canonicalData === "object" && "id" in canonicalData) {
+                const canonicalProposal = canonicalResult.proposal && typeof canonicalResult.proposal === "object"
+                    ? canonicalResult.proposal as Record<string, unknown>
+                    : null;
+                const canonicalProjection = canonicalResult.projection && typeof canonicalResult.projection === "object"
+                    ? canonicalResult.projection as Record<string, unknown>
+                    : {
+                        legacy_transaction_id: (canonicalData as Record<string, unknown>).id,
+                        legacy_transaction_kind: (canonicalData as Record<string, unknown>).kind || "expense",
+                        projection_source: "canonical_posting_projection",
+                    };
+                const canonicalPosting = canonicalResult.posting && typeof canonicalResult.posting === "object"
+                    ? canonicalResult.posting as Record<string, unknown>
+                    : {
+                        affects_pl: true,
+                        affects_revenue: false,
+                        affects_ar: false,
+                        mode: "canonical_expense_posting",
+                    };
+
+                const responseBody = withAccountingCommandEnvelope(canonicalData as Record<string, unknown>, {
+                    endpointName: "accounting.expenses.create",
+                    proposal: canonicalProposal,
+                    approvalStatus: "not_required",
+                    postingStatus: "posted",
+                    mode: "canonical_expense_posting",
+                    projection: canonicalProjection,
+                    postingMetadata: canonicalPosting,
+                });
+
+                await completeAccountingWriteIdempotency(idempotency, 201, responseBody);
+                res.status(201).json(responseBody);
+                return;
+            }
+        }
+
         const data = await insertExpenseTransaction({
             org_id: orgId,
             kind: "expense",
-            cost_center: cost_center || "SITE",
-            site_id: cost_center === "HQ" ? null : site_id,
+            cost_center: resolvedCostCenter,
+            site_id: resolvedSiteId,
             vendor_name,
             description,
             recorded_date: recorded_date || new Date().toISOString().split("T")[0],
@@ -998,15 +1452,103 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
             review_status: requiresReview ? undefined : EXPENSE_REVIEW_NOT_REQUIRED,
             source_document_id,
             input_sources: input_sources || {},
+            projection_source: "transition_lineage",
+            legacy_source_route: "accounting.expenses.create",
+            legacy_source_id: idempotency.idempotencyKey,
+            metadata_json: {
+                expense_scope: normalizedExpenseScope,
+                paid_by: normalizedPaidBy,
+                settlement_type: normalizedSettlementType,
+                payment_account: normalizedPaymentAccount,
+                reimbursement_status: normalizedReimbursementStatus,
+                recurring_template_id: normalizedRecurringTemplateId,
+            },
+            expense_scope: normalizedExpenseScope as "job" | "overhead",
+            paid_by: normalizedPaidBy as "org" | "member",
+            claimant_member_id: normalizedClaimantMemberId,
+            settlement_type: normalizedSettlementType as "paid" | "unpaid",
+            payment_account: normalizedPaymentAccount as "cash" | "bank" | null,
+            reimbursement_status: normalizedReimbursementStatus as "unsubmitted" | "submitted" | "approved" | "reimbursed" | null,
+            recurring_template_id: normalizedRecurringTemplateId,
             created_by: req.userId!,
         });
 
         if (!requiresReview) {
-            await createJournalEntry(data, req.userId!);
+            await createJournalEntry(data, req.userId!, orgId);
         }
 
-        res.status(201).json(data);
+        let proposalLineage: Record<string, unknown> | null = null;
+        const legacyProjection = {
+            projection_source: "transition_lineage",
+            legacy_transaction_id: data.id,
+            legacy_transaction_kind: data.kind || "expense",
+        };
+
+        try {
+            proposalLineage = await createAccountingCommandProposalLineage({
+                orgId,
+                endpointName: "accounting.expenses.create",
+                proposalType: "expense.create",
+                idempotencyKey: idempotency.idempotencyKey,
+                transitionStatus: "posted_legacy_projection",
+                actor: {
+                    type: "human",
+                    id: req.userId!,
+                    name: req.userName || req.userEmail || null,
+                },
+                description: `経費登録: ${normalizeText(description) || normalizeText(vendor_name) || data.id}`,
+                payload: {
+                    cost_center: resolvedCostCenter,
+                    site_id: resolvedSiteId,
+                    vendor_name,
+                    description,
+                    recorded_date: data.recorded_date,
+                    amount_subtotal: resolvedSubtotal,
+                    tax_amount: resolvedTaxAmount,
+                    amount_total: resolvedTotal,
+                    category: normalizedCategory || "other",
+                    expense_item_code: normalizedExpenseItemCode,
+                    expense_item_other: normalizedExpenseItemOther,
+                    tax_category: normalizedTaxCategory,
+                    risk_level,
+                    review_required: requiresReview,
+                    source_document_id,
+                    input_sources: input_sources || {},
+                    expense_scope: normalizedExpenseScope,
+                    paid_by: normalizedPaidBy,
+                    claimant_member_id: normalizedClaimantMemberId,
+                    settlement_type: normalizedSettlementType,
+                    payment_account: normalizedPaymentAccount,
+                    reimbursement_status: normalizedReimbursementStatus,
+                    recurring_template_id: normalizedRecurringTemplateId,
+                },
+                projection: legacyProjection,
+                documentId: typeof source_document_id === "string" ? source_document_id : null,
+                siteId: typeof resolvedSiteId === "string" ? resolvedSiteId : null,
+            });
+        } catch (proposalError) {
+            console.error("Expense proposal lineage error:", proposalError);
+        }
+
+        const responseBody = withAccountingCommandEnvelope(data, {
+            endpointName: "accounting.expenses.create",
+            proposal: proposalLineage,
+            approvalStatus: requiresReview ? "pending_review" : "not_required",
+            postingStatus: requiresReview ? "pending_review" : "posted",
+            mode: "legacy_direct_projection",
+            projection: proposalLineage
+                ? { ...legacyProjection, proposal_id: proposalLineage.id }
+                : legacyProjection,
+        });
+
+        await completeAccountingWriteIdempotency(idempotency, 201, responseBody);
+        res.status(201).json(responseBody);
     } catch (err: any) {
+        await failAccountingWriteIdempotency(idempotency, err instanceof Error ? err.message : "UNKNOWN_ERROR");
+        if (err instanceof AccountingRouteError) {
+            res.status(err.status).json({ error: err.message });
+            return;
+        }
         console.error("Expense create error:", err);
         res.status(500).json({ error: "Internal server error" });
     }
@@ -1028,6 +1570,7 @@ router.post("/expenses/:id/review", async (req: AuthenticatedRequest, res: Respo
             .from("accounting_transactions")
             .select("created_by, amount_total, reviewer_id, status, review_status")
             .eq("id", id)
+            .eq("org_id", req.orgId!)
             .single();
 
         if (txError || !tx) {
@@ -1080,6 +1623,7 @@ router.post("/expenses/:id/review", async (req: AuthenticatedRequest, res: Respo
                 status: txStatus,
             })
             .eq("id", id)
+            .eq("org_id", req.orgId!)
             .select()
             .single();
 
@@ -1087,7 +1631,7 @@ router.post("/expenses/:id/review", async (req: AuthenticatedRequest, res: Respo
 
         // 承認の場合は仕訳を作成
         if (action === "approve" && data) {
-            await createJournalEntry(data, req.userId!);
+            await createJournalEntry(data, req.userId!, req.orgId!);
         }
 
         res.json(data);
@@ -1139,6 +1683,7 @@ router.post("/expenses/batch-review", async (req: AuthenticatedRequest, res: Res
                     .from("accounting_transactions")
                     .select("created_by, amount_total, reviewer_id, status, review_status")
                     .eq("id", id)
+                    .eq("org_id", req.orgId!)
                     .single();
 
                 if (txError || !tx) {
@@ -1183,6 +1728,7 @@ router.post("/expenses/batch-review", async (req: AuthenticatedRequest, res: Res
                         status: txStatus,
                     })
                     .eq("id", id)
+                    .eq("org_id", req.orgId!)
                     .select()
                     .single();
 
@@ -1193,7 +1739,7 @@ router.post("/expenses/batch-review", async (req: AuthenticatedRequest, res: Res
 
                 // 承認の場合は仕訳を作成
                 if (action === "approve" && updated) {
-                    await createJournalEntry(updated, req.userId!);
+                    await createJournalEntry(updated, req.userId!, req.orgId!);
                 }
 
                 results.success.push(id);
@@ -1214,6 +1760,7 @@ router.post("/expenses/batch-review", async (req: AuthenticatedRequest, res: Res
 // ============================================================
 
 router.post("/sales", async (req: AuthenticatedRequest, res: Response) => {
+    let idempotency: AccountingIdempotencyStart | null = null;
     try {
         const {
             site_id,
@@ -1230,7 +1777,7 @@ router.post("/sales", async (req: AuthenticatedRequest, res: Response) => {
             source_document_id,
             input_sources,
         } = req.body;
-        const orgId = req.orgId || DEFAULT_ORG_ID;
+        const orgId = req.orgId!;
 
         if (!site_id) {
             res.status(400).json({ error: "site_id is required" });
@@ -1304,15 +1851,83 @@ router.post("/sales", async (req: AuthenticatedRequest, res: Response) => {
             return;
         }
 
-        const { data, error } = await supabaseAdmin
-            .from("accounting_transactions")
-            .insert({
+        idempotency = await beginAccountingWriteIdempotency({
+            orgId,
+            endpointName: "accounting.sales.adjust",
+            idempotencyKey: readIdempotencyKey(req.body),
+            requestBody: req.body,
+        });
+
+        if (idempotency.mode === "replay") {
+            res.status(idempotency.responseStatus).json(idempotency.responseJson);
+            return;
+        }
+
+        const saleDescription = buildSaleDescription(normalizedDescription, saleItems);
+        const canonicalResult = await postCanonicalSale({
+            orgId,
+            membershipId: req.orgMembershipId || null,
+            idempotencyKey: idempotency.idempotencyKey,
+            siteId: site_id,
+            clientId: client_id,
+            description: saleDescription,
+            recordedDate: recorded_date || new Date().toISOString().split("T")[0],
+            amountSubtotal: resolvedSubtotal,
+            taxAmount: resolvedTaxAmount,
+            amountTotal: resolvedTotal,
+            taxCategory: DEFAULT_SALE_TAX_CATEGORY,
+            sourceDocumentId: source_document_id,
+            inputSources: input_sources || {},
+            items: saleItems,
+            createdBy: req.userId!,
+            actorName: req.userName || req.userEmail || null,
+        });
+
+        const canonicalData = canonicalResult?.transaction;
+
+        if (canonicalData && typeof canonicalData === "object" && "id" in canonicalData) {
+            const canonicalProposal = canonicalResult.proposal && typeof canonicalResult.proposal === "object"
+                ? canonicalResult.proposal as Record<string, unknown>
+                : null;
+            const canonicalProjection = canonicalResult.projection && typeof canonicalResult.projection === "object"
+                ? canonicalResult.projection as Record<string, unknown>
+                : {
+                    legacy_transaction_id: (canonicalData as Record<string, unknown>).id,
+                    legacy_transaction_kind: (canonicalData as Record<string, unknown>).kind || "sale",
+                    projection_source: "canonical_posting_projection",
+                };
+            const canonicalPosting = canonicalResult.posting && typeof canonicalResult.posting === "object"
+                ? canonicalResult.posting as Record<string, unknown>
+                : {
+                    affects_pl: true,
+                    affects_revenue: true,
+                    affects_ar: true,
+                    mode: "canonical_sales_posting",
+                };
+
+            const responseBody = withAccountingCommandEnvelope(canonicalData as Record<string, unknown>, {
+                endpointName: "accounting.sales.adjust",
+                proposal: canonicalProposal,
+                approvalStatus: "not_required",
+                postingStatus: "posted",
+                mode: "canonical_sales_posting",
+                projection: canonicalProjection,
+                postingMetadata: canonicalPosting,
+            });
+
+            await completeAccountingWriteIdempotency(idempotency, 201, responseBody);
+            res.status(201).json(responseBody);
+            return;
+        }
+
+        const data = await insertSaleTransactionWithItems(
+            {
                 org_id: orgId,
                 kind: "sale",
                 cost_center: "SITE",
                 site_id,
                 client_id,
-                description: buildSaleDescription(normalizedDescription, saleItems),
+                description: saleDescription,
                 recorded_date: recorded_date || new Date().toISOString().split("T")[0],
                 amount_subtotal: resolvedSubtotal,
                 tax_amount: resolvedTaxAmount,
@@ -1322,33 +1937,72 @@ router.post("/sales", async (req: AuthenticatedRequest, res: Response) => {
                 source_document_id,
                 input_sources: input_sources || {},
                 created_by: req.userId!,
-            })
-            .select()
-            .single();
-
-        if (error) throw error;
-
-        if (saleItems.length > 0) {
-            const { error: itemError } = await supabaseAdmin
-                .from("accounting_transaction_items")
-                .insert(
-                    saleItems.map((item) => ({
-                        transaction_id: data.id,
-                        item_name: item.item_name,
-                        unit_name: item.unit_name,
-                        unit_price: item.unit_price,
-                        quantity: item.quantity,
-                    }))
-                );
-
-            if (itemError) throw itemError;
-        }
+            },
+            saleItems
+        );
 
         // 仕訳作成
-        await createJournalEntry(data, req.userId!);
+        await createJournalEntry(data, req.userId!, orgId);
 
-        res.status(201).json(data);
+        let proposalLineage: Record<string, unknown> | null = null;
+        const legacyProjection = {
+            legacy_transaction_id: data.id,
+            legacy_transaction_kind: data.kind || "sale",
+        };
+
+        try {
+            proposalLineage = await createAccountingCommandProposalLineage({
+                orgId,
+                endpointName: "accounting.sales.adjust",
+                proposalType: "income.create",
+                idempotencyKey: idempotency.idempotencyKey,
+                transitionStatus: "posted_legacy_projection",
+                actor: {
+                    type: "human",
+                    id: req.userId!,
+                    name: req.userName || req.userEmail || null,
+                },
+                description: `売上登録: ${saleDescription}`,
+                payload: {
+                    site_id,
+                    client_id,
+                    description: saleDescription,
+                    recorded_date: data.recorded_date,
+                    amount_subtotal: resolvedSubtotal,
+                    tax_amount: resolvedTaxAmount,
+                    amount_total: resolvedTotal,
+                    tax_category: DEFAULT_SALE_TAX_CATEGORY,
+                    source_document_id,
+                    input_sources: input_sources || {},
+                    items: saleItems,
+                },
+                projection: legacyProjection,
+                documentId: typeof source_document_id === "string" ? source_document_id : null,
+                siteId: typeof site_id === "string" ? site_id : null,
+            });
+        } catch (proposalError) {
+            console.error("Sale proposal lineage error:", proposalError);
+        }
+
+        const responseBody = withAccountingCommandEnvelope(data, {
+            endpointName: "accounting.sales.adjust",
+            proposal: proposalLineage,
+            approvalStatus: "not_required",
+            postingStatus: "posted",
+            mode: "legacy_direct_projection",
+            projection: proposalLineage
+                ? { ...legacyProjection, proposal_id: proposalLineage.id }
+                : legacyProjection,
+        });
+
+        await completeAccountingWriteIdempotency(idempotency, 201, responseBody);
+        res.status(201).json(responseBody);
     } catch (err: any) {
+        await failAccountingWriteIdempotency(idempotency, err instanceof Error ? err.message : "UNKNOWN_ERROR");
+        if (err instanceof AccountingRouteError) {
+            res.status(err.status).json({ error: err.message });
+            return;
+        }
         if (err instanceof Error && err.message === "SITE_COMPLETED_SALES_IMMUTABLE") {
             res.status(409).json({ error: "SITE_COMPLETED_SALES_IMMUTABLE" });
             return;
@@ -1368,7 +2022,7 @@ router.post("/sales", async (req: AuthenticatedRequest, res: Response) => {
 
 router.get("/invoice-settings", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = req.orgId || DEFAULT_ORG_ID;
+        const orgId = req.orgId!;
         const settings = await getOrgInvoiceSettings(orgId);
         res.json(settings);
     } catch (err: any) {
@@ -1379,7 +2033,7 @@ router.get("/invoice-settings", async (req: AuthenticatedRequest, res: Response)
 
 router.put("/invoice-settings", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = req.orgId || DEFAULT_ORG_ID;
+        const orgId = req.orgId!;
         const normalizedIssuerName = normalizeText(req.body.issuer_name);
         const normalizedIssuerAddress = normalizeText(req.body.issuer_address);
         const normalizedIssuerContact = normalizeText(req.body.issuer_contact);
@@ -1477,7 +2131,7 @@ router.put("/invoice-settings", async (req: AuthenticatedRequest, res: Response)
 
 router.get("/invoice-candidates", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = req.orgId || DEFAULT_ORG_ID;
+        const orgId = req.orgId!;
         const clientId = normalizeText(req.query.client_id);
         const dateFrom = normalizeText(req.query.date_from);
         const dateTo = normalizeText(req.query.date_to);
@@ -1489,6 +2143,7 @@ router.get("/invoice-candidates", async (req: AuthenticatedRequest, res: Respons
                 site:sites(id, name),
                 client:clients(id, name)
             `)
+            .eq("org_id", orgId)
             .eq("kind", "sale")
             .neq("status", "voided")
             .order("recorded_date", { ascending: true })
@@ -1526,6 +2181,7 @@ router.get("/invoice-candidates", async (req: AuthenticatedRequest, res: Respons
         const linkedInvoiceIds = new Set(linkedInvoices.map((invoice) => invoice.id));
         const sourceLinks = await getInvoiceSourceLinksByTransactionIds(
             transactions.map((transaction) => transaction.id),
+            orgId,
             { primaryOnly: true }
         );
         const linkedSourceIds = new Set(
@@ -1543,7 +2199,7 @@ router.get("/invoice-candidates", async (req: AuthenticatedRequest, res: Respons
 
 router.post("/invoice-eligibility", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = req.orgId || DEFAULT_ORG_ID;
+        const orgId = req.orgId!;
         const transactionIds: string[] = Array.isArray(req.body.transaction_ids)
             ? req.body.transaction_ids
                 .filter((value: unknown): value is string => typeof value === "string" && value.trim().length > 0)
@@ -1556,7 +2212,7 @@ router.post("/invoice-eligibility", async (req: AuthenticatedRequest, res: Respo
         }
 
         const uniqueTransactionIds: string[] = Array.from(new Set(transactionIds));
-        const transactions = await getInvoiceTransactionsByIds(uniqueTransactionIds);
+        const transactions = await getInvoiceTransactionsByIds(uniqueTransactionIds, orgId);
 
         if (transactions.length !== uniqueTransactionIds.length) {
             res.status(404).json({ error: "One or more transactions were not found" });
@@ -1589,11 +2245,11 @@ router.post("/invoice-eligibility", async (req: AuthenticatedRequest, res: Respo
 
 router.get("/invoice-eligibility/:transactionId", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = req.orgId || DEFAULT_ORG_ID;
+        const orgId = req.orgId!;
         const transactionId = Array.isArray(req.params.transactionId)
             ? req.params.transactionId[0]
             : req.params.transactionId;
-        const transaction = await getInvoiceTransaction(transactionId);
+        const transaction = await getInvoiceTransaction(transactionId, orgId);
 
         if (!transaction) {
             res.status(404).json({ error: "Transaction not found" });
@@ -1626,7 +2282,7 @@ router.get("/invoice-eligibility/:transactionId", async (req: AuthenticatedReque
 
 router.get("/invoices", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = req.orgId || DEFAULT_ORG_ID;
+        const orgId = req.orgId!;
         const {
             limit = 50,
             offset = 0,
@@ -1637,7 +2293,7 @@ router.get("/invoices", async (req: AuthenticatedRequest, res: Response) => {
         let directSourceTransactionFilter: string | null = null;
         if (typeof sourceTransactionId === "string" && sourceTransactionId.trim()) {
             const normalizedSourceTransactionId = sourceTransactionId.trim();
-            const sourceLinks = await getInvoiceSourceLinksByTransactionIds([normalizedSourceTransactionId]);
+            const sourceLinks = await getInvoiceSourceLinksByTransactionIds([normalizedSourceTransactionId], orgId);
             filteredInvoiceIds = Array.from(new Set(sourceLinks.map((link) => link.invoice_id)));
 
             if (filteredInvoiceIds.length === 0) {
@@ -1664,7 +2320,7 @@ router.get("/invoices", async (req: AuthenticatedRequest, res: Response) => {
 
         const invoiceRows = invoices as Array<Record<string, any>>;
         const invoiceIds = invoiceRows.map((invoice) => invoice.id);
-        const sourceLinks = await getInvoiceSourceLinksByInvoiceIds(invoiceIds);
+        const sourceLinks = await getInvoiceSourceLinksByInvoiceIds(invoiceIds, orgId);
         const sourceLinksByInvoiceId = sourceLinks.reduce<Map<string, InvoiceSourceLinkRecord[]>>((map, link) => {
             const existing = map.get(link.invoice_id) || [];
             existing.push(link);
@@ -1693,6 +2349,7 @@ router.get("/invoices", async (req: AuthenticatedRequest, res: Response) => {
                     site:sites(id, name),
                     client:clients(id, name)
                 `)
+                .eq("org_id", orgId)
                 .in("id", sourceTransactionIds);
 
             if (transactionsError) {
@@ -1797,6 +2454,7 @@ router.get("/invoices", async (req: AuthenticatedRequest, res: Response) => {
 });
 
 router.post("/invoices", async (req: AuthenticatedRequest, res: Response) => {
+    let idempotency: AccountingIdempotencyStart | null = null;
     try {
         const {
             transaction_id,
@@ -1808,7 +2466,7 @@ router.post("/invoices", async (req: AuthenticatedRequest, res: Response) => {
             notes,
             requested_document_type,
         } = req.body;
-        const orgId = req.orgId || DEFAULT_ORG_ID;
+        const orgId = req.orgId!;
 
         const requestedTransactionIds: string[] = Array.isArray(source_transaction_ids)
             ? source_transaction_ids
@@ -1833,7 +2491,7 @@ router.post("/invoices", async (req: AuthenticatedRequest, res: Response) => {
             return;
         }
 
-        const transactions = await getInvoiceTransactionsByIds(uniqueTransactionIds);
+        const transactions = await getInvoiceTransactionsByIds(uniqueTransactionIds, orgId);
         if (transactions.length !== uniqueTransactionIds.length) {
             res.status(404).json({ error: "One or more transactions were not found" });
             return;
@@ -1851,6 +2509,18 @@ router.post("/invoices", async (req: AuthenticatedRequest, res: Response) => {
         ));
         if (transactions.length > 1 && (uniqueClientIds.length > 1 || transactions.some((transaction) => !transaction.client_id))) {
             res.status(400).json({ error: "Multiple source transactions must belong to the same client" });
+            return;
+        }
+
+        idempotency = await beginAccountingWriteIdempotency({
+            orgId,
+            endpointName: "accounting.invoices.create",
+            idempotencyKey: readIdempotencyKey(req.body),
+            requestBody: req.body,
+        });
+
+        if (idempotency.mode === "replay") {
+            res.status(idempotency.responseStatus).json(idempotency.responseJson);
             return;
         }
 
@@ -1897,67 +2567,118 @@ router.post("/invoices", async (req: AuthenticatedRequest, res: Response) => {
         const issueDate = issue_date || new Date().toISOString().split("T")[0];
         const notesValue = normalizeText(notes) || settings.invoice_notes_default || null;
         const sourceSummary = buildInvoiceSourceSummarySnapshot(sortedTransactions);
+        const eligibilitySnapshot = {
+            ...eligibility,
+            resolved_document_type: resolvedDocumentType,
+            evaluated_at: new Date().toISOString(),
+        };
 
-        // 請求書番号を採番
-        const { data: invoiceNo, error: seqError } = await supabaseAdmin.rpc("rpc_next_invoice_no", {
-            p_issue_date: issueDate,
-        });
-
-        if (seqError) throw seqError;
-
-        const { data, error } = await insertInvoiceRecord({
-            org_id: orgId,
-            transaction_id: representativeTransaction.id,
-            source_transaction_id: representativeTransaction.id,
-            invoice_no: invoiceNo,
-            document_type: resolvedDocumentType,
-            issue_date: issueDate,
-            due_date,
-            source_transaction_date: sourceSummary.period_start || representativeTransaction.recorded_date,
-            billing_name: normalizedBillingName,
-            billing_address: normalizeText(billing_address),
-            issuer_registration_no: resolvedDocumentType === "qualified_invoice"
+        const data = await createAccountingInvoice({
+            orgId,
+            membershipId: req.orgMembershipId || null,
+            idempotencyKey: idempotency.idempotencyKey,
+            transactions: sortedTransactions,
+            representativeTransaction,
+            sourceTransactionIds: uniqueTransactionIds,
+            documentType: resolvedDocumentType,
+            issueDate,
+            dueDate: due_date,
+            sourceTransactionDate: sourceSummary.period_start || representativeTransaction.recorded_date,
+            billingName: normalizedBillingName,
+            billingAddress: normalizeText(billing_address),
+            issuerRegistrationNo: resolvedDocumentType === "qualified_invoice"
                 ? settings.qualified_invoice_registration_number
                 : null,
             notes: notesValue,
-            issuer_snapshot: buildIssuerSnapshot(settings),
-            registration_number_snapshot: resolvedDocumentType === "qualified_invoice"
+            issuerSnapshot: buildIssuerSnapshot(settings),
+            registrationNumberSnapshot: resolvedDocumentType === "qualified_invoice"
                 ? settings.qualified_invoice_registration_number
                 : null,
-            registered_at_snapshot: resolvedDocumentType === "qualified_invoice"
+            registeredAtSnapshot: resolvedDocumentType === "qualified_invoice"
                 ? settings.qualified_invoice_registered_at
                 : null,
-            tax_summary_snapshot: taxSummary,
-            source_summary_snapshot: sourceSummary,
-            eligibility_snapshot: {
-                ...eligibility,
-                resolved_document_type: resolvedDocumentType,
-                evaluated_at: new Date().toISOString(),
-            },
-            pdf_render_status: "pending",
-            created_by: req.userId!,
+            taxSummary: taxSummary as unknown as Record<string, unknown>,
+            sourceSummary: sourceSummary as unknown as Record<string, unknown>,
+            eligibilitySnapshot,
+            createdBy: req.userId!,
+            actorName: req.userName || req.userEmail || null,
         });
 
-        if (error) throw error;
+        const {
+            proposal: invoiceProposalEnvelope,
+            execution: invoiceExecutionEnvelope,
+            posting: invoicePostingEnvelope,
+            projection: invoiceProjectionEnvelope,
+            rpc_membership_verified: _rpcMembershipVerified,
+            source_summary: _canonicalSourceSummary,
+            ...invoiceData
+        } = data;
+        let proposalLineage: Record<string, unknown> | null =
+            invoiceProposalEnvelope && typeof invoiceProposalEnvelope === "object"
+                ? invoiceProposalEnvelope as Record<string, unknown>
+                : null;
+        const canonicalExecution = invoiceExecutionEnvelope && typeof invoiceExecutionEnvelope === "object"
+            ? invoiceExecutionEnvelope as Record<string, unknown>
+            : null;
+        const canonicalPosting = invoicePostingEnvelope && typeof invoicePostingEnvelope === "object"
+            ? invoicePostingEnvelope as Record<string, unknown>
+            : null;
+        const canonicalProjection = invoiceProjectionEnvelope && typeof invoiceProjectionEnvelope === "object"
+            ? invoiceProjectionEnvelope as Record<string, unknown>
+            : null;
+        let projection = canonicalProjection || {
+            projection_source: "transition_lineage",
+            legacy_invoice_id: invoiceData.id,
+            legacy_transaction_id: representativeTransaction.id,
+            source_transaction_ids: sortedTransactions.map((transaction) => transaction.id),
+        };
 
-        await insertInvoiceSourceLinks({
-            invoiceId: data.id,
-            transactions: sortedTransactions,
-            isPrimaryDocument: true,
-        });
-
-        // Transaction の種別更新
-        const { error: txUpdateError } = await supabaseAdmin
-            .from("accounting_transactions")
-            .update({ kind: "invoice" })
-            .in("id", uniqueTransactionIds);
-
-        if (txUpdateError) {
-            throw txUpdateError;
+        if (!proposalLineage) {
+            try {
+                proposalLineage = await createAccountingCommandProposalLineage({
+                    orgId,
+                    endpointName: "accounting.invoices.create",
+                    proposalType: "invoice.create",
+                    idempotencyKey: idempotency.idempotencyKey,
+                    transitionStatus: "posted_legacy_projection",
+                    actor: {
+                        type: "human",
+                        id: req.userId!,
+                        name: req.userName || req.userEmail || null,
+                    },
+                    description: `請求書発行: ${normalizedBillingName}`,
+                    payload: {
+                        invoice_id: invoiceData.id,
+                        invoice_no: invoiceData.invoice_no,
+                        customer_name: normalizedBillingName,
+                        document_type: resolvedDocumentType,
+                        issue_date: issueDate,
+                        due_date,
+                        source_transaction_ids: uniqueTransactionIds,
+                        source_summary: sourceSummary,
+                        eligibility: eligibilitySnapshot,
+                        posting_mode: "invoice_issue_no_pl_revenue",
+                    },
+                    projection,
+                });
+                projection = {
+                    ...projection,
+                    proposal_id: proposalLineage.id,
+                };
+            } catch (proposalError) {
+                console.error("Invoice proposal lineage error:", proposalError);
+            }
         }
 
-        res.status(201).json({
-            ...data,
+        const postingMode = typeof canonicalPosting?.mode === "string"
+            ? canonicalPosting.mode
+            : "invoice_issue_no_pl_revenue";
+        const postingStatus = typeof canonicalPosting?.status === "string"
+            ? canonicalPosting.status
+            : "posted";
+
+        const responseBody = withAccountingCommandEnvelope({
+            ...invoiceData,
             source_summary: sourceSummary,
             eligibility: {
                 eligible_for_qualified_invoice: eligibility.eligible_for_qualified_invoice,
@@ -1965,8 +2686,50 @@ router.post("/invoices", async (req: AuthenticatedRequest, res: Response) => {
                 reason_messages: eligibility.reason_messages,
                 resolved_document_type: resolvedDocumentType,
             },
+        }, {
+            endpointName: "accounting.invoices.create",
+            proposal: proposalLineage,
+            approvalStatus: "not_required",
+            execution: canonicalExecution,
+            postingStatus,
+            mode: postingMode,
+            postingMetadata: canonicalPosting || {
+                affects_pl: false,
+                affects_revenue: false,
+                affects_ar: true,
+            },
+            projection,
         });
+
+        await completeAccountingWriteIdempotency(idempotency, 201, responseBody);
+        res.status(201).json(responseBody);
     } catch (err: any) {
+        await failAccountingWriteIdempotency(idempotency, err instanceof Error ? err.message : "UNKNOWN_ERROR");
+        if (err instanceof AccountingCommandError) {
+            res.status(err.status).json({ error: err.code });
+            return;
+        }
+        if (err instanceof AccountingRouteError) {
+            res.status(err.status).json({ error: err.message });
+            return;
+        }
+        const message = err instanceof Error ? err.message : String(err?.message || err || "UNKNOWN_ERROR");
+        if (message.includes("INVOICE_ALREADY_EXISTS") || message.includes("INVOICE_ALLOCATION_EXCEEDS_UNINVOICED_BALANCE")) {
+            res.status(409).json({ error: message.includes("INVOICE_ALREADY_EXISTS") ? "Invoice already exists" : "INVOICE_ALLOCATION_EXCEEDS_UNINVOICED_BALANCE" });
+            return;
+        }
+        if (message.includes("SOURCE_TRANSACTION_NOT_FOUND")) {
+            res.status(404).json({ error: "One or more transactions were not found" });
+            return;
+        }
+        if (message.includes("RPC_MEMBERSHIP_REQUIRED")) {
+            res.status(403).json({ error: "RPC_MEMBERSHIP_REQUIRED" });
+            return;
+        }
+        if (message.includes("SOURCE_TRANSACTION_IDS_REQUIRED") || message.includes("BILLING_NAME_REQUIRED")) {
+            res.status(400).json({ error: message });
+            return;
+        }
         console.error("Invoice create error:", err);
         res.status(500).json({ error: "Internal server error" });
     }
@@ -1974,7 +2737,7 @@ router.post("/invoices", async (req: AuthenticatedRequest, res: Response) => {
 
 router.post("/invoices/:id/correct", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = req.orgId || DEFAULT_ORG_ID;
+        const orgId = req.orgId!;
         const invoiceId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
         const hasCorrectedLineItemsInput = Object.prototype.hasOwnProperty.call(req.body || {}, "corrected_line_items");
         const correctedBillingName = normalizeText(req.body.billing_name);
@@ -2061,7 +2824,7 @@ router.post("/invoices/:id/correct", async (req: AuthenticatedRequest, res: Resp
 
 router.post("/invoices/:id/supplement", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = req.orgId || DEFAULT_ORG_ID;
+        const orgId = req.orgId!;
         const invoiceId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
         const issueDate = normalizeText(req.body.issue_date) || new Date().toISOString().split("T")[0];
         const supplementNote = normalizeText(req.body.correction_note);
@@ -2134,10 +2897,10 @@ router.post("/invoices/:id/supplement", async (req: AuthenticatedRequest, res: R
             return;
         }
 
-        const baseSourceLinks = await getInvoiceSourceLinksByInvoiceIds([invoiceId]);
+        const baseSourceLinks = await getInvoiceSourceLinksByInvoiceIds([invoiceId], orgId);
         const baseSourceTransactions = baseSourceLinks.length > 0
-            ? await getInvoiceTransactionsByIds(baseSourceLinks.map((link) => link.source_transaction_id))
-            : [await getInvoiceTransaction(baseInvoice.source_transaction_id)].filter(Boolean) as InvoiceTransaction[];
+            ? await getInvoiceTransactionsByIds(baseSourceLinks.map((link) => link.source_transaction_id), orgId)
+            : [await getInvoiceTransaction(baseInvoice.source_transaction_id, orgId)].filter(Boolean) as InvoiceTransaction[];
         const sourceSummary = baseInvoice.source_summary_snapshot
             || buildInvoiceSourceSummarySnapshot(baseSourceTransactions);
 
@@ -2193,6 +2956,7 @@ router.post("/invoices/:id/supplement", async (req: AuthenticatedRequest, res: R
         }
 
         await insertInvoiceSourceLinks({
+            orgId,
             invoiceId: data.id,
             transactions: baseSourceTransactions,
             isPrimaryDocument: false,
@@ -2205,9 +2969,366 @@ router.post("/invoices/:id/supplement", async (req: AuthenticatedRequest, res: R
     }
 });
 
+// ============================================================
+// Payments（入金イベント / 消込）
+// ============================================================
+
+router.post("/payments", async (req: AuthenticatedRequest, res: Response) => {
+    let idempotency: AccountingIdempotencyStart | null = null;
+    try {
+        const orgId = req.orgId!;
+        const customerId = normalizeText(req.body.customer_id);
+        const amount = parseNumericInput(req.body.amount);
+        const receivedOn = normalizeText(req.body.received_on) || new Date().toISOString().split("T")[0];
+        const paymentMethod = normalizeText(req.body.payment_method);
+        const paymentAccount = normalizeText(req.body.payment_account);
+        const externalReference = normalizeText(req.body.external_reference);
+
+        if (!amount || amount <= 0) {
+            res.status(400).json({ error: "amount must be a positive number" });
+            return;
+        }
+
+        if (paymentAccount && paymentAccount !== "cash" && paymentAccount !== "bank") {
+            res.status(400).json({ error: "payment_account must be one of cash, bank" });
+            return;
+        }
+
+        if (customerId) {
+            try {
+                await assertActiveClientForOrg(customerId, orgId);
+            } catch {
+                res.status(404).json({ error: "customer_id is invalid or unavailable" });
+                return;
+            }
+        }
+
+        idempotency = await beginAccountingWriteIdempotency({
+            orgId,
+            endpointName: "accounting.payments.create",
+            idempotencyKey: readIdempotencyKey(req.body),
+            requestBody: req.body,
+        });
+
+        if (idempotency.mode === "replay") {
+            res.status(idempotency.responseStatus).json(idempotency.responseJson);
+            return;
+        }
+
+        const paymentResult = await recordPaymentEvent({
+            orgId,
+            membershipId: req.orgMembershipId || null,
+            idempotencyKey: idempotency.idempotencyKey,
+            customerId,
+            receivedOn,
+            amount,
+            paymentMethod,
+            paymentAccount,
+            externalReference,
+            createdBy: req.userId!,
+            actorName: req.userName || req.userEmail || null,
+        });
+        const paymentId = paymentResult && typeof paymentResult === "object" && "payment" in paymentResult
+            ? (paymentResult as { payment?: { id?: unknown } }).payment?.id
+            : null;
+        const rpcProjection = paymentResult
+            && typeof paymentResult === "object"
+            && "projection" in paymentResult
+            && paymentResult.projection
+            && typeof paymentResult.projection === "object"
+            ? paymentResult.projection as Record<string, unknown>
+            : null;
+        const legacyProjection = {
+            projection_source: "transition_lineage",
+            legacy_payment_id: paymentId ?? null,
+        };
+
+        let proposalLineage: Record<string, unknown> | null = paymentResult
+            && typeof paymentResult === "object"
+            && "proposal" in paymentResult
+            && paymentResult.proposal
+            && typeof paymentResult.proposal === "object"
+            ? paymentResult.proposal as Record<string, unknown>
+            : null;
+        if (!proposalLineage) {
+            try {
+                proposalLineage = await createAccountingCommandProposalLineage({
+                    orgId,
+                    endpointName: "accounting.payments.create",
+                    proposalType: "payment.record",
+                    idempotencyKey: idempotency.idempotencyKey,
+                    transitionStatus: "posted_legacy_projection",
+                    actor: {
+                        type: "human",
+                        id: req.userId!,
+                        name: req.userName || req.userEmail || null,
+                    },
+                    description: `入金記録: ${receivedOn}`,
+                    payload: {
+                        customer_id: customerId,
+                        received_on: receivedOn,
+                        amount,
+                        payment_method: paymentMethod,
+                        payment_account: paymentAccount,
+                        external_reference: externalReference,
+                        posting_mode: "payment_received_no_pl_revenue",
+                        unapplied_account_type: "unapplied_cash",
+                    },
+                    projection: legacyProjection,
+                });
+            } catch (proposalError) {
+                console.error("Payment event proposal lineage error:", proposalError);
+            }
+        }
+
+        const rpcPosting = paymentResult
+            && typeof paymentResult === "object"
+            && "posting" in paymentResult
+            && paymentResult.posting
+            && typeof paymentResult.posting === "object"
+            ? paymentResult.posting as Record<string, unknown>
+            : null;
+
+        const responseBody = withAccountingCommandEnvelope(
+            paymentResult && typeof paymentResult === "object"
+                ? paymentResult as Record<string, unknown>
+                : { result: paymentResult as unknown },
+            {
+                endpointName: "accounting.payments.create",
+                proposal: proposalLineage,
+                approvalStatus: "not_required",
+                postingStatus: "posted",
+                mode: "payment_received_no_pl_revenue",
+                postingMetadata: rpcPosting || {
+                    affects_pl: false,
+                    affects_revenue: false,
+                    affects_ar: true,
+                },
+                projection: rpcProjection || (proposalLineage
+                    ? { ...legacyProjection, proposal_id: proposalLineage.id }
+                    : legacyProjection),
+            },
+        );
+
+        await completeAccountingWriteIdempotency(idempotency, 201, responseBody);
+        res.status(201).json(responseBody);
+    } catch (err: any) {
+        await failAccountingWriteIdempotency(idempotency, err instanceof Error ? err.message : "UNKNOWN_ERROR");
+        const message = err instanceof Error ? err.message : String(err?.message || err || "UNKNOWN_ERROR");
+
+        if (
+            message.includes("PAYMENT_AMOUNT_MUST_BE_POSITIVE")
+            || message.includes("PAYMENT_RECEIVED_ON_REQUIRED")
+            || message.includes("PAYMENT_ACCOUNT_INVALID")
+        ) {
+            res.status(400).json({ error: message });
+            return;
+        }
+
+        if (message.includes("RPC_MEMBERSHIP_REQUIRED")) {
+            res.status(403).json({ error: "RPC_MEMBERSHIP_REQUIRED" });
+            return;
+        }
+
+        if (message.includes("rpc_record_accounting_payment_event")) {
+            res.status(503).json({ error: "PAYMENT_EVENT_SCHEMA_UNAVAILABLE" });
+            return;
+        }
+
+        if (err instanceof AccountingRouteError) {
+            res.status(err.status).json({ error: err.message });
+            return;
+        }
+
+        console.error("Payment event error:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+router.post("/payments/allocations", async (req: AuthenticatedRequest, res: Response) => {
+    let idempotency: AccountingIdempotencyStart | null = null;
+    try {
+        const orgId = req.orgId!;
+        const paymentId = normalizeText(req.body.payment_id);
+        const invoiceId = normalizeText(req.body.invoice_id);
+        const amount = parseNumericInput(req.body.amount);
+        const allocatedOn = normalizeText(req.body.allocated_on) || normalizeText(req.body.received_on) || new Date().toISOString().split("T")[0];
+
+        if (!paymentId) {
+            res.status(400).json({ error: "payment_id is required" });
+            return;
+        }
+
+        if (!invoiceId) {
+            res.status(400).json({ error: "invoice_id is required" });
+            return;
+        }
+
+        if (!amount || amount <= 0) {
+            res.status(400).json({ error: "amount must be a positive number" });
+            return;
+        }
+
+        idempotency = await beginAccountingWriteIdempotency({
+            orgId,
+            endpointName: "accounting.payments.allocate",
+            idempotencyKey: readIdempotencyKey(req.body),
+            requestBody: req.body,
+        });
+
+        if (idempotency.mode === "replay") {
+            res.status(idempotency.responseStatus).json(idempotency.responseJson);
+            return;
+        }
+
+        const allocationResult = await recordPaymentAllocation({
+            orgId,
+            membershipId: req.orgMembershipId || null,
+            idempotencyKey: idempotency.idempotencyKey,
+            paymentId,
+            invoiceId,
+            allocatedOn,
+            amount,
+            createdBy: req.userId!,
+            actorName: req.userName || req.userEmail || null,
+        });
+
+        const allocatedPaymentId = allocationResult && typeof allocationResult === "object" && "payment" in allocationResult
+            ? (allocationResult as { payment?: { id?: unknown } }).payment?.id
+            : null;
+        const allocationId = allocationResult && typeof allocationResult === "object" && "allocation" in allocationResult
+            ? (allocationResult as { allocation?: { id?: unknown } }).allocation?.id
+            : null;
+        const rpcProjection = allocationResult
+            && typeof allocationResult === "object"
+            && "projection" in allocationResult
+            && allocationResult.projection
+            && typeof allocationResult.projection === "object"
+            ? allocationResult.projection as Record<string, unknown>
+            : null;
+        const legacyProjection = {
+            projection_source: "transition_lineage",
+            legacy_payment_id: allocatedPaymentId ?? null,
+            legacy_payment_allocation_id: allocationId ?? null,
+            legacy_invoice_id: invoiceId,
+        };
+
+        let proposalLineage: Record<string, unknown> | null = allocationResult
+            && typeof allocationResult === "object"
+            && "proposal" in allocationResult
+            && allocationResult.proposal
+            && typeof allocationResult.proposal === "object"
+            ? allocationResult.proposal as Record<string, unknown>
+            : null;
+        if (!proposalLineage) {
+            try {
+                proposalLineage = await createAccountingCommandProposalLineage({
+                    orgId,
+                    endpointName: "accounting.payments.allocate",
+                    proposalType: "payment.allocate",
+                    idempotencyKey: idempotency.idempotencyKey,
+                    transitionStatus: "posted_legacy_projection",
+                    actor: {
+                        type: "human",
+                        id: req.userId!,
+                        name: req.userName || req.userEmail || null,
+                    },
+                    description: `入金消込: ${invoiceId}`,
+                    payload: {
+                        invoice_id: invoiceId,
+                        payment_id: paymentId,
+                        allocated_on: allocatedOn,
+                        amount,
+                        posting_mode: "payment_allocation_no_pl_revenue",
+                    },
+                    projection: legacyProjection,
+                });
+            } catch (proposalError) {
+                console.error("Payment allocation proposal lineage error:", proposalError);
+            }
+        }
+
+        const rpcPosting = allocationResult
+            && typeof allocationResult === "object"
+            && "posting" in allocationResult
+            && allocationResult.posting
+            && typeof allocationResult.posting === "object"
+            ? allocationResult.posting as Record<string, unknown>
+            : null;
+
+        const responseBody = withAccountingCommandEnvelope(
+            allocationResult && typeof allocationResult === "object"
+                ? allocationResult as Record<string, unknown>
+                : { result: allocationResult as unknown },
+            {
+                endpointName: "accounting.payments.allocate",
+                proposal: proposalLineage,
+                approvalStatus: "not_required",
+                postingStatus: "posted",
+                mode: "payment_allocation_no_pl_revenue",
+                postingMetadata: rpcPosting || {
+                    affects_pl: false,
+                    affects_revenue: false,
+                    affects_ar: true,
+                },
+                projection: rpcProjection || (proposalLineage
+                    ? { ...legacyProjection, proposal_id: proposalLineage.id }
+                    : legacyProjection),
+            },
+        );
+        await completeAccountingWriteIdempotency(idempotency, 201, responseBody);
+        res.status(201).json(responseBody);
+    } catch (err: any) {
+        await failAccountingWriteIdempotency(idempotency, err instanceof Error ? err.message : "UNKNOWN_ERROR");
+        const message = err instanceof Error ? err.message : String(err?.message || err || "UNKNOWN_ERROR");
+
+        if (message.includes("INVOICE_NOT_FOUND")) {
+            res.status(404).json({ error: "INVOICE_NOT_FOUND" });
+            return;
+        }
+
+        if (
+            message.includes("PAYMENT_AMOUNT_MUST_BE_POSITIVE")
+            || message.includes("PAYMENT_ALLOCATION_AMOUNT_MUST_BE_POSITIVE")
+            || message.includes("INVOICE_AMOUNT_UNAVAILABLE")
+        ) {
+            res.status(400).json({ error: message });
+            return;
+        }
+
+        if (message.includes("PAYMENT_ALLOCATION_EXCEEDS_UNCOLLECTED_BALANCE")) {
+            res.status(409).json({ error: "PAYMENT_ALLOCATION_EXCEEDS_UNCOLLECTED_BALANCE" });
+            return;
+        }
+
+        if (message.includes("PAYMENT_NOT_FOUND")) {
+            res.status(404).json({ error: "PAYMENT_NOT_FOUND" });
+            return;
+        }
+
+        if (message.includes("PAYMENT_ALLOCATION_EXCEEDS_UNAPPLIED_BALANCE")) {
+            res.status(409).json({ error: "PAYMENT_ALLOCATION_EXCEEDS_UNAPPLIED_BALANCE" });
+            return;
+        }
+
+        if (message.includes("RPC_MEMBERSHIP_REQUIRED")) {
+            res.status(403).json({ error: "RPC_MEMBERSHIP_REQUIRED" });
+            return;
+        }
+
+        if (message.includes("rpc_allocate_accounting_payment")) {
+            res.status(503).json({ error: "PAYMENT_ALLOCATION_SCHEMA_UNAVAILABLE" });
+            return;
+        }
+
+        console.error("Payment allocation error:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
 router.get("/invoices/:id/download", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = req.orgId || DEFAULT_ORG_ID;
+        const orgId = req.orgId!;
         const invoiceId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
         const storedPdf = await ensureInvoicePdfStored({
             invoiceId,
@@ -2253,9 +3374,10 @@ router.get("/invoices/:id/download", async (req: AuthenticatedRequest, res: Resp
 // ============================================================
 
 router.post("/void/:id", async (req: AuthenticatedRequest, res: Response) => {
+    let idempotency: AccountingIdempotencyStart | null = null;
     try {
         const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-        const orgId = req.orgId || DEFAULT_ORG_ID;
+        const orgId = req.orgId!;
         const reason = normalizeText(req.body?.reason);
 
         if (!reason) {
@@ -2263,103 +3385,137 @@ router.post("/void/:id", async (req: AuthenticatedRequest, res: Response) => {
             return;
         }
 
-        // 元の取引を取得
-        const { data: original, error: fetchError } = await supabaseAdmin
-            .from("accounting_transactions")
-            .select("*")
-            .eq("id", id)
-            .maybeSingle();
+        idempotency = await beginAccountingWriteIdempotency({
+            orgId,
+            endpointName: "accounting.void.create",
+            idempotencyKey: readIdempotencyKey(req.body),
+            requestBody: {
+                transaction_id: id,
+                ...req.body,
+            },
+        });
 
-        if (fetchError) {
-            throw fetchError;
-        }
-
-        if (!original) {
-            res.status(404).json({ error: "Transaction not found" });
+        if (idempotency.mode === "replay") {
+            res.status(idempotency.responseStatus).json(idempotency.responseJson);
             return;
         }
 
-        if (original.voids_transaction_id) {
-            res.status(409).json({ error: "取消で作成された逆仕訳は再度取消できません" });
+        const canonicalReversal = await reverseCanonicalSale({
+            orgId,
+            membershipId: req.orgMembershipId || null,
+            transactionId: id,
+            reason,
+            idempotencyKey: idempotency.idempotencyKey,
+            createdBy: req.userId!,
+            actorName: req.userName || req.userEmail || null,
+        });
+
+        if (canonicalReversal && "reversal_created" in canonicalReversal) {
+            const proposal = canonicalReversal.proposal && typeof canonicalReversal.proposal === "object"
+                ? canonicalReversal.proposal as Record<string, unknown>
+                : null;
+            const projection = canonicalReversal.projection && typeof canonicalReversal.projection === "object"
+                ? canonicalReversal.projection as Record<string, unknown>
+                : {
+                    projection_source: "canonical_posting_projection",
+                    legacy_transaction_id: canonicalReversal.reversal_created,
+                    reverses_transaction_id: id,
+                };
+            const posting = canonicalReversal.posting && typeof canonicalReversal.posting === "object"
+                ? canonicalReversal.posting as Record<string, unknown>
+                : {
+                    affects_pl: true,
+                    affects_revenue: true,
+                    affects_ar: true,
+                    mode: "canonical_sales_reversal",
+                };
+            const responseBody = withAccountingCommandEnvelope(
+                {
+                    original_voided: canonicalReversal.original_voided,
+                    original_reversed: canonicalReversal.original_reversed,
+                    reversal_created: canonicalReversal.reversal_created,
+                },
+                {
+                    endpointName: "accounting.void.create",
+                    proposal,
+                    approvalStatus: "not_required",
+                    postingStatus: "posted",
+                    mode: "canonical_sales_reversal",
+                    postingMetadata: posting,
+                    projection,
+                },
+            );
+
+            await completeAccountingWriteIdempotency(idempotency, 200, responseBody);
+            res.json(responseBody);
             return;
         }
 
-        if (original.status === "voided") {
-            res.status(409).json({ error: "この取引はすでに取消済みです" });
-            return;
+        const reversalResult = await createVoidReversal({
+            orgId,
+            transactionId: id,
+            reason,
+            createdBy: req.userId!,
+        });
+        const legacyProjection = {
+            projection_source: "transition_lineage",
+            legacy_transaction_id: reversalResult.reversal_created,
+            reverses_transaction_id: reversalResult.original_reversed,
+        };
+
+        let proposalLineage: Record<string, unknown> | null = null;
+        try {
+            proposalLineage = await createAccountingCommandProposalLineage({
+                orgId,
+                endpointName: "accounting.void.create",
+                proposalType: "transaction.reverse",
+                idempotencyKey: idempotency.idempotencyKey,
+                transitionStatus: "reversed",
+                actor: {
+                    type: "human",
+                    id: req.userId!,
+                    name: req.userName || req.userEmail || null,
+                },
+                description: `取引取消: ${id}`,
+                payload: {
+                    action: "reverse_posted",
+                    transaction_id: id,
+                    reason,
+                    reversal_transaction_id: reversalResult.reversal_created,
+                },
+                projection: legacyProjection,
+            });
+        } catch (proposalError) {
+            console.error("Void proposal lineage error:", proposalError);
         }
 
-        if (!isVoidableStatus(original.status)) {
-            res.status(409).json({ error: "記帳済みまたは承認済みの取引のみ取消できます" });
-            return;
-        }
-
-        if (original.kind === "invoice") {
-            res.status(409).json({ error: "請求済み売上はこの画面から取消できません" });
-            return;
-        }
-
-        const linkedInvoices = await getExistingInvoicesForTransaction(id, orgId);
-        if (linkedInvoices.length > 0) {
-            res.status(409).json({ error: "請求書に紐づく取引は取消できません" });
-            return;
-        }
-
-        const { data: existingReversal, error: existingReversalError } = await supabaseAdmin
-            .from("accounting_transactions")
-            .select("id")
-            .eq("voids_transaction_id", id)
-            .maybeSingle();
-
-        if (existingReversalError && !isPostgrestNoRowsError(existingReversalError)) {
-            throw existingReversalError;
-        }
-
-        if (existingReversal) {
-            res.status(409).json({ error: "この取引はすでに取消済みです" });
-            return;
-        }
-
-        // 元の取引は記帳済みのまま保持し、逆仕訳（マイナス金額）だけを追記する。
-        const { data: reversal, error: reversalError } = await supabaseAdmin
-            .from("accounting_transactions")
-            .insert({
-                org_id: original.org_id || orgId,
-                kind: original.kind,
-                cost_center: original.cost_center,
-                site_id: original.site_id,
-                client_id: original.client_id,
-                vendor_name: original.vendor_name,
-                description: `【取消】${original.description || ""} - ${reason}`,
-                recorded_date: new Date().toISOString().split("T")[0],
-                amount_subtotal: -original.amount_subtotal,
-                tax_amount: -original.tax_amount,
-                amount_total: -original.amount_total,
-                category: original.category,
-                status: original.status,
-                voids_transaction_id: id,
-                tax_category: original.tax_category,
-                voided_by: req.userId!,
-                voided_at: new Date().toISOString(),
-                void_reason: reason,
-                created_by: req.userId!,
-            })
-            .select()
-            .single();
-
-        if (reversalError) {
-            if (isDuplicateKeyError(reversalError)) {
-                res.status(409).json({ error: "この取引はすでに取消済みです" });
-                return;
-            }
-            throw reversalError;
-        }
-
-        // 逆仕訳の仕訳エントリ作成
-        await createJournalEntry(reversal, req.userId!);
-
-        res.json({ original_voided: id, original_reversed: id, reversal_created: reversal.id });
+        const responseBody = withAccountingCommandEnvelope(reversalResult, {
+            endpointName: "accounting.void.create",
+            proposal: proposalLineage,
+            approvalStatus: "not_required",
+            postingStatus: "posted",
+            mode: "legacy_reversal_projection",
+            postingMetadata: {
+                affects_pl: true,
+                affects_revenue: true,
+                affects_ar: false,
+            },
+            projection: proposalLineage
+                ? { ...legacyProjection, proposal_id: proposalLineage.id }
+                : legacyProjection,
+        });
+        await completeAccountingWriteIdempotency(idempotency, 200, responseBody);
+        res.json(responseBody);
     } catch (err: any) {
+        await failAccountingWriteIdempotency(idempotency, err instanceof Error ? err.message : "UNKNOWN_ERROR");
+        if (err instanceof AccountingCommandError) {
+            res.status(err.status).json({ error: err.code });
+            return;
+        }
+        if (err instanceof AccountingRouteError) {
+            res.status(err.status).json({ error: err.message });
+            return;
+        }
         console.error("Void error:", err);
         res.status(500).json({ error: "Internal server error" });
     }
@@ -2371,7 +3527,8 @@ router.post("/void/:id", async (req: AuthenticatedRequest, res: Response) => {
 
 router.get("/pl", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const { month, site_id, cost_center } = req.query;
+        const { month, site_id, cost_center, source } = req.query;
+        const plSource = normalizePlSource(source);
 
         // デフォルトは今月
         const targetMonth = (month as string) || new Date().toISOString().slice(0, 7);
@@ -2381,46 +3538,109 @@ router.get("/pl", async (req: AuthenticatedRequest, res: Response) => {
         const lastDay = new Date(year, mon, 0).getDate();
         const endDate = `${targetMonth}-${String(lastDay).padStart(2, "0")}`;
 
-        let query = supabaseAdmin
-            .from("accounting_transactions")
-            .select("*")
-            .in("status", [...LEDGER_AGGREGATION_STATUSES])
-            .gte("recorded_date", startDate)
-            .lte("recorded_date", endDate);
+        let legacySummary: PlSummary | null = null;
 
-        if (site_id) {
-            query = query.eq("site_id", site_id);
-        }
-        if (cost_center) {
-            query = query.eq("cost_center", cost_center);
-        }
+        if (plSource !== "journal") {
+            let query = supabaseAdmin
+                .from("accounting_transactions")
+                .select("*")
+                .eq("org_id", req.orgId!)
+                .in("status", [...LEDGER_AGGREGATION_STATUSES])
+                .gte("recorded_date", startDate)
+                .lte("recorded_date", endDate);
 
-        const { data, error } = await query;
-
-        if (error) throw error;
-
-        // 集計
-        let sales = 0;
-        let expenses = 0;
-
-        for (const tx of data || []) {
-            if (tx.kind === "sale" || tx.kind === "invoice") {
-                sales += tx.amount_total || 0;
-            } else if (tx.kind === "expense") {
-                expenses += tx.amount_total || 0;
+            if (site_id) {
+                query = query.eq("site_id", site_id);
             }
+            if (cost_center) {
+                query = query.eq("cost_center", cost_center);
+            }
+
+            const { data: legacyRows, error } = await query;
+
+            if (error) throw error;
+
+            legacySummary = summarizeLegacyPlRows((legacyRows || []) as Array<Record<string, unknown>>);
         }
 
-        const profit = sales - expenses;
-        const distributable = Math.max(profit, 0) * 0.7; // 会社留保30%
+        if (plSource === "legacy") {
+            res.json({
+                month: targetMonth,
+                source: "legacy",
+                ...legacySummary!,
+            });
+            return;
+        }
+
+        let journalQuery = supabaseAdmin
+            .from("accounting_journal_entries")
+            .select(`
+                id,
+                entry_date,
+                posted_at,
+                posting_group_id,
+                transaction:accounting_transactions!accounting_journal_entries_org_transaction_fkey(id, kind, cost_center, site_id),
+                posting_group:posting_groups!accounting_journal_entries_org_posting_group_fkey(id, group_type),
+                lines:accounting_journal_lines!accounting_journal_lines_org_entry_fkey(id, account_code, debit, credit, site_id)
+            `)
+            .eq("org_id", req.orgId!)
+            .gte("entry_date", startDate)
+            .lte("entry_date", endDate);
+
+        const { data: journalRows, error: journalError } = await journalQuery;
+
+        if (journalError) throw journalError;
+
+        const journalSummary = summarizeJournalPlRows(
+            (journalRows || []) as Array<Record<string, unknown>>,
+            {
+                siteId: site_id,
+                costCenter: cost_center,
+            },
+            "net_accounting"
+        );
+
+        if (plSource === "journal") {
+            res.json({
+                month: targetMonth,
+                source: "journal",
+                basis: "net_accounting",
+                ...journalSummary,
+            });
+            return;
+        }
+
+        const journalGrossCompatSummary = summarizeJournalPlRows(
+            (journalRows || []) as Array<Record<string, unknown>>,
+            {
+                siteId: site_id,
+                costCenter: cost_center,
+            },
+            "gross_compat"
+        );
+        const diff = buildPlDiff(legacySummary!, journalGrossCompatSummary);
+        const mismatches = Object.entries(diff)
+            .filter(([, amount]) => amount !== 0)
+            .map(([field, amount]) => ({
+                field,
+                amount,
+                basis: "gross_compat",
+            }));
 
         res.json({
             month: targetMonth,
-            sales,
-            expenses,
-            profit,
-            distributable,
-            transaction_count: data?.length || 0,
+            source: "compare",
+            basis: {
+                legacy: "gross",
+                journal: "net_accounting",
+                diff: "gross_compat",
+            },
+            tax_basis_warning: true,
+            legacy: legacySummary!,
+            journal: journalSummary,
+            journal_gross_compat: journalGrossCompatSummary,
+            diff,
+            mismatches,
         });
     } catch (err: any) {
         console.error("PL error:", err);
@@ -2453,6 +3673,7 @@ router.get("/transactions/search", async (req: AuthenticatedRequest, res: Respon
                 source_document:documents(id, storage_path, drive_file_id, drive_file_url, original_filename, mime_type, ocr_fields),
                 items:accounting_transaction_items(item_name, quantity, unit_name, unit_price, amount)
             `)
+            .eq("org_id", req.orgId!)
             .order("recorded_date", { ascending: false })
             .range(Number(offset), Number(offset) + Number(limit) - 1);
 
@@ -2508,6 +3729,7 @@ router.get("/transactions", async (req: AuthenticatedRequest, res: Response) => 
         source_document:documents(id, storage_path, drive_file_id, drive_file_url, original_filename, mime_type, ocr_fields),
         items:accounting_transaction_items(item_name, quantity, unit_name, unit_price, amount)
       `)
+            .eq("org_id", req.orgId!)
             .order("recorded_date", { ascending: false })
             .range(Number(offset), Number(offset) + Number(limit) - 1);
 
@@ -2547,6 +3769,7 @@ router.get("/pending-approvals", async (req: AuthenticatedRequest, res: Response
         site:sites(id, name),
         source_document:documents(id, storage_path, drive_file_id, drive_file_url, original_filename, mime_type, ocr_fields)
       `)
+            .eq("org_id", req.orgId!)
             .eq("status", "pending_review")
             .eq("reviewer_id", req.userId!)
             .order("created_at", { ascending: false });
@@ -2558,202 +3781,5 @@ router.get("/pending-approvals", async (req: AuthenticatedRequest, res: Response
         res.status(500).json({ error: "Internal server error" });
     }
 });
-
-// ============================================================
-// Helper: 仕訳エントリ作成
-// ============================================================
-
-async function createJournalEntry(transaction: any, userId: string) {
-    const { data: existingEntry, error: existingEntryError } = await supabaseAdmin
-        .from("accounting_journal_entries")
-        .select("id")
-        .eq("transaction_id", transaction.id)
-        .maybeSingle();
-
-    if (existingEntryError) throw existingEntryError;
-    if (existingEntry) {
-        return existingEntry;
-    }
-
-    const { data: entry, error: entryError } = await supabaseAdmin
-        .from("accounting_journal_entries")
-        .insert({
-            transaction_id: transaction.id,
-            entry_date: transaction.recorded_date,
-            memo: transaction.description,
-            posted_at: new Date().toISOString(),
-            created_by: userId,
-        })
-        .select()
-        .single();
-
-    if (entryError) throw entryError;
-
-    // 仕訳明細（消費税分離対応）
-    const lines: any[] = [];
-    let lineNo = 1;
-
-    const subtotal = Math.abs(transaction.amount_subtotal || 0);
-    const taxAmount = Math.abs(transaction.tax_amount || 0);
-    const total = Math.abs(transaction.amount_total || 0);
-    const isReversalAmount = Number(transaction.amount_total || 0) < 0;
-
-    const taxRate = resolveTaxRate(transaction.tax_category);
-    const taxType = resolveExpenseTaxType(transaction.tax_category);
-
-    if (transaction.kind === "sale" || transaction.kind === "invoice") {
-        const salesAmount = normalizeNetSubtotal(subtotal, taxAmount, total);
-
-        if (isReversalAmount) {
-            // 売上取消: 借方=売上高+仮受消費税、貸方=売掛金
-            lines.push({
-                entry_id: entry.id,
-                line_no: lineNo++,
-                account_code: "4100",
-                account_name: "売上高",
-                debit: salesAmount,
-                credit: 0,
-                tax_rate: taxRate,
-                tax_type: taxType,
-            });
-
-            if (taxAmount > 0) {
-                lines.push({
-                    entry_id: entry.id,
-                    line_no: lineNo++,
-                    account_code: "2500",
-                    account_name: "仮受消費税",
-                    debit: taxAmount,
-                    credit: 0,
-                });
-            }
-
-            lines.push({
-                entry_id: entry.id,
-                line_no: lineNo++,
-                account_code: "1200",
-                account_name: "売掛金",
-                debit: 0,
-                credit: total,
-            });
-        } else {
-            // 売上: 借方=売掛金、貸方=売上高+仮受消費税
-            lines.push({
-                entry_id: entry.id,
-                line_no: lineNo++,
-                account_code: "1200",
-                account_name: "売掛金",
-                debit: total,
-                credit: 0,
-            });
-
-            // 売上高（税抜）
-            lines.push({
-                entry_id: entry.id,
-                line_no: lineNo++,
-                account_code: "4100",
-                account_name: "売上高",
-                debit: 0,
-                credit: salesAmount,
-                tax_rate: taxRate,
-                tax_type: taxType,
-            });
-
-            // 仮受消費税（税額がある場合）
-            if (taxAmount > 0) {
-                lines.push({
-                    entry_id: entry.id,
-                    line_no: lineNo++,
-                    account_code: "2500",
-                    account_name: "仮受消費税",
-                    debit: 0,
-                    credit: taxAmount,
-                });
-            }
-        }
-    } else if (transaction.kind === "expense") {
-        // 経費: 借方=経費+仮払消費税、貸方=現金
-        const expenseAccount = resolveExpenseAccount(transaction.category);
-        const expenseAmount = normalizeNetSubtotal(subtotal, taxAmount, total);
-
-        if (isReversalAmount) {
-            // 経費取消: 借方=現金、貸方=経費+仮払消費税
-            lines.push({
-                entry_id: entry.id,
-                line_no: lineNo++,
-                account_code: "1100",
-                account_name: "現金",
-                debit: total,
-                credit: 0,
-            });
-
-            lines.push({
-                entry_id: entry.id,
-                line_no: lineNo++,
-                account_code: expenseAccount.code,
-                account_name: expenseAccount.name,
-                debit: 0,
-                credit: expenseAmount,
-                tax_rate: taxRate,
-                tax_type: taxType,
-            });
-
-            if (taxAmount > 0) {
-                lines.push({
-                    entry_id: entry.id,
-                    line_no: lineNo++,
-                    account_code: "1500",
-                    account_name: "仮払消費税",
-                    debit: 0,
-                    credit: taxAmount,
-                });
-            }
-        } else {
-            // 経費（税抜）
-            lines.push({
-                entry_id: entry.id,
-                line_no: lineNo++,
-                account_code: expenseAccount.code,
-                account_name: expenseAccount.name,
-                debit: expenseAmount,
-                credit: 0,
-                tax_rate: taxRate,
-                tax_type: taxType,
-            });
-
-            // 仮払消費税（税額がある場合）
-            if (taxAmount > 0) {
-                lines.push({
-                    entry_id: entry.id,
-                    line_no: lineNo++,
-                    account_code: "1500",
-                    account_name: "仮払消費税",
-                    debit: taxAmount,
-                    credit: 0,
-                });
-            }
-
-            // 現金（税込総額）
-            lines.push({
-                entry_id: entry.id,
-                line_no: lineNo++,
-                account_code: "1100",
-                account_name: "現金",
-                debit: 0,
-                credit: total,
-            });
-        }
-    }
-
-    if (lines.length > 0) {
-        const { error: linesError } = await supabaseAdmin
-            .from("accounting_journal_lines")
-            .insert(lines);
-
-        if (linesError) throw linesError;
-    }
-
-    return entry;
-}
 
 export default router;

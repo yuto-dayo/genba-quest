@@ -106,6 +106,25 @@ function parseFilenameFromDisposition(contentDisposition: string | null): string
     return null;
 }
 
+function createClientIdempotencyKey(scope: string): string {
+    const randomPart = globalThis.crypto?.randomUUID?.()
+        || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    return `${scope}:${randomPart}`;
+}
+
+function withIdempotencyKey<T extends object>(
+    scope: string,
+    data: T,
+): T & { idempotency_key: string } {
+    const idempotencyKey = "idempotency_key" in data && typeof data.idempotency_key === "string"
+        ? data.idempotency_key
+        : null;
+    return {
+        ...data,
+        idempotency_key: idempotencyKey || createClientIdempotencyKey(scope),
+    };
+}
+
 // ============================================================
 // Proposals
 // ============================================================
@@ -1604,7 +1623,7 @@ export const analyzeDocumentOcr = (document_id: string) =>
 export const createExpense = (data: CreateExpenseRequest) =>
     api<AccountingTransaction>("/api/v1/accounting/expenses", {
         method: "POST",
-        body: JSON.stringify(data),
+        body: JSON.stringify(withIdempotencyKey("accounting.expenses.create", data)),
     });
 
 // 経費承認/否認
@@ -1630,14 +1649,14 @@ export interface BatchReviewResult {
 export const createSale = (data: CreateSaleRequest) =>
     api<AccountingTransaction>("/api/v1/accounting/sales", {
         method: "POST",
-        body: JSON.stringify(data),
+        body: JSON.stringify(withIdempotencyKey("accounting.sales.adjust", data)),
     });
 
 // 請求書作成
 export const createInvoice = (data: CreateInvoiceRequest) =>
     api<AccountingInvoice>("/api/v1/accounting/invoices", {
         method: "POST",
-        body: JSON.stringify(data),
+        body: JSON.stringify(withIdempotencyKey("accounting.invoices.create", data)),
     });
 
 export const correctInvoice = (invoiceId: string, data: CorrectInvoiceRequest) =>
@@ -1722,18 +1741,28 @@ export const downloadInvoicePdf = async (invoiceId: string): Promise<{ blob: Blo
 export const voidTransaction = (id: string, reason: string) =>
     api<{ original_voided: string; original_reversed?: string; reversal_created: string }>(`/api/v1/accounting/void/${id}`, {
         method: "POST",
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify(withIdempotencyKey("accounting.void.create", { reason })),
     });
 
+type FetchPLParams = {
+    month?: string;
+    site_id?: string;
+    cost_center?: string;
+};
+
 // 月次PL取得
-export const fetchPL = (params?: { month?: string; site_id?: string; cost_center?: string }) => {
+export function fetchPL(params?: FetchPLParams & { source?: "legacy" }): Promise<PLReport>;
+export function fetchPL(params: FetchPLParams & { source: "journal" }): Promise<PLJournalReport>;
+export function fetchPL(params: FetchPLParams & { source: "compare" }): Promise<PLCompareReport>;
+export function fetchPL(params?: FetchPLParams & { source?: PLSource }) {
     const searchParams = new URLSearchParams();
     if (params?.month) searchParams.append("month", params.month);
     if (params?.site_id) searchParams.append("site_id", params.site_id);
     if (params?.cost_center) searchParams.append("cost_center", params.cost_center);
+    if (params?.source) searchParams.append("source", params.source);
     const query = searchParams.toString();
-    return api<PLReport>(`/api/v1/accounting/pl${query ? `?${query}` : ""}`);
-};
+    return api<PLReport | PLJournalReport | PLCompareReport>(`/api/v1/accounting/pl${query ? `?${query}` : ""}`);
+}
 
 // 取引一覧
 export const fetchTransactions = (params?: {
@@ -1834,7 +1863,15 @@ export interface OcrFields {
     [key: string]: OcrFieldValue | undefined | unknown;
 }
 
-export interface AccountingTransaction {
+export interface AccountingCommandEnvelope {
+    proposal?: unknown | null;
+    approval?: Record<string, unknown>;
+    execution?: Record<string, unknown>;
+    posting?: Record<string, unknown>;
+    projection?: Record<string, unknown>;
+}
+
+export interface AccountingTransaction extends AccountingCommandEnvelope {
     id: string;
     kind: "expense" | "sale" | "invoice";
     cost_center: "HQ" | "SITE";
@@ -1880,6 +1917,7 @@ export interface AccountingTransactionItem {
 }
 
 export interface CreateExpenseRequest {
+    idempotency_key?: string;
     cost_center?: "HQ" | "SITE";
     site_id?: string;
     vendor_name?: string;
@@ -1897,6 +1935,7 @@ export interface CreateExpenseRequest {
 }
 
 export interface CreateSaleRequest {
+    idempotency_key?: string;
     site_id?: string;
     client_id?: string;
     description?: string;
@@ -1918,6 +1957,7 @@ export interface CreateSaleRequest {
 }
 
 export interface CreateInvoiceRequest {
+    idempotency_key?: string;
     transaction_id?: string;
     source_transaction_ids?: string[];
     issue_date?: string;
@@ -1995,7 +2035,7 @@ export interface InvoiceSourceSummary {
     currency: string;
 }
 
-export interface AccountingInvoice {
+export interface AccountingInvoice extends AccountingCommandEnvelope {
     id: string;
     transaction_id: string;
     source_transaction_id?: string;
@@ -2028,13 +2068,48 @@ export interface AccountingInvoiceListItem extends AccountingInvoice {
     source_summary?: InvoiceSourceSummary | null;
 }
 
-export interface PLReport {
-    month: string;
+export type PLSource = "legacy" | "journal" | "compare";
+
+export interface PLSummary {
     sales: number;
     expenses: number;
     profit: number;
     distributable: number;
+    transaction_count?: number;
+    journal_entry_count?: number;
+    journal_line_count?: number;
+}
+
+export interface PLReport extends PLSummary {
+    month: string;
+    source?: "legacy";
     transaction_count: number;
+}
+
+export interface PLJournalReport extends PLSummary {
+    month: string;
+    source: "journal";
+    basis: "net_accounting";
+}
+
+export interface PLCompareReport {
+    month: string;
+    source: "compare";
+    basis: {
+        legacy: "gross";
+        journal: "net_accounting";
+        diff: "gross_compat";
+    };
+    tax_basis_warning: boolean;
+    legacy: PLSummary;
+    journal: PLSummary;
+    journal_gross_compat: PLSummary;
+    diff: Pick<PLSummary, "sales" | "expenses" | "profit" | "distributable">;
+    mismatches: Array<{
+        field: string;
+        amount: number;
+        basis: "gross_compat";
+    }>;
 }
 
 // ============================================================
