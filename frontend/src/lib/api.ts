@@ -3803,6 +3803,13 @@ export const finalizePathV33Month = (month: string) =>
         { method: "POST" },
     );
 
+/**
+ * @deprecated V3.3 cutover (Phase 6): self-tier declarations now flow through
+ * the bell → LevelDraftSheet path which writes to site_member_level_drafts.
+ * The legacy path.level.update proposal type stays accepted by the DB for
+ * historical-row replay but new UI must not call this helper.
+ * Spec: docs/REWARD_SYSTEM_V33.md §7-9.
+ */
 export const createPathV32SimpleLevelUpdateProposal = (data: {
     member_id: string;
     level: PathLevel;

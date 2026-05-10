@@ -24,43 +24,43 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `Phase 6: V3.2→V3.3 cutover + data migration + deprecate path.level.update proposals`. Source: realtime
+- [focus] NEXT_CMD: `V3.3 implementation complete; merge PR #14 after manual smoke test`. Source: realtime
+- [H0028] Completed: feat(reward): V3.3 Phase 6 cutover — remap V3.2 history to V3.3 scale (migration) + fetchPriorMonthLevel defensive mapping (audit #7) + remove SiteDetailModal levelDraftSection + spec v1.0
+- [H0028] Remaining: V3.3 implementation complete; merge PR #14 after manual smoke test
 - [H0027] Completed: feat(reward): V3.3 Phase 5 — PathV33MonthService (lock/expire/finalize) + admin endpoints + finalization tab UI + audit #3/#5/#6/#8/#9 fixes
 - [H0027] Remaining: Phase 6: V3.2→V3.3 cutover + data migration + deprecate path.level.update proposals
-- [H0026] Completed: audit(reward-v33): close 4 HIGH findings — lock draft on accept (#1), reject locked re-submit (#2), block self-objection (#10), route objection proposal through ProposalService + suppress UI approve button (#4); document 6 deferred items for Phase 5/6
-- [H0026] Remaining: Phase 5: month-end lock cron + finalization modal + reward_run hook
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0028] Auto-captured decision: feat(reward): V3.3 Phase 6 cutover — remap V3.2 history to V3.3 scale (migration) + fetchPriorMonthLevel defensive mapping (audit #7) + remove SiteDetailModal levelDraftSectio...
 - [H0027] Auto-captured decision: feat(reward): V3.3 Phase 5 — PathV33MonthService (lock/expire/finalize) + admin endpoints + finalization tab UI + audit #3/#5/#6/#8/#9 fixes
 - [H0026] Auto-captured decision: audit(reward-v33): close 4 HIGH findings — lock draft on accept (#1), reject locked re-submit (#2), block self-objection (#10), route objection proposal through ProposalServic...
 - [H0025] Auto-captured decision: feat(reward): V3.3 Phase 4 — PathV33ObjectionService + level.objection Proposal type + ObjectionBody in registry + ObjectionSubmitSheet on team feed (異議 button) + co-sign ...
 - [H0024] Auto-captured decision: feat(reward): V3.3 Phase 3 — GET /v33/team-feed + PathV33PersonalDashboard + PathV33TeamFeed + tabbed /path page (個人 / チーム / 報酬確認)
-- [H0023] Auto-captured decision: feat(reward): V3.3 Phase 2 — POST/GET /api/v1/path/module/v33/level-drafts + LevelDraftSheet + bell rewires + Today 役割 button removed
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0027] No new landmines reported in this chunk.
+- [H0028] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0028] V3.3 implementation complete; merge PR #14 after manual smoke test
 - [H0027] Phase 6: V3.2→V3.3 cutover + data migration + deprecate path.level.update proposals
 - [H0026] Phase 5: month-end lock cron + finalization modal + reward_run hook
 - [H0024] Phase 4: Objection + Co-sign proposal type + ObjectionBody UI + co-sign API
 - [H0023] Phase 3: /path/team feed + personal dashboard
-- [H0022] Phase 2: LevelDraftSheet UI + bell notification wiring + remove Today role chip
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `18`
+- current_l3_entries: `19`
 - last_compacted_at: `2026-05-11 05:54:12 +0900`
 - archived_entries: `9`
 <!-- HANDOFF_L2_STATE_END -->
@@ -361,6 +361,22 @@
   - No file list provided (use --file "path - semantic description")
 - Working Context:
   - Auto-captured decision: feat(reward): V3.3 Phase 5 — PathV33MonthService (lock/expire/finalize) + admin endpoints + finalization tab UI + audit #3/#5/#6/#8/#9 fixes
+- Validation:
+  - `server build ✓ / V3.3 jest 20/20 ✓ / frontend build ✓ / eslint 0 ✓ / vitest 120 pass (baseline)`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-11 07:25:43 +0900
+
+- Entry-ID: `H0028`
+- Completed:
+  - [x] feat(reward): V3.3 Phase 6 cutover — remap V3.2 history to V3.3 scale (migration) + fetchPriorMonthLevel defensive mapping (audit #7) + remove SiteDetailModal levelDraftSection + spec v1.0
+- Remaining:
+  - [ ] V3.3 implementation complete; merge PR #14 after manual smoke test
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: feat(reward): V3.3 Phase 6 cutover — remap V3.2 history to V3.3 scale (migration) + fetchPriorMonthLevel defensive mapping (audit #7) + remove SiteDetailModal levelDraftSectio...
 - Validation:
   - `server build ✓ / V3.3 jest 20/20 ✓ / frontend build ✓ / eslint 0 ✓ / vitest 120 pass (baseline)`
 - Landmines:

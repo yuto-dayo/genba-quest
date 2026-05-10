@@ -411,7 +411,7 @@ export class PathV33RewardService {
   ): Promise<PathV33Level | null> {
     const { data, error } = await supabaseAdmin
       .from("path_member_level_history")
-      .select("level, effective_month")
+      .select("level, effective_month, computed_score, evidence_snapshot")
       .eq("org_id", this.orgId)
       .eq("member_id", memberId)
       .lt("effective_month", month)
@@ -426,9 +426,32 @@ export class PathV33RewardService {
     if (!data || typeof data.level !== "string") {
       return null;
     }
-    return (data.level as PathV33Level) in PATH_V33_LEVEL_WEIGHT_MILLI
-      ? (data.level as PathV33Level)
-      : null;
+    const rawLevel = data.level;
+    if (!(rawLevel in PATH_V33_LEVEL_WEIGHT_MILLI)) {
+      return null;
+    }
+
+    // Audit #7 defense: a V3.3 row has computed_score (set by finalizeMonth)
+    // OR the v33.cutover.remap evidence tag (set by Phase 6 migration). Any
+    // other row is a V3.2-era pre-cutover record that escaped migration;
+    // apply the spec §9 mapping as a fallback so the value is comparable
+    // to current V3.3 levels.
+    const computedScore = data.computed_score;
+    const evidence = data.evidence_snapshot;
+    const isV33Source =
+      computedScore !== null && computedScore !== undefined
+        ? true
+        : evidence && typeof evidence === "object" &&
+          (evidence as Record<string, unknown>).v33_cutover_remap !== undefined;
+    if (isV33Source) {
+      return rawLevel as PathV33Level;
+    }
+    const fallbackMap: Partial<Record<PathV33Level, PathV33Level>> = {
+      L1: "L2",
+      L2: "L3",
+      L3: "L4",
+    };
+    return (fallbackMap[rawLevel as PathV33Level] ?? rawLevel) as PathV33Level;
   }
 
   async getTeamFeed(month: string): Promise<TeamFeedResult> {
