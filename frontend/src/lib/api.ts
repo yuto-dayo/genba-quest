@@ -142,6 +142,7 @@ export type ProposalType =
     | "reward.adjust"
     | "reward.pool.adjust"
     | "path.level.update"
+    | "level.objection"
     | "skill.achieve"
     | "skill.revoke"
     | "evaluation.submit"
@@ -3611,6 +3612,204 @@ export const createPathV32SimpleMonthlyDistributionProposal = (month: string) =>
         body: JSON.stringify({ month }),
     });
 
+// ─── PATH V3.3 transparent governance ─────────────────────────────────────
+// Spec: docs/REWARD_SYSTEM_V33.md
+export type PathV33Tier = 1 | 2 | 3;
+export type PathV33Level = "L1" | "L2" | "L3" | "L4" | "L5";
+
+export interface PathV33LevelDraft {
+    id: string;
+    org_id: string;
+    site_id: string;
+    member_id: string;
+    tier: PathV33Tier;
+    work_days: number;
+    self_comment: string;
+    evidence: Record<string, unknown>;
+    submitted_at: string;
+    locked_at: string | null;
+}
+
+export interface PathV33AggregationResult {
+    level: PathV33Level;
+    weight_milli: number;
+    score: number;
+    total_work_days: number;
+    draft_count: number;
+    drafts: Array<{ site_id: string; tier: PathV33Tier; work_days: number }>;
+}
+
+export interface PathV33MonthlyPreview {
+    month: string;
+    member_id: string;
+    current: PathV33AggregationResult;
+    prior_level: PathV33Level | null;
+    drafts: PathV33LevelDraft[];
+}
+
+export const submitPathV33LevelDraft = (data: {
+    site_id: string;
+    tier: PathV33Tier;
+    self_comment?: string;
+}) =>
+    api<{ draft: PathV33LevelDraft; preview: PathV33MonthlyPreview }>(
+        "/api/v1/path/module/v33/level-drafts",
+        { method: "POST", body: JSON.stringify(data) },
+    );
+
+export const fetchPathV33MonthlyPreview = (memberId: string, month: string) =>
+    api<{ preview: PathV33MonthlyPreview }>(
+        `/api/v1/path/module/v33/level-drafts/preview?member_id=${encodeURIComponent(memberId)}&month=${encodeURIComponent(month)}`,
+    ).then((response) => response.preview);
+
+export interface PathV33TeamFeedMember {
+    member_id: string;
+    member_name: string;
+    current: PathV33AggregationResult;
+    prior_level: PathV33Level | null;
+    drafts: PathV33LevelDraft[];
+}
+
+export interface PathV33TeamFeedTimelineEntry {
+    draft_id: string;
+    member_id: string;
+    member_name: string;
+    site_id: string;
+    site_name: string;
+    tier: PathV33Tier;
+    work_days: number;
+    self_comment: string;
+    submitted_at: string;
+}
+
+export interface PathV33TeamFeed {
+    month: string;
+    members: PathV33TeamFeedMember[];
+    timeline: PathV33TeamFeedTimelineEntry[];
+}
+
+export const fetchPathV33TeamFeed = (month: string) =>
+    api<{ feed: PathV33TeamFeed }>(
+        `/api/v1/path/module/v33/team-feed?month=${encodeURIComponent(month)}`,
+    ).then((response) => response.feed);
+
+export interface PathV33CoSign {
+    user_id: string;
+    user_name: string;
+    signed_at: string;
+    comment: string;
+}
+
+export interface PathV33TargetResponse {
+    agreed: boolean;
+    comment: string;
+    responded_at: string;
+}
+
+export interface PathV33Objection {
+    id: string;
+    org_id: string;
+    target_member_id: string;
+    target_month: string;
+    target_draft_id: string;
+    objector_id: string;
+    proposed_tier: PathV33Tier;
+    reason: string;
+    evidence: Record<string, unknown>;
+    co_signs: PathV33CoSign[];
+    target_self_response: PathV33TargetResponse | null;
+    required_co_signs: number;
+    status: "open" | "accepted" | "rejected" | "expired";
+    expires_at: string;
+    resolved_at: string | null;
+    resolved_tier: PathV33Tier | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export const submitPathV33Objection = (data: {
+    target_draft_id: string;
+    proposed_tier: PathV33Tier;
+    reason: string;
+    evidence?: Record<string, unknown>;
+}) =>
+    api<{ objection: PathV33Objection }>("/api/v1/path/module/v33/objections", {
+        method: "POST",
+        body: JSON.stringify(data),
+    }).then((response) => response.objection);
+
+export const coSignPathV33Objection = (objectionId: string, comment?: string) =>
+    api<{ objection: PathV33Objection }>(
+        `/api/v1/path/module/v33/objections/${encodeURIComponent(objectionId)}/co-sign`,
+        { method: "POST", body: JSON.stringify({ comment: comment ?? "" }) },
+    ).then((response) => response.objection);
+
+export const respondToPathV33Objection = (
+    objectionId: string,
+    data: { agreed: boolean; comment?: string },
+) =>
+    api<{ objection: PathV33Objection }>(
+        `/api/v1/path/module/v33/objections/${encodeURIComponent(objectionId)}/target-response`,
+        { method: "POST", body: JSON.stringify(data) },
+    ).then((response) => response.objection);
+
+export const fetchPathV33Objection = (objectionId: string) =>
+    api<{ objection: PathV33Objection }>(
+        `/api/v1/path/module/v33/objections/${encodeURIComponent(objectionId)}`,
+    ).then((response) => response.objection);
+
+// V3.3 Phase 5 month-end admin endpoints
+
+export interface PathV33LockResult {
+    month: string;
+    locked_draft_count: number;
+    recounted_drafts: number;
+}
+
+export interface PathV33ExpireResult {
+    month: string;
+    expired_objection_count: number;
+}
+
+export interface PathV33FinalizeMember {
+    member_id: string;
+    level: PathV33Level;
+    score: number;
+    weight_milli: number;
+    draft_count: number;
+    total_work_days: number;
+}
+
+export interface PathV33FinalizeResult {
+    month: string;
+    members: PathV33FinalizeMember[];
+}
+
+export const lockPathV33MonthDrafts = (month: string) =>
+    api<PathV33LockResult>(
+        `/api/v1/path/module/v33/month/${encodeURIComponent(month)}/lock-drafts`,
+        { method: "POST" },
+    );
+
+export const expirePathV33MonthObjections = (month: string) =>
+    api<PathV33ExpireResult>(
+        `/api/v1/path/module/v33/month/${encodeURIComponent(month)}/expire-objections`,
+        { method: "POST" },
+    );
+
+export const finalizePathV33Month = (month: string) =>
+    api<PathV33FinalizeResult>(
+        `/api/v1/path/module/v33/month/${encodeURIComponent(month)}/finalize`,
+        { method: "POST" },
+    );
+
+/**
+ * @deprecated V3.3 cutover (Phase 6): self-tier declarations now flow through
+ * the bell → LevelDraftSheet path which writes to site_member_level_drafts.
+ * The legacy path.level.update proposal type stays accepted by the DB for
+ * historical-row replay but new UI must not call this helper.
+ * Spec: docs/REWARD_SYSTEM_V33.md §7-9.
+ */
 export const createPathV32SimpleLevelUpdateProposal = (data: {
     member_id: string;
     level: PathLevel;

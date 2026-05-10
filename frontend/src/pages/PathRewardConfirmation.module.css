@@ -5,6 +5,49 @@
     padding: 18px 12px 104px;
 }
 
+.tabRow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid rgba(15, 118, 110, 0.16);
+    padding-bottom: 6px;
+    overflow-x: auto;
+}
+
+.tabRowSpacer {
+    margin-left: auto;
+}
+
+.tabButton {
+    border: 0;
+    background: transparent;
+    color: #56716b;
+    cursor: pointer;
+    padding: 10px 16px;
+    border-radius: 12px 12px 0 0;
+    font: var(--md-sys-typescale-title-small);
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.tabButton:hover {
+    background: rgba(20, 184, 166, 0.08);
+    color: #0f766e;
+}
+
+.tabActive {
+    background: linear-gradient(180deg, rgba(20, 184, 166, 0.12), rgba(20, 184, 166, 0.02));
+    color: #0f766e;
+    font-weight: 700;
+    box-shadow: inset 0 -3px 0 #0f766e;
+}
+
+.muted {
+    color: #56716b;
+    font: var(--md-sys-typescale-body-medium);
+    margin: 0;
+}
+
 .devAuthSelect {
     min-width: 96px;
     width: 96px;

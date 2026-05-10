@@ -1,6 +1,6 @@
 # PATH 報酬システム V3.3 設計書 — 透明ガバナンス + 5段階レベル
 
-**ステータス**: Phase 0 (設計確定) — 実装は別ブランチ `feat/path-reward-v33-transparent` で進める
+**ステータス**: 全6フェーズ実装完了 (2026-05-11)。V3.3 が正本、V3.2 simple は deprecated。
 
 **前提**: 現行 V3.2 simple ([PathV32SimpleRewardService.ts](../server/src/services/PathV32SimpleRewardService.ts)) を置き換える。MVP 北極星「請求漏れゼロ + 黒字可視化」を阻害せず、DAO思想 (番頭レス可視性) に直結する改善。
 
@@ -438,5 +438,54 @@ Phase 5 完了までは V3.2 と V3.3 を並行で計算し、reward run は V3.
 
 ---
 
-**版数**: 0.1.0 (Phase 0 確定)
+## 12. Phase 4 監査で見つかった残課題 (Phase 5/6 で扱う)
+
+Phases 1-4 実装後の通し監査 (2026-05-11) で確認された、現時点では shadow-mode 動作上問題ないが
+Phase 5 (月末ロック) / Phase 6 (V3.2→V3.3 切替) で必ず潰すべき項目:
+
+| # | 項目 | 落とし先 |
+|---|------|---------|
+| 3 | `countWorkDays` が `site_closes.status='finalized'` でフィルタしていない (現状は `site_day_logs` を月内範囲で全件) | Phase 5: 月末ロック時に `locked_by_site_close_id` 経由でフィルタ |
+| 5 | `acceptObjection` が `proposals.update` の前にペア Proposal の存在確認をしていない | Phase 5: cron expiry と一緒にエラーハンドリングを整理 |
+| 6 | `listSitesInMonth` が `completed_at` OR `created_at` で月帰属 (作成月と完了月の両方にヒット) | Phase 5: site_close 帰属に切り替え |
+| 7 | `fetchPriorMonthLevel` が V3.2 の L1-L4 をそのまま V3.3 にパススルー (§9 マッピング未適用) | Phase 6: 切替migration で `path_member_level_history` 既存行をマッピング書き換え |
+| 8 | 異議 accept 時の関係者通知 (target / co-signers / objector) が未実装 | Phase 5: month-end cron と同時に notify 配信 |
+| 9 | LevelDraftSheet の forecast が `work_days = existing ?? 1` で簡易計算しており、submit 後の実値とズレうる | Phase 5: submit 完了後 preview を再取得して差分を吸収 |
+
+監査で潰した HIGH 項目 (Phase 4 修正済み):
+- #1 異議 accept 後の draft 再提出による tier 巻き戻し → `acceptObjection` で `draft.locked_at` を設定
+- #2 ロック済み draft の上書き → `submitLevelDraft` で `existing.locked_at` をチェック
+- #4 ProposalService バイパスによる anchor field / governance event 抜け → `ProposalService.create` 経由に変更 + UI の標準 承認/却下 ボタンは `level.objection` 型で抑制
+- #10 自分の draft への異議提出 → `objectorId === draft.member_id` を `submit()` で拒否
+
+Phase 5 で潰した項目:
+- #3 `countWorkDays` 仕上げ → `PathV33MonthService.lockDrafts` 時に `site_closes.status='finalized'` の day_logs だけで再スナップショット
+- #5 ペア Proposal 不在時のハンドリング → `acceptObjection` で存在確認後 update + missing は warn log
+- #6 site の月帰属 → `PathV33MonthService` 内で `site_closes.closed_at` に揃える
+- #8 異議 accept 通知配信 → `notifications` に `task_type='level_objection_accepted'` を target / objector / co-signers へ配信
+- #9 LevelDraftSheet forecast ↔ actual ズレ → submit 後にサーバー再計算レベルをバナー表示 (forecast と差分があれば明示)
+
+Phase 6 で潰した項目:
+- #7 V3.2 旧スケールの履歴行 → migration `20260511030000_path_v33_cutover_remap.sql` で `computed_score IS NULL` の旧行を L1→L2 / L2→L3 / L3→L4 に書き換え + `fetchPriorMonthLevel` が未移行行に対しても spec §9 マッピングを動的適用
+
+---
+
+## 13. Phase 6 で実施した切替作業 (2026-05-11)
+
+1. **既存履歴の remap migration** (`20260511030000_path_v33_cutover_remap.sql`)
+   - `path_member_level_history` で `computed_score IS NULL` の行 (V3.2 由来) を spec §9 マッピングに従い書き換え
+   - 冪等ガード付き (`evidence_snapshot.v33_cutover_remap` 有無で判定)
+   - 旧 level は `evidence_snapshot.v33_cutover_remap.original_level` に保全
+2. **V3.2 UI 経路停止**
+   - `SiteDetailModal` の `levelDraftSection` (V3.2 4段階 `<select>` + submit) 削除
+   - 自己申告は確認ベル → `<LevelDraftSheet>` (V3.3 3段階) のみに一本化
+3. **API 旧経路 deprecated 化**
+   - `createPathV32SimpleLevelUpdateProposal` を `@deprecated` JSDoc + 新 UI から呼ばれない
+   - サーバー側 `path.level.update` proposal type は履歴 replay のため DB 制約に残置
+4. **Defensive mapping in `fetchPriorMonthLevel`**
+   - migration を取り逃した行 (異なる org / orgあとから追加) が将来登場しても、現在月の比較に正しい新スケール値が出るよう動的マッピング
+
+---
+
+**版数**: 1.0.0 (全フェーズ実装完了 + 監査クリア)
 **最終更新**: 2026-05-11

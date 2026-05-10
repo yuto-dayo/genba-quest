@@ -362,7 +362,7 @@ describe("Today page", () => {
         });
     });
 
-    it("saves role plans and then opens responsibility input with planned role shares", async () => {
+    it("no longer exposes the per-card 役割 button (V3.3 routes through the bell)", async () => {
         render(
             <MemoryRouter initialEntries={["/today"]}>
                 <Routes>
@@ -371,35 +371,8 @@ describe("Today page", () => {
             </MemoryRouter>,
         );
 
-        const roleButton = await screen.findByRole("button", { name: "役割" });
-        fireEvent.click(roleButton);
-        fireEvent.change(screen.getByLabelText("段取り"), { target: { value: "1" } });
-        fireEvent.click(screen.getByRole("button", { name: "保存" }));
-
-        await waitFor(() => {
-            expect(savePathV31SiteMemberRolePlan).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    site_id: "site-1",
-                    member_id: "user-1",
-                    role_shares: expect.objectContaining({ planning: 1 }),
-                }),
-            );
-        });
-
-        const responsibilityButton = await screen.findByRole("button", { name: "責任" });
-        fireEvent.click(responsibilityButton);
-        fireEvent.click(screen.getByRole("button", { name: "保存" }));
-
-        await waitFor(() => {
-            expect(savePathV31SiteMemberRewardInput).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    site_id: "site-1",
-                    member_id: "user-1",
-                    participation_units: 1,
-                    role_shares: expect.objectContaining({ planning: 1 }),
-                }),
-            );
-        });
+        await screen.findByRole("button", { name: "メモ" });
+        expect(screen.queryByRole("button", { name: "役割" })).not.toBeInTheDocument();
     });
 
     it("opens the pending proposal sheet from the proposal query param", async () => {

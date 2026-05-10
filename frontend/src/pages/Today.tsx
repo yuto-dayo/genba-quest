@@ -652,23 +652,6 @@ export function Today() {
         setDayLogSheetMode(mode);
     };
 
-    const openRolePlanSheet = (site: Site) => {
-        if (!currentUserId) {
-            setActionError("ログイン情報を確認できませんでした");
-            return;
-        }
-
-        const existingPlan = siteRolePlansBySiteId[site.id];
-        setRolePlanForm({
-            site_id: site.id,
-            member_id: currentUserId,
-            role_shares: normalizeRoleShares(existingPlan?.role_shares),
-            note: existingPlan?.note || "",
-        });
-        setActionError(null);
-        setRolePlanSheetOpen(true);
-    };
-
     const openRewardInputSheet = (site: Site) => {
         if (!currentUserId) {
             setActionError("ログイン情報を確認できませんでした");
@@ -1059,7 +1042,6 @@ export function Today() {
                     members={members}
                     siteLineItemsBySiteId={siteLineItemsBySiteId}
                     onViewSiteMemo={openDayLogReviewSheet}
-                    onPlanRole={openRolePlanSheet}
                     onRecordRewardInput={openRewardInputSheet}
                     onAddConstruction={setConstructionEditSite}
                     getDayLogStatus={getDayLogStatus}
