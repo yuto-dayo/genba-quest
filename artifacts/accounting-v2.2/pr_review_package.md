@@ -67,6 +67,17 @@ Remote DB migration / push / migration repair have not been executed.
 - Accounting helper/trigger functions now use `search_path=pg_catalog` and service-role-only execute.
 - Legacy accounting base RPCs now use `search_path=pg_catalog`; service_role compatibility is intentionally retained for wrapper/canonical fallback paths.
 
+### Party / org boundary
+
+- New `private.assert_customer_belongs_to_org` and `private.assert_member_belongs_to_org` helpers reject foreign or soft-deleted parties before any write.
+- Wired into `rpc_post_accounting_expense_canonical`, `rpc_post_accounting_sale_canonical`, and `rpc_record_accounting_payment_event_canonical` right after `assert_rpc_active_membership`.
+- Failure modes: `CUSTOMER_NOT_IN_ORG` / `MEMBER_NOT_IN_ORG` (SQLSTATE `02000`).
+
+### Idempotency lookup centralised
+
+- New `private.find_idempotent_execution` helper returns `SETOF public.proposal_executions` matching `'<endpoint>:' || p_idempotency_key` with `FOR UPDATE`.
+- All six canonical posting RPCs now call the helper instead of inlining the lookup, so future changes to locking semantics or key format apply uniformly.
+
 ## Local Evidence
 
 Evidence artifacts are under `artifacts/accounting-v2.2/`.
@@ -81,6 +92,10 @@ Evidence artifacts are under `artifacts/accounting-v2.2/`.
 - `legacy_rpc_search_path_classification.md`
 - `private_helper_hardening_test.md`
 - `legacy_base_rpc_hardening_test.md`
+- `party_org_boundary_test.md`
+- `clean_db_rebuild_test.md`
+- `idempotency_helper_test.md`
+- `docs/runbooks/accounting-v22-staging-rollback.md`
 
 Representative local commands run:
 

@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `Pick next remote-Go blocker: #2 idempotency共通化 (assert_idempotency_replay helper化, 1h) または ここで一旦区切ってPRレビュー待ち。Remote DB migration / push remain blocked until explicit approval.`
+- NEXT_CMD: `v2.2 ローカル作業はここで完結。残るは user explicitly approves remote DB migration のみ。Remote DB migration / push remain blocked until explicit approval.`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/local.md`
@@ -18,8 +18,8 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `5f4e146`
-  - Updated: `2026-05-10T11:36:12+0900`
+  - HEAD: `1ba7ab7`
+  - Updated: `2026-05-10T11:47:25+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
@@ -33,47 +33,47 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `Pick next remote-Go blocker: #2 idempotency共通化 (assert_idempotency_replay helper化, 1h) または ここで一旦区切ってPRレビュー待ち。Remote DB migration / push remain blocked until explicit approval.`. Source: realtime
+- [focus] NEXT_CMD: `v2.2 ローカル作業はここで完結。残るは user explicitly approves remote DB migration のみ。Remote DB migration / push remain blocked until explicit approval.`. Source: realtime
+- [H0038] Completed: v2.2 idempotency lookup helper を追加し canonical posting RPC 6本を再生成。private.find_idempotent_execution(uuid, text, text) returns SETOF public.proposal_executions で SELECT INTO + IF FOUND セマンティクスを温存。6 RPC全部が helper 経由に切り替わったことを pg_proc grep で確認。db reset --local で 36 migrations が clean に適用、v2.2 evidence script 6本 + accountingRoute 56/56 が再現。
+- [H0038] Remaining: v2.2 ローカル作業はここで完結。残るは user explicitly approves remote DB migration のみ。Remote DB migration / push remain blocked until explicit approval.
 - [H0037] Completed: v2.2 clean local DB rebuild証跡追加 + staging rollback/repair runbook 起草。supabase db reset --local で 34 migrations が clean に適用、その後 v2.2 evidence script 6本 + accountingRoute 56/56 が fresh DB で再現することを確認。docs/runbooks/accounting-v22-staging-rollback.md に pre-flight、4グループapply順、smoke、Class1/Class2 rollback、migration history repair、decision matrix を整備。pr_review_package.md の checklist 7項目を [x] 化。
 - [H0037] Remaining: Pick next remote-Go blocker: #2 idempotency共通化 (assert_idempotency_replay helper化, 1h) または ここで一旦区切ってPRレビュー待ち。Remote DB migration / push remain blocked until explicit approval.
-- [H0036] Completed: v2.2 party/org boundary asserts wired into 3 canonical RPCs and validated. Added private.assert_customer_belongs_to_org and assert_member_belongs_to_org helpers, re-created rpc_post_accounting_expense_canonical / rpc_post_accounting_sale_canonical / rpc_record_accounting_payment_event_canonical to call the matching helper right after assert_rpc_active_membership. Caught and fixed two latent fixture bugs that passed user_id where membership_id was expected.
-- [H0036] Remaining: Pick next remote-Go blocker: write rollback/repair plan for staging (#5) or capture clean local DB rebuild evidence (#4). Remote DB migration / push remain blocked until explicit approval.
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0038] Auto-captured decision: v2.2 idempotency lookup helper を追加し canonical posting RPC 6本を再生成。private.find_idempotent_execution(uuid, text, text) returns SETOF public.proposal_executions...
 - [H0037] Auto-captured decision: v2.2 clean local DB rebuild証跡追加 + staging rollback/repair runbook 起草。supabase db reset --local で 34 migrations が clean に適用、その後 v2.2 evidence scri...
 - [H0036] Auto-captured decision: v2.2 party/org boundary asserts wired into 3 canonical RPCs and validated. Added private.assert_customer_belongs_to_org and assert_member_belongs_to_org helpers, re-created rpc_...
 - [H0035] Auto-captured decision: Pushed codex/money-fix and opened draft PR #9 for accounting v2.2. PR body uses artifacts/accounting-v2.2/pr_body.md and explicitly states remote DB migration/push/migration rep...
 - [H0034] Auto-captured decision: Added clean PR body artifact for accounting v2.2 draft PR creation.
-- [H0033] Auto-captured decision: v2.2 PR review package drafted. Added artifacts/accounting-v2.2/pr_review_package.md with draft PR title/body, evidence index, pre-remote go/no-go checklist, and explicit note t...
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
+- [H0038] RETURNS SETOF is intentional — RETURNS public.proposal_executions would always set FOUND=TRUE on caller and break IF FOUND idempotency check; do not change to scalar return type.
 - [H0037] Migration history repair section warns against --include-all on supabase db push; it can re-execute already-applied migrations like 20260504084000_seed_accounting_master_data.sql.
 - [H0037] Storage workaround in 20260506043949_add_private_site_drawings.sql intentionally skips bucket/policy creation when local Storage metadata is unavailable; remote Supabase has Storage enabled and applies the full migration.
 - [H0036] Canonical RPCs now hard-fail on foreign customer/member ids; any future test that mocks party ids must use real org_memberships.id and clients.id rows or pass NULL.
 - [H0035] PR/push completed, but remote DB migration remains unexecuted and must not be run without explicit approval.
-- [H0034] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0038] v2.2 ローカル作業はここで完結。残るは user explicitly approves remote DB migration のみ。Remote DB migration / push remain blocked until explicit approval.
 - [H0037] Pick next remote-Go blocker: #2 idempotency共通化 (assert_idempotency_replay helper化, 1h) または ここで一旦区切ってPRレビュー待ち。Remote DB migration / push remain blocked until explicit approval.
 - [H0036] Pick next remote-Go blocker: write rollback/repair plan for staging (#5) or capture clean local DB rebuild evidence (#4). Remote DB migration / push remain blocked until explicit approval.
 - [H0035] Next: review PR #9 and wait for explicit approval before any remote DB migration or migration repair.
 - [H0034] Push codex/money-fix and create draft PR using artifacts/accounting-v2.2/pr_body.md. Remote DB migration remains blocked until explicit approval.
-- [H0033] Next: after user approval, push codex/money-fix and open a draft PR using the review package. Do not run remote DB migration or migration repair without explicit approval.
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `19`
+- current_l3_entries: `20`
 - last_compacted_at: `2026-05-10 00:35:04 +0900`
 - archived_entries: `18`
 <!-- HANDOFF_L2_STATE_END -->
@@ -104,6 +104,7 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] v2.2 idempotency lookup helper を追加し canonical posting RPC 6本を再生成。private.find_idempotent_execution(uuid, text, text) returns SETOF public.proposal_executions で SELECT INTO + IF FOUND セマンティクスを温存。6 RPC全部が helper 経由に切り替わったことを pg_proc grep で確認。db reset --local で 36 migrations が clean に適用、v2.2 evidence script 6本 + accountingRoute 56/56 が再現。
 - [x] v2.2 clean local DB rebuild証跡追加 + staging rollback/repair runbook 起草。supabase db reset --local で 34 migrations が clean に適用、その後 v2.2 evidence script 6本 + accountingRoute 56/56 が fresh DB で再現することを確認。docs/runbooks/accounting-v22-staging-rollback.md に pre-flight、4グループapply順、smoke、Class1/Class2 rollback、migration history repair、decision matrix を整備。pr_review_package.md の checklist 7項目を [x] 化。
 - [x] v2.2 party/org boundary asserts wired into 3 canonical RPCs and validated. Added private.assert_customer_belongs_to_org and assert_member_belongs_to_org helpers, re-created rpc_post_accounting_expense_canonical / rpc_post_accounting_sale_canonical / rpc_record_accounting_payment_event_canonical to call the matching helper right after assert_rpc_active_membership. Caught and fixed two latent fixture bugs that passed user_id where membership_id was expected.
 - [x] Pushed codex/money-fix and opened draft PR #9 for accounting v2.2. PR body uses artifacts/accounting-v2.2/pr_body.md and explicitly states remote DB migration/push/migration repair were not executed.
@@ -113,22 +114,25 @@ Phase: A-0/A-1
 - [x] v2.2 private accounting helper hardening migration added locally. Hardened private.assert_accounting_journal_entry_balanced, private.assert_invoice_revenue_allocation_capacity, and private.prevent_posted_accounting_journal_mutation to search_path=pg_catalog with public/anon/authenticated EXECUTE revoked and service_role retained. Updated search_path classification and added evidence artifact.
 - [x] v2.2 legacy RPC search_path reachability classification added. Local-only inventory classifies current accounting SECURITY DEFINER residue: canonical/member-aware RPCs OK with pg_catalog; old invoice base RPC is internal legacy base; old payment allocation create+allocate RPC is deprecated/no-new-route; private helper/trigger functions are next safe hardening target.
 - [x] v2.2 PL compare/posted journal invariants evidence added: local_pl_compare_invariants_test.mjs creates fresh local org, runs canonical sale/expense/invoice/payment/allocation/reversal, calls real /pl legacy|journal|compare API, and verifies posted journal UPDATE/DELETE fail with POSTED_JOURNAL_IMMUTABLE. Fixed /pl journal relation embeds and invoice-kind skip so local HTTP compare returns diff=0 after invoice/payment/reversal.
-- [x] v2.2 document/PDF/OCR/signed URL org boundaryを実装・証跡化。site documentsはdocuments.org_idで絞り、new storage_pathをorg_id/sites/site_id/documents配下に変更、unprefixed pathにはsigned_urlを出さず、accounting OCRはorg prefix外storage_pathをStorage download前に403で拒否。invoice PDF新規生成pathもorg prefix先頭に変更。local APIでforeign site documents/drawingsが404になることを確認
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: Pick next remote-Go blocker: #2 idempotency共通化 (assert_idempotency_replay helper化, 1h) または ここで一旦区切ってPRレビュー待ち。Remote DB migration / push remain blocked until explicit approval.
+- [ ] **P0**: v2.2 ローカル作業はここで完結。残るは user explicitly approves remote DB migration のみ。Remote DB migration / push remain blocked until explicit approval.
+- [ ] **P1**: Pick next remote-Go blocker: #2 idempotency共通化 (assert_idempotency_replay helper化, 1h) または ここで一旦区切ってPRレビュー待ち。Remote DB migration / push remain blocked until explicit approval.
 - [ ] **P1**: Pick next remote-Go blocker: write rollback/repair plan for staging (#5) or capture clean local DB rebuild evidence (#4). Remote DB migration / push remain blocked until explicit approval.
 - [ ] **P1**: Next: review PR #9 and wait for explicit approval before any remote DB migration or migration repair.
 - [ ] **P1**: Push codex/money-fix and create draft PR using artifacts/accounting-v2.2/pr_body.md. Remote DB migration remains blocked until explicit approval.
-- [ ] **P1**: Next: after user approval, push codex/money-fix and open a draft PR using the review package. Do not run remote DB migration or migration repair without explicit approval.
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
+| `artifacts/accounting-v2.2/pr_review_package.md` | record helper coverage and add new artifacts to evidence index |
+| `artifacts/accounting-v2.2/idempotency_helper_test.md` | evidence artifact for #2 |
+| `supabase/migrations/20260510020300_wire_idempotency_lookup_to_canonical_rpcs.sql` | swap inline lookup for helper call across 6 canonical RPCs |
+| `supabase/migrations/20260510020200_add_idempotency_lookup_helper.sql` | new private.find_idempotent_execution helper |
 | `artifacts/accounting-v2.2/pr_review_package.md` | checked off 7 satisfied pre-remote checklist items |
 | `docs/runbooks/accounting-v22-staging-rollback.md` | new staging rollback/repair runbook (pre-flight, 4 apply groups, smoke, Class1/Class2 rollback, migration repair, decision matrix) |
 | `artifacts/accounting-v2.2/clean_db_rebuild_test.md` | clean rebuild evidence with 34 migrations apply order and post-reset replay summary |
@@ -145,10 +149,6 @@ Phase: A-0/A-1
 | `artifacts/accounting-v2.2/legacy_base_rpc_hardening_test.md` | local evidence for legacy base RPC hardening |
 | `supabase/migrations/20260509153840_harden_legacy_accounting_base_rpcs.sql` | legacy accounting base RPC search_path hardening |
 | `artifacts/accounting-v2.2/legacy_rpc_search_path_classification.md` | updated classification after private helper hardening |
-| `artifacts/accounting-v2.2/private_helper_hardening_test.md` | local evidence for private helper hardening |
-| `supabase/migrations/20260509153529_harden_private_accounting_helpers.sql` | narrow private accounting helper/trigger search_path and grant hardening |
-| `artifacts/accounting-v2.2/legacy_rpc_search_path_classification.md` | local-only legacy RPC search_path reachability classification and next migration recommendation |
-| `server/src/routes/accounting.ts` | disambiguate PL journal PostgREST embeds and count revenue journals by posting group rather than invoice projection kind |
 ---
 
 ## 6. Locked Files（編集中 - 他エージェント触らない）
@@ -183,11 +183,11 @@ cd frontend && npx eslint src/
 
 ## 9. Risks / Blockers
 
+- RETURNS SETOF is intentional — RETURNS public.proposal_executions would always set FOUND=TRUE on caller and break IF FOUND idempotency check; do not change to scalar return type.
 - Migration history repair section warns against --include-all on supabase db push; it can re-execute already-applied migrations like 20260504084000_seed_accounting_master_data.sql.
 - Storage workaround in 20260506043949_add_private_site_drawings.sql intentionally skips bucket/policy creation when local Storage metadata is unavailable; remote Supabase has Storage enabled and applies the full migration.
 - Canonical RPCs now hard-fail on foreign customer/member ids; any future test that mocks party ids must use real org_memberships.id and clients.id rows or pass NULL.
 - PR/push completed, but remote DB migration remains unexecuted and must not be run without explicit approval.
-- PR body should mention remote DB migration not executed; do not include raw review package wrapper if manually copying only the PR body block.
 ---
 
 ## 10. References
@@ -561,3 +561,29 @@ cd frontend && npx eslint src/
 - Landmines:
   - Storage workaround in 20260506043949_add_private_site_drawings.sql intentionally skips bucket/policy creation when local Storage metadata is unavailable; remote Supabase has Storage enabled and applies the full migration.
   - Migration history repair section warns against --include-all on supabase db push; it can re-execute already-applied migrations like 20260504084000_seed_accounting_master_data.sql.
+
+### 2026-05-10 11:47:25 +0900
+
+- Entry-ID: `H0038`
+- Completed:
+  - [x] v2.2 idempotency lookup helper を追加し canonical posting RPC 6本を再生成。private.find_idempotent_execution(uuid, text, text) returns SETOF public.proposal_executions で SELECT INTO + IF FOUND セマンティクスを温存。6 RPC全部が helper 経由に切り替わったことを pg_proc grep で確認。db reset --local で 36 migrations が clean に適用、v2.2 evidence script 6本 + accountingRoute 56/56 が再現。
+- Remaining:
+  - [ ] v2.2 ローカル作業はここで完結。残るは user explicitly approves remote DB migration のみ。Remote DB migration / push remain blocked until explicit approval.
+- Changed Files:
+  - `supabase/migrations/20260510020200_add_idempotency_lookup_helper.sql` - new private.find_idempotent_execution helper
+  - `supabase/migrations/20260510020300_wire_idempotency_lookup_to_canonical_rpcs.sql` - swap inline lookup for helper call across 6 canonical RPCs
+  - `artifacts/accounting-v2.2/idempotency_helper_test.md` - evidence artifact for #2
+  - `artifacts/accounting-v2.2/pr_review_package.md` - record helper coverage and add new artifacts to evidence index
+- Working Context:
+  - Auto-captured decision: v2.2 idempotency lookup helper を追加し canonical posting RPC 6本を再生成。private.find_idempotent_execution(uuid, text, text) returns SETOF public.proposal_executions...
+- Validation:
+  - `supabase db reset --local => 36 migrations applied, 0 hard errors`
+  - `node artifacts/accounting-v2.2/local_party_org_boundary_test.mjs => 13/13 PASS on fresh DB`
+  - `node artifacts/accounting-v2.2/local_pl_compare_invariants_test.mjs => PASS on fresh DB`
+  - `node artifacts/accounting-v2.2/local_idempotency_concurrency_test.mjs => PASS on fresh DB`
+  - `node artifacts/accounting-v2.2/local_org_boundary_negative_test.mjs => PASS on fresh DB`
+  - `node artifacts/accounting-v2.2/local_rpc_hardening_negative_test.mjs => PASS on fresh DB`
+  - `node artifacts/accounting-v2.2/local_document_boundary_negative_test.mjs => PASS on fresh DB`
+  - `cd server && npm test -- accountingRoute.test.ts --runInBand => 56/56 PASS`
+- Landmines:
+  - RETURNS SETOF is intentional — RETURNS public.proposal_executions would always set FOUND=TRUE on caller and break IF FOUND idempotency check; do not change to scalar return type.
