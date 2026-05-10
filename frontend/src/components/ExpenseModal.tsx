@@ -77,6 +77,17 @@ function isZeroTaxCategory(taxCategory: string): boolean {
     return taxCategory === "00_EXEMPT" || taxCategory === "00_TAXFREE";
 }
 
+// F-3: 紐付け先 4値. 値は内部コード, タイトル/ヒントは職人語.
+// docs/MONEY_EXPENSE_FLOW.md §11.1
+const SCOPE_OPTIONS = [
+    { value: "job", title: "現場", hint: "今日 (or 直近) に作業した現場の経費" },
+    { value: "job_advance", title: "先行仕入れ", hint: "着工前の現場用に買った分" },
+    { value: "stockpile", title: "共通在庫", hint: "どの現場でも使う消耗品" },
+    { value: "overhead", title: "本部・会社", hint: "事務所・工具・燃料 (本部車) など" },
+] as const;
+
+type ExpenseScopeValue = typeof SCOPE_OPTIONS[number]["value"];
+
 export function ExpenseModal({
     onClose,
     onSuccess,
@@ -128,6 +139,12 @@ export function ExpenseModal({
         site_id: initialSiteId,
         invoice_number: "",
         payment_method: "cash" as "cash" | "card" | "transfer" | "other",
+        // F-3: 紐付け先 4値. 既存 cost_center から初期値を導出する.
+        expense_scope: (initialCostCenter === "HQ" ? "overhead" : "job") as
+            | "job"
+            | "job_advance"
+            | "stockpile"
+            | "overhead",
     });
 
     const [inputSources, setInputSources] = useState<Record<string, "ocr" | "manual">>({});
@@ -370,6 +387,24 @@ export function ExpenseModal({
         setInputSources((prev) => ({ ...prev, [field]: "manual" }));
     };
 
+    // F-3: scope 切替. cost_center と site_id を一緒に整える.
+    const handleScopeChange = (value: ExpenseScopeValue) => {
+        setFormData((prev) => {
+            const requiresSite = value === "job" || value === "job_advance";
+            return {
+                ...prev,
+                expense_scope: value,
+                cost_center: requiresSite ? "SITE" : "HQ",
+                // 現場を要求しない scope に切り替えたら site_id をクリア
+                site_id: requiresSite ? prev.site_id : "",
+            };
+        });
+        setInputSources((prev) => ({ ...prev, expense_scope: "manual" }));
+    };
+
+    const scopeRequiresSite =
+        formData.expense_scope === "job" || formData.expense_scope === "job_advance";
+
     // フィールドホバー
     const handleFieldHover = useCallback((field: string | null) => {
         setHighlightedField(field);
@@ -384,9 +419,9 @@ export function ExpenseModal({
             return;
         }
 
-        // コストセンターがSITEの場合、現場選択は必須
-        if (formData.cost_center === "SITE" && !formData.site_id) {
-            setError("現場を選択してください");
+        // 現場 / 先行仕入れ の場合、現場選択は必須
+        if (scopeRequiresSite && !formData.site_id) {
+            setError("現場を選んでください");
             return;
         }
 
@@ -416,7 +451,8 @@ export function ExpenseModal({
                 invoice_number: formData.invoice_number.trim() || undefined,
                 description: formData.description || undefined,
                 cost_center: formData.cost_center,
-                site_id: formData.cost_center === "SITE" ? formData.site_id : undefined,
+                site_id: scopeRequiresSite ? formData.site_id : undefined,
+                expense_scope: formData.expense_scope,
                 source_document_id: document?.id,
                 input_sources: inputSources,
             });
@@ -826,40 +862,35 @@ export function ExpenseModal({
                             />
                         </div>
 
+                        {/* F-3: 紐付け先 (どこの分の経費か) — 4値 chip */}
                         <div className={styles.formGroup}>
-                            <label className={styles.label}>コストセンター</label>
-                            <div className={styles.radioGroup}>
-                                <label className={styles.radio}>
-                                    <input
-                                        type="radio"
-                                        name="cost_center"
-                                        value="SITE"
-                                        checked={formData.cost_center === "SITE"}
-                                        onChange={(e) =>
-                                            handleInputChange("cost_center", e.target.value)
-                                        }
-                                    />
-                                    現場
-                                </label>
-                                <label className={styles.radio}>
-                                    <input
-                                        type="radio"
-                                        name="cost_center"
-                                        value="HQ"
-                                        checked={formData.cost_center === "HQ"}
-                                        onChange={(e) =>
-                                            handleInputChange("cost_center", e.target.value)
-                                        }
-                                    />
-                                    本社
-                                </label>
+                            <label className={styles.label}>このレシート、どこの分？</label>
+                            <div className={styles.scopeChips}>
+                                {SCOPE_OPTIONS.map((option) => {
+                                    const active = formData.expense_scope === option.value;
+                                    return (
+                                        <button
+                                            type="button"
+                                            key={option.value}
+                                            className={`${styles.scopeChip} ${active ? styles.scopeChipActive : ""}`}
+                                            onClick={() => handleScopeChange(option.value)}
+                                            aria-pressed={active}
+                                        >
+                                            <span className={styles.scopeChipTitle}>{option.title}</span>
+                                            <span className={styles.scopeChipHint}>{option.hint}</span>
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </div>
 
-                        {/* 現場選択（SITEの場合のみ表示） */}
-                        {formData.cost_center === "SITE" && (
+                        {/* 現場選択 — 現場 / 先行仕入れ のときだけ */}
+                        {scopeRequiresSite && (
                             <div className={styles.formGroup}>
-                                <label className={styles.label}>現場 *</label>
+                                <label className={styles.label}>
+                                    {formData.expense_scope === "job_advance" ? "どの現場の先行仕入れ？" : "現場"}
+                                    {" *"}
+                                </label>
                                 <select
                                     className={styles.select}
                                     value={formData.site_id}

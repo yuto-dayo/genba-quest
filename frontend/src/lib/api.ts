@@ -1987,6 +1987,7 @@ export interface CreateExpenseRequest {
     expense_item_other?: string;
     tax_category?: "10_STANDARD" | "08_REDUCED" | "00_EXEMPT" | "00_TAXFREE";
     invoice_number?: string;
+    expense_scope?: "job" | "job_advance" | "stockpile" | "overhead";
     source_document_id?: string;
     input_sources?: Record<string, "ocr" | "manual">;
 }
