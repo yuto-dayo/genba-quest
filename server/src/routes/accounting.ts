@@ -3670,8 +3670,8 @@ router.get("/transactions/search", async (req: AuthenticatedRequest, res: Respon
                 *,
                 site:sites(id, name),
                 client:clients(id, name),
-                source_document:documents(id, storage_path, drive_file_id, drive_file_url, original_filename, mime_type, ocr_fields),
-                items:accounting_transaction_items(item_name, quantity, unit_name, unit_price, amount)
+                source_document:documents!accounting_transactions_source_document_id_fkey(id, storage_path, drive_file_id, drive_file_url, original_filename, mime_type, ocr_fields),
+                items:accounting_transaction_items!accounting_transaction_items_transaction_id_fkey(item_name, quantity, unit_name, unit_price, amount)
             `)
             .eq("org_id", req.orgId!)
             .order("recorded_date", { ascending: false })
@@ -3726,8 +3726,8 @@ router.get("/transactions", async (req: AuthenticatedRequest, res: Response) => 
         *,
         site:sites(id, name),
         client:clients(id, name),
-        source_document:documents(id, storage_path, drive_file_id, drive_file_url, original_filename, mime_type, ocr_fields),
-        items:accounting_transaction_items(item_name, quantity, unit_name, unit_price, amount)
+        source_document:documents!accounting_transactions_source_document_id_fkey(id, storage_path, drive_file_id, drive_file_url, original_filename, mime_type, ocr_fields),
+        items:accounting_transaction_items!accounting_transaction_items_transaction_id_fkey(item_name, quantity, unit_name, unit_price, amount)
       `)
             .eq("org_id", req.orgId!)
             .order("recorded_date", { ascending: false })
@@ -3767,7 +3767,7 @@ router.get("/pending-approvals", async (req: AuthenticatedRequest, res: Response
             .select(`
         *,
         site:sites(id, name),
-        source_document:documents(id, storage_path, drive_file_id, drive_file_url, original_filename, mime_type, ocr_fields)
+        source_document:documents!accounting_transactions_source_document_id_fkey(id, storage_path, drive_file_id, drive_file_url, original_filename, mime_type, ocr_fields)
       `)
             .eq("org_id", req.orgId!)
             .eq("status", "pending_review")
