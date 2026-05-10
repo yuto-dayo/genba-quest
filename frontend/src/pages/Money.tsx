@@ -42,6 +42,7 @@ import { ProposalDetailModal } from "../components/ProposalDetailModal";
 import { TransactionDetailModal } from "../components/TransactionDetailModal";
 import { ApprovalCard } from "../components/ApprovalCard";
 import { FloatingActionButton } from "../components/FloatingActionButton";
+import { MoneyBucketDashboard } from "../components/MoneyBucketDashboard";
 import styles from "./Money.module.css";
 
 // 日付フォーマットヘルパー (YYYY/MM/DD)
@@ -775,6 +776,9 @@ export function Money() {
                     </div>
                 </motion.section>
             )}
+
+            {/* バケット一望 (F-1) — 番頭レス可視性の核 */}
+            <MoneyBucketDashboard month={selectedMonth} />
 
             {/* クイックアクション */}
             {!isMobile && (
