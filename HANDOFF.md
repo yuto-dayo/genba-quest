@@ -24,43 +24,43 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `Phase 3: /path/team feed + personal dashboard`. Source: realtime
+- [focus] NEXT_CMD: `Phase 4: Objection + Co-sign proposal type + ObjectionBody UI + co-sign API`. Source: realtime
+- [H0024] Completed: feat(reward): V3.3 Phase 3 — GET /v33/team-feed + PathV33PersonalDashboard + PathV33TeamFeed + tabbed /path page (個人 / チーム / 報酬確認)
+- [H0024] Remaining: Phase 4: Objection + Co-sign proposal type + ObjectionBody UI + co-sign API
 - [H0023] Completed: feat(reward): V3.3 Phase 2 — POST/GET /api/v1/path/module/v33/level-drafts + LevelDraftSheet + bell rewires + Today 役割 button removed
 - [H0023] Remaining: Phase 3: /path/team feed + personal dashboard
-- [H0022] Completed: feat(reward): V3.3 Phase 1 restored on rebased branch (migration + aggregateMonthlyLevel pure fn + 16 unit tests)
-- [H0022] Remaining: Phase 2: LevelDraftSheet UI + bell notification wiring + remove Today role chip
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0024] Auto-captured decision: feat(reward): V3.3 Phase 3 — GET /v33/team-feed + PathV33PersonalDashboard + PathV33TeamFeed + tabbed /path page (個人 / チーム / 報酬確認)
 - [H0023] Auto-captured decision: feat(reward): V3.3 Phase 2 — POST/GET /api/v1/path/module/v33/level-drafts + LevelDraftSheet + bell rewires + Today 役割 button removed
 - [H0022] Auto-captured decision: feat(reward): V3.3 Phase 1 restored on rebased branch (migration + aggregateMonthlyLevel pure fn + 16 unit tests)
 - [H0021] Auto-captured decision: fix(build): hotfix JSX namespace TS2503 errors on master — added 'import type { JSX } from react' to 7 files, removed now-unused @ts-expect-error in App.test.tsx
 - [H0020] Auto-captured decision: fix(lint): split _shared.tsx → _shared-utils.ts (react-refresh/only-export-components), createElement(Body) instead of JSX (react-hooks/static-components), framer-motion mock ...
-- [H0019] Auto-captured decision: docs(reward): V3.3 transparent governance design (Phase 0) — 3-tier per-site self-report → weighted average → 5-tier monthly with 1.25 multiplier; team-visible peer review...
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0023] No new landmines reported in this chunk.
+- [H0024] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0024] Phase 4: Objection + Co-sign proposal type + ObjectionBody UI + co-sign API
 - [H0023] Phase 3: /path/team feed + personal dashboard
 - [H0022] Phase 2: LevelDraftSheet UI + bell notification wiring + remove Today role chip
 - [H0021] open PR; merge once CI green so Render deploys master
 - [H0020] Wait CI green and merge
-- [H0019] Implementation in new branch feat/path-reward-v33-transparent (Phase 1: schema + aggregation function)
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `14`
+- current_l3_entries: `15`
 - last_compacted_at: `2026-05-11 05:54:12 +0900`
 - archived_entries: `9`
 <!-- HANDOFF_L2_STATE_END -->
@@ -299,5 +299,21 @@
   - Auto-captured decision: feat(reward): V3.3 Phase 2 — POST/GET /api/v1/path/module/v33/level-drafts + LevelDraftSheet + bell rewires + Today 役割 button removed
 - Validation:
   - `server build ✓ / V3.3 jest 16/16 ✓ / frontend build ✓ / eslint 0 ✓ / vitest 119/125 (6 pre-existing)`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-11 06:39:36 +0900
+
+- Entry-ID: `H0024`
+- Completed:
+  - [x] feat(reward): V3.3 Phase 3 — GET /v33/team-feed + PathV33PersonalDashboard + PathV33TeamFeed + tabbed /path page (個人 / チーム / 報酬確認)
+- Remaining:
+  - [ ] Phase 4: Objection + Co-sign proposal type + ObjectionBody UI + co-sign API
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: feat(reward): V3.3 Phase 3 — GET /v33/team-feed + PathV33PersonalDashboard + PathV33TeamFeed + tabbed /path page (個人 / チーム / 報酬確認)
+- Validation:
+  - `server build ✓ / frontend build ✓ / eslint 0 ✓ / vitest 120 pass (+1 from baseline), 6 pre-existing failures`
 - Landmines:
   - No new landmines reported in this chunk.

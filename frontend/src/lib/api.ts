@@ -3661,6 +3661,37 @@ export const fetchPathV33MonthlyPreview = (memberId: string, month: string) =>
         `/api/v1/path/module/v33/level-drafts/preview?member_id=${encodeURIComponent(memberId)}&month=${encodeURIComponent(month)}`,
     ).then((response) => response.preview);
 
+export interface PathV33TeamFeedMember {
+    member_id: string;
+    member_name: string;
+    current: PathV33AggregationResult;
+    prior_level: PathV33Level | null;
+    drafts: PathV33LevelDraft[];
+}
+
+export interface PathV33TeamFeedTimelineEntry {
+    draft_id: string;
+    member_id: string;
+    member_name: string;
+    site_id: string;
+    site_name: string;
+    tier: PathV33Tier;
+    work_days: number;
+    self_comment: string;
+    submitted_at: string;
+}
+
+export interface PathV33TeamFeed {
+    month: string;
+    members: PathV33TeamFeedMember[];
+    timeline: PathV33TeamFeedTimelineEntry[];
+}
+
+export const fetchPathV33TeamFeed = (month: string) =>
+    api<{ feed: PathV33TeamFeed }>(
+        `/api/v1/path/module/v33/team-feed?month=${encodeURIComponent(month)}`,
+    ).then((response) => response.feed);
+
 export const createPathV32SimpleLevelUpdateProposal = (data: {
     member_id: string;
     level: PathLevel;

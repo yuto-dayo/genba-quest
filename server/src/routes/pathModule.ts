@@ -913,4 +913,14 @@ router.get("/v33/level-drafts/preview", async (req: AuthenticatedRequest, res: R
   }
 });
 
+router.get("/v33/team-feed", async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const month = typeof req.query.month === "string" ? req.query.month : "";
+    const feed = await getPathV33RewardService(req).getTeamFeed(month);
+    res.json({ feed });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
 export default router;

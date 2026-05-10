@@ -5,6 +5,7 @@
 // Phase 2: per-site draft submission + monthly preview (this file).
 
 import { supabaseAdmin } from "../lib/supabaseAdmin";
+import { DEV_AUTH_USERS, isDevAuthMode } from "../config/devAuthUsers";
 import { ActorRef } from "./PolicyEngine";
 
 export const PATH_V33_RULE_VERSION = "3.3.0-transparent";
@@ -184,6 +185,32 @@ export interface MonthlyPreviewResult {
   current: PathV33AggregationResult;
   prior_level: PathV33Level | null;
   drafts: LevelDraftRecord[];
+}
+
+export interface TeamFeedMember {
+  member_id: string;
+  member_name: string;
+  current: PathV33AggregationResult;
+  prior_level: PathV33Level | null;
+  drafts: LevelDraftRecord[];
+}
+
+export interface TeamFeedTimelineEntry {
+  draft_id: string;
+  member_id: string;
+  member_name: string;
+  site_id: string;
+  site_name: string;
+  tier: PathV33Tier;
+  work_days: number;
+  self_comment: string;
+  submitted_at: string;
+}
+
+export interface TeamFeedResult {
+  month: string;
+  members: TeamFeedMember[];
+  timeline: TeamFeedTimelineEntry[];
 }
 
 export class PathV33RewardService {
@@ -376,6 +403,175 @@ export class PathV33RewardService {
     return (data.level as PathV33Level) in PATH_V33_LEVEL_WEIGHT_MILLI
       ? (data.level as PathV33Level)
       : null;
+  }
+
+  async getTeamFeed(month: string): Promise<TeamFeedResult> {
+    ensureMonth(month);
+
+    const [members, monthSites] = await Promise.all([
+      this.listActiveMembers(),
+      this.listSitesInMonth(month),
+    ]);
+    const monthSiteIdSet = new Set(monthSites.map((s) => s.id));
+    const monthSiteNames = new Map(monthSites.map((s) => [s.id, s.name]));
+
+    const memberIds = members.map((m) => m.member_id);
+    const memberNameById = new Map(members.map((m) => [m.member_id, m.member_name]));
+
+    const drafts = await this.listDraftsForMembersInSites(memberIds, [...monthSiteIdSet]);
+    const draftsByMember = new Map<string, LevelDraftRecord[]>();
+    for (const d of drafts) {
+      const list = draftsByMember.get(d.member_id) ?? [];
+      list.push(d);
+      draftsByMember.set(d.member_id, list);
+    }
+
+    const priorLevels = await this.fetchPriorMonthLevelsBatch(memberIds, month);
+
+    const memberSummaries: TeamFeedMember[] = members.map((member) => {
+      const memberDrafts = draftsByMember.get(member.member_id) ?? [];
+      const current = aggregateMonthlyLevel(
+        memberDrafts.map((d) => ({ site_id: d.site_id, tier: d.tier, work_days: d.work_days })),
+      );
+      return {
+        member_id: member.member_id,
+        member_name: member.member_name,
+        current,
+        prior_level: priorLevels.get(member.member_id) ?? null,
+        drafts: memberDrafts,
+      };
+    });
+
+    const timeline: TeamFeedTimelineEntry[] = drafts
+      .map((d) => ({
+        draft_id: d.id,
+        member_id: d.member_id,
+        member_name: memberNameById.get(d.member_id) ?? d.member_id,
+        site_id: d.site_id,
+        site_name: monthSiteNames.get(d.site_id) ?? "現場",
+        tier: d.tier,
+        work_days: d.work_days,
+        self_comment: d.self_comment,
+        submitted_at: d.submitted_at,
+      }))
+      .sort((a, b) => b.submitted_at.localeCompare(a.submitted_at));
+
+    return { month, members: memberSummaries, timeline };
+  }
+
+  private async listActiveMembers(): Promise<Array<{ member_id: string; member_name: string }>> {
+    const { data, error } = await supabaseAdmin
+      .from("org_memberships")
+      .select("user_id")
+      .eq("org_id", this.orgId)
+      .eq("status", "active");
+
+    if (error) {
+      throw new Error(`Failed to fetch active members: ${error.message}`);
+    }
+
+    const memberIds = ((data ?? []) as Array<{ user_id?: string }>)
+      .map((row) => String(row.user_id ?? ""))
+      .filter((value) => UUID_PATTERN.test(value));
+    if (isDevAuthMode()) {
+      memberIds.push(...DEV_AUTH_USERS.map((user) => user.id));
+    }
+    const unique = Array.from(new Set(memberIds));
+    const names = await this.loadMemberNames(unique);
+    return unique.map((memberId) => ({
+      member_id: memberId,
+      member_name: names.get(memberId) ?? memberId,
+    }));
+  }
+
+  private async loadMemberNames(memberIds: string[]): Promise<Map<string, string>> {
+    if (memberIds.length === 0) return new Map();
+    const { data, error } = await supabaseAdmin
+      .from("profiles")
+      .select("id, full_name, username")
+      .in("id", memberIds);
+    if (error) {
+      throw new Error(`Failed to fetch profiles: ${error.message}`);
+    }
+    const names = new Map<string, string>();
+    for (const row of (data ?? []) as Array<Record<string, unknown>>) {
+      names.set(String(row.id), String(row.full_name ?? row.username ?? row.id));
+    }
+    if (isDevAuthMode()) {
+      for (const user of DEV_AUTH_USERS) {
+        if (memberIds.includes(user.id)) {
+          names.set(user.id, user.name);
+        }
+      }
+    }
+    return names;
+  }
+
+  private async listSitesInMonth(month: string): Promise<Array<{ id: string; name: string }>> {
+    const { data, error } = await supabaseAdmin
+      .from("sites")
+      .select("id, name, completed_at, created_at")
+      .eq("org_id", this.orgId)
+      .is("deleted_at", null);
+    if (error) {
+      throw new Error(`Failed to fetch sites: ${error.message}`);
+    }
+    return ((data ?? []) as Array<Record<string, unknown>>)
+      .filter((row) => {
+        const anchor =
+          (typeof row.completed_at === "string" && row.completed_at) ||
+          (typeof row.created_at === "string" && row.created_at) ||
+          "";
+        return anchor.startsWith(month);
+      })
+      .map((row) => ({ id: String(row.id), name: String(row.name ?? "現場") }))
+      .filter((row) => UUID_PATTERN.test(row.id));
+  }
+
+  private async listDraftsForMembersInSites(
+    memberIds: string[],
+    siteIds: string[],
+  ): Promise<LevelDraftRecord[]> {
+    if (memberIds.length === 0 || siteIds.length === 0) return [];
+    const { data, error } = await supabaseAdmin
+      .from("site_member_level_drafts")
+      .select("*")
+      .eq("org_id", this.orgId)
+      .in("member_id", memberIds)
+      .in("site_id", siteIds);
+    if (error) {
+      throw new Error(`Failed to fetch team drafts: ${error.message}`);
+    }
+    return ((data ?? []) as Array<Record<string, unknown>>).map((row) =>
+      this.normalizeDraftRow(row),
+    );
+  }
+
+  private async fetchPriorMonthLevelsBatch(
+    memberIds: string[],
+    month: string,
+  ): Promise<Map<string, PathV33Level>> {
+    if (memberIds.length === 0) return new Map();
+    const { data, error } = await supabaseAdmin
+      .from("path_member_level_history")
+      .select("member_id, level, effective_month")
+      .eq("org_id", this.orgId)
+      .in("member_id", memberIds)
+      .lt("effective_month", month)
+      .order("effective_month", { ascending: false });
+    if (error) {
+      throw new Error(`Failed to fetch prior levels: ${error.message}`);
+    }
+    const result = new Map<string, PathV33Level>();
+    for (const row of (data ?? []) as Array<Record<string, unknown>>) {
+      const memberId = String(row.member_id ?? "");
+      if (result.has(memberId)) continue;
+      const level = String(row.level ?? "");
+      if (level in PATH_V33_LEVEL_WEIGHT_MILLI) {
+        result.set(memberId, level as PathV33Level);
+      }
+    }
+    return result;
   }
 
   private normalizeDraftRow(row: Record<string, unknown>): LevelDraftRecord {
