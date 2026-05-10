@@ -1,3 +1,7 @@
+jest.mock("../../lib/supabaseAdmin", () => ({
+  supabaseAdmin: { from: jest.fn() },
+}));
+
 import {
   aggregateMonthlyLevel,
   bucketScoreToLevel,

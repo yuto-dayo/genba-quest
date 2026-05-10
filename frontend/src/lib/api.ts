@@ -3611,6 +3611,56 @@ export const createPathV32SimpleMonthlyDistributionProposal = (month: string) =>
         body: JSON.stringify({ month }),
     });
 
+// ─── PATH V3.3 transparent governance ─────────────────────────────────────
+// Spec: docs/REWARD_SYSTEM_V33.md
+export type PathV33Tier = 1 | 2 | 3;
+export type PathV33Level = "L1" | "L2" | "L3" | "L4" | "L5";
+
+export interface PathV33LevelDraft {
+    id: string;
+    org_id: string;
+    site_id: string;
+    member_id: string;
+    tier: PathV33Tier;
+    work_days: number;
+    self_comment: string;
+    evidence: Record<string, unknown>;
+    submitted_at: string;
+    locked_at: string | null;
+}
+
+export interface PathV33AggregationResult {
+    level: PathV33Level;
+    weight_milli: number;
+    score: number;
+    total_work_days: number;
+    draft_count: number;
+    drafts: Array<{ site_id: string; tier: PathV33Tier; work_days: number }>;
+}
+
+export interface PathV33MonthlyPreview {
+    month: string;
+    member_id: string;
+    current: PathV33AggregationResult;
+    prior_level: PathV33Level | null;
+    drafts: PathV33LevelDraft[];
+}
+
+export const submitPathV33LevelDraft = (data: {
+    site_id: string;
+    tier: PathV33Tier;
+    self_comment?: string;
+}) =>
+    api<{ draft: PathV33LevelDraft; preview: PathV33MonthlyPreview }>(
+        "/api/v1/path/module/v33/level-drafts",
+        { method: "POST", body: JSON.stringify(data) },
+    );
+
+export const fetchPathV33MonthlyPreview = (memberId: string, month: string) =>
+    api<{ preview: PathV33MonthlyPreview }>(
+        `/api/v1/path/module/v33/level-drafts/preview?member_id=${encodeURIComponent(memberId)}&month=${encodeURIComponent(month)}`,
+    ).then((response) => response.preview);
+
 export const createPathV32SimpleLevelUpdateProposal = (data: {
     member_id: string;
     level: PathLevel;

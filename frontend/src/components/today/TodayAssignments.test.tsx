@@ -39,7 +39,6 @@ function renderAssignments(
     lineItems: SiteLineItem[] = []
 ) {
     const onViewSiteMemo = vi.fn();
-    const onPlanRole = vi.fn();
     const onRecordRewardInput = vi.fn();
     const onAddConstruction = vi.fn();
 
@@ -67,7 +66,6 @@ function renderAssignments(
             ]}
             siteLineItemsBySiteId={{ [baseSite.id]: lineItems }}
             onViewSiteMemo={onViewSiteMemo}
-            onPlanRole={onPlanRole}
             onRecordRewardInput={onRecordRewardInput}
             onAddConstruction={onAddConstruction}
             getDayLogStatus={() => dayLogStatus}
@@ -77,7 +75,6 @@ function renderAssignments(
 
     return {
         onViewSiteMemo,
-        onPlanRole,
         onRecordRewardInput,
         onAddConstruction,
     };
@@ -111,8 +108,8 @@ describe("TodayAssignments", () => {
         expect(screen.queryByRole("button", { name: "今日やることを追加" })).not.toBeInTheDocument();
     });
 
-    it("opens role planning from the site card without showing status chips", () => {
-        const { onPlanRole } = renderAssignments("none");
+    it("renders the site card without the deprecated 役割 chip", () => {
+        renderAssignments("none");
 
         expect(screen.queryByText("今日の現場")).not.toBeInTheDocument();
         expect(screen.queryByText("確定")).not.toBeInTheDocument();
@@ -130,9 +127,7 @@ describe("TodayAssignments", () => {
         );
         expect(screen.getByText("佐藤さん")).toBeInTheDocument();
         expect(screen.getByLabelText("チーム担当: 山田 太郎")).toBeInTheDocument();
-        fireEvent.click(screen.getByRole("button", { name: "役割" }));
-
-        expect(onPlanRole).toHaveBeenCalledWith(expect.objectContaining({ id: baseSite.id }));
+        expect(screen.queryByRole("button", { name: "役割" })).not.toBeInTheDocument();
     });
 
     it("shows construction chips, opens the detail modal, and opens the add flow", () => {

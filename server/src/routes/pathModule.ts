@@ -12,6 +12,7 @@ import {
 import { ActorRef } from "../services/PolicyEngine";
 import { PathV31Service } from "../services/PathV31Service";
 import { PathV32SimpleRewardService } from "../services/PathV32SimpleRewardService";
+import { PathV33RewardService } from "../services/PathV33RewardService";
 import { assertV22WriteAllowed } from "../lib/pathV31Config";
 
 const router = Router();
@@ -60,6 +61,9 @@ const PATH_MODULE_ERROR_STATUS_MAP: Record<string, number> = {
   SITE_CLOSE_ACTIVE_PROPOSAL_EXISTS: 409,
   INVALID_SITE_CLOSE_ID: 400,
   INVALID_SITE_ID: 400,
+  PATH_V33_INVALID_TIER: 400,
+  PATH_V33_INVALID_TEAM_SIZE: 400,
+  PATH_V33_HUMAN_ACTOR_REQUIRED: 403,
   INVALID_DATE_FORMAT: 400,
   INVALID_CREDITED_UNIT: 400,
   INVALID_CREDITED_UNIT_INCREMENT: 400,
@@ -112,6 +116,10 @@ function getPathV31Service(req: AuthenticatedRequest): PathV31Service {
 
 function getPathV32SimpleRewardService(req: AuthenticatedRequest): PathV32SimpleRewardService {
   return new PathV32SimpleRewardService(getOrgId(req));
+}
+
+function getPathV33RewardService(req: AuthenticatedRequest): PathV33RewardService {
+  return new PathV33RewardService(getOrgId(req));
 }
 
 function getPolicyService(req: AuthenticatedRequest): PathPolicyBundleService {
@@ -859,6 +867,47 @@ router.get("/opportunity-audit-summary", async (req: AuthenticatedRequest, res: 
     const month = typeof req.query.month === "string" ? req.query.month : "";
     const summary = await getPathModuleService(req).getOpportunityAuditSummary(month);
     res.json({ summary });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+// ─── PATH V3.3 transparent governance ──────────────────────────────────────
+// Spec: docs/REWARD_SYSTEM_V33.md §5,7
+//
+// V3.3 self-declared per-site tier is NOT a proposal — peer review (Phase 4)
+// is the governance, not approval. Drafts are upserted directly by the
+// submitting member; work_days is computed server-side from site_day_logs.
+
+router.post("/v33/level-drafts", async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const actor = buildHumanActor(req);
+    const rawTier = Number(req.body?.tier);
+    const tier = rawTier === 1 || rawTier === 2 || rawTier === 3 ? rawTier : 0;
+    const result = await getPathV33RewardService(req).submitLevelDraft(
+      {
+        site_id: typeof req.body?.site_id === "string" ? req.body.site_id : "",
+        tier: tier as 1 | 2 | 3,
+        self_comment:
+          typeof req.body?.self_comment === "string" ? req.body.self_comment : "",
+      },
+      actor,
+    );
+    res.status(201).json(result);
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+router.get("/v33/level-drafts/preview", async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const memberId =
+      typeof req.query.member_id === "string" && req.query.member_id
+        ? req.query.member_id
+        : req.userId ?? "";
+    const month = typeof req.query.month === "string" ? req.query.month : "";
+    const preview = await getPathV33RewardService(req).getMonthlyPreview(memberId, month);
+    res.json({ preview });
   } catch (error) {
     handleError(res, error);
   }

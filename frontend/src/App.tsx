@@ -27,6 +27,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { type Session } from "@supabase/supabase-js";
 import { CommunicationRecordSheet } from "./components/CommunicationRecordSheet";
 import { NotificationInbox } from "./components/NotificationInbox";
+import { LevelDraftSheet } from "./components/LevelDraftSheet";
 import { Communications } from "./pages/Communications";
 import { Calendar } from "./pages/Calendar";
 import PathRewardConfirmationPage from "./pages/PathRewardConfirmation";
@@ -1265,6 +1266,11 @@ function AppContent() {
   const [pendingApprovals, setPendingApprovals] = useState<AccountingTransaction[]>([]);
   const [pendingProposals, setPendingProposals] = useState<ProposalRecord[]>([]);
   const [inboxOpen, setInboxOpen] = useState(false);
+  const [levelDraftTarget, setLevelDraftTarget] = useState<{
+    siteId: string;
+    siteName: string;
+    memberId: string;
+  } | null>(null);
   const [authSession, setAuthSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [passwordRecoveryActive, setPasswordRecoveryActive] = useState(false);
@@ -1535,15 +1541,16 @@ function AppContent() {
   const handleSelectSiteDraft = useCallback(
     (notification: NotificationRecord) => {
       const siteId = getNotificationDataString(notification, "site_id");
-      const params = new URLSearchParams();
-      if (siteId) {
-        params.set("site", siteId);
+      const siteName = getNotificationDataString(notification, "site_name") ?? "完了現場";
+      const memberId =
+        getNotificationDataString(notification, "member_id") ?? authSession?.user.id ?? "";
+      if (!siteId || !memberId) {
+        return;
       }
-      params.set("levelDraft", notification.id);
       setInboxOpen(false);
-      navigate(`/sites?${params.toString()}`);
+      setLevelDraftTarget({ siteId, siteName, memberId });
     },
-    [navigate],
+    [authSession],
   );
 
   const handleSelectApproval = useCallback(() => {
@@ -1888,6 +1895,17 @@ function AppContent() {
             onSelectSiteDraft={handleSelectSiteDraft}
             onSelectApproval={handleSelectApproval}
             onSelectProposal={handleSelectProposal}
+          />
+          <LevelDraftSheet
+            open={levelDraftTarget !== null}
+            onClose={() => setLevelDraftTarget(null)}
+            siteId={levelDraftTarget?.siteId ?? ""}
+            siteName={levelDraftTarget?.siteName ?? ""}
+            memberId={levelDraftTarget?.memberId ?? ""}
+            onSubmitted={() => {
+              void loadSiteLevelDraftNotifications();
+              window.dispatchEvent(new Event("site-level-draft-updated"));
+            }}
           />
         </div>
       ) : (

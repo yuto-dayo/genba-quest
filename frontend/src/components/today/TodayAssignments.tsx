@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertTriangle, Check, Clock3, FileText, Hammer, MapPin, Plus, ShieldCheck, UserRound, X } from 'lucide-react';
+import { AlertTriangle, Check, Clock3, FileText, Hammer, MapPin, Plus, UserRound, X } from 'lucide-react';
 import type { Assignment } from '../../types/calendar';
 import type { Member, Site, SiteLineItem } from '../../lib/api';
 import styles from './TodayComponents.module.css';
@@ -13,7 +13,6 @@ interface TodayAssignmentsProps {
     members: Member[];
     siteLineItemsBySiteId: Record<string, SiteLineItem[]>;
     onViewSiteMemo: (site: Site) => void;
-    onPlanRole: (site: Site) => void;
     onRecordRewardInput: (site: Site) => void;
     onAddConstruction: (site: Site) => void;
     getDayLogStatus: (siteId: string) => DayLogStatus;
@@ -150,7 +149,6 @@ export function TodayAssignments({
     members,
     siteLineItemsBySiteId,
     onViewSiteMemo,
-    onPlanRole,
     onRecordRewardInput,
     onAddConstruction,
     getDayLogStatus,
@@ -378,17 +376,6 @@ export function TodayAssignments({
                                     >
                                         <FileText size={14} />
                                         メモ
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className={`${styles.assignmentActionButton} ${
-                                            siteInputStatus === 'role_missing' ? styles.assignmentActionPrimary : ''
-                                        }`}
-                                        onClick={() => onPlanRole(site.site!)}
-                                        disabled={siteInputStatus === 'locked'}
-                                    >
-                                        <ShieldCheck size={14} />
-                                        役割
                                     </button>
                                     {showRewardAction && (
                                         <button

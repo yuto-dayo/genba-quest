@@ -108,6 +108,11 @@ vi.mock("./components/CommunicationRecordSheet", () => ({
     CommunicationRecordSheet: () => null,
 }));
 
+vi.mock("./components/LevelDraftSheet", () => ({
+    LevelDraftSheet: ({ open, siteName }: { open: boolean; siteName: string }) =>
+        open ? <div data-testid="level-draft-sheet">{siteName}</div> : null,
+}));
+
 vi.mock("./lib/api", async () => {
     const actual = await vi.importActual<typeof import("./lib/api")>("./lib/api");
     return {
@@ -388,7 +393,9 @@ describe("App entry gate", () => {
         const inboxItem = await screen.findByRole("button", { name: /A棟クロス/ });
         fireEvent.click(inboxItem);
 
-        expect(await screen.findByText("sites-page")).toBeInTheDocument();
+        // V3.3: bell → inbox → LevelDraftSheet (no navigation to /sites)
+        const sheet = await screen.findByTestId("level-draft-sheet");
+        expect(sheet).toHaveTextContent("A棟クロス");
         expect(fetchNotifications).toHaveBeenCalledWith({ unread_only: true, limit: 50 });
     });
 
