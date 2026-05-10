@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GENBA QUEST — Money / Expense Flow Mock</title>
+<style>
+  :root {
+    --bg: #0e1116;
+    --surface: #161b22;
+    --surface-2: #1f2630;
+    --border: #2a3340;
+    --text: #e6edf3;
+    --text-muted: #7d8590;
+    --accent: #ffb84d;
+    --accent-2: #4dabff;
+    --good: #56d364;
+    --warn: #ffb84d;
+    --bad: #f85149;
+    --soft-warn: rgba(255, 184, 77, 0.12);
+    --soft-bad: rgba(248, 81, 73, 0.12);
+    --soft-good: rgba(86, 211, 100, 0.12);
+    --soft-info: rgba(77, 171, 255, 0.12);
+    --radius: 16px;
+    --radius-sm: 10px;
+    --shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    display: flex;
+    justify-content: center;
+    padding: 24px 12px 80px;
+    min-height: 100vh;
+  }
+  .frame {
+    width: 100%;
+    max-width: 420px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 28px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 18px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .topbar .title {
+    font-size: 13px;
+    color: var(--text-muted);
+    letter-spacing: 0.06em;
+  }
+  .topbar .month {
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .topbar .month-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .icon-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .icon-btn:hover { background: var(--surface-2); }
+
+  .summary {
+    padding: 18px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(77, 171, 255, 0.06), transparent 80%);
+  }
+  .summary .pl-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 6px;
+  }
+  .summary .label { color: var(--text-muted); font-size: 13px; }
+  .summary .value { font-size: 14px; font-weight: 600; }
+  .summary .profit-row {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .summary .profit-row .profit-value {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--good);
+  }
+  .pending-note {
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .pending-note .alert {
+    color: var(--warn);
+  }
+
+  .section-title {
+    padding: 16px 18px 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .section-title h2 {
+    margin: 0;
+    font-size: 14px;
+    color: var(--text-muted);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+  .section-title .hint {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .buckets {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 0 14px;
+  }
+  .bucket {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    cursor: pointer;
+    transition: transform 0.08s ease, border-color 0.15s ease;
+    position: relative;
+  }
+  .bucket:hover { transform: translateY(-1px); border-color: #3a4555; }
+  .bucket .name {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .bucket .amount {
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .bucket .meta {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .bucket .meta .stale {
+    color: var(--warn);
+    font-weight: 600;
+  }
+  .bucket .meta .stale.bad { color: var(--bad); }
+  .bucket.warn { border-color: rgba(255, 184, 77, 0.4); background: var(--soft-warn); }
+  .bucket.bad { border-color: rgba(248, 81, 73, 0.4); background: var(--soft-bad); }
+  .bucket.good { border-color: rgba(86, 211, 100, 0.3); }
+
+  .bucket .pulse {
+    position: absolute; top: 12px; right: 12px;
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--warn);
+    box-shadow: 0 0 0 4px rgba(255, 184, 77, 0.18);
+  }
+
+  .jobs {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 8px 18px 0;
+  }
+  .job {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .job .left .name { font-size: 14px; font-weight: 600; }
+  .job .left .status { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .job .right .profit { font-size: 16px; font-weight: 700; }
+  .job .right .profit.positive { color: var(--good); }
+  .job .right .profit.negative { color: var(--bad); }
+  .job.alert { border-color: rgba(248, 81, 73, 0.4); }
+  .job.alert .right .profit { color: var(--bad); }
+
+  .tab-bar {
+    display: flex;
+    overflow-x: auto;
+    padding: 12px 14px 6px;
+    gap: 8px;
+    border-bottom: 1px solid var(--border);
+    margin-top: 8px;
+  }
+  .tab {
+    flex: 0 0 auto;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .tab.active {
+    background: var(--accent);
+    color: #1a1a1a;
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+  .tab .badge {
+    background: rgba(0, 0, 0, 0.18);
+    color: inherit;
+    border-radius: 999px;
+    padding: 1px 6px;
+    margin-left: 6px;
+    font-size: 10px;
+  }
+  .tab:not(.active) .badge { background: var(--surface-2); color: var(--text); }
+
+  .list {
+    padding: 8px 14px;
+  }
+  .item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    cursor: pointer;
+  }
+  .item:hover { border-color: #3a4555; }
+  .item-row1 {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .item-vendor { font-size: 14px; font-weight: 600; }
+  .item-amount { font-size: 14px; font-weight: 700; }
+  .item-row2 {
+    margin-top: 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .item-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .item-flags {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .flag {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--soft-warn);
+    color: var(--warn);
+    border: 1px solid rgba(255, 184, 77, 0.3);
+  }
+  .flag.bad { background: var(--soft-bad); color: var(--bad); border-color: rgba(248, 81, 73, 0.3); }
+  .flag.info { background: var(--soft-info); color: var(--accent-2); border-color: rgba(77, 171, 255, 0.3); }
+  .flag.good { background: var(--soft-good); color: var(--good); border-color: rgba(86, 211, 100, 0.3); }
+
+  .ai-suggestion {
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: rgba(77, 171, 255, 0.08);
+    border: 1px solid rgba(77, 171, 255, 0.25);
+    border-radius: 8px;
+    font-size: 11px;
+    color: var(--text);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+  .ai-suggestion .ai-text { color: var(--text-muted); }
+  .ai-suggestion .ai-text b { color: var(--accent-2); }
+  .ai-accept {
+    background: var(--accent-2);
+    color: #0a1322;
+    border: none;
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  /* Detail view */
+  .detail {
+    padding: 18px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    margin-top: 16px;
+  }
+  .detail h3 {
+    margin: 0 0 4px;
+    font-size: 13px;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+  .detail .id {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+    font-family: ui-monospace, "SF Mono", monospace;
+  }
+  .detail .amount-big {
+    font-size: 28px;
+    font-weight: 800;
+    margin-bottom: 4px;
+  }
+  .detail .vendor-line {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+  }
+  .detail .status-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .status-pill {
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid var(--border);
+  }
+  .status-pill.classified { background: var(--soft-info); color: var(--accent-2); border-color: rgba(77, 171, 255, 0.3); }
+  .verify-btn {
+    margin-left: auto;
+    padding: 6px 14px;
+    background: var(--good);
+    color: #0a1f12;
+    font-weight: 700;
+    border: none;
+    border-radius: 999px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .field-group {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    margin-bottom: 12px;
+  }
+  .field-group h4 {
+    margin: 0 0 8px;
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+  }
+  .field-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: 13px;
+  }
+  .field-row + .field-row { border-top: 1px dashed var(--border); }
+  .field-key { color: var(--text-muted); }
+  .field-val { font-weight: 500; text-align: right; }
+  .field-val.missing {
+    color: var(--bad);
+    font-style: italic;
+  }
+
+  .receipt {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .receipt-thumb {
+    width: 72px; height: 96px;
+    background: linear-gradient(180deg, #2c333d, #1a1f27);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 10px;
+    flex-shrink: 0;
+  }
+  .receipt-ocr {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    background: var(--bg);
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    flex: 1;
+    font-family: ui-monospace, monospace;
+  }
+
+  /* Field history */
+  .history {
+    position: relative;
+    padding-left: 16px;
+  }
+  .history::before {
+    content: "";
+    position: absolute;
+    left: 5px; top: 4px; bottom: 4px;
+    width: 2px;
+    background: var(--border);
+  }
+  .history-entry {
+    position: relative;
+    padding: 6px 0 10px;
+    font-size: 12px;
+  }
+  .history-entry::before {
+    content: "";
+    position: absolute;
+    left: -14px; top: 9px;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent-2);
+    border: 2px solid var(--bg);
+  }
+  .history-entry.ai::before { background: var(--accent); }
+  .history-entry.system::before { background: var(--text-muted); }
+  .history-time {
+    color: var(--text-muted);
+    font-size: 10px;
+    margin-bottom: 2px;
+  }
+  .history-actor {
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+  .history-actor .actor-tag {
+    font-size: 9px;
+    background: var(--surface-2);
+    color: var(--text-muted);
+    padding: 1px 6px;
+    border-radius: 999px;
+    margin-left: 4px;
+  }
+  .history-actor.ai .actor-tag { background: rgba(255, 184, 77, 0.15); color: var(--accent); }
+  .history-actor.system .actor-tag { background: rgba(125, 133, 144, 0.2); }
+  .history-detail {
+    color: var(--text-muted);
+    font-size: 11px;
+    line-height: 1.5;
+  }
+  .history-detail code {
+    background: var(--bg);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 10px;
+    color: var(--text);
+    font-family: ui-monospace, monospace;
+  }
+
+  /* Job picker (capture flow) */
+  .capture-section {
+    padding: 18px;
+    border-top: 4px solid var(--surface-2);
+    background: var(--surface);
+  }
+  .capture-section h3 {
+    margin: 0 0 4px;
+    font-size: 16px;
+  }
+  .capture-section .sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 14px;
+  }
+  .chip-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .chip {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    cursor: pointer;
+  }
+  .chip:hover { border-color: var(--accent-2); }
+  .chip.recommended {
+    background: linear-gradient(90deg, rgba(77, 171, 255, 0.12), transparent);
+    border-color: rgba(77, 171, 255, 0.4);
+  }
+  .chip-text { font-size: 13px; font-weight: 500; }
+  .chip-meta { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+  .chip-tag {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--soft-info);
+    color: var(--accent-2);
+  }
+  .chip.divider {
+    pointer-events: none;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 6px 0 0;
+    justify-content: flex-start;
+  }
+  .later-btn {
+    margin-top: 12px;
+    width: 100%;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px dashed var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 13px;
+  }
+
+  .legend {
+    margin: 24px 12px 0;
+    padding: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+  .legend h4 {
+    margin: 0 0 8px;
+    color: var(--text);
+    font-size: 12px;
+  }
+  .legend ul { padding-left: 18px; margin: 6px 0; }
+</style>
+</head>
+<body>
+<div style="display:flex; flex-direction:column; align-items:center; gap: 18px;">
+
+  <!-- ============ Screen A: Money Dashboard ============ -->
+  <div class="frame">
+    <div class="topbar">
+      <div>
+        <div class="title">経理</div>
+        <div class="month">2026年5月</div>
+      </div>
+      <div class="month-nav">
+        <button class="icon-btn" aria-label="前月">◀</button>
+        <button class="icon-btn" aria-label="翌月">▶</button>
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="summary">
+      <div class="pl-row"><span class="label">売上(確定)</span><span class="value">¥4,200,000</span></div>
+      <div class="pl-row"><span class="label">原価(posted)</span><span class="value">¥1,240,500</span></div>
+      <div class="pl-row"><span class="label">原価(未posted)</span><span class="value" style="color:var(--warn)">¥486,400 ⚠</span></div>
+      <div class="pl-row"><span class="label">本部経費</span><span class="value">¥180,000</span></div>
+      <div class="profit-row">
+        <span class="label" style="font-size:12px">粗利見込み</span>
+        <span class="profit-value">¥2,293,100</span>
+      </div>
+      <div class="pending-note">
+        <span class="alert">⚠</span> 締めまで <b>あと7日</b> ・ verify待ち <b>24件</b>
+      </div>
+    </div>
+
+    <!-- Buckets -->
+    <div class="section-title">
+      <h2>状態別バケット</h2>
+      <span class="hint">タップで一覧</span>
+    </div>
+    <div class="buckets">
+      <div class="bucket warn">
+        <div class="pulse"></div>
+        <div class="name">未割当 <span style="color:var(--warn)">12</span></div>
+        <div class="amount">¥45,200</div>
+        <div class="meta"><span class="stale">⚠ 最古3日↑</span></div>
+      </div>
+      <div class="bucket warn">
+        <div class="name">要確認 <span style="color:var(--warn)">8</span></div>
+        <div class="amount">¥120,400</div>
+        <div class="meta">flags: missing_invoice ・ 重複候補</div>
+      </div>
+      <div class="bucket">
+        <div class="name">verified待ち <span>24</span></div>
+        <div class="amount">¥320,800</div>
+        <div class="meta">締め前にレビュー</div>
+      </div>
+      <div class="bucket good">
+        <div class="name">posted <span>86</span></div>
+        <div class="amount">¥1,240,500</div>
+        <div class="meta">仕訳起票済</div>
+      </div>
+      <div class="bucket">
+        <div class="name">資産候補 <span>2</span></div>
+        <div class="amount">¥180,000</div>
+        <div class="meta">10万円超の工具</div>
+      </div>
+      <div class="bucket bad">
+        <div class="name">advance滞留 <span style="color:var(--bad)">1</span></div>
+        <div class="amount">¥35,000</div>
+        <div class="meta"><span class="stale bad">⚠ 90日↑ 未着工</span></div>
+      </div>
+    </div>
+
+    <!-- Jobs -->
+    <div class="section-title" style="margin-top:8px;">
+      <h2>現場別 黒字</h2>
+    </div>
+    <div class="jobs">
+      <div class="job">
+        <div class="left">
+          <div class="name">◯◯邸 内装</div>
+          <div class="status">進行中 ・ 原価 ¥820,000</div>
+        </div>
+        <div class="right">
+          <div class="profit positive">+¥420,000</div>
+        </div>
+      </div>
+      <div class="job">
+        <div class="left">
+          <div class="name">□□邸 改修</div>
+          <div class="status">完工 ・ 原価 ¥320,000</div>
+        </div>
+        <div class="right">
+          <div class="profit positive">+¥180,000</div>
+        </div>
+      </div>
+      <div class="job alert">
+        <div class="left">
+          <div class="name">△△邸 リフォーム</div>
+          <div class="status">進行中 ・ 原価 ¥440,000 ⚠ 見積比0.92</div>
+        </div>
+        <div class="right">
+          <div class="profit negative">−¥40,000</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab bar -->
+    <div class="tab-bar">
+      <button class="tab active">要確認 <span class="badge">8</span></button>
+      <button class="tab">未割当 <span class="badge">12</span></button>
+      <button class="tab">verified待ち <span class="badge">24</span></button>
+      <button class="tab">posted <span class="badge">86</span></button>
+      <button class="tab">資産候補 <span class="badge">2</span></button>
+    </div>
+
+    <!-- List -->
+    <div class="list">
+      <div class="item">
+        <div class="item-row1">
+          <span class="item-vendor">ホムセン橋本店</span>
+          <span class="item-amount">¥8,400</span>
+        </div>
+        <div class="item-row2">
+          <span class="item-meta">2026-05-08 14:23 ・ 田中(職人)</span>
+          <div class="item-flags">
+            <span class="flag bad">missing_job</span>
+          </div>
+        </div>
+        <div class="ai-suggestion">
+          <span class="ai-text">AI推定: <b>◯◯邸</b> (時刻一致・当日午前作業)</span>
+          <button class="ai-accept">承認</button>
+        </div>
+      </div>
+
+      <div class="item">
+        <div class="item-row1">
+          <span class="item-vendor">セルフGS 環状店</span>
+          <span class="item-amount">¥6,200</span>
+        </div>
+        <div class="item-row2">
+          <span class="item-meta">2026-05-09 09:14 ・ 田中(職人)</span>
+          <div class="item-flags">
+            <span class="flag">missing_invoice_number</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="item">
+        <div class="item-row1">
+          <span class="item-vendor">ENEOS 城南店</span>
+          <span class="item-amount">¥5,800</span>
+        </div>
+        <div class="item-row2">
+          <span class="item-meta">2026-05-09 18:22 ・ 山田(職人)</span>
+          <div class="item-flags">
+            <span class="flag bad">duplicate_suspected</span>
+          </div>
+        </div>
+        <div class="ai-suggestion">
+          <span class="ai-text">同日同店: <b>5/9 09:14 ¥6,200</b> と類似</span>
+          <button class="ai-accept">違うものとして残す</button>
+        </div>
+      </div>
+
+      <div class="item">
+        <div class="item-row1">
+          <span class="item-vendor">マキタ販売店</span>
+          <span class="item-amount">¥48,000</span>
+        </div>
+        <div class="item-row2">
+          <span class="item-meta">2026-05-10 11:00 ・ ゆーと</span>
+          <div class="item-flags">
+            <span class="flag info">asset_candidate</span>
+            <span class="flag info">一括償却可</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ Screen B: Expense Detail ============ -->
+  <div class="frame">
+    <div class="topbar">
+      <button class="icon-btn">◀</button>
+      <div class="title" style="flex:1; text-align:center;">経費詳細</div>
+      <button class="icon-btn">⋯</button>
+    </div>
+
+    <div class="detail">
+      <h3>HOMECENTER HASHIMOTO</h3>
+      <div class="id">#EXP-20260508-0123</div>
+      <div class="amount-big">¥8,400</div>
+      <div class="vendor-line">ホムセン橋本店 ・ 2026-05-08 14:23 ・ 田中(立替)</div>
+
+      <div class="status-row">
+        <span class="status-pill classified">classified</span>
+        <span class="flag">missing_invoice_number</span>
+        <button class="verify-btn">verify</button>
+      </div>
+
+      <!-- 紐付け -->
+      <div class="field-group">
+        <h4>紐付け</h4>
+        <div class="field-row">
+          <span class="field-key">Scope</span>
+          <span class="field-val">job</span>
+        </div>
+        <div class="field-row">
+          <span class="field-key">現場</span>
+          <span class="field-val">◯◯邸 内装</span>
+        </div>
+        <div class="field-row">
+          <span class="field-key">カテゴリ</span>
+          <span class="field-val">材料費 › 木材</span>
+        </div>
+        <div class="field-row">
+          <span class="field-key">請求区分</span>
+          <span class="field-val">顧客請求対象</span>
+        </div>
+      </div>
+
+      <!-- レシート -->
+      <div class="field-group">
+        <h4>レシート / OCR</h4>
+        <div class="receipt">
+          <div class="receipt-thumb">[ image ]</div>
+          <div class="receipt-ocr">
+            ホームセンター橋本店<br>
+            2026-05-08 14:23<br>
+            合板12mm 4枚 ¥8,400<br>
+            合計 ¥8,400 (税込)<br>
+            T番号: <span style="color:var(--bad)">抽出失敗</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 税務 -->
+      <div class="field-group">
+        <h4>税務</h4>
+        <div class="field-row">
+          <span class="field-key">税区分</span>
+          <span class="field-val">課税 10%</span>
+        </div>
+        <div class="field-row">
+          <span class="field-key">T番号</span>
+          <span class="field-val missing">未入力 — 補完してください</span>
+        </div>
+        <div class="field-row">
+          <span class="field-key">税抜 / 税額</span>
+          <span class="field-val">¥7,636 / ¥764</span>
+        </div>
+      </div>
+
+      <!-- AI推定理由 -->
+      <div class="field-group">
+        <h4>AI推定の根拠</h4>
+        <div style="font-size:11px; color:var(--text-muted); line-height:1.6;">
+          ・ 現場候補 <b style="color:var(--accent-2)">◯◯邸</b>: スケジュールで 5/8 9:00-12:00 作業、レシート14:23は午前作業の延長と推定<br>
+          ・ カテゴリ <b style="color:var(--accent-2)">木材</b>: OCR品目 "合板12mm" から推定<br>
+          ・ 請求区分 <b style="color:var(--accent-2)">顧客請求対象</b>: 見積項目"造作工事"に該当
+        </div>
+      </div>
+
+      <!-- 編集履歴 -->
+      <div class="field-group">
+        <h4>編集履歴 (append-only)</h4>
+        <div class="history">
+          <div class="history-entry">
+            <div class="history-time">2026-05-08 14:23</div>
+            <div class="history-actor">田中 <span class="actor-tag">職人</span></div>
+            <div class="history-detail">起票: 金額 <code>¥8,400</code> ・ ベンダー <code>ホムセン橋本店</code> ・ 写真添付</div>
+          </div>
+          <div class="history-entry system">
+            <div class="history-time">2026-05-08 14:23</div>
+            <div class="history-actor system">system <span class="actor-tag">OCR</span></div>
+            <div class="history-detail">OCR: 金額/日時/ベンダー 抽出 ・ T番号抽出失敗</div>
+          </div>
+          <div class="history-entry ai">
+            <div class="history-time">2026-05-08 14:23</div>
+            <div class="history-actor ai">ai <span class="actor-tag">推定</span></div>
+            <div class="history-detail">推定: <code>scope:job</code> <code>job:◯◯邸</code> <code>category:木材</code></div>
+          </div>
+          <div class="history-entry">
+            <div class="history-time">2026-05-08 14:25</div>
+            <div class="history-actor">田中 <span class="actor-tag">職人</span></div>
+            <div class="history-detail">確認: scope/job/category 確定 → status: <code>classified</code></div>
+          </div>
+          <div class="history-entry">
+            <div class="history-time">— 待機 —</div>
+            <div class="history-actor" style="color:var(--text-muted)">verify未実施</div>
+            <div class="history-detail">T番号補完してverify推奨</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ Screen C: Capture Flow (Job Picker) ============ -->
+  <div class="frame">
+    <div class="topbar">
+      <button class="icon-btn">◀</button>
+      <div class="title" style="flex:1; text-align:center;">経費 起票</div>
+      <button class="icon-btn">×</button>
+    </div>
+
+    <div style="padding: 18px; background: var(--surface);">
+      <div style="font-size:11px; color:var(--text-muted); margin-bottom: 6px;">レシート読み取り完了</div>
+      <div style="display:flex; align-items:baseline; justify-content:space-between;">
+        <div style="font-size:22px; font-weight:800;">¥8,400</div>
+        <div style="font-size:11px; color:var(--text-muted);">14:23 ・ ホムセン橋本店</div>
+      </div>
+    </div>
+
+    <div class="capture-section">
+      <h3>このレシート、どこの分？</h3>
+      <div class="sub">候補は時刻・場所・予定から推定しています</div>
+
+      <div class="chip-list">
+        <div class="chip recommended">
+          <div>
+            <div class="chip-text">◯◯邸 内装 (午前)</div>
+            <div class="chip-meta">9:00–12:00 ・ 推定理由: 時刻一致</div>
+          </div>
+          <span class="chip-tag">推奨</span>
+        </div>
+        <div class="chip">
+          <div>
+            <div class="chip-text">□□邸 改修 (午後)</div>
+            <div class="chip-meta">13:00–17:00 ・ 推定理由: 同日</div>
+          </div>
+        </div>
+
+        <div class="chip divider">先行仕入れ</div>
+        <div class="chip">
+          <div>
+            <div class="chip-text">△△邸 リフォーム</div>
+            <div class="chip-meta">5/15着工予定 ・ job_advance</div>
+          </div>
+        </div>
+
+        <div class="chip divider">そのほか</div>
+        <div class="chip">
+          <div>
+            <div class="chip-text">共通在庫 (stockpile)</div>
+            <div class="chip-meta">どの現場でも使う消耗品</div>
+          </div>
+        </div>
+        <div class="chip">
+          <div>
+            <div class="chip-text">本部 (overhead)</div>
+            <div class="chip-meta">事務所・工具など</div>
+          </div>
+        </div>
+      </div>
+
+      <button class="later-btn">あとで決める (未割当バケットへ)</button>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="frame" style="padding: 0;">
+    <div class="legend">
+      <h4>このモックの設計原則</h4>
+      <ul>
+        <li><b>番頭レス可視性</b>: 担当者を持たず、状態バケットで全経費が一望できる</li>
+        <li><b>滞留が見える</b>: ⚠アイコンと色で老化を表現（黄=注意、赤=警告）</li>
+        <li><b>AI推定は明示</b>: 推定根拠を必ず添え、人間の確認アクションが残る</li>
+        <li><b>編集履歴は append-only</b>: ai/system/職人 全アクターの動きが時系列で見える</li>
+        <li><b>scope 4値</b>: job / job_advance / stockpile / overhead で先行仕入れと共通材を吸収</li>
+        <li><b>"あとで決める"</b>: 職人を止めない、未割当バケットで後回しを可視化</li>
+        <li><b>請求対象/asset/missing_invoice</b>: 不正検知ではなく原価・請求・証憑のリスク検知</li>
+      </ul>
+      <p style="margin-top:8px;">関連: <code>docs/MONEY_EXPENSE_FLOW.md</code> / <code>docs/MONEY_EXPENSE_FLOW_GAP_ANALYSIS.md</code></p>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
