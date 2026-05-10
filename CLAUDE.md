@@ -60,7 +60,7 @@
 - `HANDOFF.md` 全文 (最大270行) → L0（10行）で十分、必要時にL1/L2を追加
 - `design-system/UNIFIED_SEMI_DAO.md` (3,008行)
 - `design-system/SEMI_DAO_DESIGN.md` (1,270行)
-- `docs/DESIGN_PHILOSOPHY.md` 全文 (1,007行) → `genba-quest-dao-principles`で十分
+- `docs/DESIGN_PHILOSOPHY.md` 全文 (約900行) → `genba-quest-dao-principles`で十分
 
 ## Architecture Overview（3行で理解）
 
@@ -79,26 +79,37 @@
 
 ```
 frontend/src/
-  pages/       → Page components (Dashboard, Accounting, Perks, Sherpa, Sites)
-  components/  → Reusable components
+  pages/       → Page components (Today, Calendar, Money, Sites, Communications,
+                  PathRewardConfirmation, Settings)
+  components/  → Reusable components (ApprovalCard, SherpaChat, ExpenseModal,
+                  InvoiceModal, SiteCompleteWithCloseModal, etc.)
   lib/api.ts   → API client
+  stores/      → Zustand stores
   styles/      → Global CSS
 
 server/src/
-  routes/      → Express route handlers
-  services/    → Business logic
+  routes/      → Express route handlers (proposals, sherpa, accounting, sites,
+                  calendar, communications, pathRewards, pathModule, etc.)
+  services/    → Business logic (ProposalService, PolicyEngine,
+                  PathV3*Service, SherpaService, etc.)
   middleware/  → Auth middleware
   lib/         → Supabase client
 
-server/sql/    → Migration files (000-012)
-docs/          → Architecture documents
-design-system/ → Design specs
+supabase/migrations/ → Migration files (canonical location)
+docs/                → Architecture documents
+design-system/       → Design specs (Calm Cockpit / Work OS)
 ```
 
 ## Implementation Phase
 
-現在: **Phase A-0**（MVP基盤 - Proposalログ記録）
-次: Phase A-1（承認フロー）→ B（Sherpa統合）→ C（UI刷新）→ D（高度機能）
+線形ロードマップではなく「並行実装中」の現実：
+
+- **Phase A**（基盤）: ✅ Proposalモデル + Policy評価 + 承認フロー = 稼働中
+- **Phase B**（AI統合）: 🔄 Sherpa Chat / OCR / Inline Suggestion 部分実装
+- **Phase C**（UI刷新）: 🔄 Today / Calendar / Money / Sites / Communications 実装中（Calm Cockpit方向）
+- **Phase D**（高度化）: 🔄 PATH governance V3.1/V3.2 / Month Close / Invoice flow 部分稼働
+
+現在の優先MVPアウトカム: **請求漏れゼロ + 黒字可視化**（詳細は `docs/DESIGN_PHILOSOPHY.md` 思想セクション）
 
 ## Session Rules（必ず守る）
 
@@ -138,7 +149,6 @@ When creating new skills in `.claude/skills/`:
 このプロジェクトは複数のAIエージェントで作業可能：
 - **Claude Code**: `.claude/` (skills + settings)
 - **Codex**: `AGENTS.md` (project instructions)
-- **Cursor**: `.cursor/rules/`
 - **Gemini CLI**: `GEMINI.md` + `.gemini/commands/`
 - **Antigravity (Gemini)**: `.agent/skills/` (symlink to `.claude/skills/`)
 

@@ -31,20 +31,31 @@ genba-quest/
 │       └── styles/         # Global CSS
 ├── server/
 │   └── src/
-│       ├── routes/         # Express handlers (accounting, badges, monsters, party, perks, proposals, sherpa, sites, stamina, webhooks)
-│       ├── services/       # Business logic
+│       ├── routes/         # Express handlers (proposals, sherpa, accounting, sites, calendar, communications, pathRewards, pathModule, pathEvaluations, badges, monsters, party, perks, stamina, webhooks, etc.)
+│       ├── services/       # Business logic (ProposalService, PolicyEngine, PathV3*Service, SherpaService, etc.)
 │       ├── middleware/     # authMiddleware (JWT verification)
 │       ├── lib/            # supabaseAdmin client
 │       └── scripts/        # Utility scripts
-├── server/sql/             # Migration files (000-012, sequential)
-├── docs/                   # Architecture documents (9 files)
-├── design-system/          # Design specs (8 files)
+├── supabase/migrations/    # Migration files (canonical Supabase location)
+├── docs/                   # Architecture documents
+├── design-system/          # Design specs (Calm Cockpit / Work OS)
 └── AGENTS.md               # This file
 ```
 
-## Architecture: 3 Core Principles
+## MVP Outcomes (Decision Filter)
 
-### 1. Proposal-Centric State Management
+When in doubt about scope or priority, ask: **does this advance these two outcomes?**
+
+1. **請求漏れゼロ** — work done always converts to an invoice, no gap between completed sites and unbilled
+2. **黒字可視化** — site-level profit and monthly P/L are immediately visible
+
+Everything else (Sherpa, PATH governance, reward distribution, communications) exists to support or extend these two.
+
+## Architecture: 3 Backend Pillars + UX Principles
+
+### Backend Pillars
+
+#### 1. Proposal-Centric State Management
 
 All state changes go through Proposals. No direct DB writes.
 
@@ -70,16 +81,21 @@ Proposal(approved) → LedgerEvent → LedgerTransaction → LedgerEntry[]
 - Balanced: SUM(debit) = SUM(credit) always
 - No direct UPDATE on accounting data
 
-### 3. AI as Policy-Bound Actor
+#### 3. AI as Policy-Bound Actor
 
 AI (Sherpa) is a first-class organization member, but constrained by Policy.
 
-**AI Self-Approval Prohibition (Absolute Gate):**
-```typescript
-if (proposal.created_by.type === 'ai' && approver.type === 'ai') {
-  throw new Error('AI_SELF_APPROVAL_PROHIBITED');
-}
-```
+**AI Self-Approval Prohibition (Absolute Gate):** When `proposal.created_by.type === 'ai' && approver.type === 'ai'`, approval must be rejected. This is the upper gate above Policy evaluation; it cannot be bypassed.
+
+### UX Principles (Calm Cockpit + Cursor-Tab style)
+
+The full source is `design-system/genba-quest/MASTER.md` (Calm Cockpit) and `docs/DESIGN_PHILOSOPHY.md` (UX原則 section). Summary:
+
+1. **Input-zero / Decision-human** — humans decide what/who/how-much; AI removes typing, look-up, and verification load. Humans aren't short on thinking, they're short on bandwidth.
+2. **Direct + Sherpa split** — frequent simple operations stay in Direct UI; complex multi-step / natural-language-faster operations go through Sherpa Chat (FAB-invoked, resident but silent until called).
+3. **Suggestion 5 levels** — Inline / Next Action Card / Why Tooltip / Guard / Sherpa Chat. Don't mix levels.
+4. **育つフォーム (progressive forms)** — show 1-2 fields first, expand on context, defer integrity checks to Proposal validation.
+5. **AI is not on the critical path** — input must succeed even without AI; suggestions are accept-only-on-tap, undo-in-one-step, with offline graceful degradation.
 
 ## Actor Types
 
@@ -106,15 +122,39 @@ if (proposal.created_by.type === 'ai' && approver.type === 'ai') {
 4. **No AI Self-Approval** - AI cannot approve proposals created by AI
 5. **Policy Server-Side** - Policy evaluation always happens server-side (never frontend)
 
-## Implementation Phases
+## Implementation Status (Parallel, not Linear)
 
-| Phase | Content | Status |
-|-------|---------|--------|
-| A-0 | MVP: Proposal CRUD + log recording | Current |
-| A-1 | PolicyEngine + approval flow | Next |
-| B | Sherpa integration + AI constraints | Planned |
-| C | UI overhaul (Today/Calendar/Sites/Money) | Planned |
-| D | Advanced features (multi-approval, audit dashboard) | Planned |
+The legacy "Phase A-0 → A-1 → B → C → D" linear roadmap is **retired**. Reality: multiple phases run in parallel. Track progress with the **invariants 4-bucket model** from `docs/DESIGN_PHILOSOPHY.md` — also surfaced via the `phase-progress-checker` skill.
+
+### Locked-in invariants (do NOT regress)
+
+- ✅ Proposal-centric state changes (`proposals` table is the entry point)
+- ✅ Policy evaluation = server-side final gate (`PolicyEngine`)
+- ✅ Actor 4-type distinction recorded (human/ai/integration/system)
+- ✅ AI self-approval gate (`canApprove` two-stage)
+- ✅ `pending` approval flow live (Today screen approval cards)
+- ✅ Double-entry Ledger (events / transactions / entries)
+- ✅ Transaction boundary via RPC (`approve_proposal_atomic`)
+- ✅ Sherpa Chat (FAB-invoked, drafts Proposals)
+- ✅ PATH governance V3.1 / V3.2
+- ✅ MonthClose (`month_closes` table)
+
+### In flight
+
+Inline Suggestion / 育つフォーム adoption · Calm Cockpit 5 principles screen-wide · Invoice flow (請求漏れゼロ MVP) · Communication review/task loop · PATH governance Read Models
+
+### Next gates (priority — directly enables MVP outcomes)
+
+- [ ] 請求漏れゼロ measurement dashboard
+- [ ] 黒字可視化 measurement (site profit / monthly P/L)
+- [ ] closed-month Guard (UI side; API side already enforced)
+- [ ] AI Suggestion reversibility (one-tap undo / ignore)
+- [ ] Sherpa output transparency (Calm Cockpit #5 — Proposal/evidence/impact/approval path always present)
+- [ ] Production ops gate (alert wiring + Runbook drill)
+
+### Backlog
+
+AI auto-approval scope expansion · Policy Editor · audit dashboard · multi-org · integration actor full operationalization
 
 ## Session Rules (MUST follow)
 
@@ -154,19 +194,20 @@ Canonical protocol: `docs/AGENT_OPS.md`
 
 ### Database
 - **RLS**: Always enable Row Level Security
-- **Migrations**: Sequential numbered files in `server/sql/` (e.g., `000_fix_profiles.sql`)
+- **Migrations**: Supabase-managed timestamped files in `supabase/migrations/`
 - **org_id**: Data boundary - all queries scoped by org_id
 
 ## Detailed Documentation
 
 | Document | Content | Lines |
 |----------|---------|-------|
-| `docs/DESIGN_PHILOSOPHY.md` | Full architecture design | 1,007 |
+| `docs/DESIGN_PHILOSOPHY.md` | Full architecture + UX design | ~900 |
 | `docs/PROPOSAL_SYSTEM.md` | Proposal workflow & types | 336 |
 | `docs/LEDGER_SYSTEM.md` | Double-entry accounting | 439 |
 | `docs/POLICY_SYSTEM.md` | Policy/rules framework | 413 |
 | `docs/SHERPA_ARCHITECTURE.md` | AI Orchestrator design | 611 |
 | `docs/UI_ARCHITECTURE.md` | Frontend UI structure | 745 |
+| `design-system/genba-quest/MASTER.md` | Calm Cockpit UI direction (5 principles) | 237 |
 | `docs/REWARD_SYSTEM.md` | T-score reward distribution | 312 |
 | `docs/EVOLUTION_ROADMAP.md` | Project timeline & phases | 308 |
 
@@ -206,13 +247,13 @@ When asked to list available skills:
 
 | Skill | Purpose | Lines |
 | ----- | ------- | ----- |
-| `genba-quest-dao-principles` | DAO設計原則（凝縮版） | 75 |
+| `genba-quest-dao-principles` | DAO×UX設計原則（凝縮版） | 95 |
 | `genba-quest-tech-stack` | 技術スタック定義 | 67 |
 | `genba-quest-design-system` | UIデザイン仕様 | 180 |
 | `ux-writing` | UI文言・マイクロコピー（4基準＋アクセシビリティ） | — |
 | `genba-quest-principles` | コーディング原則 | 98 |
 | `proposal-type-generator` | Proposal型スキャフォールド | 188 |
-| `phase-progress-checker` | フェーズ進捗確認 | 178 |
+| `phase-progress-checker` | 実装進捗確認（不変条件4層モデル） | 189 |
 | `dao-impl-checker` | DAO実装チェック | 130 |
 | `design-executor` | 設計書→実装 | 204 |
 | `accounting-sherpa` | 自然言語で経理操作 | 267 |
@@ -226,11 +267,11 @@ When asked to list available skills:
 | ---- | ----------- | ----------------- |
 | 設計判断・レビュー | `$genba-quest-dao-principles` | `docs/DESIGN_PHILOSOPHY.md` |
 | 技術選定 | `$genba-quest-tech-stack` | `server/package.json` |
-| UI実装 | `$genba-quest-design-system` | `docs/UI_ARCHITECTURE.md` |
+| UI実装 | `$genba-quest-design-system` | `docs/UI_ARCHITECTURE.md` + `design-system/genba-quest/MASTER.md` |
 | UI文言・マイクロコピー | `$ux-writing` | `.claude/skills/ux-writing/references/` |
 | コーディング規約 | `$genba-quest-principles` | — |
 | Proposal型追加 | `$proposal-type-generator` | `docs/PROPOSAL_SYSTEM.md` |
-| 進捗確認 | `$phase-progress-checker` | `docs/EVOLUTION_ROADMAP.md` |
+| 進捗確認・次の優先度 | `$phase-progress-checker` | `docs/DESIGN_PHILOSOPHY.md` (実装フェーズ section) |
 | DAO実装チェック | `$dao-impl-checker` | — |
 | 設計書の実装 | `$design-executor` | `design-system/*.md` |
 | 会計操作 | `$accounting-sherpa` | `docs/LEDGER_SYSTEM.md` |
@@ -274,7 +315,6 @@ Orchestrator `$ln-620-codebase-auditor` coordinates 9 parallel workers:
 This project supports multiple AI coding agents:
 - **Claude Code**: `.claude/` (skills + settings) + `CLAUDE.md`
 - **Codex**: `AGENTS.md` (this file) + `.agents/skills/` (symlink to `.claude/skills/`)
-- **Cursor**: `.cursor/rules/`
 - **Gemini CLI**: `GEMINI.md` + `.gemini/commands/`
 - **Antigravity (Gemini)**: `.agent/skills/` (symlink to `.claude/skills/`)
 
