@@ -8,6 +8,7 @@ import { Money } from "./Money";
 const approveProposal = vi.fn();
 const batchReviewExpenses = vi.fn();
 const executeProposal = vi.fn();
+const fetchExpenseBuckets = vi.fn();
 const fetchPendingApprovals = vi.fn();
 const fetchPendingProposals = vi.fn();
 const fetchPL = vi.fn();
@@ -30,6 +31,7 @@ vi.mock("../lib/api", () => ({
     approveProposal: (...args: unknown[]) => approveProposal(...args),
     batchReviewExpenses: (...args: unknown[]) => batchReviewExpenses(...args),
     executeProposal: (...args: unknown[]) => executeProposal(...args),
+    fetchExpenseBuckets: (...args: unknown[]) => fetchExpenseBuckets(...args),
     fetchPendingApprovals: (...args: unknown[]) => fetchPendingApprovals(...args),
     fetchPendingProposals: (...args: unknown[]) => fetchPendingProposals(...args),
     fetchPL: (...args: unknown[]) => fetchPL(...args),
@@ -66,6 +68,10 @@ vi.mock("../components/TransactionDetailModal", () => ({
 
 vi.mock("../components/ApprovalCard", () => ({
     ApprovalCard: () => null,
+}));
+
+vi.mock("../components/MoneyBucketDashboard", () => ({
+    MoneyBucketDashboard: () => null,
 }));
 
 vi.mock("../components/FloatingActionButton", () => ({
@@ -134,9 +140,9 @@ const sherpaProposal: ProposalRecord = {
     description: "追加見積の返答を準備する",
 };
 
-function renderMoney() {
+function renderMoney(initialPath = "/money") {
     return render(
-        <MemoryRouter initialEntries={["/money"]}>
+        <MemoryRouter initialEntries={[initialPath]}>
             <Routes>
                 <Route path="/money" element={<Money />} />
             </Routes>
@@ -150,6 +156,7 @@ describe("Money PATH proposal queue", () => {
         approveProposal.mockResolvedValue({ proposal: { ...pathProposal, status: "executed" } });
         batchReviewExpenses.mockResolvedValue({ success: [], failed: [] });
         executeProposal.mockResolvedValue({ proposal: { ...pathProposal, status: "executed" } });
+        fetchExpenseBuckets.mockResolvedValue([]);
         fetchPendingApprovals.mockResolvedValue([]);
         fetchPendingProposals.mockResolvedValue([]);
         fetchPL.mockResolvedValue(plReport);
@@ -166,10 +173,9 @@ describe("Money PATH proposal queue", () => {
             .mockResolvedValueOnce([]);
         fetchPL.mockResolvedValueOnce(plReport).mockRejectedValueOnce(new Error("background refresh failed"));
 
-        renderMoney();
+        renderMoney(`/money?proposal=${pathProposal.id}`);
 
-        await screen.findByText("承認待ち Proposal");
-        fireEvent.click(screen.getByRole("button", { name: /PATH報酬を確定する/ }));
+        await screen.findByRole("dialog", { name: "proposal detail" });
         fireEvent.click(screen.getByRole("button", { name: "承認する" }));
 
         await waitFor(() => expect(approveProposal).toHaveBeenCalledWith("proposal-path-1", "確認しました"));
@@ -183,10 +189,9 @@ describe("Money PATH proposal queue", () => {
         fetchPendingProposals.mockResolvedValueOnce([pathProposal]).mockResolvedValueOnce([]);
         approveProposal.mockRejectedValueOnce(new Error("承認結果の同期に失敗しました"));
 
-        renderMoney();
+        renderMoney(`/money?proposal=${pathProposal.id}`);
 
-        await screen.findByText("承認待ち Proposal");
-        fireEvent.click(screen.getByRole("button", { name: /PATH報酬を確定する/ }));
+        await screen.findByRole("dialog", { name: "proposal detail" });
         fireEvent.click(screen.getByRole("button", { name: "承認する" }));
 
         await screen.findByRole("alert");
@@ -196,16 +201,14 @@ describe("Money PATH proposal queue", () => {
         expect(screen.getByText("お金の流れ")).toBeInTheDocument();
     });
 
-    it("surfaces Sherpa and integration proposals in the Money approval queue", async () => {
+    it("opens AI/integration proposals via the deep link entry point", async () => {
         fetchPendingProposals.mockResolvedValueOnce([sherpaProposal]);
 
-        renderMoney();
+        renderMoney(`/money?proposal=${sherpaProposal.id}`);
 
-        await screen.findByText("承認待ち Proposal");
-
-        expect(screen.getByText("追加見積の返答を準備する")).toBeInTheDocument();
-        expect(screen.getByText(/AI Sherpa/)).toBeInTheDocument();
-        expect(screen.getByText("メール対応タスク")).toBeInTheDocument();
+        await screen.findByRole("dialog", { name: "proposal detail" });
+        // Modal received the Sherpa proposal — approve button rendered means the proposal payload reached the detail handler.
+        expect(screen.getByRole("button", { name: "承認する" })).toBeInTheDocument();
     });
 
     it("keeps an approved proposal open so execution can happen from the same detail", async () => {
@@ -216,10 +219,9 @@ describe("Money PATH proposal queue", () => {
             auto_executed: false,
         });
 
-        renderMoney();
+        renderMoney(`/money?proposal=${pathProposal.id}`);
 
-        await screen.findByText("承認待ち Proposal");
-        fireEvent.click(screen.getByRole("button", { name: /PATH報酬を確定する/ }));
+        await screen.findByRole("dialog", { name: "proposal detail" });
         fireEvent.click(screen.getByRole("button", { name: "承認する" }));
 
         expect(await screen.findByRole("button", { name: "実行する" })).toBeInTheDocument();

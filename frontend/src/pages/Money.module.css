@@ -407,6 +407,29 @@
     background: var(--md-sys-color-primary-container);
 }
 
+.plMetricButton {
+    appearance: none;
+    border: none;
+    color: inherit;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: center;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.plMetricButton:hover:not(:disabled) {
+    box-shadow: 0 4px 16px rgba(7, 24, 22, 0.08);
+}
+
+.plMetricButton:active:not(:disabled) {
+    transform: scale(0.98);
+}
+
+.plMetricButton:disabled {
+    cursor: default;
+    opacity: 0.7;
+}
+
 .metricLabel {
     font: var(--md-sys-typescale-label-small);
     color: var(--md-sys-color-on-surface-variant);
