@@ -33,7 +33,6 @@ import {
     type ProposalRecord,
 } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
-import { getPathProposalContext } from "../lib/pathProposal";
 import { ExpenseModal } from "../components/ExpenseModal";
 import { SalesModal } from "../components/SalesModal";
 import { InvoiceModal } from "../components/InvoiceModal";
@@ -62,33 +61,6 @@ const getAccountingImpactSign = (tx: Pick<AccountingTransaction, "kind" | "amoun
     }
     return isReversalAmount ? "-" : "+";
 };
-
-const PROPOSAL_QUEUE_LABELS: Record<string, string> = {
-    "expense.create": "経費登録",
-    "expense.update": "経費更新",
-    "expense.void": "経費取消",
-    "income.create": "売上登録",
-    "invoice.create": "請求作成",
-    "invoice.send": "請求送信",
-    "invoice.mark_paid": "入金記録",
-    "communication.review": "メール要点確認",
-    "communication.task": "メール対応タスク",
-    "policy.update": "PATH policy publish",
-    "evaluation.finalize": "月締め",
-    "reward.calculate": "報酬 run",
-    "reward.adjust": "補正 / reversal",
-    "skill.achieve": "技能認定",
-    "skill.revoke": "技能取消",
-};
-
-const PROPOSAL_AMOUNT_KEYS = [
-    "amount_total",
-    "total_amount",
-    "amount",
-    "total",
-    "payout_amount",
-    "reward_amount",
-];
 
 // 検索フィルター型
 interface SearchFilters {
@@ -161,59 +133,6 @@ const defaultFilters: SearchFilters = {
     dateTo: "",
     query: "",
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function findProposalPayloadValue(payload: Record<string, unknown>, keys: string[]): unknown {
-    for (const key of keys) {
-        const value = payload[key];
-        if (value !== undefined && value !== null && value !== "") {
-            return value;
-        }
-    }
-
-    for (const value of Object.values(payload)) {
-        if (!isRecord(value)) continue;
-        for (const key of keys) {
-            const nested = value[key];
-            if (nested !== undefined && nested !== null && nested !== "") {
-                return nested;
-            }
-        }
-    }
-
-    return null;
-}
-
-function formatProposalAmount(value: unknown): string | null {
-    if (typeof value === "number" && Number.isFinite(value)) {
-        return `¥${Math.abs(value).toLocaleString()}`;
-    }
-    if (typeof value === "string") {
-        const normalized = value.replace(/[,\s¥￥]/g, "");
-        const num = Number(normalized);
-        if (Number.isFinite(num)) {
-            return `¥${Math.abs(num).toLocaleString()}`;
-        }
-    }
-    return null;
-}
-
-function getProposalAmountLabel(proposal: ProposalRecord): string | null {
-    return formatProposalAmount(findProposalPayloadValue(proposal.payload, PROPOSAL_AMOUNT_KEYS));
-}
-
-function getProposalActorLabel(proposal: ProposalRecord): string {
-    const actorType = {
-        human: "人",
-        ai: "AI",
-        integration: "連携",
-        system: "自動",
-    }[proposal.created_by.type];
-    return `${actorType} ${proposal.created_by.name}`;
-}
 
 // モバイル判定
 const useIsMobile = () => {
@@ -348,14 +267,16 @@ export function Money() {
         }
     }, [pendingProposals, searchParams]);
 
-    const openProposal = (proposal: ProposalRecord) => {
+    // ベル経由で来た「経費承認」リクエストを ApprovalsModal で開く
+    useEffect(() => {
+        if (searchParams.get("inbox") !== "approvals") {
+            return;
+        }
+        setShowApprovalsModal(true);
         const next = new URLSearchParams(searchParams);
-        next.set("proposal", proposal.id);
-        setSearchParams(next, { replace: false });
-        setProposalError(null);
-        setProposalNotice(null);
-        setSelectedProposal(proposal);
-    };
+        next.delete("inbox");
+        setSearchParams(next, { replace: true });
+    }, [searchParams, setSearchParams]);
 
     const handleProposalMutation = async (
         proposalId: string,
@@ -404,6 +325,7 @@ export function Money() {
             } catch (refreshErr) {
                 console.error("[Money] proposal queue refresh failed:", refreshErr);
             }
+            window.dispatchEvent(new CustomEvent("pending-proposals-updated"));
             void loadData({ keepCurrentView: true, suppressPageError: true });
         } catch (err: unknown) {
             setProposalError(getErrorMessage(err));
@@ -412,6 +334,7 @@ export function Money() {
             } catch (refreshErr) {
                 console.error("[Money] proposal queue refresh failed after mutation error:", refreshErr);
             }
+            window.dispatchEvent(new CustomEvent("pending-proposals-updated"));
             void loadData({ keepCurrentView: true, suppressPageError: true });
         } finally {
             setProposalActing(false);
@@ -515,6 +438,7 @@ export function Money() {
         : filteredTransactions.slice(0, 10);
 
     const handleApprovalComplete = () => {
+        window.dispatchEvent(new CustomEvent("pending-approvals-updated"));
         loadData();
     };
 
@@ -628,84 +552,11 @@ export function Money() {
 
     return (
         <div className={styles.container}>
-            {/* 承認待ちアラートバナー */}
-            <AnimatePresence>
-                {pendingApprovals.length > 0 && (
-                    <motion.div
-                        className={styles.alertBanner}
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        onClick={() => setShowApprovalsModal(true)}
-                    >
-                        <div className={styles.alertContent}>
-                            <AlertTriangle size={18} />
-                            <span>承認待ち <strong>{pendingApprovals.length}件</strong></span>
-                        </div>
-                        <ChevronRight size={18} />
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
             {proposalNotice && (
                 <div className={styles.proposalNotice}>
                     <CheckCircle size={16} />
                     <span>{proposalNotice}</span>
                 </div>
-            )}
-
-            {pendingProposals.length > 0 && (
-                <motion.section
-                    className={styles.pathQueueSection}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.05 }}
-                >
-                    <div className={styles.pathQueueHeader}>
-                        <div>
-                            <p className={styles.pathQueueEyebrow}>Proposal approval queue</p>
-                            <h2 className={styles.pathQueueTitle}>承認待ち Proposal</h2>
-                            <p className={styles.pathQueueDescription}>
-                                Sherpa・Gmail・PATH 由来の提案を、お金の画面で確認して承認・却下できます。
-                            </p>
-                        </div>
-                    </div>
-                    <div className={styles.pathQueueList}>
-                        {pendingProposals.map((proposal) => {
-                            const context = getPathProposalContext(proposal);
-                            const amountLabel = getProposalAmountLabel(proposal);
-                            const actorLabel = getProposalActorLabel(proposal);
-
-                            return (
-                                <button
-                                    key={proposal.id}
-                                    type="button"
-                                    className={styles.pathQueueItem}
-                                    onClick={() => openProposal(proposal)}
-                                >
-                                    <div className={styles.pathQueueItemTop}>
-                                        <span className={styles.pathQueueKind}>
-                                            {PROPOSAL_QUEUE_LABELS[proposal.type] || proposal.type}
-                                        </span>
-                                        <span className={styles.pathQueueApprovals}>
-                                            承認 {proposal.required_approvals}名
-                                        </span>
-                                    </div>
-                                    <strong className={styles.pathQueueItemTitle}>{proposal.description}</strong>
-                                    <p className={styles.pathQueueMeta}>
-                                        {amountLabel ? `${amountLabel} ・ ` : ""}
-                                        {actorLabel}
-                                    </p>
-                                    <p className={styles.pathQueueMeta}>
-                                        {context?.month ? `PATH ${context.month}` : "Proposal review"}
-                                        {context?.memberId ? ` ・ member ${context.memberId.slice(0, 8)}...` : ""}
-                                    </p>
-                                    <span className={styles.pathQueueAction}>詳細を確認</span>
-                                </button>
-                            );
-                        })}
-                    </div>
-                </motion.section>
             )}
 
             {/* 今月の経理サマリー */}
@@ -765,13 +616,25 @@ export function Money() {
                             <PLMetric label="売上" value={pl.sales} color="income" />
                             <PLMetric label="経費" value={pl.expenses} color="expense" negative />
                             <PLMetric label="分配可能" value={pl.distributable} color="distribute" badge="70%" />
-                            <article className={styles.plMetric}>
+                            <button
+                                type="button"
+                                className={`${styles.plMetric} ${styles.plMetricButton}`}
+                                onClick={() => setShowApprovalsModal(true)}
+                                disabled={pendingApprovals.length === 0}
+                                aria-label={
+                                    pendingApprovals.length === 0
+                                        ? "承認待ちはありません"
+                                        : `承認待ち ${pendingApprovals.length}件を開く`
+                                }
+                            >
                                 <span className={styles.metricLabel}>承認待ち</span>
                                 <span className={`${styles.metricValue} ${styles.pendingMetric}`}>
                                     {pendingApprovals.length}件
                                 </span>
-                                <span className={styles.metricBadge}>要確認</span>
-                            </article>
+                                <span className={styles.metricBadge}>
+                                    {pendingApprovals.length === 0 ? "なし" : "タップで確認"}
+                                </span>
+                            </button>
                         </div>
                     </div>
                 </motion.section>

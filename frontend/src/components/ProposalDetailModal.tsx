@@ -1,9 +1,8 @@
-import { useState } from "react";
+import { createElement, useState } from "react";
 import { motion } from "framer-motion";
-import { X, CheckCircle, XCircle, Zap, MessageSquare, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
-import { Link } from "react-router-dom";
+import { CheckCircle, MessageSquare, X, XCircle, Zap } from "lucide-react";
 import type { ProposalRecord } from "../lib/api";
-import { buildPathProposalHref, getPathProposalContext, isPathModuleProposal } from "../lib/pathProposal";
+import { resolveProposalBody } from "./proposalBodies";
 import styles from "./ProposalDetailModal.module.css";
 
 interface ProposalDetailModalProps {
@@ -17,212 +16,9 @@ interface ProposalDetailModalProps {
     actionError?: string | null;
 }
 
-const PROPOSAL_TYPE_LABELS: Record<string, string> = {
-    "expense.create": "経費登録",
-    "expense.update": "経費更新",
-    "expense.void": "経費取消",
-    "income.create": "売上登録",
-    "income.update": "売上更新",
-    "invoice.create": "請求作成",
-    "invoice.send": "請求送信",
-    "invoice.mark_paid": "入金記録",
-    "reward.calculate": "報酬計算",
-    "reward.adjust": "報酬調整",
-    "skill.achieve": "スキル達成",
-    "skill.revoke": "スキル取消",
-    "evaluation.submit": "評価提出",
-    "evaluation.finalize": "評価確定",
-    "assignment.create": "アサイン作成",
-    "assignment.update": "アサイン更新",
-    "assignment.cancel": "アサイン取消",
-    "communication.review": "メール要点確認",
-    "communication.task": "メール対応タスク",
-    "task.revision.request": "修正指示",
-    "site.create": "現場作成",
-    "site.complete": "現場完了",
-    "policy.update": "ポリシー更新",
-    "luqo.catalog.add": "スキル項目追加申請",
-    "luqo.star.achieve": "スター達成申請",
-    "luqo.score.update": "LUQOスコア更新",
-    "luqo.reward.calculate": "月次報酬計算",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-    draft: "下書き",
-    pending: "承認待ち",
-    approved: "承認済み",
-    rejected: "却下",
-    executed: "実行済み",
-};
-
-const PAYLOAD_LABELS: Record<string, string> = {
-    vendor_name: "取引先",
-    amount: "金額",
-    amount_total: "合計金額",
-    amount_subtotal: "小計",
-    tax_amount: "消費税",
-    total_amount: "合計金額",
-    total: "合計",
-    category: "カテゴリ",
-    recorded_date: "日付",
-    date: "日付",
-    transaction_date: "取引日",
-    description: "摘要",
-    memo: "メモ",
-    site_id: "現場ID",
-    cost_center: "コストセンター",
-    currency: "通貨",
-    worker_id: "作業者ID",
-    assignee_id: "アサインID",
-    source_message_subject: "メール件名",
-    source_message_from: "送信者",
-    task_kind: "タスク種別",
-    priority: "優先度",
-    due_date: "期限",
-    target_proposal_id: "対象提案",
-    target_type: "対象タイプ",
-};
-
-const AMOUNT_KEYS = new Set([
-    "amount", "amount_total", "total_amount", "total", "value",
-    "amount_subtotal", "tax_amount",
-]);
-
-const HIDDEN_PAYLOAD_KEYS = new Set([
-    "source_message_subject",
-    "source_message_from",
-    "source_message_body_preview",
-    "source_message_body_full",
-    "email_subject",
-    "email_from",
-    "email_body_preview",
-    "email_body_full",
-    "suggested_tasks",
-    "target_snapshot",
-]);
-
-function getPayloadText(payload: Record<string, unknown>, keys: string[]): string | null {
-    for (const key of keys) {
-        const value = payload[key];
-        if (typeof value === "string" && value.trim().length > 0) {
-            return value.trim();
-        }
-    }
-    return null;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function getNestedPayloadValue(payload: Record<string, unknown>, keys: string[]): unknown {
-    for (const key of keys) {
-        const direct = payload[key];
-        if (direct !== undefined && direct !== null && direct !== "") {
-            return direct;
-        }
-    }
-
-    for (const value of Object.values(payload)) {
-        if (!isRecord(value)) continue;
-        for (const key of keys) {
-            const nested = value[key];
-            if (nested !== undefined && nested !== null && nested !== "") {
-                return nested;
-            }
-        }
-    }
-
-    return null;
-}
-
-function formatAmount(value: unknown): string | null {
-    if (typeof value === "number" && Number.isFinite(value)) {
-        return `¥${Math.abs(value).toLocaleString()}`;
-    }
-    if (typeof value === "string") {
-        const normalized = value.replace(/[,\s¥￥]/g, "");
-        const num = Number(normalized);
-        if (Number.isFinite(num)) {
-            return `¥${Math.abs(num).toLocaleString()}`;
-        }
-    }
-    return null;
-}
-
-function getProposalAmountLabel(proposal: ProposalRecord): string {
-    const value = getNestedPayloadValue(proposal.payload, [
-        "amount_total",
-        "total_amount",
-        "amount",
-        "total",
-        "payout_amount",
-        "reward_amount",
-    ]);
-    return formatAmount(value) || "金額なし";
-}
-
-function getLedgerImpactLabel(proposal: ProposalRecord): string {
-    if (proposal.type.startsWith("expense.")) {
-        return "承認後、経費Eventと支出仕訳を追加";
-    }
-    if (proposal.type.startsWith("income.") || proposal.type.startsWith("invoice.")) {
-        return "承認後、売上/請求EventとLedgerへ反映";
-    }
-    if (proposal.type.startsWith("reward.") || proposal.type.startsWith("luqo.reward.")) {
-        return "承認後、報酬計算Eventと支給Ledgerへ反映";
-    }
-    if (proposal.type.startsWith("assignment.")) {
-        return "承認後、現場アサインのRead Modelへ反映";
-    }
-    if (proposal.type.startsWith("communication.")) {
-        return "承認後、メール由来の記録/対応タスクへ反映";
-    }
-    if (proposal.type.startsWith("site.")) {
-        return "承認後、現場状態と関連Eventへ反映";
-    }
-    return "承認後、Proposal実行でEventへ反映";
-}
-
-function getRiskLabel(proposal: ProposalRecord, amountLabel: string): string {
-    const explicitRisk = getPayloadText(proposal.payload, ["risk_level", "risk", "risk_reason"]);
-    if (explicitRisk) return explicitRisk;
-    if (proposal.created_by.type === "ai") {
-        return "AI作成。人間承認が必要";
-    }
-    if (proposal.created_by.type === "integration") {
-        return "外部連携。原本と内容を確認";
-    }
-    if (proposal.required_approvals > 1) {
-        return "高額または重要変更。複数承認";
-    }
-    if (amountLabel !== "金額なし") {
-        return "金額影響あり。Ledger反映前に確認";
-    }
-    return "通常リスク";
-}
-
-function formatPayloadValue(key: string, value: unknown): string {
-    if (value === null || value === undefined) return "-";
-    if (typeof value === "number" && AMOUNT_KEYS.has(key)) {
-        return `¥${Math.abs(value).toLocaleString()}`;
-    }
-    if (typeof value === "string" && AMOUNT_KEYS.has(key)) {
-        const normalized = value.replace(/[,\s¥￥]/g, "");
-        const num = Number(normalized);
-        if (Number.isFinite(num)) {
-            return `¥${Math.abs(num).toLocaleString()}`;
-        }
-    }
-    if (typeof value === "object") {
-        return JSON.stringify(value);
-    }
-    return String(value);
-}
-
-function formatDate(isoDate: string): string {
-    const date = new Date(isoDate);
-    if (Number.isNaN(date.getTime())) return isoDate;
+function formatDate(iso: string): string {
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return iso;
     return date.toLocaleString("ja-JP", {
         year: "numeric",
         month: "2-digit",
@@ -232,9 +28,9 @@ function formatDate(isoDate: string): string {
     });
 }
 
-function formatShortDate(isoDate: string): string {
-    const date = new Date(isoDate);
-    if (Number.isNaN(date.getTime())) return isoDate;
+function formatShortDate(iso: string): string {
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return iso;
     return date.toLocaleString("ja-JP", {
         month: "2-digit",
         day: "2-digit",
@@ -242,21 +38,6 @@ function formatShortDate(isoDate: string): string {
         minute: "2-digit",
     });
 }
-
-const statusClass: Record<string, string> = {
-    draft: styles.statusDraft,
-    pending: styles.statusPending,
-    approved: styles.statusApproved,
-    rejected: styles.statusRejected,
-    executed: styles.statusExecuted,
-};
-
-const actorClass: Record<string, string> = {
-    human: styles.actorHuman,
-    ai: styles.actorAi,
-    system: styles.actorSystem,
-    integration: styles.actorIntegration,
-};
 
 export function ProposalDetailModal({
     proposal,
@@ -269,37 +50,13 @@ export function ProposalDetailModal({
     actionError,
 }: ProposalDetailModalProps) {
     const [reason, setReason] = useState("");
-    const [showFullBody, setShowFullBody] = useState(false);
 
-    const approvedCount = proposal.approvals.filter(
-        (a) => a.decision === "approve"
-    ).length;
+    const approvedCount = proposal.approvals.filter((a) => a.decision === "approve").length;
     const requiredApprovals = Math.max(proposal.required_approvals, 1);
     const progressPercent = Math.min(
         (approvedCount / requiredApprovals) * 100,
-        100
+        100,
     );
-
-    const payloadEntries = Object.entries(proposal.payload).filter(
-        ([key, v]) => !HIDDEN_PAYLOAD_KEYS.has(key) && v !== null && v !== undefined && v !== ""
-    );
-
-    const emailSubject = getPayloadText(proposal.payload, ["source_message_subject", "email_subject"]);
-    const emailFrom = getPayloadText(proposal.payload, ["source_message_from", "email_from"]);
-    const emailBodyPreview = getPayloadText(proposal.payload, ["source_message_body_preview", "email_body_preview"]);
-    const emailBodyFull = getPayloadText(proposal.payload, ["source_message_body_full", "email_body_full"]);
-    const hasEmailContext = Boolean(emailSubject || emailFrom || emailBodyPreview || emailBodyFull);
-    const driveFileUrl = getPayloadText(proposal.payload, ["drive_file_url"]);
-    const emailBody = showFullBody
-        ? (emailBodyFull || emailBodyPreview || "")
-        : (emailBodyPreview || emailBodyFull || "");
-    const canToggleBody = Boolean(emailBodyFull && emailBodyPreview && emailBodyFull !== emailBodyPreview);
-    const isPathProposal = isPathModuleProposal(proposal);
-    const pathContext = getPathProposalContext(proposal);
-    const pathProposalHref = buildPathProposalHref(proposal);
-    const amountLabel = getProposalAmountLabel(proposal);
-    const riskLabel = getRiskLabel(proposal, amountLabel);
-    const actorLabel = `${proposal.created_by.name} / ${proposal.created_by.type}`;
 
     const handleApprove = async () => {
         await onApprove(proposal.id, reason.trim() || undefined);
@@ -329,6 +86,9 @@ export function ProposalDetailModal({
         >
             <motion.div
                 className={styles.modal}
+                role="dialog"
+                aria-modal="true"
+                aria-label="proposal detail"
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
@@ -338,169 +98,17 @@ export function ProposalDetailModal({
                     type="button"
                     className={styles.closeButton}
                     onClick={onClose}
+                    aria-label="閉じる"
                 >
                     <X size={20} />
                 </button>
 
-                {/* Header */}
-                <div className={styles.header}>
-                    <span className={styles.typeBadge}>
-                        {PROPOSAL_TYPE_LABELS[proposal.type] || proposal.type}
-                    </span>
-                    <span
-                        className={`${styles.statusBadge} ${statusClass[proposal.status] || ""}`}
-                    >
-                        {STATUS_LABELS[proposal.status] || proposal.status}
-                    </span>
-                    <span
-                        className={`${styles.actorBadge} ${actorClass[proposal.created_by.type] || ""}`}
-                    >
-                        {proposal.created_by.type.toUpperCase()}
-                    </span>
-                </div>
+                {/* Type-specific body, dispatched via registry. createElement avoids
+                    react-hooks/static-components by not introducing a per-render JSX-named
+                    component variable. */}
+                {createElement(resolveProposalBody(proposal.type), { proposal })}
 
-                <p className={styles.description}>{proposal.description}</p>
-                <span className={styles.date}>
-                    {formatDate(proposal.created_at)}
-                </span>
-
-                <section className={styles.decisionSummary} aria-label="判断材料">
-                    <div className={styles.decisionSummaryHeader}>
-                        <span className={styles.decisionSummaryKicker}>判断材料</span>
-                        <strong>{amountLabel}</strong>
-                    </div>
-                    <div className={styles.decisionGrid}>
-                        <div>
-                            <span>作成者</span>
-                            <strong>{actorLabel}</strong>
-                        </div>
-                        <div>
-                            <span>必要承認</span>
-                            <strong>{requiredApprovals}名 / 現在 {approvedCount}名</strong>
-                        </div>
-                        <div>
-                            <span>反映先</span>
-                            <strong>{getLedgerImpactLabel(proposal)}</strong>
-                        </div>
-                        <div>
-                            <span>リスク</span>
-                            <strong>{riskLabel}</strong>
-                        </div>
-                    </div>
-                </section>
-
-                {isPathProposal && pathContext && pathProposalHref && (
-                    <section className={styles.pathContextCard}>
-                        <div className={styles.pathContextHeader}>
-                            <span className={styles.pathContextBadge}>PATH queue</span>
-                            <Link to={pathProposalHref} className={styles.pathContextLink}>
-                                今月の評価で開く
-                                <ExternalLink size={14} />
-                            </Link>
-                        </div>
-                        <div className={styles.pathContextGrid}>
-                            <div>
-                                <span className={styles.pathContextLabel}>対象月</span>
-                                <strong>{pathContext.month || pathContext.correctionMonth || "未指定"}</strong>
-                            </div>
-                            <div>
-                                <span className={styles.pathContextLabel}>member</span>
-                                <strong>{pathContext.memberId ? `${pathContext.memberId.slice(0, 8)}...` : "未指定"}</strong>
-                            </div>
-                            <div>
-                                <span className={styles.pathContextLabel}>close / run</span>
-                                <strong>
-                                    {pathContext.closeId
-                                        ? `close ${pathContext.closeId.slice(0, 8)}...`
-                                        : pathContext.rewardRunId
-                                          ? `run ${pathContext.rewardRunId.slice(0, 8)}...`
-                                          : "参照なし"}
-                                </strong>
-                            </div>
-                            <div>
-                                <span className={styles.pathContextLabel}>reason</span>
-                                <strong>{pathContext.reasonCode || "manual_review"}</strong>
-                            </div>
-                        </div>
-                        {pathContext.note && (
-                            <p className={styles.pathContextNote}>{pathContext.note}</p>
-                        )}
-                    </section>
-                )}
-
-                {/* Email Context */}
-                {hasEmailContext && (
-                    <section className={styles.section}>
-                        <h3 className={styles.sectionTitle}>メール本文</h3>
-                        <div className={styles.emailContext}>
-                            {(emailSubject || emailFrom) && (
-                                <div className={styles.emailMeta}>
-                                    {emailSubject && (
-                                        <p>
-                                            <strong>件名:</strong> {emailSubject}
-                                        </p>
-                                    )}
-                                    {emailFrom && (
-                                        <p>
-                                            <strong>送信者:</strong> {emailFrom}
-                                        </p>
-                                    )}
-                                </div>
-                            )}
-                            {emailBody && (
-                                <pre className={styles.emailBody}>{emailBody}</pre>
-                            )}
-                            {canToggleBody && (
-                                <button
-                                    type="button"
-                                    className={styles.emailToggle}
-                                    onClick={() => setShowFullBody((prev) => !prev)}
-                                >
-                                    {showFullBody ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                                    {showFullBody ? "要点表示に戻す" : "本文を全文表示"}
-                                </button>
-                            )}
-                        </div>
-                    </section>
-                )}
-
-                {driveFileUrl && (
-                    <section className={styles.section}>
-                        <h3 className={styles.sectionTitle}>原本ファイル</h3>
-                        <a
-                            className={styles.driveLink}
-                            href={driveFileUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                        >
-                            <ExternalLink size={16} />
-                            Driveで開く
-                        </a>
-                    </section>
-                )}
-
-                {/* Payload Details */}
-                {payloadEntries.length > 0 && (
-                    <section className={styles.section}>
-                        <h3 className={styles.sectionTitle}>詳細</h3>
-                        <div className={styles.payloadGrid}>
-                            {payloadEntries.map(([key, value]) => (
-                                <div key={key} style={{ display: "contents" }}>
-                                    <span className={styles.payloadKey}>
-                                        {PAYLOAD_LABELS[key] || key}
-                                    </span>
-                                    <span
-                                        className={`${styles.payloadValue} ${AMOUNT_KEYS.has(key) ? styles.payloadAmount : ""}`}
-                                    >
-                                        {formatPayloadValue(key, value)}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    </section>
-                )}
-
-                {/* Approval Progress */}
+                {/* Approval Progress (shared) */}
                 <section className={styles.section}>
                     <h3 className={styles.sectionTitle}>承認状況</h3>
                     <div className={styles.progressRow}>
@@ -524,32 +132,20 @@ export function ProposalDetailModal({
                             <div key={i} className={styles.timelineItem}>
                                 <span className={styles.timelineIcon}>
                                     {approval.decision === "approve" ? (
-                                        <CheckCircle
-                                            size={18}
-                                            className={styles.timelineIconApprove}
-                                        />
+                                        <CheckCircle size={18} className={styles.timelineIconApprove} />
                                     ) : (
-                                        <XCircle
-                                            size={18}
-                                            className={styles.timelineIconReject}
-                                        />
+                                        <XCircle size={18} className={styles.timelineIconReject} />
                                     )}
                                 </span>
                                 <div className={styles.timelineContent}>
-                                    <span className={styles.timelineActor}>
-                                        {approval.actor.name}
-                                    </span>
+                                    <span className={styles.timelineActor}>{approval.actor.name}</span>
                                     <span
                                         className={`${styles.timelineDecision} ${approval.decision === "approve" ? styles.timelineDecisionApprove : styles.timelineDecisionReject}`}
                                     >
-                                        {approval.decision === "approve"
-                                            ? "承認"
-                                            : "却下"}
+                                        {approval.decision === "approve" ? "承認" : "却下"}
                                     </span>
                                     {approval.reason && (
-                                        <p className={styles.timelineReason}>
-                                            {approval.reason}
-                                        </p>
+                                        <p className={styles.timelineReason}>{approval.reason}</p>
                                     )}
                                     <span className={styles.timelineDate}>
                                         {formatShortDate(approval.at)}
@@ -563,17 +159,14 @@ export function ProposalDetailModal({
                 {/* Executed Result */}
                 {proposal.status === "executed" && (
                     <section className={styles.section}>
-                        <div
-                            className={`${styles.resultInfo} ${styles.resultExecuted}`}
-                        >
+                        <div className={`${styles.resultInfo} ${styles.resultExecuted}`}>
                             <CheckCircle size={18} />
                             <div>
                                 <div>実行済み</div>
                                 {proposal.executed_at && (
                                     <div className={styles.resultDetail}>
                                         {formatDate(proposal.executed_at)}
-                                        {proposal.executed_by &&
-                                            ` / ${proposal.executed_by.name}`}
+                                        {proposal.executed_by && ` / ${proposal.executed_by.name}`}
                                     </div>
                                 )}
                             </div>
@@ -584,9 +177,7 @@ export function ProposalDetailModal({
                 {/* Rejected Result */}
                 {proposal.status === "rejected" && (
                     <section className={styles.section}>
-                        <div
-                            className={`${styles.resultInfo} ${styles.resultRejected}`}
-                        >
+                        <div className={`${styles.resultInfo} ${styles.resultRejected}`}>
                             <XCircle size={18} />
                             <div>
                                 <div>却下済み</div>
@@ -600,12 +191,12 @@ export function ProposalDetailModal({
                     </section>
                 )}
 
-                {/* Actions for pending */}
+                {/* Pending actions */}
                 {proposal.status === "pending" && (
                     <section className={styles.section}>
                         <div className={styles.reasonField}>
                             <label className={styles.reasonLabel}>
-                                コメント（却下・指示時は必須）
+                                コメント(却下・指示時は必須)
                             </label>
                             <textarea
                                 className={styles.reasonTextarea}
@@ -653,7 +244,7 @@ export function ProposalDetailModal({
                     </section>
                 )}
 
-                {/* Execute button for approved (fallback) */}
+                {/* Execute action for approved */}
                 {proposal.status === "approved" && (
                     <section className={styles.section}>
                         <div className={styles.actionButtons}>
