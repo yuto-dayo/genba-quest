@@ -597,22 +597,22 @@
 
     <!-- Summary -->
     <div class="summary">
-      <div class="pl-row"><span class="label">売上(確定)</span><span class="value">¥4,200,000</span></div>
-      <div class="pl-row"><span class="label">原価(posted)</span><span class="value">¥1,240,500</span></div>
-      <div class="pl-row"><span class="label">原価(未posted)</span><span class="value" style="color:var(--warn)">¥486,400 ⚠</span></div>
-      <div class="pl-row"><span class="label">本部経費</span><span class="value">¥180,000</span></div>
+      <div class="pl-row"><span class="label">売上</span><span class="value">¥4,200,000</span></div>
+      <div class="pl-row"><span class="label">経費(処理済み)</span><span class="value">¥1,240,500</span></div>
+      <div class="pl-row"><span class="label">経費(まだ反映)</span><span class="value" style="color:var(--warn)">¥486,400 ⚠</span></div>
+      <div class="pl-row"><span class="label">本部・会社の経費</span><span class="value">¥180,000</span></div>
       <div class="profit-row">
-        <span class="label" style="font-size:12px">粗利見込み</span>
+        <span class="label" style="font-size:12px">今月の利益(見込み)</span>
         <span class="profit-value">¥2,293,100</span>
       </div>
       <div class="pending-note">
-        <span class="alert">⚠</span> 締めまで <b>あと7日</b> ・ verify待ち <b>24件</b>
+        <span class="alert">⚠</span> 締めまで <b>あと7日</b> ・ 確認待ち <b>24件</b>
       </div>
     </div>
 
     <!-- Buckets -->
     <div class="section-title">
-      <h2>状態別バケット</h2>
+      <h2>状態でわける</h2>
       <span class="hint">タップで一覧</span>
     </div>
     <div class="buckets">
@@ -620,44 +620,44 @@
         <div class="pulse"></div>
         <div class="name">未割当 <span style="color:var(--warn)">12</span></div>
         <div class="amount">¥45,200</div>
-        <div class="meta"><span class="stale">⚠ 最古3日↑</span></div>
+        <div class="meta"><span class="stale">⚠ 最古3日前</span></div>
       </div>
       <div class="bucket warn">
         <div class="name">要確認 <span style="color:var(--warn)">8</span></div>
         <div class="amount">¥120,400</div>
-        <div class="meta">flags: missing_invoice ・ 重複候補</div>
+        <div class="meta">インボイス番号なし・重複かも</div>
       </div>
       <div class="bucket">
-        <div class="name">verified待ち <span>24</span></div>
+        <div class="name">確認待ち <span>24</span></div>
         <div class="amount">¥320,800</div>
-        <div class="meta">締め前にレビュー</div>
+        <div class="meta">締め前に見ておく</div>
       </div>
       <div class="bucket good">
-        <div class="name">posted <span>86</span></div>
+        <div class="name">処理済み <span>86</span></div>
         <div class="amount">¥1,240,500</div>
-        <div class="meta">仕訳起票済</div>
+        <div class="meta">帳簿に入った</div>
       </div>
       <div class="bucket">
-        <div class="name">資産候補 <span>2</span></div>
+        <div class="name">高額な工具 <span>2</span></div>
         <div class="amount">¥180,000</div>
-        <div class="meta">10万円超の工具</div>
+        <div class="meta">10万円超 ・ 資産扱いの候補</div>
       </div>
       <div class="bucket bad">
-        <div class="name">advance滞留 <span style="color:var(--bad)">1</span></div>
+        <div class="name">先行仕入れ・古い <span style="color:var(--bad)">1</span></div>
         <div class="amount">¥35,000</div>
-        <div class="meta"><span class="stale bad">⚠ 90日↑ 未着工</span></div>
+        <div class="meta"><span class="stale bad">⚠ 90日以上動いてない</span></div>
       </div>
     </div>
 
     <!-- Jobs -->
     <div class="section-title" style="margin-top:8px;">
-      <h2>現場別 黒字</h2>
+      <h2>現場ごとの利益</h2>
     </div>
     <div class="jobs">
       <div class="job">
         <div class="left">
           <div class="name">◯◯邸 内装</div>
-          <div class="status">進行中 ・ 原価 ¥820,000</div>
+          <div class="status">進行中 ・ 経費 ¥820,000</div>
         </div>
         <div class="right">
           <div class="profit positive">+¥420,000</div>
@@ -666,7 +666,7 @@
       <div class="job">
         <div class="left">
           <div class="name">□□邸 改修</div>
-          <div class="status">完工 ・ 原価 ¥320,000</div>
+          <div class="status">完工 ・ 経費 ¥320,000</div>
         </div>
         <div class="right">
           <div class="profit positive">+¥180,000</div>
@@ -675,7 +675,7 @@
       <div class="job alert">
         <div class="left">
           <div class="name">△△邸 リフォーム</div>
-          <div class="status">進行中 ・ 原価 ¥440,000 ⚠ 見積比0.92</div>
+          <div class="status">進行中 ・ 経費 ¥440,000 ⚠ 儲け薄くなりそう</div>
         </div>
         <div class="right">
           <div class="profit negative">−¥40,000</div>
@@ -687,9 +687,9 @@
     <div class="tab-bar">
       <button class="tab active">要確認 <span class="badge">8</span></button>
       <button class="tab">未割当 <span class="badge">12</span></button>
-      <button class="tab">verified待ち <span class="badge">24</span></button>
-      <button class="tab">posted <span class="badge">86</span></button>
-      <button class="tab">資産候補 <span class="badge">2</span></button>
+      <button class="tab">確認待ち <span class="badge">24</span></button>
+      <button class="tab">処理済み <span class="badge">86</span></button>
+      <button class="tab">高額な工具 <span class="badge">2</span></button>
     </div>
 
     <!-- List -->
@@ -702,12 +702,12 @@
         <div class="item-row2">
           <span class="item-meta">2026-05-08 14:23 ・ 田中(職人)</span>
           <div class="item-flags">
-            <span class="flag bad">missing_job</span>
+            <span class="flag bad">現場が未決</span>
           </div>
         </div>
         <div class="ai-suggestion">
-          <span class="ai-text">AI推定: <b>◯◯邸</b> (時刻一致・当日午前作業)</span>
-          <button class="ai-accept">承認</button>
+          <span class="ai-text">自動判定: <b>◯◯邸</b> (時刻が合う・当日午前作業)</span>
+          <button class="ai-accept">これで OK</button>
         </div>
       </div>
 
@@ -719,7 +719,7 @@
         <div class="item-row2">
           <span class="item-meta">2026-05-09 09:14 ・ 田中(職人)</span>
           <div class="item-flags">
-            <span class="flag">missing_invoice_number</span>
+            <span class="flag">インボイス番号なし</span>
           </div>
         </div>
       </div>
@@ -732,12 +732,12 @@
         <div class="item-row2">
           <span class="item-meta">2026-05-09 18:22 ・ 山田(職人)</span>
           <div class="item-flags">
-            <span class="flag bad">duplicate_suspected</span>
+            <span class="flag bad">重複かも</span>
           </div>
         </div>
         <div class="ai-suggestion">
-          <span class="ai-text">同日同店: <b>5/9 09:14 ¥6,200</b> と類似</span>
-          <button class="ai-accept">違うものとして残す</button>
+          <span class="ai-text">同じ日・同じ店: <b>5/9 09:14 ¥6,200</b> と似ています</span>
+          <button class="ai-accept">別のものとして残す</button>
         </div>
       </div>
 
@@ -749,8 +749,8 @@
         <div class="item-row2">
           <span class="item-meta">2026-05-10 11:00 ・ ゆーと</span>
           <div class="item-flags">
-            <span class="flag info">asset_candidate</span>
-            <span class="flag info">一括償却可</span>
+            <span class="flag info">高額な工具</span>
+            <span class="flag info">資産扱いの候補</span>
           </div>
         </div>
       </div>
@@ -766,26 +766,25 @@
     </div>
 
     <div class="detail">
-      <h3>HOMECENTER HASHIMOTO</h3>
-      <div class="id">#EXP-20260508-0123</div>
+      <h3>ホームセンター橋本店</h3>
       <div class="amount-big">¥8,400</div>
-      <div class="vendor-line">ホムセン橋本店 ・ 2026-05-08 14:23 ・ 田中(立替)</div>
+      <div class="vendor-line">2026-05-08 14:23 ・ 田中さんの立替</div>
 
       <div class="status-row">
-        <span class="status-pill classified">classified</span>
-        <span class="flag">missing_invoice_number</span>
-        <button class="verify-btn">verify</button>
+        <span class="status-pill classified">現場決め済み</span>
+        <span class="flag">インボイス番号なし</span>
+        <button class="verify-btn">OK</button>
       </div>
 
       <!-- 紐付け -->
       <div class="field-group">
-        <h4>紐付け</h4>
+        <h4>紐付け先</h4>
         <div class="field-row">
-          <span class="field-key">Scope</span>
-          <span class="field-val">job</span>
+          <span class="field-key">どこの分</span>
+          <span class="field-val">現場</span>
         </div>
         <div class="field-row">
-          <span class="field-key">現場</span>
+          <span class="field-key">現場名</span>
           <span class="field-val">◯◯邸 内装</span>
         </div>
         <div class="field-row">
@@ -793,14 +792,14 @@
           <span class="field-val">材料費 › 木材</span>
         </div>
         <div class="field-row">
-          <span class="field-key">請求区分</span>
-          <span class="field-val">顧客請求対象</span>
+          <span class="field-key">請求の扱い</span>
+          <span class="field-val">お客さんに請求する</span>
         </div>
       </div>
 
       <!-- レシート -->
       <div class="field-group">
-        <h4>レシート / OCR</h4>
+        <h4>レシート / 読み取り結果</h4>
         <div class="receipt">
           <div class="receipt-thumb">[ image ]</div>
           <div class="receipt-ocr">
@@ -808,68 +807,72 @@
             2026-05-08 14:23<br>
             合板12mm 4枚 ¥8,400<br>
             合計 ¥8,400 (税込)<br>
-            T番号: <span style="color:var(--bad)">抽出失敗</span>
+            インボイス番号: <span style="color:var(--bad)">読み取れず</span>
           </div>
         </div>
       </div>
 
       <!-- 税務 -->
       <div class="field-group">
-        <h4>税務</h4>
+        <h4>消費税</h4>
         <div class="field-row">
           <span class="field-key">税区分</span>
           <span class="field-val">課税 10%</span>
         </div>
         <div class="field-row">
-          <span class="field-key">T番号</span>
-          <span class="field-val missing">未入力 — 補完してください</span>
+          <span class="field-key">インボイス番号</span>
+          <span class="field-val missing">未入力 — 入れてください</span>
         </div>
         <div class="field-row">
-          <span class="field-key">税抜 / 税額</span>
+          <span class="field-key">税抜 / 消費税</span>
           <span class="field-val">¥7,636 / ¥764</span>
         </div>
       </div>
 
       <!-- AI推定理由 -->
       <div class="field-group">
-        <h4>AI推定の根拠</h4>
+        <h4>自動判定の理由</h4>
         <div style="font-size:11px; color:var(--text-muted); line-height:1.6;">
-          ・ 現場候補 <b style="color:var(--accent-2)">◯◯邸</b>: スケジュールで 5/8 9:00-12:00 作業、レシート14:23は午前作業の延長と推定<br>
-          ・ カテゴリ <b style="color:var(--accent-2)">木材</b>: OCR品目 "合板12mm" から推定<br>
-          ・ 請求区分 <b style="color:var(--accent-2)">顧客請求対象</b>: 見積項目"造作工事"に該当
+          ・ 現場 <b style="color:var(--accent-2)">◯◯邸</b>: 当日 9:00-12:00 に作業の予定があり、14:23 のレシートは午前作業の続きと判断<br>
+          ・ カテゴリ <b style="color:var(--accent-2)">木材</b>: 読み取り品目「合板12mm」から判断<br>
+          ・ 請求の扱い <b style="color:var(--accent-2)">お客さんに請求</b>: 見積に「造作工事」があるため
         </div>
       </div>
 
       <!-- 編集履歴 -->
       <div class="field-group">
-        <h4>編集履歴 (append-only)</h4>
+        <h4>編集履歴</h4>
         <div class="history">
           <div class="history-entry">
             <div class="history-time">2026-05-08 14:23</div>
             <div class="history-actor">田中 <span class="actor-tag">職人</span></div>
-            <div class="history-detail">起票: 金額 <code>¥8,400</code> ・ ベンダー <code>ホムセン橋本店</code> ・ 写真添付</div>
+            <div class="history-detail">登録: 金額 <code>¥8,400</code> ・ 店 <code>ホムセン橋本店</code> ・ 写真添付</div>
           </div>
           <div class="history-entry system">
             <div class="history-time">2026-05-08 14:23</div>
-            <div class="history-actor system">system <span class="actor-tag">OCR</span></div>
-            <div class="history-detail">OCR: 金額/日時/ベンダー 抽出 ・ T番号抽出失敗</div>
+            <div class="history-actor system">システム <span class="actor-tag">読み取り</span></div>
+            <div class="history-detail">レシート読み取り: 金額・日時・店名 抽出 ・ インボイス番号は読み取れず</div>
           </div>
           <div class="history-entry ai">
             <div class="history-time">2026-05-08 14:23</div>
-            <div class="history-actor ai">ai <span class="actor-tag">推定</span></div>
-            <div class="history-detail">推定: <code>scope:job</code> <code>job:◯◯邸</code> <code>category:木材</code></div>
+            <div class="history-actor ai">システム <span class="actor-tag">自動判定</span></div>
+            <div class="history-detail">候補: 現場 <b>◯◯邸</b> ・ カテゴリ <b>木材</b></div>
           </div>
           <div class="history-entry">
             <div class="history-time">2026-05-08 14:25</div>
             <div class="history-actor">田中 <span class="actor-tag">職人</span></div>
-            <div class="history-detail">確認: scope/job/category 確定 → status: <code>classified</code></div>
+            <div class="history-detail">確認: 現場・カテゴリを確定 → 現場決め済み</div>
           </div>
           <div class="history-entry">
-            <div class="history-time">— 待機 —</div>
-            <div class="history-actor" style="color:var(--text-muted)">verify未実施</div>
-            <div class="history-detail">T番号補完してverify推奨</div>
+            <div class="history-time">— まだ —</div>
+            <div class="history-actor" style="color:var(--text-muted)">確認待ち</div>
+            <div class="history-detail">インボイス番号を入れて「OK」を押してください</div>
           </div>
         </div>
+      </div>
+
+      <div style="margin-top:14px; font-size:9px; color:var(--text-muted); font-family:ui-monospace, monospace; opacity:0.5;">
+        内部ID: EXP-20260508-0123
       </div>
     </div>
   </div>
@@ -878,7 +881,7 @@
   <div class="frame">
     <div class="topbar">
       <button class="icon-btn">◀</button>
-      <div class="title" style="flex:1; text-align:center;">経費 起票</div>
+      <div class="title" style="flex:1; text-align:center;">経費を登録</div>
       <button class="icon-btn">×</button>
     </div>
 
@@ -892,47 +895,47 @@
 
     <div class="capture-section">
       <h3>このレシート、どこの分？</h3>
-      <div class="sub">候補は時刻・場所・予定から推定しています</div>
+      <div class="sub">時刻や予定から候補を出しています</div>
 
       <div class="chip-list">
         <div class="chip recommended">
           <div>
             <div class="chip-text">◯◯邸 内装 (午前)</div>
-            <div class="chip-meta">9:00–12:00 ・ 推定理由: 時刻一致</div>
+            <div class="chip-meta">9:00–12:00 ・ 時刻が合う</div>
           </div>
-          <span class="chip-tag">推奨</span>
+          <span class="chip-tag">おすすめ</span>
         </div>
         <div class="chip">
           <div>
             <div class="chip-text">□□邸 改修 (午後)</div>
-            <div class="chip-meta">13:00–17:00 ・ 推定理由: 同日</div>
+            <div class="chip-meta">13:00–17:00 ・ 同じ日の現場</div>
           </div>
         </div>
 
-        <div class="chip divider">先行仕入れ</div>
+        <div class="chip divider">着工前の先行仕入れ</div>
         <div class="chip">
           <div>
             <div class="chip-text">△△邸 リフォーム</div>
-            <div class="chip-meta">5/15着工予定 ・ job_advance</div>
+            <div class="chip-meta">5/15着工予定</div>
           </div>
         </div>
 
         <div class="chip divider">そのほか</div>
         <div class="chip">
           <div>
-            <div class="chip-text">共通在庫 (stockpile)</div>
+            <div class="chip-text">共通在庫</div>
             <div class="chip-meta">どの現場でも使う消耗品</div>
           </div>
         </div>
         <div class="chip">
           <div>
-            <div class="chip-text">本部 (overhead)</div>
+            <div class="chip-text">本部・会社</div>
             <div class="chip-meta">事務所・工具など</div>
           </div>
         </div>
       </div>
 
-      <button class="later-btn">あとで決める (未割当バケットへ)</button>
+      <button class="later-btn">あとで決める</button>
     </div>
   </div>
 

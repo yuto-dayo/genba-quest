@@ -466,9 +466,94 @@ GENBA QUEST側に資産台帳は持たない（運用軽視）。`asset_candidat
 
 ---
 
-## 11. 参照
+## 11. 職人語マッピング（UI表示の正本）
+
+UI画面に出す全ての文字列は、内部コード値ではなく「一般的な職人が一読してわかる日本語」にする。
+内部コード（DB列名・API field・enum値・型・ログ）は英語のまま使ってよい。**コード値とUI表示は必ず分離する。**
+
+### 11.1 Scope（紐付け先）
+
+| 内部コード | UI表示 | 補足説明 |
+|---|---|---|
+| `job` | 現場（◯◯邸） | 具体的な現場名で表示 |
+| `job_advance` | 先行仕入れ | 「着工前にまとめ買いした分」 |
+| `stockpile` | 共通在庫 | 「どの現場でも使う消耗品」 |
+| `overhead` | 本部・会社 | 「事務所・工具など」 |
+| `unassigned` | 未割当 | 「あとで決める」と並列表示可 |
+
+### 11.2 Review Status（処理状態）
+
+| 内部コード | UI表示 | 短縮形 |
+|---|---|---|
+| `captured` | 登録した | 登録済み |
+| `classified` | 現場決め済み | 分類済み |
+| `verified` | 確認済み | 確認OK |
+| `posted` | 帳簿入り | 処理済み |
+| `closed` | 月締め済み | 月締め |
+
+### 11.3 Flag（並行ラベル）
+
+| 内部コード | UI表示 | アイコン色 |
+|---|---|---|
+| `missing_job` | 現場が未決 | 赤 |
+| `missing_receipt` | レシートなし | 黄 |
+| `missing_invoice_number` | インボイス番号なし | 黄 |
+| `duplicate_suspected` | 重複かも | 赤 |
+| `billable_candidate` | お客さんに請求？ | 青 |
+| `asset_candidate` | 高額な工具 | 青 |
+| `advance_stale` | 90日以上動いてない | 赤 |
+| `allocation_pending` | 配分待ち | 黄 |
+| `budget_overrun` | 儲け薄くなりそう | 黄 |
+| `out_of_pattern` | 要確認 | 黄 |
+
+### 11.4 アクション・操作系
+
+| 内部用語 | UI表示 |
+|---|---|
+| verify ボタン | 「OK」 / 「確認した」 |
+| post / posting | 「経費に上げる」 |
+| close month | 「月を締める」 |
+| reverse / 逆仕訳 | 「修正する」（裏で逆仕訳起票） |
+| approve | 「OK」 |
+| reject | 「やり直し」 |
+
+### 11.5 経理用語の柔らかい言い換え（社長視点画面でも適用）
+
+| 経理用語 | UI表示 |
+|---|---|
+| 原価 | 経費 |
+| 粗利 / 売上総利益 | 利益 |
+| posted金額 | 帳簿入り済 |
+| 未posted金額 | まだ反映されていない |
+| 売上(確定) | 売上 |
+| 立替精算 | 立替分 |
+
+### 11.6 そのまま使える語（職人にも通じる）
+
+- 経費・売上・利益・現場・見積・請求・領収書・レシート・写真
+- インボイス番号（T番号は補語）・税込・税抜・消費税
+- 材料費・燃料費・工具・食事・駐車場
+- 月締め・締め日
+
+### 11.7 画面に出さない（内部のみ）
+
+- 経費の内部ID（`#EXP-20260508-0123` などのコード化IDはトップ画面に出さない、詳細フッターに小さく）
+- `org_id` / `idempotency_key` / `proposal_id` などの技術メタ情報
+- `cost_center === "HQ"` のような英語enum値の生表示
+- `field_change_log` / `metadata_json` / `transition_status` などの技術用語
+
+### 11.8 ルール
+
+- 新しい内部コードを追加する時は、必ずこの表に**UI表示**を併記してから実装に入る
+- フロントの定数ファイル(例: `frontend/src/lib/expenseLabels.ts`)に正本を持ち、画面で参照する
+- バックエンドのenum追加 → 表更新 → フロント定数追加 の順を守る
+
+---
+
+## 12. 参照
 
 - 議論ログ: `feature/expense-approval-policy` ブランチの本セッション
 - 設計原則: [DESIGN_PHILOSOPHY.md](./DESIGN_PHILOSOPHY.md)
 - 既存仕様: [PROPOSAL_SYSTEM.md](./PROPOSAL_SYSTEM.md), [LEDGER_SYSTEM.md](./LEDGER_SYSTEM.md)
 - メモリ: `feedback_bus_factor_resilient_ux.md`（番頭レス可視性）
+- メモリ: `feedback_plain_language_ui.md`（職人にわかる日本語UI）

@@ -24,17 +24,18 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `M-1..M-5 DB migrations: scope 4-value CHECK, flags TEXT[] column, expense_field_change_log table (append-only RLS), review_status enum extension, invoice_number column with index`. Source: realtime
+- [focus] NEXT_CMD: `M-1..M-5 DB migrations`. Source: realtime
+- [H0004] Completed: Plain-language pass: added 職人語 vocabulary mapping to MONEY_EXPENSE_FLOW.md §11, replaced jargon (scope/posted/verified/missing_*) throughout HTML mock with 職人 readable Japanese, added feedback memory
+- [H0004] Remaining: M-1..M-5 DB migrations
 - [H0003] Completed: T-FIX-1: persist invoice_number end-to-end (api type, ExpenseModal payload, accounting destructure, T+13 format validation, metadata_json on legacy and canonical paths, proposal lineage payload). Added regression test (accountingRoute 57/57).
 - [H0003] Remaining: M-1..M-5 DB migrations: scope 4-value CHECK, flags TEXT[] column, expense_field_change_log table (append-only RLS), review_status enum extension, invoice_number column with index
-- [H0002] Completed: Designed expense approval flow: spec doc, gap analysis (found T番号 destructure bug), HTML mock (dashboard/detail/capture)
-- [H0002] Remaining: T-FIX-1: wire invoice_number through accounting.ts:1211 destructure -> insertExpenseTransaction; then DB migrations M-1..M-5
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0004] Auto-captured decision: Plain-language pass: added 職人語 vocabulary mapping to MONEY_EXPENSE_FLOW.md §11, replaced jargon (scope/posted/verified/missing_*) throughout HTML mock with 職人 readabl...
 - [H0003] Auto-captured decision: T-FIX-1: persist invoice_number end-to-end (api type, ExpenseModal payload, accounting destructure, T+13 format validation, metadata_json on legacy and canonical paths, proposal...
 - [H0002] Auto-captured decision: Designed expense approval flow: spec doc, gap analysis (found T番号 destructure bug), HTML mock (dashboard/detail/capture)
 - [H0001] Auto-captured decision: v2.2 hotfix: PostgREST embed FK disambiguation in accounting.ts (5 sites) — server tsc clean, accountingRoute 56/56 PASS
@@ -42,11 +43,12 @@
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0003] No new landmines reported in this chunk.
+- [H0004] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0004] M-1..M-5 DB migrations
 - [H0003] M-1..M-5 DB migrations: scope 4-value CHECK, flags TEXT[] column, expense_field_change_log table (append-only RLS), review_status enum extension, invoice_number column with index
 - [H0002] T-FIX-1: wire invoice_number through accounting.ts:1211 destructure -> insertExpenseTransaction; then DB migrations M-1..M-5
 - [H0001] merge PR + verify Render auto-deploy + spot-check /money on production
@@ -56,7 +58,7 @@
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `3`
+- current_l3_entries: `4`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -116,5 +118,21 @@
   - Auto-captured decision: T-FIX-1: persist invoice_number end-to-end (api type, ExpenseModal payload, accounting destructure, T+13 format validation, metadata_json on legacy and canonical paths, proposal...
 - Validation:
   - `server tsc clean, frontend tsc clean, accountingRoute jest 57/57 PASS`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-10 20:15:25 +0900
+
+- Entry-ID: `H0004`
+- Completed:
+  - [x] Plain-language pass: added 職人語 vocabulary mapping to MONEY_EXPENSE_FLOW.md §11, replaced jargon (scope/posted/verified/missing_*) throughout HTML mock with 職人 readable Japanese, added feedback memory
+- Remaining:
+  - [ ] M-1..M-5 DB migrations
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: Plain-language pass: added 職人語 vocabulary mapping to MONEY_EXPENSE_FLOW.md §11, replaced jargon (scope/posted/verified/missing_*) throughout HTML mock with 職人 readabl...
+- Validation:
+  - `preview renders, no UI string in english on user-facing surfaces`
 - Landmines:
   - No new landmines reported in this chunk.
