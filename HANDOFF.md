@@ -25,43 +25,43 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `v3.3 完了 — レビュー反映待ち or 別 phase`. Source: realtime
+- [focus] NEXT_CMD: `完了 — レビュー反映待ち`. Source: realtime
+- [H0050] Completed: BellTrigger をインライン pill から FAB 左側のフローティング円形ボタン (48x48 + 赤バッジ) にリデザイン
+- [H0050] Remaining: 完了 — レビュー反映待ち
 - [H0049] Completed: PR #9 (BellDrawer) を v3.3 mock 完全準拠に拡張: consensus 進捗バー + avatar 列 (approved 緑グラデ + 未承認 ?) + ApprovalCard swipe gesture (drag=x, 100px or 500px/s で commit)
 - [H0049] Remaining: v3.3 完了 — レビュー反映待ち or 別 phase
-- [H0048] Completed: PR #9: BellDrawer + BellTrigger を新設し、Money 画面の親方チェック banner をベルドロワー方式に置換 (自分が承認担当 / 全員承認待ち / お知らせ の 3 section)
-- [H0048] Remaining: PR #9 を GitHub PR 化、v3.3 残り: シートドラッグ + cash-flow 4-bar variant + 演出 polish
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0050] Auto-captured decision: BellTrigger をインライン pill から FAB 左側のフローティング円形ボタン (48x48 + 赤バッジ) にリデザイン
 - [H0049] Auto-captured decision: PR #9 (BellDrawer) を v3.3 mock 完全準拠に拡張: consensus 進捗バー + avatar 列 (approved 緑グラデ + 未承認 ?) + ApprovalCard swipe gesture (drag=x, 100px or ...
 - [H0048] Auto-captured decision: PR #9: BellDrawer + BellTrigger を新設し、Money 画面の親方チェック banner をベルドロワー方式に置換 (自分が承認担当 / 全員承認待ち / お知...
 - [H0047] Auto-captured decision: VendorCard lint 修正再適用 (cherry-pick skip で失われた分)
 - [H0046] Auto-captured decision: cherry-pick commit 3 (v3.3 mock 準拠) 適用中
-- [H0045] Auto-captured decision: cherry-pick 進行: HANDOFF conflict 再 resolve
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0049] No new landmines reported in this chunk.
+- [H0050] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0050] 完了 — レビュー反映待ち
 - [H0049] v3.3 完了 — レビュー反映待ち or 別 phase
 - [H0048] PR #9 を GitHub PR 化、v3.3 残り: シートドラッグ + cash-flow 4-bar variant + 演出 polish
 - [H0047] force-push + PR #25 merge
 - [H0046] 残り commit 4 (lint fix)
-- [H0045] 残コミット適用
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `13`
+- current_l3_entries: `14`
 - last_compacted_at: `2026-05-11 19:27:09 +0900`
 - archived_entries: `36`
 <!-- HANDOFF_L2_STATE_END -->
@@ -293,5 +293,21 @@
   - Auto-captured decision: PR #9 (BellDrawer) を v3.3 mock 完全準拠に拡張: consensus 進捗バー + avatar 列 (approved 緑グラデ + 未承認 ?) + ApprovalCard swipe gesture (drag=x, 100px or ...
 - Validation:
   - `mock データ (1 self + 1 consensus 3/5 承認済み) で preview 確認: progress 60% / avatar 親田佐+?? / 承認カードは SwipeableApprovalRow でラップされ swipeWrap が存在`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-11 20:59:59 +0900
+
+- Entry-ID: `H0050`
+- Completed:
+  - [x] BellTrigger をインライン pill から FAB 左側のフローティング円形ボタン (48x48 + 赤バッジ) にリデザイン
+- Remaining:
+  - [ ] 完了 — レビュー反映待ち
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: BellTrigger をインライン pill から FAB 左側のフローティング円形ボタン (48x48 + 赤バッジ) にリデザイン
+- Validation:
+  - `desktop: right 92px / mobile: right 84px (FAB right + width + 12gap) / bell と FAB が同じ bottom 行に並ぶことを preview で確認 (bellLeftOfFab=true)`
 - Landmines:
   - No new landmines reported in this chunk.
