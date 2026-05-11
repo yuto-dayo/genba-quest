@@ -1161,6 +1161,13 @@ router.put("/:id", async (req: AuthenticatedRequest, res: Response) => {
             return;
         }
 
+        // status は active/tentative/in_progress のみ許可。
+        // completed は POST /:id/complete(/complete-with-close)、deleted は DELETE 経由でしか遷移できない。
+        if (status !== undefined && status !== null && !["active", "tentative", "in_progress"].includes(status)) {
+            res.status(400).json({ error: "status must be one of active, tentative, in_progress (use /complete or DELETE for other transitions)" });
+            return;
+        }
+
         if (
             typeof started_at === "string" &&
             typeof expected_completion_at === "string" &&

@@ -24,43 +24,43 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `現場ページ周辺の他バグ調査を継続`. Source: realtime
+- [focus] NEXT_CMD: `他バグ調査継続 or 担当者ON/OFFのoptimistic lock`. Source: realtime
+- [H0031] Completed: fix(sites): PUT /:id で status を active/tentative/in_progress に制限し completed/deleted バイパスを封じた
+- [H0031] Remaining: 他バグ調査継続 or 担当者ON/OFFのoptimistic lock
 - [H0030] Completed: chore(sites): 論理削除時の dead status='deleted' 書き込みを除去（deleted_at が唯一の真実）
 - [H0030] Remaining: 現場ページ周辺の他バグ調査を継続
-- [H0029] Completed: fix(sites): 連続施工+期間未入力をフロント/サーバー両面でブロック
-- [H0029] Remaining: 別セッションのPathV33作業を待ち、必要に応じてuseCalendar側にも保険を入れる
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0031] Auto-captured decision: fix(sites): PUT /:id で status を active/tentative/in_progress に制限し completed/deleted バイパスを封じた
 - [H0030] Auto-captured decision: chore(sites): 論理削除時の dead status='deleted' 書き込みを除去（deleted_at が唯一の真実）
 - [H0029] Auto-captured decision: fix(sites): 連続施工+期間未入力をフロント/サーバー両面でブロック
 - [H0028] Auto-captured decision: feat(reward): V3.3 Phase 6 cutover — remap V3.2 history to V3.3 scale (migration) + fetchPriorMonthLevel defensive mapping (audit #7) + remove SiteDetailModal levelDraftSectio...
 - [H0027] Auto-captured decision: feat(reward): V3.3 Phase 5 — PathV33MonthService (lock/expire/finalize) + admin endpoints + finalization tab UI + audit #3/#5/#6/#8/#9 fixes
-- [H0026] Auto-captured decision: audit(reward-v33): close 4 HIGH findings — lock draft on accept (#1), reject locked re-submit (#2), block self-objection (#10), route objection proposal through ProposalServic...
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0030] No new landmines reported in this chunk.
+- [H0031] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0031] 他バグ調査継続 or 担当者ON/OFFのoptimistic lock
 - [H0030] 現場ページ周辺の他バグ調査を継続
 - [H0029] 別セッションのPathV33作業を待ち、必要に応じてuseCalendar側にも保険を入れる
 - [H0028] V3.3 implementation complete; merge PR #14 after manual smoke test
 - [H0027] Phase 6: V3.2→V3.3 cutover + data migration + deprecate path.level.update proposals
-- [H0026] Phase 5: month-end lock cron + finalization modal + reward_run hook
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `12`
+- current_l3_entries: `13`
 - last_compacted_at: `2026-05-11 07:44:56 +0900`
 - archived_entries: `18`
 <!-- HANDOFF_L2_STATE_END -->
@@ -268,6 +268,22 @@
   - No file list provided (use --file "path - semantic description")
 - Working Context:
   - Auto-captured decision: chore(sites): 論理削除時の dead status='deleted' 書き込みを除去（deleted_at が唯一の真実）
+- Validation:
+  - `server tsc --noEmit ✅`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-11 12:26:42 +0900
+
+- Entry-ID: `H0031`
+- Completed:
+  - [x] fix(sites): PUT /:id で status を active/tentative/in_progress に制限し completed/deleted バイパスを封じた
+- Remaining:
+  - [ ] 他バグ調査継続 or 担当者ON/OFFのoptimistic lock
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: fix(sites): PUT /:id で status を active/tentative/in_progress に制限し completed/deleted バイパスを封じた
 - Validation:
   - `server tsc --noEmit ✅`
 - Landmines:
