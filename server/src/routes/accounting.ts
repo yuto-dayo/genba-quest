@@ -24,6 +24,7 @@ import {
     recordPaymentAllocation,
     reverseCanonicalSale,
 } from "../services/AccountingCommandService";
+import { getPartnersSummary } from "../services/PartnersSummaryService";
 import {
     buildDefaultInvoiceSettings,
     buildInvoiceSourceSummarySnapshot,
@@ -4208,6 +4209,26 @@ router.get("/transactions", async (req: AuthenticatedRequest, res: Response) => 
         res.json(data);
     } catch (err: any) {
         console.error("Transactions error:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+// 取引先 月次サマリ (Money 取引先タブ 3 section, PR #6)
+router.get("/partners/summary", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const monthParam = typeof req.query.month === "string" ? req.query.month : "";
+        const month = /^\d{4}-\d{2}$/.test(monthParam)
+            ? monthParam
+            : new Date().toISOString().slice(0, 7);
+        const today = new Date().toISOString().slice(0, 10);
+        const result = await getPartnersSummary(req.orgId!, month, today);
+        res.json(result);
+    } catch (err: any) {
+        if (err instanceof Error && err.message === "ERR_INVALID_MONTH") {
+            res.status(400).json({ error: "month must be YYYY-MM" });
+            return;
+        }
+        console.error("[accounting] partners summary error:", err);
         res.status(500).json({ error: "Internal server error" });
     }
 });
