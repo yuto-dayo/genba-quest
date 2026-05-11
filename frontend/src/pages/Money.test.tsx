@@ -8,13 +8,18 @@ import { Money } from "./Money";
 const approveProposal = vi.fn();
 const batchReviewExpenses = vi.fn();
 const executeProposal = vi.fn();
+const fetchClients = vi.fn();
 const fetchExpenseBuckets = vi.fn();
+const fetchCashflowSummary = vi.fn();
+const fetchPartnersSummary = vi.fn();
+const fetchPLTrend = vi.fn();
 const fetchPendingApprovals = vi.fn();
 const fetchPendingProposals = vi.fn();
 const fetchPL = vi.fn();
 const fetchTransactions = vi.fn();
 const instructProposal = vi.fn();
 const rejectProposal = vi.fn();
+const reviewExpense = vi.fn();
 const searchTransactions = vi.fn();
 
 vi.mock("framer-motion", () => ({
@@ -42,13 +47,18 @@ vi.mock("../lib/api", () => ({
     approveProposal: (...args: unknown[]) => approveProposal(...args),
     batchReviewExpenses: (...args: unknown[]) => batchReviewExpenses(...args),
     executeProposal: (...args: unknown[]) => executeProposal(...args),
+    fetchClients: (...args: unknown[]) => fetchClients(...args),
     fetchExpenseBuckets: (...args: unknown[]) => fetchExpenseBuckets(...args),
+    fetchCashflowSummary: (...args: unknown[]) => fetchCashflowSummary(...args),
+    fetchPartnersSummary: (...args: unknown[]) => fetchPartnersSummary(...args),
+    fetchPLTrend: (...args: unknown[]) => fetchPLTrend(...args),
     fetchPendingApprovals: (...args: unknown[]) => fetchPendingApprovals(...args),
     fetchPendingProposals: (...args: unknown[]) => fetchPendingProposals(...args),
     fetchPL: (...args: unknown[]) => fetchPL(...args),
     fetchTransactions: (...args: unknown[]) => fetchTransactions(...args),
     instructProposal: (...args: unknown[]) => instructProposal(...args),
     rejectProposal: (...args: unknown[]) => rejectProposal(...args),
+    reviewExpense: (...args: unknown[]) => reviewExpense(...args),
     searchTransactions: (...args: unknown[]) => searchTransactions(...args),
 }));
 
@@ -83,6 +93,32 @@ vi.mock("../components/ApprovalCard", () => ({
 
 vi.mock("../components/FloatingActionButton", () => ({
     FloatingActionButton: () => null,
+}));
+
+vi.mock("../components/CashflowBucketStrip", () => ({
+    CashflowBucketStrip: () => null,
+}));
+
+vi.mock("../components/MonthlyTrendChart", () => ({
+    MonthlyTrendChart: () => null,
+}));
+
+vi.mock("../components/MoneyTabs", () => ({
+    MoneyTabs: () => null,
+}));
+
+vi.mock("../components/MoneyFilterSheet", () => ({
+    MoneyFilterSheet: () => null,
+}));
+
+vi.mock("../components/PartnerSection", () => ({
+    PartnerSection: () => null,
+}));
+
+vi.mock("../components/PartnerCard", () => ({
+    ReceivePartnerCard: () => null,
+    PayPartnerCard: () => null,
+    DonePartnerCard: () => null,
 }));
 
 vi.mock("../components/ProposalDetailModal", () => ({
@@ -163,13 +199,20 @@ describe("Money PATH proposal queue", () => {
         approveProposal.mockResolvedValue({ proposal: { ...pathProposal, status: "executed" } });
         batchReviewExpenses.mockResolvedValue({ success: [], failed: [] });
         executeProposal.mockResolvedValue({ proposal: { ...pathProposal, status: "executed" } });
+        fetchClients.mockResolvedValue([]);
         fetchExpenseBuckets.mockResolvedValue([]);
+        fetchCashflowSummary.mockResolvedValue({
+            month: "2026-05", unbilled: 0, awaiting_payment: 0, pay_pending: 0, done: 0,
+        });
+        fetchPartnersSummary.mockResolvedValue({ month: "2026-05", receive: [], pay: [], done: [] });
+        fetchPLTrend.mockResolvedValue({ months: [], basis: "legacy" });
         fetchPendingApprovals.mockResolvedValue([]);
         fetchPendingProposals.mockResolvedValue([]);
         fetchPL.mockResolvedValue(plReport);
         fetchTransactions.mockResolvedValue([]);
         instructProposal.mockResolvedValue({ proposal: pathProposal });
         rejectProposal.mockResolvedValue({ proposal: { ...pathProposal, status: "rejected" } });
+        reviewExpense.mockResolvedValue({ transaction: null });
         searchTransactions.mockResolvedValue([]);
     });
 

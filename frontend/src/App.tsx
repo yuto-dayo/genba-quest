@@ -1682,8 +1682,15 @@ function AppContent() {
     if (!activeOrgId) {
       return;
     }
-    setBellDrawerOpen(true);
-  }, [activeOrgId]);
+    // siteLevelDrafts (PATH governance) は BellDrawer に section が無いため
+    // NotificationInbox に振り分ける。それ以外は v3.4 の BellDrawer を開く。
+    // 後続 PR で BellDrawer に 4 番目の section を追加したらこの分岐は撤去。
+    if (siteLevelDraftNotifications.length > 0) {
+      setInboxOpen(true);
+    } else {
+      setBellDrawerOpen(true);
+    }
+  }, [activeOrgId, siteLevelDraftNotifications.length]);
 
   const handleBellApprovalComplete = useCallback(() => {
     window.dispatchEvent(new CustomEvent("pending-approvals-updated"));

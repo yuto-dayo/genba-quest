@@ -12,7 +12,7 @@
  * など登録系シートで再利用できるよう汎用化。
  */
 
-import { ReactNode, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
     AnimatePresence,
     motion,
