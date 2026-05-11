@@ -1,6 +1,5 @@
 import { BrowserRouter, Link, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import {
-  Bell,
   Building2,
   CalendarDays,
   ChevronRight,
@@ -23,7 +22,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
 import { type Session } from "@supabase/supabase-js";
 import { CommunicationRecordSheet } from "./components/CommunicationRecordSheet";
 import { NotificationInbox } from "./components/NotificationInbox";
@@ -36,6 +34,7 @@ import { Settings } from "./pages/Settings";
 import { Sites } from "./pages/Sites";
 import { Today } from "./pages/Today";
 import { FloatingActionButton } from "./components/FloatingActionButton";
+import { FloatingBellButton } from "./components/FloatingBellButton";
 import {
   acceptOrgInvite,
   bootstrapFirstOrg,
@@ -239,10 +238,6 @@ function buildActiveOrgOptions(memberships: AppEntryMembershipRecord[]): ActiveO
 }
 
 function Navigation({
-  bellEnabled,
-  bellNeedsAttention,
-  bellBadgeLabel,
-  bellLabel,
   orgOptions,
   activeOrgId,
   orgLabel,
@@ -250,13 +245,8 @@ function Navigation({
   viewerEmail,
   signOutBusy,
   onChangeOrg,
-  onOpenBell,
   onSignOut,
 }: {
-  bellEnabled: boolean;
-  bellNeedsAttention: boolean;
-  bellBadgeLabel: string | null;
-  bellLabel: string;
   orgOptions: ActiveOrgOption[];
   activeOrgId: string | null;
   orgLabel: string;
@@ -264,7 +254,6 @@ function Navigation({
   viewerEmail: string | null;
   signOutBusy: boolean;
   onChangeOrg: (orgId: string) => void;
-  onOpenBell: () => void;
   onSignOut: () => void;
 }) {
   const location = useLocation();
@@ -385,7 +374,7 @@ function Navigation({
     return () => {
       window.cancelAnimationFrame(frameId);
     };
-  }, [location.pathname, bellEnabled, syncChipRailState]);
+  }, [location.pathname, syncChipRailState]);
 
   return (
     <header
@@ -474,54 +463,6 @@ function Navigation({
               </Link>
             );
           })}
-
-          <AnimatePresence>
-            {bellEnabled && (
-              <motion.button
-                type="button"
-                className={`${styles.navChip} ${styles.navChipAction} ${
-                  bellNeedsAttention ? styles.navChipActionPending : ""
-                }`}
-                onClick={onOpenBell}
-                aria-label={bellLabel}
-                title={bellLabel}
-                initial={{ opacity: 0, scale: 0.6 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.6 }}
-                transition={{ type: "spring", stiffness: 460, damping: 22 }}
-              >
-                <span className={styles.navChipSurface}>
-                  <motion.span
-                    key={`bell-icon-${bellBadgeLabel || "0"}`}
-                    className={styles.navChipIcon}
-                    aria-hidden="true"
-                    initial={false}
-                    animate={
-                      bellNeedsAttention
-                        ? { rotate: [0, -10, 10, -6, 6, -3, 3, 0] }
-                        : { rotate: 0 }
-                    }
-                    transition={{ duration: 0.7, ease: "easeInOut" }}
-                    style={{ display: "inline-flex", transformOrigin: "center top" }}
-                  >
-                    <Bell size={16} />
-                  </motion.span>
-                  <span className={styles.navChipLabel}>確認</span>
-                  {bellBadgeLabel && (
-                    <motion.span
-                      key={`bell-badge-${bellBadgeLabel}`}
-                      className={styles.navChipBadge}
-                      initial={{ scale: 0.5, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      transition={{ type: "spring", stiffness: 540, damping: 18 }}
-                    >
-                      {bellBadgeLabel}
-                    </motion.span>
-                  )}
-                </span>
-              </motion.button>
-            )}
-          </AnimatePresence>
         </nav>
       </div>
     </header>
@@ -2074,10 +2015,6 @@ function AppContent() {
       {appReady ? (
         <div className={styles.app}>
           <Navigation
-            bellEnabled={bellEnabled}
-            bellNeedsAttention={bellNeedsAttention}
-            bellBadgeLabel={bellBadgeLabel}
-            bellLabel={bellLabel}
             orgOptions={orgOptions}
             activeOrgId={activeOrgId}
             orgLabel={orgLabel}
@@ -2085,7 +2022,6 @@ function AppContent() {
             viewerEmail={viewerEmail}
             signOutBusy={signOutBusy}
             onChangeOrg={(orgId) => setActiveOrgId(orgId)}
-            onOpenBell={openBell}
             onSignOut={() => void handleSignOut()}
           />
           <main className={styles.main}>
@@ -2103,6 +2039,13 @@ function AppContent() {
             </div>
           </main>
 
+          <FloatingBellButton
+            enabled={bellEnabled}
+            needsAttention={bellNeedsAttention}
+            badgeLabel={bellBadgeLabel}
+            label={bellLabel}
+            onOpen={openBell}
+          />
           {location.pathname === "/" && (
             <FloatingActionButton
               behavior="draggable"
