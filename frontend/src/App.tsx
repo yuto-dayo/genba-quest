@@ -24,6 +24,8 @@ import {
 import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { type Session } from "@supabase/supabase-js";
 import { CommunicationRecordSheet } from "./components/CommunicationRecordSheet";
+import { ErrorScreen } from "./components/ErrorScreen";
+import { IdleScreen } from "./components/IdleScreen";
 import { InlineLoader } from "./components/InlineLoader";
 import { LoadingScreen } from "./components/LoadingScreen";
 import { NotificationInbox } from "./components/NotificationInbox";
@@ -1368,6 +1370,17 @@ function AppContent() {
     if (previewMode === "loading") {
       return <LoadingScreen label="プレビュー" />;
     }
+    if (previewMode === "error") {
+      return (
+        <ErrorScreen
+          detail="API Error: 500 (preview)"
+          onRetry={() => alert("retry clicked")}
+        />
+      );
+    }
+    if (previewMode === "idle") {
+      return <IdleScreen caption="Sherpaが考えています" hint="もう少しお待ちください" />;
+    }
     if (previewMode === "inline-loader") {
       return (
         <div style={{ display: "grid", gap: 40, placeItems: "center", padding: 40, minHeight: "100vh", background: "var(--md-sys-color-surface, #FAFAF9)" }}>
@@ -1999,12 +2012,10 @@ function AppContent() {
 
     if (entryState.state === "error") {
       return (
-        <EntryLayout badge="エラー" title="入口を確認できませんでした" description="時間を置いて再読み込みするか、管理者にお問い合わせください。">
-          <p className={styles.entryError}>{entryState.message}</p>
-          <button type="button" className={styles.primaryButton} onClick={() => void resolveEntryState()}>
-            再読み込み
-          </button>
-        </EntryLayout>
+        <ErrorScreen
+          detail={entryState.message}
+          onRetry={() => void resolveEntryState()}
+        />
       );
     }
 

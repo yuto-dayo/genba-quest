@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `既存 Loader2 (lucide) 使用箇所を InlineLoader に段階置換する判断、error.png/zzz.png の組み込み検討。`
+- NEXT_CMD: `IdleScreen を実際に使う場所の特定 (SherpaChat 長時間応答 / OCR 処理 / Path V3 報酬計算 等)。残る EntryLayout フォーム系 Gate (Auth/Onboarding/Invite/OrgSelection) の刷新方針検討。`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/HANDOFF.md`
@@ -18,8 +18,8 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `20dca38`
-  - Updated: `2026-05-11T23:31:03+0900`
+  - HEAD: `a544093`
+  - Updated: `2026-05-11T23:43:27+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
@@ -33,43 +33,43 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `既存 Loader2 (lucide) 使用箇所を InlineLoader に段階置換する判断、error.png/zzz.png の組み込み検討。`. Source: realtime
+- [focus] NEXT_CMD: `IdleScreen を実際に使う場所の特定 (SherpaChat 長時間応答 / OCR 処理 / Path V3 報酬計算 等)。残る EntryLayout フォーム系 Gate (Auth/Onboarding/Invite/OrgSelection) の刷新方針検討。`. Source: realtime
+- [H0016] Completed: ErrorScreen (entryState=error を画像ベースに置換, error.webp/png), IdleScreen (Sherpa/OCR等の長時間待ち用, idle.webp/png + breathing animation, inline モード対応) を追加。dev preview ?preview=error|idle 追加。
+- [H0016] Remaining: IdleScreen を実際に使う場所の特定 (SherpaChat 長時間応答 / OCR 処理 / Path V3 報酬計算 等)。残る EntryLayout フォーム系 Gate (Auth/Onboarding/Invite/OrgSelection) の刷新方針検討。
 - [H0015] Completed: LoadingScreen (初回起動用フルポスター+sweepバー) と InlineLoader (in-app用 M3 progress_activity SVG) を追加。App.tsx の authLoading / entryState=loading を LoadingScreen に差替え。dev preview ルート ?preview=loading|inline-loader を追加。
 - [H0015] Remaining: 既存 Loader2 (lucide) 使用箇所を InlineLoader に段階置換する判断、error.png/zzz.png の組み込み検討。
-- [H0014] Completed: splash screen実装: branded fullscreen splash (splash.webp 217KB + splash.png 1.0MB fallback), index.html instant render + main.tsx で 2.7s後フェードアウト
-- [H0014] Remaining: 起動時以外のロード画面用素材を選定（ユーザーが探してくる）
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0016] Auto-captured decision: ErrorScreen (entryState=error を画像ベースに置換, error.webp/png), IdleScreen (Sherpa/OCR等の長時間待ち用, idle.webp/png + breathing animation, inline モード...
 - [H0015] Auto-captured decision: LoadingScreen (初回起動用フルポスター+sweepバー) と InlineLoader (in-app用 M3 progress_activity SVG) を追加。App.tsx の authLoading / entryState=loading を ...
 - [H0014] Auto-captured decision: splash screen実装: branded fullscreen splash (splash.webp 217KB + splash.png 1.0MB fallback), index.html instant render + main.tsx で 2.7s後フェードアウト
 - [H0013] Auto-captured decision: Calendar 項目12: scope モード凡例追加。スコープ/期間 segment 直下に 1行 caption (.scopeLegend) を追加し、organization='全員の予定と人数不足を...
 - [H0012] Auto-captured decision: Calendar 項目8 仕上げ: 角丸スケール {14, 16, 18, 20, 24, 999} → {20, 24, 999} の3階層に縮約。.monthGrid 18→20 / .monthPickerOption 16→20 / モバイル ....
-- [H0011] Auto-captured decision: Calendar 項目13: .completedRunLayer の lane tokens を @media 切り替え → clamp() 化。--completed-run-header-offset / --lane-height / --bar-height / --bar-inset と新...
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0015] No new landmines reported in this chunk.
+- [H0016] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0016] IdleScreen を実際に使う場所の特定 (SherpaChat 長時間応答 / OCR 処理 / Path V3 報酬計算 等)。残る EntryLayout フォーム系 Gate (Auth/Onboarding/Invite/OrgSelection) の刷新方針検討。
 - [H0015] 既存 Loader2 (lucide) 使用箇所を InlineLoader に段階置換する判断、error.png/zzz.png の組み込み検討。
 - [H0014] 起動時以外のロード画面用素材を選定（ユーザーが探してくる）
 - [H0013] feature/calendar-cleanup-v2 を PR 化 (5コミット: 28444ab cherry-pick + 9, 11, 10, 13, 8, 12)。
 - [H0012] 項目12 (scope mode 凡例) — 最後のアイテム。
-- [H0011] 項目8 (角丸スケール仕上げ) 続行。
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `15`
+- current_l3_entries: `16`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -100,6 +100,7 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] ErrorScreen (entryState=error を画像ベースに置換, error.webp/png), IdleScreen (Sherpa/OCR等の長時間待ち用, idle.webp/png + breathing animation, inline モード対応) を追加。dev preview ?preview=error|idle 追加。
 - [x] LoadingScreen (初回起動用フルポスター+sweepバー) と InlineLoader (in-app用 M3 progress_activity SVG) を追加。App.tsx の authLoading / entryState=loading を LoadingScreen に差替え。dev preview ルート ?preview=loading|inline-loader を追加。
 - [x] splash screen実装: branded fullscreen splash (splash.webp 217KB + splash.png 1.0MB fallback), index.html instant render + main.tsx で 2.7s後フェードアウト
 - [x] Calendar 項目12: scope モード凡例追加。スコープ/期間 segment 直下に 1行 caption (.scopeLegend) を追加し、organization='全員の予定と人数不足を表示' / personal='自分の予定と休みを編集' を aria-live=polite で動的更新。Calendar 整理リスト 1-13 完了。
@@ -109,16 +110,15 @@ Phase: A-0/A-1
 - [x] Calendar 項目11: completedRunBar 縦レーン配置を px→token化。MonthCalendar から '31+lane*19'px の手計算を撤去し、--completed-run-lane (整数) を渡すだけに。CSS .completedRunLayer に --completed-run-header-offset / --lane-height / --bar-height / --bar-inset の token を導入し、@media (max-width:768px) で latent bug を解消 (lane-height も 19→17px に縮小)。
 - [x] Calendar: 3-button availability row → single 休み on/off toggle (role=switch, isLeaveOn driven by selectedLeaveSchedule). Dropped availabilityTokens state & token branch in clearAvailabilityToken. CSS .leaveToggle/.leaveToggleOn replaces .availabilityToken*. Tests updated to role=switch + aria-checked.
 - [x] v3.4 退行 fix: bell→inbox ルート (siteLevelDraft) / BottomSheet PartnerSection の ReactNode を type-only import / SiteFormModal の ExpenseModal に open prop / Money.test.tsx api mock + component mock 追加
-- [x] v3.4 確定: MonthlyTrendChart cherry-pick + MoneyBucketDashboard 削除 + v3.4 mock 追加
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: 既存 Loader2 (lucide) 使用箇所を InlineLoader に段階置換する判断、error.png/zzz.png の組み込み検討。
+- [ ] **P0**: IdleScreen を実際に使う場所の特定 (SherpaChat 長時間応答 / OCR 処理 / Path V3 報酬計算 等)。残る EntryLayout フォーム系 Gate (Auth/Onboarding/Invite/OrgSelection) の刷新方針検討。
+- [ ] **P1**: 既存 Loader2 (lucide) 使用箇所を InlineLoader に段階置換する判断、error.png/zzz.png の組み込み検討。
 - [ ] **P1**: 起動時以外のロード画面用素材を選定（ユーザーが探してくる）
 - [ ] **P1**: feature/calendar-cleanup-v2 を PR 化 (5コミット: 28444ab cherry-pick + 9, 11, 10, 13, 8, 12)。
 - [ ] **P1**: 項目12 (scope mode 凡例) — 最後のアイテム。
-- [ ] **P1**: 項目8 (角丸スケール仕上げ) 続行。
 ---
 
 ## 5. Changed Files
@@ -409,5 +409,21 @@ cd frontend && npx eslint src/
   - Auto-captured decision: LoadingScreen (初回起動用フルポスター+sweepバー) と InlineLoader (in-app用 M3 progress_activity SVG) を追加。App.tsx の authLoading / entryState=loading を ...
 - Validation:
   - `preview /?preview=inline-loader で4サイズ+tone+block表示確認、console エラー無し。LoadingScreen は React 経由マウントを 800x600 viewport で実描画確認済み。`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-11 23:43:27 +0900
+
+- Entry-ID: `H0016`
+- Completed:
+  - [x] ErrorScreen (entryState=error を画像ベースに置換, error.webp/png), IdleScreen (Sherpa/OCR等の長時間待ち用, idle.webp/png + breathing animation, inline モード対応) を追加。dev preview ?preview=error|idle 追加。
+- Remaining:
+  - [ ] IdleScreen を実際に使う場所の特定 (SherpaChat 長時間応答 / OCR 処理 / Path V3 報酬計算 等)。残る EntryLayout フォーム系 Gate (Auth/Onboarding/Invite/OrgSelection) の刷新方針検討。
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: ErrorScreen (entryState=error を画像ベースに置換, error.webp/png), IdleScreen (Sherpa/OCR等の長時間待ち用, idle.webp/png + breathing animation, inline モード...
+- Validation:
+  - `?preview=error と ?preview=idle で実描画確認、コンソールエラー無し。`
 - Landmines:
   - No new landmines reported in this chunk.
