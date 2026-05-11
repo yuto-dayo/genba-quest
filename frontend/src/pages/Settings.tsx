@@ -12,12 +12,10 @@ import {
     Plus,
     ReceiptText,
     Search,
-    Sparkles,
     Trash2,
     UserPlus,
     Users,
 } from "lucide-react";
-import { Link } from "react-router-dom";
 import {
     bootstrapOrg,
     createOrgInvite,
@@ -25,13 +23,7 @@ import {
     fetchInvoiceSettings,
     fetchMembers,
     fetchMyProfile,
-    fetchPathAiReviews,
-    fetchPathCertifications,
-    fetchPathFinalizations,
-    fetchPathForms,
-    fetchPathProfiles,
     listOrgInvites,
-    PATH_BIG_SKILL_KEYS,
     restoreClient,
     revokeOrgInvite,
     updateMyProfile,
@@ -41,13 +33,6 @@ import {
     type MyProfileRecord,
     type OrgInviteRecord,
     type OrgInviteRole,
-    type PathBigSkillKey,
-    type PathBigSkillState,
-    type PathMonthlyEvaluationAiReview,
-    type PathMonthlyEvaluationFinalization,
-    type PathMonthlyEvaluationForm,
-    type PathSkillCertification,
-    type PathSkillProfile,
 } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
 import { supabase } from "../lib/supabase";
@@ -71,137 +56,104 @@ const statusMeta = {
     },
 } as const;
 
-const bigSkillLabels: Record<PathBigSkillKey, string> = {
-    cross_work: "クロス施工力",
-    putty_foundation: "パテ・下地処理力",
-    planning_preparation: "段取り・準備力",
-    quality_stability: "品質安定力",
-    site_trust: "現場信頼形成力",
-    education_support: "教育・支援力",
+type SettingPanel = "profile" | "organization" | "members" | "invoice" | "clients";
+
+type ProfileFormState = {
+    full_name: string;
+    username: string;
+    phone: string;
+    job_type: string;
+    employment_kind: MyProfileRecord["employment_kind"];
+    trade_name: string;
+    invoice_registration_number: string;
+    bank_name: string;
+    branch_name: string;
+    account_type: "" | NonNullable<MyProfileRecord["account_type"]>;
+    account_number: string;
+    account_holder_kana: string;
+    postal_code: string;
+    prefecture: string;
+    city: string;
+    address_line1: string;
+    address_line2: string;
+    emergency_contact_name: string;
+    emergency_phone: string;
 };
 
-const bigSkillStateLabels: Record<PathBigSkillState, string> = {
-    unverified: "未確認",
-    assist_required: "補助あり",
-    conditional: "条件付き",
-    near_independent: "ほぼ自走",
-    stable_independent: "安定自走",
+const emptyProfileForm: ProfileFormState = {
+    full_name: "",
+    username: "",
+    phone: "",
+    job_type: "",
+    employment_kind: "employee",
+    trade_name: "",
+    invoice_registration_number: "",
+    bank_name: "",
+    branch_name: "",
+    account_type: "",
+    account_number: "",
+    account_holder_kana: "",
+    postal_code: "",
+    prefecture: "",
+    city: "",
+    address_line1: "",
+    address_line2: "",
+    emergency_contact_name: "",
+    emergency_phone: "",
 };
 
-const certificationStatusLabels = {
-    candidate: "候補",
-    verified: "認定済み",
-    review_required: "要レビュー",
-    revoked: "取消",
-} as const;
-
-const skillFilterOptions = [
-    { value: "all", label: "すべて" },
-    { value: "verified", label: "認定済み" },
-    { value: "review_required", label: "要レビュー" },
-    { value: "candidate", label: "候補" },
-] as const;
-
-function currentMonthValue() {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function formatMonthLabel(value: string) {
-    const [year, month] = value.split("-");
-    if (!year || !month) {
-        return value;
-    }
-    return `${year}/${month}`;
-}
-
-function formatDateLabel(value: string | null | undefined) {
-    if (!value) {
-        return "未記録";
-    }
-    return new Date(value).toLocaleDateString("ja-JP", {
-        month: "numeric",
-        day: "numeric",
-    });
-}
-
-function toTimestamp(value: string | null | undefined) {
-    if (!value) {
-        return 0;
-    }
-
-    const timestamp = new Date(value).getTime();
-    return Number.isFinite(timestamp) ? timestamp : 0;
-}
-
-function truncateText(value: string | null | undefined, length: number) {
-    const text = value?.trim() || "";
-    if (text.length <= length) {
-        return text;
-    }
-    return `${text.slice(0, length)}…`;
-}
-
-function buildMonthlyStatus(params: {
-    form: PathMonthlyEvaluationForm | null;
-    review: PathMonthlyEvaluationAiReview | null;
-    finalization: PathMonthlyEvaluationFinalization | null;
-}) {
-    if (params.finalization) {
-        return {
-            label: "確定済み",
-            helper: `${formatMonthLabel(params.finalization.month)} の評価は確定済みです`,
-            tone: "complete" as const,
-        };
-    }
-
-    if (params.review) {
-        return {
-            label: "確認待ち",
-            helper: "AI下書きまで進んでいます。PATH で確認して確定します",
-            tone: "progress" as const,
-        };
-    }
-
-    if (params.form) {
-        return {
-            label: "入力済み",
-            helper: "月末フォームは保存済みです。AI下書きの確認へ進めます",
-            tone: "progress" as const,
-        };
-    }
-
+function profileToFormState(profile: MyProfileRecord): ProfileFormState {
     return {
-        label: "未着手",
-        helper: "今月の評価はまだ始まっていません",
-        tone: "neutral" as const,
+        full_name: profile.full_name ?? "",
+        username: profile.username ?? "",
+        phone: profile.phone ?? "",
+        job_type: profile.job_type ?? "",
+        employment_kind: profile.employment_kind,
+        trade_name: profile.trade_name ?? "",
+        invoice_registration_number: profile.invoice_registration_number ?? "",
+        bank_name: profile.bank_name ?? "",
+        branch_name: profile.branch_name ?? "",
+        account_type: profile.account_type ?? "",
+        account_number: profile.account_number ?? "",
+        account_holder_kana: profile.account_holder_kana ?? "",
+        postal_code: profile.postal_code ?? "",
+        prefecture: profile.prefecture ?? "",
+        city: profile.city ?? "",
+        address_line1: profile.address_line1 ?? "",
+        address_line2: profile.address_line2 ?? "",
+        emergency_contact_name: profile.emergency_contact_name ?? "",
+        emergency_phone: profile.emergency_phone ?? "",
     };
 }
 
-function buildHistorySummary(
-    item: PathMonthlyEvaluationFinalization,
-    previous?: PathMonthlyEvaluationFinalization,
-) {
-    if (item.comment?.includes("再確認")) {
-        return "再確認あり";
-    }
+const EMPLOYMENT_KIND_LABEL: Record<MyProfileRecord["employment_kind"], string> = {
+    employee: "社員",
+    sole_proprietor: "一人親方",
+    helper: "応援（日雇い）",
+};
 
-    if (item.current_level && previous?.current_level && item.current_level !== previous.current_level) {
-        return `Level ${previous.current_level} → ${item.current_level}`;
-    }
+const ACCOUNT_TYPE_LABEL: Record<NonNullable<MyProfileRecord["account_type"]>, string> = {
+    ordinary: "普通",
+    checking: "当座",
+};
 
-    if (item.current_level) {
-        return `Level ${item.current_level}`;
+function isProfileFormDirty(form: ProfileFormState, base: MyProfileRecord | null): boolean {
+    if (!base) {
+        return false;
     }
-
-    return item.comment?.trim() ? "コメント更新あり" : "評価を確定";
+    const reference = profileToFormState(base);
+    return (Object.keys(form) as Array<keyof ProfileFormState>).some((key) => form[key] !== reference[key]);
 }
 
-function formatSkillKeyLabel(value: string) {
-    return value.replaceAll("_", " ");
+function formatProfileError(code: string): string {
+    if (code === "PROFILE_USERNAME_TOO_SHORT") return "ユーザー名は3文字以上で入力してください。";
+    if (code === "PROFILE_USERNAME_TAKEN") return "そのユーザー名は使われています。";
+    if (code === "PROFILE_EMPLOYMENT_KIND_INVALID") return "雇用区分の指定が不正です。";
+    if (code === "PROFILE_INVOICE_NUMBER_INVALID") return "インボイス番号は T で始まる14文字（T + 13桁）で入力してください。";
+    if (code === "PROFILE_POSTAL_CODE_INVALID") return "郵便番号は 1234567 もしくは 123-4567 の形式で入力してください。";
+    if (code === "PROFILE_ACCOUNT_TYPE_INVALID") return "口座種別の指定が不正です。";
+    return code;
 }
-
-type SettingPanel = "profile" | "organization" | "members" | "invoice" | "clients";
 
 function buildInviteLink(inviteId: string) {
     if (typeof window === "undefined") {
@@ -282,20 +234,10 @@ export function Settings() {
     const [copiedInviteId, setCopiedInviteId] = useState<string | null>(null);
     const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null);
     const [myProfile, setMyProfile] = useState<MyProfileRecord | null>(null);
-    const [profileFullName, setProfileFullName] = useState("");
-    const [profileUsername, setProfileUsername] = useState("");
+    const [profileForm, setProfileForm] = useState<ProfileFormState>(emptyProfileForm);
     const [profileSaveBusy, setProfileSaveBusy] = useState(false);
     const [profileError, setProfileError] = useState<string | null>(null);
     const [profileMessage, setProfileMessage] = useState<string | null>(null);
-    const [currentProfile, setCurrentProfile] = useState<PathSkillProfile | null>(null);
-    const [currentForm, setCurrentForm] = useState<PathMonthlyEvaluationForm | null>(null);
-    const [currentReview, setCurrentReview] = useState<PathMonthlyEvaluationAiReview | null>(null);
-    const [currentFinalization, setCurrentFinalization] = useState<PathMonthlyEvaluationFinalization | null>(null);
-    const [currentCertifications, setCurrentCertifications] = useState<PathSkillCertification[]>([]);
-    const [recentFinalizations, setRecentFinalizations] = useState<PathMonthlyEvaluationFinalization[]>([]);
-    const [skillQuery, setSkillQuery] = useState("");
-    const [skillFilter, setSkillFilter] = useState<(typeof skillFilterOptions)[number]["value"]>("all");
-    const [isSkillFinderOpen, setIsSkillFinderOpen] = useState(false);
     const [settingsQuery, setSettingsQuery] = useState("");
     const [selectedSetting, setSelectedSetting] = useState<SettingPanel | null>(null);
     const [orgName, setOrgName] = useState("");
@@ -316,7 +258,6 @@ export function Settings() {
                 data: { session },
             } = await supabase.auth.getSession();
             const currentUserId = session?.user?.id || null;
-            const currentMonth = currentMonthValue();
 
             const [settingsData, clientsData, deletedClientsData, membersData] = await Promise.all([
                 fetchInvoiceSettings(),
@@ -332,12 +273,6 @@ export function Settings() {
             setCurrentMember(currentUserId ? membersData.find((member) => member.id === currentUserId) || null : null);
 
             if (!currentUserId) {
-                setCurrentProfile(null);
-                setCurrentForm(null);
-                setCurrentReview(null);
-                setCurrentFinalization(null);
-                setCurrentCertifications([]);
-                setRecentFinalizations([]);
                 return;
             }
 
@@ -351,28 +286,10 @@ export function Settings() {
             try {
                 const profileData = await fetchMyProfile();
                 setMyProfile(profileData.profile);
-                setProfileFullName(profileData.profile.full_name ?? "");
-                setProfileUsername(profileData.profile.username ?? "");
+                setProfileForm(profileToFormState(profileData.profile));
             } catch {
                 setMyProfile(null);
             }
-
-            const [profilesData, formsData, reviewsData, finalizationsData, historyData, certificationsData] =
-                await Promise.all([
-                    fetchPathProfiles({ member_id: currentUserId, limit: 1 }),
-                    fetchPathForms({ month: currentMonth, member_id: currentUserId, limit: 1 }),
-                    fetchPathAiReviews({ month: currentMonth, member_id: currentUserId, limit: 1 }),
-                    fetchPathFinalizations({ month: currentMonth, member_id: currentUserId, limit: 1 }),
-                    fetchPathFinalizations({ member_id: currentUserId, limit: 4 }),
-                    fetchPathCertifications({ member_id: currentUserId, limit: 40 }),
-                ]);
-
-            setCurrentProfile(profilesData.profiles[0] || null);
-            setCurrentForm(formsData.forms[0] || null);
-            setCurrentReview(reviewsData.reviews[0] || null);
-            setCurrentFinalization(finalizationsData.finalizations[0] || null);
-            setRecentFinalizations(historyData.finalizations);
-            setCurrentCertifications(certificationsData.certifications);
         } catch (err: unknown) {
             setPageError(getErrorMessage(err));
         } finally {
@@ -466,19 +383,44 @@ export function Settings() {
         }
     };
 
+    const setProfileField = <K extends keyof ProfileFormState>(key: K, value: ProfileFormState[K]) => {
+        setProfileForm((prev) => ({ ...prev, [key]: value }));
+        setProfileError(null);
+        setProfileMessage(null);
+    };
+
     const handleSaveProfile = async () => {
         try {
             setProfileSaveBusy(true);
             setProfileError(null);
             setProfileMessage(null);
 
-            const result = await updateMyProfile({
-                full_name: profileFullName.trim() || null,
-                username: profileUsername.trim() || null,
-            });
+            const text = (value: string) => value.trim() || null;
+            const payload = {
+                full_name: text(profileForm.full_name),
+                username: text(profileForm.username),
+                phone: text(profileForm.phone),
+                job_type: text(profileForm.job_type),
+                employment_kind: profileForm.employment_kind,
+                trade_name: text(profileForm.trade_name),
+                invoice_registration_number: text(profileForm.invoice_registration_number),
+                bank_name: text(profileForm.bank_name),
+                branch_name: text(profileForm.branch_name),
+                account_type: profileForm.account_type === "" ? null : profileForm.account_type,
+                account_number: text(profileForm.account_number),
+                account_holder_kana: text(profileForm.account_holder_kana),
+                postal_code: text(profileForm.postal_code),
+                prefecture: text(profileForm.prefecture),
+                city: text(profileForm.city),
+                address_line1: text(profileForm.address_line1),
+                address_line2: text(profileForm.address_line2),
+                emergency_contact_name: text(profileForm.emergency_contact_name),
+                emergency_phone: text(profileForm.emergency_phone),
+            };
+
+            const result = await updateMyProfile(payload);
             setMyProfile(result.profile);
-            setProfileFullName(result.profile.full_name ?? "");
-            setProfileUsername(result.profile.username ?? "");
+            setProfileForm(profileToFormState(result.profile));
             setProfileMessage("プロフィールを保存しました。");
 
             const currentMembers = await fetchMembers();
@@ -489,14 +431,7 @@ export function Settings() {
             const uid = session?.user?.id || null;
             setCurrentMember(uid ? currentMembers.find((member) => member.id === uid) || null : null);
         } catch (error: unknown) {
-            const message = getErrorMessage(error);
-            if (message === "PROFILE_USERNAME_TOO_SHORT") {
-                setProfileError("ユーザー名は3文字以上で入力してください。");
-            } else if (message === "PROFILE_USERNAME_TAKEN") {
-                setProfileError("そのユーザー名は使われています。");
-            } else {
-                setProfileError(message);
-            }
+            setProfileError(formatProfileError(getErrorMessage(error)));
         } finally {
             setProfileSaveBusy(false);
         }
@@ -521,43 +456,14 @@ export function Settings() {
     const activeOrg = orgOptions.find((option) => option.org.id === activeOrgId) || null;
     const isCurrentUserAdmin = activeOrg?.membership.role === "admin";
     const displayName = currentMember?.full_name || currentMember?.username || "未設定";
-    const currentMonth = currentMonthValue();
-    const currentLevel = currentFinalization?.current_level || currentProfile?.current_level;
-    const monthlyStatus = buildMonthlyStatus({
-        form: currentForm,
-        review: currentReview,
-        finalization: currentFinalization,
-    });
-    const sortedCertifications = [...currentCertifications].sort(
-        (a, b) => toTimestamp(b.verified_at || b.updated_at) - toTimestamp(a.verified_at || a.updated_at),
-    );
-    const verifiedCertifications = sortedCertifications.filter((item) => item.status === "verified");
-    const certificationsNeedingReview = currentCertifications.filter((item) => item.review_required_flag);
-    const filteredCertifications = sortedCertifications
-        .filter((item) => (skillFilter === "all" ? true : item.status === skillFilter))
-        .filter((item) => {
-            if (!skillQuery.trim()) {
-                return true;
-            }
-
-            const keyword = skillQuery.trim().toLowerCase();
-            return [item.skill_key, item.category, item.note]
-                .filter(Boolean)
-                .some((value) => value.toLowerCase().includes(keyword));
-        })
-        .slice(0, skillQuery.trim() ? 8 : 6);
-    const recentCertificationHighlights = verifiedCertifications.slice(0, 3);
-    const recentHistory = [...recentFinalizations]
-        .sort((a, b) => toTimestamp(b.finalized_at) - toTimestamp(a.finalized_at))
-        .slice(0, 3);
-    const shouldShowSkillFinder = isSkillFinderOpen || skillQuery.trim().length > 0 || skillFilter !== "all";
+    const profileSummaryDetail = myProfile?.job_type?.trim() || EMPLOYMENT_KIND_LABEL[myProfile?.employment_kind ?? "employee"];
     const settingsSearch = settingsQuery.trim().toLowerCase();
     const allSettingItems = [
         {
             id: "profile" as const,
             group: "個人",
-            title: "状態と評価",
-            summary: `${currentMember ? displayName : "未設定"} / ${monthlyStatus.label}`,
+            title: "プロフィール",
+            summary: `${currentMember ? displayName : "未設定"} / ${profileSummaryDetail}`,
             icon: <Users size={20} />,
         },
         {
@@ -740,19 +646,12 @@ export function Settings() {
 
                         {selectedSetting === "profile" && (
                             <>
-                                <div className={styles.detailActions}>
-                                    <Link to="/path?tab=reward" className={styles.secondaryButton}>
-                                        評価
-                                        <ChevronRight size={16} />
-                                    </Link>
-                                </div>
-
                                 <div className={styles.infoCard}>
                                     <div className={styles.infoCardHeader}>
                                         <div>
-                                            <h3 className={styles.infoCardTitle}>氏名・表示名</h3>
+                                            <h3 className={styles.infoCardTitle}>基本情報</h3>
                                             <p className={styles.infoCardDescription}>
-                                                チームに表示される名前です。空欄にするとメールアドレスが代わりに表示されます。
+                                                チームで表示・連絡に使う情報です。
                                             </p>
                                         </div>
                                         <Users size={18} className={styles.infoCardIcon} />
@@ -762,12 +661,8 @@ export function Settings() {
                                         <label className={styles.inputField}>
                                             <span>氏名（フルネーム）</span>
                                             <input
-                                                value={profileFullName}
-                                                onChange={(event) => {
-                                                    setProfileFullName(event.target.value);
-                                                    setProfileError(null);
-                                                    setProfileMessage(null);
-                                                }}
+                                                value={profileForm.full_name}
+                                                onChange={(event) => setProfileField("full_name", event.target.value)}
                                                 placeholder="例: 山田 太郎"
                                                 maxLength={80}
                                             />
@@ -775,239 +670,277 @@ export function Settings() {
                                         <label className={styles.inputField}>
                                             <span>ユーザー名（3文字以上）</span>
                                             <input
-                                                value={profileUsername}
-                                                onChange={(event) => {
-                                                    setProfileUsername(event.target.value);
-                                                    setProfileError(null);
-                                                    setProfileMessage(null);
-                                                }}
+                                                value={profileForm.username}
+                                                onChange={(event) => setProfileField("username", event.target.value)}
                                                 placeholder="例: yamada"
                                                 maxLength={40}
                                             />
                                         </label>
-
-                                        {profileError && <p className={styles.formError}>{profileError}</p>}
-                                        {profileMessage && <p className={styles.successMessage}>{profileMessage}</p>}
-
-                                        <button
-                                            type="button"
-                                            className={styles.primaryButton}
-                                            onClick={() => void handleSaveProfile()}
-                                            disabled={
-                                                profileSaveBusy ||
-                                                (profileFullName === (myProfile?.full_name ?? "") &&
-                                                    profileUsername === (myProfile?.username ?? ""))
-                                            }
-                                            aria-busy={profileSaveBusy}
-                                        >
-                                            {profileSaveBusy ? (
-                                                <Loader2 size={16} className={styles.spinner} />
-                                            ) : (
-                                                <Check size={16} />
-                                            )}
-                                            保存
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div className={styles.profileHero}>
-                                    <div className={styles.identityBlock}>
-                                        <span className={styles.identityEyebrow}>本人</span>
-                                        <strong className={styles.identityName}>
-                                            {currentMember ? displayName : "未設定"}
-                                        </strong>
-                                        <div className={styles.identityMeta}>
-                                            <span className={styles.levelChip}>
-                                                {currentLevel ? `Level ${currentLevel}` : "Level -"}
-                                            </span>
-                                            <span
-                                                className={`${styles.progressChip} ${
-                                                    monthlyStatus.tone === "complete"
-                                                        ? styles.progressComplete
-                                                        : monthlyStatus.tone === "progress"
-                                                          ? styles.progressActive
-                                                          : styles.progressNeutral
-                                                }`}
+                                        <label className={styles.inputField}>
+                                            <span>電話</span>
+                                            <input
+                                                type="tel"
+                                                value={profileForm.phone}
+                                                onChange={(event) => setProfileField("phone", event.target.value)}
+                                                placeholder="例: 090-1234-5678"
+                                                maxLength={32}
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>職種</span>
+                                            <input
+                                                value={profileForm.job_type}
+                                                onChange={(event) => setProfileField("job_type", event.target.value)}
+                                                placeholder="例: クロス / 大工 / 塗装"
+                                                maxLength={40}
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>雇用区分</span>
+                                            <select
+                                                value={profileForm.employment_kind}
+                                                onChange={(event) =>
+                                                    setProfileField(
+                                                        "employment_kind",
+                                                        event.target.value as ProfileFormState["employment_kind"],
+                                                    )
+                                                }
                                             >
-                                                評価: {monthlyStatus.label}
-                                            </span>
-                                        </div>
+                                                {(Object.keys(EMPLOYMENT_KIND_LABEL) as Array<ProfileFormState["employment_kind"]>)
+                                                    .map((value) => (
+                                                        <option key={value} value={value}>
+                                                            {EMPLOYMENT_KIND_LABEL[value]}
+                                                        </option>
+                                                    ))}
+                                            </select>
+                                        </label>
                                     </div>
-
-                                    <div className={styles.progressPanel}>
-                                        <span className={styles.infoLabel}>今月</span>
-                                        <strong>{monthlyStatus.label}</strong>
-                                        <div className={styles.progressMeta}>
-                                            <span>月: {formatMonthLabel(currentMonth)}</span>
-                                            <span>
-                                                前回:{" "}
-                                                {recentFinalizations[0]
-                                                    ? `${formatMonthLabel(recentFinalizations[0].month)} / ${formatDateLabel(recentFinalizations[0].finalized_at)}`
-                                                    : "なし"}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className={styles.profileGrid}>
-                                    <div className={styles.infoCard}>
-                                        <div className={styles.infoCardHeader}>
-                                            <div>
-                                                <h3 className={styles.infoCardTitle}>主評価</h3>
-                                            </div>
-                                            <Sparkles size={18} className={styles.infoCardIcon} />
-                                        </div>
-
-                                        <div className={styles.skillList}>
-                                            {PATH_BIG_SKILL_KEYS.map((key) => {
-                                                const profileValue =
-                                                    currentProfile?.[`${key}_status` as keyof PathSkillProfile];
-                                                const status =
-                                                    typeof profileValue === "string"
-                                                        ? (profileValue as PathBigSkillState)
-                                                        : currentFinalization?.confirmed_big_skill_states?.[key] ||
-                                                          "unverified";
-
-                                                return (
-                                                    <div key={key} className={styles.skillRow}>
-                                                        <span>{bigSkillLabels[key]}</span>
-                                                        <strong>{bigSkillStateLabels[status]}</strong>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-
-                                    <div className={styles.infoCard}>
-                                        <div className={styles.infoCardHeader}>
-                                            <div>
-                                                <h3 className={styles.infoCardTitle}>認定技能</h3>
-                                            </div>
-                                            <BadgeCheck size={18} className={styles.infoCardIcon} />
-                                        </div>
-
-                                        <div className={styles.summaryRow}>
-                                            <div className={styles.summaryBlock}>
-                                                <span>認定済み</span>
-                                                <strong>{verifiedCertifications.length}件</strong>
-                                            </div>
-                                            <div className={styles.summaryBlock}>
-                                                <span>要レビュー</span>
-                                                <strong>{certificationsNeedingReview.length}件</strong>
-                                            </div>
-                                        </div>
-
-                                        <div className={styles.certificationPreview}>
-                                            {recentCertificationHighlights.map((item) => (
-                                                <span key={item.id} className={styles.previewChip}>
-                                                    {formatSkillKeyLabel(item.skill_key)}
-                                                </span>
-                                            ))}
-                                            {verifiedCertifications.length === 0 && (
-                                                <span className={styles.previewEmpty}>なし</span>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className={styles.infoCard}>
-                                    <div className={styles.finderHeader}>
-                                        <div>
-                                            <h3 className={styles.infoCardTitle}>技能</h3>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            className={styles.secondaryButton}
-                                            onClick={() => setIsSkillFinderOpen((value) => !value)}
-                                        >
-                                            {shouldShowSkillFinder ? "閉じる" : "探す"}
-                                        </button>
-                                    </div>
-
-                                    {shouldShowSkillFinder && (
-                                        <>
-                                            <div className={styles.filterRow}>
-                                                {skillFilterOptions.map((option) => (
-                                                    <button
-                                                        key={option.value}
-                                                        type="button"
-                                                        className={`${styles.filterChip} ${
-                                                            skillFilter === option.value ? styles.filterChipActive : ""
-                                                        }`}
-                                                        onClick={() => setSkillFilter(option.value)}
-                                                    >
-                                                        {option.label}
-                                                    </button>
-                                                ))}
-                                            </div>
-
-                                            <label className={styles.searchField}>
-                                                <Search size={16} />
-                                                <input
-                                                    type="text"
-                                                    value={skillQuery}
-                                                    onChange={(event) => setSkillQuery(event.target.value)}
-                                                    placeholder="技能名やカテゴリで探す"
-                                                />
-                                            </label>
-
-                                            <p className={styles.finderHint}>
-                                                {skillFilter === "all"
-                                                    ? "表示: すべて"
-                                                    : `${skillFilterOptions.find((option) => option.value === skillFilter)?.label || "技能"} を表示中`}
-                                            </p>
-
-                                            <div className={styles.certificationList}>
-                                                {filteredCertifications.length === 0 ? (
-                                                    <div className={styles.emptyList}>該当なし</div>
-                                                ) : (
-                                                    filteredCertifications.map((item) => (
-                                                        <div key={item.id} className={styles.certificationItem}>
-                                                            <div>
-                                                                <strong>{formatSkillKeyLabel(item.skill_key)}</strong>
-                                                                <span>
-                                                                    {item.category} / 根拠 {item.evidence_count} 件
-                                                                </span>
-                                                            </div>
-                                                            <span className={styles.certificationStatus}>
-                                                                {certificationStatusLabels[item.status]}
-                                                            </span>
-                                                        </div>
-                                                    ))
-                                                )}
-                                            </div>
-                                        </>
-                                    )}
                                 </div>
 
                                 <div className={styles.infoCard}>
                                     <div className={styles.infoCardHeader}>
                                         <div>
-                                            <h3 className={styles.infoCardTitle}>評価履歴</h3>
+                                            <h3 className={styles.infoCardTitle}>住所</h3>
+                                            <p className={styles.infoCardDescription}>
+                                                請求書・支払書類の宛先に使います。
+                                            </p>
                                         </div>
+                                        <Building2 size={18} className={styles.infoCardIcon} />
                                     </div>
 
-                                    <div className={styles.historyList}>
-                                        {recentHistory.length === 0 ? (
-                                            <div className={styles.emptyList}>履歴なし</div>
-                                        ) : (
-                                            recentHistory.map((item, index) => (
-                                                <div key={item.id} className={styles.historyItem}>
-                                                    <div>
-                                                        <strong>{formatMonthLabel(item.month)}</strong>
-                                                        <span>確定 {formatDateLabel(item.finalized_at)}</span>
-                                                    </div>
-                                                    <div className={styles.historyMeta}>
-                                                        <strong>{buildHistorySummary(item, recentHistory[index + 1])}</strong>
-                                                        <span>
-                                                            {truncateText(item.comment, 40) ||
-                                                                `確定 ${formatDateLabel(item.finalized_at)}`}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            ))
-                                        )}
+                                    <div className={styles.orgCreateForm}>
+                                        <label className={styles.inputField}>
+                                            <span>郵便番号</span>
+                                            <input
+                                                value={profileForm.postal_code}
+                                                onChange={(event) => setProfileField("postal_code", event.target.value)}
+                                                placeholder="例: 123-4567"
+                                                maxLength={8}
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>都道府県</span>
+                                            <input
+                                                value={profileForm.prefecture}
+                                                onChange={(event) => setProfileField("prefecture", event.target.value)}
+                                                placeholder="例: 東京都"
+                                                maxLength={16}
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>市区町村</span>
+                                            <input
+                                                value={profileForm.city}
+                                                onChange={(event) => setProfileField("city", event.target.value)}
+                                                placeholder="例: 渋谷区"
+                                                maxLength={64}
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>町名・番地</span>
+                                            <input
+                                                value={profileForm.address_line1}
+                                                onChange={(event) => setProfileField("address_line1", event.target.value)}
+                                                placeholder="例: 道玄坂1-2-3"
+                                                maxLength={128}
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>建物名・部屋番号（任意）</span>
+                                            <input
+                                                value={profileForm.address_line2}
+                                                onChange={(event) => setProfileField("address_line2", event.target.value)}
+                                                placeholder="例: 渋谷ビル 4F"
+                                                maxLength={128}
+                                            />
+                                        </label>
                                     </div>
+                                </div>
+
+                                <div className={styles.infoCard}>
+                                    <div className={styles.infoCardHeader}>
+                                        <div>
+                                            <h3 className={styles.infoCardTitle}>振込先・税情報</h3>
+                                            <p className={styles.infoCardDescription}>
+                                                {profileForm.employment_kind === "sole_proprietor"
+                                                    ? "一人親方は振込先とインボイス番号の登録が必要です。"
+                                                    : profileForm.employment_kind === "helper"
+                                                      ? "応援は振込先の登録があると支払いがスムーズです。"
+                                                      : "給与振込先の登録に使います。"}
+                                            </p>
+                                        </div>
+                                        <ReceiptText size={18} className={styles.infoCardIcon} />
+                                    </div>
+
+                                    {profileForm.employment_kind === "sole_proprietor" &&
+                                        !profileForm.invoice_registration_number.trim() && (
+                                            <p className={styles.formError}>
+                                                インボイス番号が未登録です。仕入税額控除のため早めに登録してください。
+                                            </p>
+                                        )}
+
+                                    <div className={styles.orgCreateForm}>
+                                        <label className={styles.inputField}>
+                                            <span>屋号（任意）</span>
+                                            <input
+                                                value={profileForm.trade_name}
+                                                onChange={(event) => setProfileField("trade_name", event.target.value)}
+                                                placeholder="例: 山田内装"
+                                                maxLength={80}
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>インボイス登録番号</span>
+                                            <input
+                                                value={profileForm.invoice_registration_number}
+                                                onChange={(event) =>
+                                                    setProfileField(
+                                                        "invoice_registration_number",
+                                                        event.target.value.toUpperCase(),
+                                                    )
+                                                }
+                                                placeholder="T + 13桁（例: T1234567890123）"
+                                                maxLength={14}
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>銀行名</span>
+                                            <input
+                                                value={profileForm.bank_name}
+                                                onChange={(event) => setProfileField("bank_name", event.target.value)}
+                                                placeholder="例: 三菱UFJ銀行"
+                                                maxLength={40}
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>支店名</span>
+                                            <input
+                                                value={profileForm.branch_name}
+                                                onChange={(event) => setProfileField("branch_name", event.target.value)}
+                                                placeholder="例: 渋谷支店"
+                                                maxLength={40}
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>口座種別</span>
+                                            <select
+                                                value={profileForm.account_type}
+                                                onChange={(event) =>
+                                                    setProfileField(
+                                                        "account_type",
+                                                        event.target.value as ProfileFormState["account_type"],
+                                                    )
+                                                }
+                                            >
+                                                <option value="">未選択</option>
+                                                {(Object.keys(ACCOUNT_TYPE_LABEL) as Array<NonNullable<MyProfileRecord["account_type"]>>)
+                                                    .map((value) => (
+                                                        <option key={value} value={value}>
+                                                            {ACCOUNT_TYPE_LABEL[value]}
+                                                        </option>
+                                                    ))}
+                                            </select>
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>口座番号</span>
+                                            <input
+                                                inputMode="numeric"
+                                                value={profileForm.account_number}
+                                                onChange={(event) => setProfileField("account_number", event.target.value)}
+                                                placeholder="例: 1234567"
+                                                maxLength={16}
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>口座名義（カナ）</span>
+                                            <input
+                                                value={profileForm.account_holder_kana}
+                                                onChange={(event) =>
+                                                    setProfileField("account_holder_kana", event.target.value)
+                                                }
+                                                placeholder="例: ヤマダ タロウ"
+                                                maxLength={80}
+                                            />
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div className={styles.infoCard}>
+                                    <div className={styles.infoCardHeader}>
+                                        <div>
+                                            <h3 className={styles.infoCardTitle}>緊急連絡先</h3>
+                                            <p className={styles.infoCardDescription}>
+                                                現場での事故・体調不良などで本人に連絡できないときに使います。
+                                            </p>
+                                        </div>
+                                        <Users size={18} className={styles.infoCardIcon} />
+                                    </div>
+
+                                    <div className={styles.orgCreateForm}>
+                                        <label className={styles.inputField}>
+                                            <span>連絡先の氏名</span>
+                                            <input
+                                                value={profileForm.emergency_contact_name}
+                                                onChange={(event) =>
+                                                    setProfileField("emergency_contact_name", event.target.value)
+                                                }
+                                                placeholder="例: 山田 花子（妻）"
+                                                maxLength={80}
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>電話</span>
+                                            <input
+                                                type="tel"
+                                                value={profileForm.emergency_phone}
+                                                onChange={(event) =>
+                                                    setProfileField("emergency_phone", event.target.value)
+                                                }
+                                                placeholder="例: 090-1234-5678"
+                                                maxLength={32}
+                                            />
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div className={styles.infoCard}>
+                                    {profileError && <p className={styles.formError}>{profileError}</p>}
+                                    {profileMessage && <p className={styles.successMessage}>{profileMessage}</p>}
+
+                                    <button
+                                        type="button"
+                                        className={styles.primaryButton}
+                                        onClick={() => void handleSaveProfile()}
+                                        disabled={profileSaveBusy || !isProfileFormDirty(profileForm, myProfile)}
+                                        aria-busy={profileSaveBusy}
+                                    >
+                                        {profileSaveBusy ? (
+                                            <Loader2 size={16} className={styles.spinner} />
+                                        ) : (
+                                            <Check size={16} />
+                                        )}
+                                        プロフィールを保存
+                                    </button>
                                 </div>
                             </>
                         )}
