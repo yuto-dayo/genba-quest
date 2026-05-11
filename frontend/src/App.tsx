@@ -246,7 +246,13 @@ function formatInviteError(code: string): string {
     return "ログイン中のメールアドレスと招待先が一致していません。招待されたメールでログインしてください。";
   }
 
-  return "招待への参加に失敗しました。時間を置いて再度お試しください。";
+  // 未知のコードは生のまま末尾に出す。サーバ側の致命的バグ (HTTP 500 等) を
+  // ユーザの報告経由で気付けるようにするための診断用。
+  const trimmed = code.trim();
+  if (!trimmed) {
+    return "招待への参加に失敗しました。時間を置いて再度お試しください。";
+  }
+  return `招待への参加に失敗しました。時間を置いて再度お試しください。(エラーコード: ${trimmed})`;
 }
 
 function buildActiveOrgOptions(memberships: AppEntryMembershipRecord[]): ActiveOrgOption[] {
@@ -1470,6 +1476,7 @@ function AppContent() {
 
     consumedInviteRef.current = inviteId;
     url.searchParams.delete("invite");
+    url.searchParams.delete("openExternalBrowser");
     window.history.replaceState({}, "", url.toString());
 
     try {
@@ -1493,6 +1500,7 @@ function AppContent() {
       setActiveOrgId(result.active_org.id);
       return true;
     } catch (error) {
+      console.error("[invite] auto-accept failed", { inviteId, error });
       setInviteError(formatInviteError(error instanceof Error ? error.message : "ORG_INVITE_ACCEPT_FAILED"));
       return false;
     }
@@ -1970,6 +1978,7 @@ function AppContent() {
       setActiveOrgId(result.active_org.id);
       setEntryState({ state: "ready_client" });
     } catch (error) {
+      console.error("[invite] manual accept failed", { inviteId, error });
       setInviteError(formatInviteError(error instanceof Error ? error.message : "ORG_INVITE_ACCEPT_FAILED"));
     } finally {
       setInviteBusyId(null);
