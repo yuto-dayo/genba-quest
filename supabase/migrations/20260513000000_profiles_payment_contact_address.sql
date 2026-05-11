@@ -66,25 +66,18 @@ COMMENT ON COLUMN public.profiles.invoice_registration_number IS '適格請求�
 COMMENT ON COLUMN public.profiles.trade_name IS '屋号 — sole proprietors may use this as their billing name.';
 COMMENT ON COLUMN public.profiles.account_type IS 'ordinary (普通) | checking (当座).';
 
--- Defense in depth: profiles RLS allows authenticated users to read all rows, but
--- the new fields hold financial / tax / personal data. Revoke direct SELECT on the
--- sensitive columns from anon and authenticated roles. Server endpoints use
--- service_role via supabaseAdmin and continue to work; frontend reads profiles
--- only through /api/v1/profile/me (own profile).
-REVOKE SELECT (
-    phone,
-    invoice_registration_number,
-    bank_name,
-    branch_name,
-    account_type,
-    account_number,
-    account_holder_kana,
-    postal_code,
-    prefecture,
-    city,
-    address_line1,
-    address_line2,
-    emergency_contact_name,
-    emergency_phone
-) ON public.profiles FROM anon, authenticated;
+-- TODO Phase 2 hardening — defense in depth:
+-- The existing RLS policy lets any authenticated user SELECT * from profiles,
+-- so the new financial / tax / address columns are technically visible if a
+-- caller queries via the anon key + their user JWT. We do NOT exploit this in
+-- the frontend (which goes through /api/v1/profile/me using service_role on
+-- the server), but a proper fix is to swap the table-level SELECT grant for a
+-- column-level whitelist. That requires auditing every RLS policy / view /
+-- SECURITY INVOKER function that reads profiles to ensure it only touches the
+-- granted columns. Deferred to Phase 2 because the audit surface is large
+-- (admin-check policies on many tables reference profiles.role / id) and a
+-- mistake here would break unrelated features.
+--
+-- Current practical risk for dogfood / small-org usage: low. Re-evaluate when
+-- the org count grows or before any external integration is exposed.
 
