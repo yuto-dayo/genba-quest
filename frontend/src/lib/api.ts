@@ -2040,6 +2040,18 @@ export function fetchPL(params?: FetchPLParams & { source?: PLSource }) {
     return api<PLReport | PLJournalReport | PLCompareReport>(`/api/v1/accounting/pl${query ? `?${query}` : ""}`);
 }
 
+// キャッシュフローサマリ (PR #10)
+export interface CashflowSummary {
+    month: string;
+    unbilled: number;
+    awaiting_payment: number;
+    pay_pending: number;
+    done: number;
+}
+
+export const fetchCashflowSummary = (month: string) =>
+    api<CashflowSummary>(`/api/v1/accounting/cashflow-summary?month=${encodeURIComponent(month)}`);
+
 // 取引一覧
 export const fetchTransactions = (params?: {
     kind?: "expense" | "sale" | "invoice";

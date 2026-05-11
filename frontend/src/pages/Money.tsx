@@ -46,6 +46,7 @@ import { TransactionDetailModal } from "../components/TransactionDetailModal";
 import { ApprovalCard } from "../components/ApprovalCard";
 import { FloatingActionButton } from "../components/FloatingActionButton";
 import { MoneyBucketDashboard } from "../components/MoneyBucketDashboard";
+import { CashflowBucketStrip } from "../components/CashflowBucketStrip";
 import { MoneyHero } from "../components/MoneyHero";
 import { MoneyTabs, type MoneyTab } from "../components/MoneyTabs";
 import { MoneyFilterSheet, type ExpenseCategory } from "../components/MoneyFilterSheet";
@@ -657,6 +658,9 @@ export function Money() {
                     <ChevronRight size={14} />
                 </button>
             )}
+
+            {/* キャッシュフロー 4 バー (PR #10) — 請求漏れゼロ MVP の核 */}
+            <CashflowBucketStrip month={selectedMonth} />
 
             {/* バケット一望 (F-1) — 番頭レス可視性の核 */}
             <MoneyBucketDashboard month={selectedMonth} />
