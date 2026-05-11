@@ -9,6 +9,11 @@ import { Router, Response } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import { ProposalService } from "../services/ProposalService";
 import { ActorRef, ProposalType, ProposalStatus } from "../services/PolicyEngine";
+import {
+  listProposalsAssignedToUser,
+  reassign as reassignReviewer,
+} from "../services/ProposalAssignmentService";
+import { supabaseAdmin } from "../lib/supabaseAdmin";
 
 const router = Router();
 const DEFAULT_ORG_ID = process.env.DEFAULT_ORG_ID || '00000000-0000-0000-0000-000000000001';
@@ -418,6 +423,80 @@ router.get("/pending", async (req: AuthenticatedRequest, res: Response) => {
     res.json(proposals);
   } catch (err: any) {
     console.error("Get pending proposals error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * GET /api/v1/proposals/assigned-to-me
+ * 自分が承認担当として割り当てられている pending proposal の一覧 (PR #3 ベルドロワー用)
+ */
+router.get("/assigned-to-me", async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.userId) {
+      res.status(401).json({ error: "Authentication required" });
+      return;
+    }
+    const orgId = req.orgId || DEFAULT_ORG_ID;
+    const list = await listProposalsAssignedToUser(orgId, req.userId);
+    res.json(list);
+  } catch (err: any) {
+    console.error("Get assigned-to-me error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * POST /api/v1/proposals/:id/reassign
+ * 「他の人に回す」 — 現在の割当先 reviewer のみ実行可能
+ */
+router.post("/:id/reassign", async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.userId) {
+      res.status(401).json({ error: "Authentication required" });
+      return;
+    }
+    const proposalId = req.params.id as string;
+    const orgId = req.orgId || DEFAULT_ORG_ID;
+
+    const { data: proposal, error: fetchErr } = await supabaseAdmin
+      .from("proposals")
+      .select("id, org_id, status, assigned_reviewer_id, reassignment_count, created_by")
+      .eq("id", proposalId)
+      .eq("org_id", orgId)
+      .single();
+
+    if (fetchErr || !proposal) {
+      res.status(404).json({ error: "Proposal not found" });
+      return;
+    }
+    if (proposal.status !== "pending") {
+      res.status(409).json({ error: "REASSIGN_REQUIRES_PENDING_STATUS" });
+      return;
+    }
+    if (proposal.assigned_reviewer_id !== req.userId) {
+      res.status(403).json({ error: "REASSIGN_REQUIRES_CURRENT_ASSIGNEE" });
+      return;
+    }
+
+    const createdBy = proposal.created_by as { type?: string; id?: string };
+    const creatorUserId = createdBy?.type === "human" && typeof createdBy.id === "string" ? createdBy.id : null;
+
+    const result = await reassignReviewer({
+      org_id: orgId,
+      proposal_id: proposalId,
+      current_reviewer_id: req.userId,
+      creator_user_id: creatorUserId,
+      current_reassignment_count: (proposal.reassignment_count as number) ?? 0,
+    });
+
+    if (!result) {
+      res.status(409).json({ error: "NO_OTHER_REVIEWER_AVAILABLE" });
+      return;
+    }
+    res.json(result);
+  } catch (err: any) {
+    console.error("Reassign proposal error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
