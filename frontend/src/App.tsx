@@ -1355,50 +1355,68 @@ function OrgSelectionGate({
 function App() {
   return (
     <BrowserRouter>
-      <AppContent />
+      <DevPreviewRoute>
+        <AppContent />
+      </DevPreviewRoute>
     </BrowserRouter>
   );
+}
+
+/**
+ * Dev preview bypass: ?preview=loading|error|idle|inline-loader でバックエンドを
+ * 立てずに各 entry-state スクリーンを単独表示する。
+ *
+ * 以前は AppContent 冒頭の early return として埋め込んでいたが、
+ * 後続の useState/useEffect/useCallback より前に return すると
+ * react-hooks/rules-of-hooks に違反する。preview 判定だけをこの
+ * コンポーネントに切り出すことで、AppContent の hooks は常に同じ順序で
+ * 呼ばれることを保証する。
+ */
+function DevPreviewRoute({ children }: { children: ReactNode }) {
+  const location = useLocation();
+  if (!import.meta.env.DEV) {
+    return <>{children}</>;
+  }
+
+  const previewMode = new URLSearchParams(location.search).get("preview");
+  if (previewMode === "loading") {
+    return <LoadingScreen label="プレビュー" />;
+  }
+  if (previewMode === "error") {
+    return (
+      <ErrorScreen
+        detail="API Error: 500 (preview)"
+        onRetry={() => alert("retry clicked")}
+      />
+    );
+  }
+  if (previewMode === "idle") {
+    return <IdleScreen caption="Sherpaが考えています" hint="もう少しお待ちください" />;
+  }
+  if (previewMode === "inline-loader") {
+    return (
+      <div style={{ display: "grid", gap: 40, placeItems: "center", padding: 40, minHeight: "100vh", background: "var(--md-sys-color-surface, #FAFAF9)" }}>
+        <div style={{ display: "flex", gap: 32, alignItems: "center" }}>
+          <InlineLoader size="sm" />
+          <InlineLoader size="md" />
+          <InlineLoader size="lg" />
+          <InlineLoader size="xl" />
+        </div>
+        <div style={{ display: "flex", gap: 24, alignItems: "center", padding: 24, background: "var(--md-sys-color-primary, #4F46E5)", borderRadius: 24 }}>
+          <InlineLoader size="md" tone="onPrimary" />
+          <InlineLoader size="lg" tone="onPrimary" />
+        </div>
+        <InlineLoader block label="データを読み込んでいます" />
+      </div>
+    );
+  }
+
+  return <>{children}</>;
 }
 
 function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
-  // Dev preview bypass: visit /?preview=loading to render <LoadingScreen /> in
-  // isolation without standing up the backend. Useful for asset/animation tuning.
-  if (import.meta.env.DEV) {
-    const previewMode = new URLSearchParams(location.search).get("preview");
-    if (previewMode === "loading") {
-      return <LoadingScreen label="プレビュー" />;
-    }
-    if (previewMode === "error") {
-      return (
-        <ErrorScreen
-          detail="API Error: 500 (preview)"
-          onRetry={() => alert("retry clicked")}
-        />
-      );
-    }
-    if (previewMode === "idle") {
-      return <IdleScreen caption="Sherpaが考えています" hint="もう少しお待ちください" />;
-    }
-    if (previewMode === "inline-loader") {
-      return (
-        <div style={{ display: "grid", gap: 40, placeItems: "center", padding: 40, minHeight: "100vh", background: "var(--md-sys-color-surface, #FAFAF9)" }}>
-          <div style={{ display: "flex", gap: 32, alignItems: "center" }}>
-            <InlineLoader size="sm" />
-            <InlineLoader size="md" />
-            <InlineLoader size="lg" />
-            <InlineLoader size="xl" />
-          </div>
-          <div style={{ display: "flex", gap: 24, alignItems: "center", padding: 24, background: "var(--md-sys-color-primary, #4F46E5)", borderRadius: 24 }}>
-            <InlineLoader size="md" tone="onPrimary" />
-            <InlineLoader size="lg" tone="onPrimary" />
-          </div>
-          <InlineLoader block label="データを読み込んでいます" />
-        </div>
-      );
-    }
-  }
   const [communicationSheetOpen, setCommunicationSheetOpen] = useState(false);
   const [siteLevelDraftNotifications, setSiteLevelDraftNotifications] = useState<NotificationRecord[]>([]);
   const [pendingApprovals, setPendingApprovals] = useState<AccountingTransaction[]>([]);
