@@ -33,7 +33,7 @@
     border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 46%, transparent);
     border-right: none;
     border-left: none;
-    border-radius: 18px;
+    border-radius: 20px;
     overflow: hidden;
     min-width: 0;
 }
