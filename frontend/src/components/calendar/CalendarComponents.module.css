@@ -464,11 +464,38 @@
         min-width: 18px;
         padding: 0;
     }
+
+    /* Reduce day-cell info density on small screens. Site colour is already
+       conveyed by the completedRunBar overlay, so the colour dots become
+       noise here. Cap visible rest initials to keep the cell breathable. */
+    .scheduleColorDots {
+        display: none;
+    }
+
+    .dayRestInitial {
+        width: 16px;
+        height: 16px;
+        font-size: 10px;
+    }
+
+    .dayGlyphRow > .dayRestInitial:nth-of-type(n + 3) {
+        display: none;
+    }
 }
 
 @media (max-width: 360px) {
     .dayCell {
         min-height: 58px;
+    }
+
+    /* At the tightest width, the icon chip duplicates information from rest
+       initials (already coloured) or from the completedRunBar overlay. */
+    .availabilityIconChip {
+        display: none;
+    }
+
+    .dayGlyphRow > .dayRestInitial:nth-of-type(n + 2) {
+        display: none;
     }
 }
 
