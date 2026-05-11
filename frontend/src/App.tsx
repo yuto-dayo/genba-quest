@@ -24,6 +24,10 @@ import {
 import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { type Session } from "@supabase/supabase-js";
 import { CommunicationRecordSheet } from "./components/CommunicationRecordSheet";
+import { ErrorScreen } from "./components/ErrorScreen";
+import { IdleScreen } from "./components/IdleScreen";
+import { InlineLoader } from "./components/InlineLoader";
+import { LoadingScreen } from "./components/LoadingScreen";
 import { NotificationInbox } from "./components/NotificationInbox";
 import { LevelDraftSheet } from "./components/LevelDraftSheet";
 import { Communications } from "./pages/Communications";
@@ -1359,6 +1363,42 @@ function App() {
 function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
+  // Dev preview bypass: visit /?preview=loading to render <LoadingScreen /> in
+  // isolation without standing up the backend. Useful for asset/animation tuning.
+  if (import.meta.env.DEV) {
+    const previewMode = new URLSearchParams(location.search).get("preview");
+    if (previewMode === "loading") {
+      return <LoadingScreen label="プレビュー" />;
+    }
+    if (previewMode === "error") {
+      return (
+        <ErrorScreen
+          detail="API Error: 500 (preview)"
+          onRetry={() => alert("retry clicked")}
+        />
+      );
+    }
+    if (previewMode === "idle") {
+      return <IdleScreen caption="Sherpaが考えています" hint="もう少しお待ちください" />;
+    }
+    if (previewMode === "inline-loader") {
+      return (
+        <div style={{ display: "grid", gap: 40, placeItems: "center", padding: 40, minHeight: "100vh", background: "var(--md-sys-color-surface, #FAFAF9)" }}>
+          <div style={{ display: "flex", gap: 32, alignItems: "center" }}>
+            <InlineLoader size="sm" />
+            <InlineLoader size="md" />
+            <InlineLoader size="lg" />
+            <InlineLoader size="xl" />
+          </div>
+          <div style={{ display: "flex", gap: 24, alignItems: "center", padding: 24, background: "var(--md-sys-color-primary, #4F46E5)", borderRadius: 24 }}>
+            <InlineLoader size="md" tone="onPrimary" />
+            <InlineLoader size="lg" tone="onPrimary" />
+          </div>
+          <InlineLoader block label="データを読み込んでいます" />
+        </div>
+      );
+    }
+  }
   const [communicationSheetOpen, setCommunicationSheetOpen] = useState(false);
   const [siteLevelDraftNotifications, setSiteLevelDraftNotifications] = useState<NotificationRecord[]>([]);
   const [pendingApprovals, setPendingApprovals] = useState<AccountingTransaction[]>([]);
@@ -1967,24 +2007,15 @@ function AppContent() {
 
   const renderEntryGate = () => {
     if (entryState.state === "loading") {
-      return (
-        <EntryLayout badge="起動中" title="組織を確認しています" description="所属情報と入口状態を読み込んでいます。">
-          <div className={styles.entryLoading}>
-            <Loader2 size={20} className={styles.spinnerIcon} />
-            <span>少しだけお待ちください</span>
-          </div>
-        </EntryLayout>
-      );
+      return <LoadingScreen label="組織情報を読み込み中" />;
     }
 
     if (entryState.state === "error") {
       return (
-        <EntryLayout badge="エラー" title="入口を確認できませんでした" description="時間を置いて再読み込みするか、管理者にお問い合わせください。">
-          <p className={styles.entryError}>{entryState.message}</p>
-          <button type="button" className={styles.primaryButton} onClick={() => void resolveEntryState()}>
-            再読み込み
-          </button>
-        </EntryLayout>
+        <ErrorScreen
+          detail={entryState.message}
+          onRetry={() => void resolveEntryState()}
+        />
       );
     }
 
@@ -2053,14 +2084,7 @@ function AppContent() {
   };
 
   if (authLoading) {
-    return (
-      <EntryLayout badge="起動中" title="ログイン状態を確認しています" description="保存済みのセッションを確認しています。">
-        <div className={styles.entryLoading}>
-          <Loader2 size={20} className={styles.spinnerIcon} />
-          <span>少しだけお待ちください</span>
-        </div>
-      </EntryLayout>
-    );
+    return <LoadingScreen label="ログイン状態を確認中" />;
   }
 
   if (!authSession) {

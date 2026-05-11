@@ -13,8 +13,69 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+    <link rel="preload" as="image" href="/splash.webp" type="image/webp" />
+    <style>
+      #gq-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        background: #1E40AF;
+        opacity: 1;
+        transition: opacity 320ms ease-out;
+        overflow: hidden;
+      }
+      #gq-splash.is-hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #gq-splash picture,
+      #gq-splash img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      #gq-splash img {
+        object-fit: cover;
+        object-position: center;
+      }
+      #gq-splash .gq-splash-dots {
+        position: absolute;
+        left: 50%;
+        bottom: max(36px, env(safe-area-inset-bottom, 0px));
+        transform: translateX(-50%);
+        display: flex;
+        gap: 6px;
+      }
+      #gq-splash .gq-splash-dots span {
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.85);
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+        animation: gq-splash-dot 1200ms ease-in-out infinite;
+      }
+      #gq-splash .gq-splash-dots span:nth-child(2) { animation-delay: 160ms; }
+      #gq-splash .gq-splash-dots span:nth-child(3) { animation-delay: 320ms; }
+      @keyframes gq-splash-dot {
+        0%, 100% { opacity: 0.4; transform: translateY(0); }
+        50%      { opacity: 1;   transform: translateY(-3px); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #gq-splash .gq-splash-dots span { animation: none; }
+        #gq-splash { transition: opacity 160ms linear; }
+      }
+    </style>
   </head>
   <body>
+    <div id="gq-splash" role="status" aria-live="polite" aria-label="GENBA QUEST 起動中">
+      <picture>
+        <source srcset="/splash.webp" type="image/webp" />
+        <img src="/splash.png" alt="GENBA QUEST — 記録を変えよう。" />
+      </picture>
+      <div class="gq-splash-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
