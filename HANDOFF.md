@@ -2,30 +2,30 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `PR #38 (Phase 2-1) を rebase or merge して CI green を確認`
+- NEXT_CMD: `PR open → review → merge 後に Phase 2-2 (本人主導の請求書フロー) 着手`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
-  - `/Users/yutoyoshino/Documents/genba-quest-applint/HANDOFF.md`
-  - `/Users/yutoyoshino/Documents/genba-quest-applint/docs/DESIGN_PHILOSOPHY.md`
+  - `/Users/yutoyoshino/Documents/genba-quest-phase2-1/HANDOFF.md`
+  - `/Users/yutoyoshino/Documents/genba-quest-phase2-1/docs/DESIGN_PHILOSOPHY.md`
 - DO_NOT_READ:
   - `docs/DESIGN_PHILOSOPHY.md` (full)
 - VERIFY_FIRST:
   - `sed -n '1,120p' docs/DESIGN_PHILOSOPHY.md`
 - STATE:
-  - Branch: `fix/app-dev-preview-hooks`
-  - Uncommitted: `1 files`
+  - Branch: `feat/profile-view-consent`
+  - Uncommitted: `0 files`
   - DB migrations: `latest local: none found`
   - Tests: `not run yet`
   - Lint: `not run yet`
 
   - HEAD: `0fdecc0`
-  - Updated: `2026-05-12T00:43:18+0900`
+  - Updated: `2026-05-12T00:26:58+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
 
 <!-- HANDOFF_SESSION_EVENTS_START -->
-- 2026-05-12 00:41:52 +0900 — started by claude
+- 2026-05-12 00:04:01 +0900 — started by claude
 <!-- HANDOFF_SESSION_EVENTS_END -->
 
 ---
@@ -33,16 +33,16 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `PR #38 (Phase 2-1) を rebase or merge して CI green を確認`. Source: realtime
-- [H0001] Completed: AppContent から dev preview の early-return ブロックを DevPreviewRoute コンポーネントに切り出して react-hooks/rules-of-hooks 違反 60件を解消
-- [H0001] Remaining: PR #38 (Phase 2-1) を rebase or merge して CI green を確認
+- [focus] NEXT_CMD: `PR open → review → merge 後に Phase 2-2 (本人主導の請求書フロー) 着手`. Source: realtime
+- [H0001] Completed: Phase 2-1: profile.view_request Proposal kind + ProfileViewConsentService (grant作成/revoke/access記録) + dedicated routes (POST request/revoke, GET incoming/outgoing/extended) + Settings UI (admin 拡張情報CTA + target revoke 一覧) + migration profile_view_grants + ユニットテスト 11/11 pass
+- [H0001] Remaining: PR open → review → merge 後に Phase 2-2 (本人主導の請求書フロー) 着手
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
-- [H0001] Auto-captured decision: AppContent から dev preview の early-return ブロックを DevPreviewRoute コンポーネントに切り出して react-hooks/rules-of-hooks 違反 60件を解消
+- [H0001] Auto-captured decision: Phase 2-1: profile.view_request Proposal kind + ProfileViewConsentService (grant作成/revoke/access記録) + dedicated routes (POST request/revoke, GET incoming/outgoing/extend...
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
@@ -52,7 +52,7 @@
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
-- [H0001] PR #38 (Phase 2-1) を rebase or merge して CI green を確認
+- [H0001] PR open → review → merge 後に Phase 2-2 (本人主導の請求書フロー) 着手
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
@@ -70,11 +70,11 @@
 
 ```text
 Agent: 未定（Claude Code / Codex）
-Branch: fix/app-dev-preview-hooks
+Branch: feat/profile-view-consent
 Phase: A-0/A-1
 ```
 
-> [carryover] Working tree was dirty at session start (2 files). Prior session may have unfinished work — verify NEXT_CMD before executing.
+> [carryover] Working tree was dirty at session start (1 files). Prior session may have unfinished work — verify NEXT_CMD before executing.
 
 1. `docs/DESIGN_PHILOSOPHY.md` の冒頭を確認
 2. このファイルを更新しながら実装を進める
@@ -90,12 +90,12 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
-- [x] AppContent から dev preview の early-return ブロックを DevPreviewRoute コンポーネントに切り出して react-hooks/rules-of-hooks 違反 60件を解消
+- [x] Phase 2-1: profile.view_request Proposal kind + ProfileViewConsentService (grant作成/revoke/access記録) + dedicated routes (POST request/revoke, GET incoming/outgoing/extended) + Settings UI (admin 拡張情報CTA + target revoke 一覧) + migration profile_view_grants + ユニットテスト 11/11 pass
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: PR #38 (Phase 2-1) を rebase or merge して CI green を確認
+- [ ] **P0**: PR open → review → merge 後に Phase 2-2 (本人主導の請求書フロー) 着手
 ---
 
 ## 5. Changed Files
@@ -149,18 +149,18 @@ cd frontend && npx eslint src/
 
 ## 11. Incremental Updates
 
-### 2026-05-12 00:43:18 +0900
+### 2026-05-12 00:26:58 +0900
 
 - Entry-ID: `H0001`
 - Completed:
-  - [x] AppContent から dev preview の early-return ブロックを DevPreviewRoute コンポーネントに切り出して react-hooks/rules-of-hooks 違反 60件を解消
+  - [x] Phase 2-1: profile.view_request Proposal kind + ProfileViewConsentService (grant作成/revoke/access記録) + dedicated routes (POST request/revoke, GET incoming/outgoing/extended) + Settings UI (admin 拡張情報CTA + target revoke 一覧) + migration profile_view_grants + ユニットテスト 11/11 pass
 - Remaining:
-  - [ ] PR #38 (Phase 2-1) を rebase or merge して CI green を確認
+  - [ ] PR open → review → merge 後に Phase 2-2 (本人主導の請求書フロー) 着手
 - Changed Files:
   - No file list provided (use --file "path - semantic description")
 - Working Context:
-  - Auto-captured decision: AppContent から dev preview の early-return ブロックを DevPreviewRoute コンポーネントに切り出して react-hooks/rules-of-hooks 違反 60件を解消
+  - Auto-captured decision: Phase 2-1: profile.view_request Proposal kind + ProfileViewConsentService (grant作成/revoke/access記録) + dedicated routes (POST request/revoke, GET incoming/outgoing/extend...
 - Validation:
-  - `frontend eslint full 0 errors / frontend tsc --noEmit clean`
+  - `server tsc clean / frontend tsc clean / ProfileViewConsentService.test.ts 11/11 / pre-existing SiteCompleteWithCloseService 2 failures は master でも同様 (回帰なし)`
 - Landmines:
   - No new landmines reported in this chunk.

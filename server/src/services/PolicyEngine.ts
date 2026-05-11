@@ -48,6 +48,8 @@ export type ProposalType =
   | 'site.close.reopen'
   // ポリシー
   | 'policy.update'
+  // プロフィール閲覧の本人承認 (Phase 2-1)
+  | 'profile.view_request'
   // LUQO評価システム
   | 'luqo.catalog.add'
   | 'luqo.star.achieve'
