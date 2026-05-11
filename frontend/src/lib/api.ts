@@ -1087,6 +1087,18 @@ export const deleteSite = (id: string, reason: string) =>
     api<Site>(`/api/v1/sites/${id}`, { method: "DELETE", body: JSON.stringify({ reason }) });
 export const fetchMembers = () =>
     api<Member[]>("/api/v1/org/members");
+
+export const updateMemberRole = (userId: string, role: "admin" | "member") =>
+    api<{ membership: Member }>(`/api/v1/org/members/${userId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ role }),
+    });
+
+export const removeOrgMember = (userId: string) =>
+    api<{ membership: Member }>(`/api/v1/org/members/${userId}`, {
+        method: "DELETE",
+    });
+
 export const fetchClients = (params?: { status?: "active" | "deleted" | "all" }) => {
     const searchParams = new URLSearchParams();
     if (params?.status) searchParams.append("status", params.status);

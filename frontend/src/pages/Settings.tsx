@@ -24,8 +24,10 @@ import {
     fetchMembers,
     fetchMyProfile,
     listOrgInvites,
+    removeOrgMember,
     restoreClient,
     revokeOrgInvite,
+    updateMemberRole,
     updateMyProfile,
     type Client,
     type InvoiceSettings,
@@ -184,6 +186,28 @@ function formatInviteError(error: unknown) {
     return message;
 }
 
+function formatMemberError(error: unknown) {
+    const message = getErrorMessage(error);
+
+    if (message === "ORG_MEMBER_NOT_FOUND") {
+        return "対象メンバーが見つかりません。";
+    }
+    if (message === "ORG_MEMBER_LAST_ADMIN") {
+        return "最後のadminは降格・削除できません。先に別の人をadminに変更してください。";
+    }
+    if (message === "ORG_MEMBER_REMOVE_SELF") {
+        return "自分自身は削除できません。";
+    }
+    if (message === "ORG_MEMBER_ROLE_INVALID") {
+        return "権限の指定が不正です。";
+    }
+    if (message === "ORG_ROLE_REQUIRED") {
+        return "メンバーの変更にはadmin権限が必要です。";
+    }
+
+    return message;
+}
+
 function formatExpiresAt(value: string) {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) {
@@ -233,6 +257,9 @@ export function Settings() {
     const [inviteMessage, setInviteMessage] = useState<string | null>(null);
     const [copiedInviteId, setCopiedInviteId] = useState<string | null>(null);
     const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null);
+    const [memberBusyId, setMemberBusyId] = useState<string | null>(null);
+    const [memberError, setMemberError] = useState<string | null>(null);
+    const [memberMessage, setMemberMessage] = useState<string | null>(null);
     const [myProfile, setMyProfile] = useState<MyProfileRecord | null>(null);
     const [profileForm, setProfileForm] = useState<ProfileFormState>(emptyProfileForm);
     const [profileSaveBusy, setProfileSaveBusy] = useState(false);
@@ -380,6 +407,60 @@ export function Settings() {
             setInviteError(formatInviteError(error));
         } finally {
             setRevokingInviteId(null);
+        }
+    };
+
+    const handleChangeMemberRole = async (member: Member, nextRole: "admin" | "member") => {
+        if (!member.role || member.role === nextRole) {
+            return;
+        }
+        const memberLabel = member.full_name || member.username || "このメンバー";
+        if (typeof window !== "undefined") {
+            const roleLabel = nextRole === "admin" ? "admin（管理者）" : "member（通常）";
+            const confirmed = window.confirm(`${memberLabel} の権限を ${roleLabel} に変更しますか？`);
+            if (!confirmed) {
+                return;
+            }
+        }
+
+        try {
+            setMemberBusyId(member.id);
+            setMemberError(null);
+            setMemberMessage(null);
+            await updateMemberRole(member.id, nextRole);
+            const nextMembers = await fetchMembers();
+            setMembers(nextMembers);
+            setMemberMessage(`${memberLabel} の権限を変更しました。`);
+        } catch (error: unknown) {
+            setMemberError(formatMemberError(error));
+        } finally {
+            setMemberBusyId(null);
+        }
+    };
+
+    const handleRemoveMember = async (member: Member) => {
+        const memberLabel = member.full_name || member.username || "このメンバー";
+        if (typeof window !== "undefined") {
+            const confirmed = window.confirm(
+                `${memberLabel} を組織から外しますか？\n再度参加してもらうには招待を作り直す必要があります。`,
+            );
+            if (!confirmed) {
+                return;
+            }
+        }
+
+        try {
+            setMemberBusyId(member.id);
+            setMemberError(null);
+            setMemberMessage(null);
+            await removeOrgMember(member.id);
+            const nextMembers = await fetchMembers();
+            setMembers(nextMembers);
+            setMemberMessage(`${memberLabel} を組織から外しました。`);
+        } catch (error: unknown) {
+            setMemberError(formatMemberError(error));
+        } finally {
+            setMemberBusyId(null);
         }
     };
 
@@ -1205,22 +1286,71 @@ export function Settings() {
                                     <div className={styles.infoCardHeader}>
                                         <div>
                                             <h3 className={styles.infoCardTitle}>メンバー</h3>
+                                            {isCurrentUserAdmin && (
+                                                <p className={styles.infoCardDescription}>
+                                                    権限変更や削除ができます。最後のadminは降格・削除できません。
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
+
+                                    {memberError && <p className={styles.formError}>{memberError}</p>}
+                                    {memberMessage && <p className={styles.successMessage}>{memberMessage}</p>}
+
                                     {members.length === 0 ? (
                                         <div className={styles.emptyList}>メンバーがいません</div>
                                     ) : (
                                         <div className={styles.orgList}>
-                                            {members.map((member) => (
-                                                <div key={member.id} className={styles.orgListItem}>
-                                                    <span>
-                                                        <strong>
-                                                            {member.full_name || member.username || "未設定"}
-                                                        </strong>
-                                                        <small>{member.role || "member"}</small>
-                                                    </span>
-                                                </div>
-                                            ))}
+                                            {members.map((member) => {
+                                                const isSelf = currentMember?.id === member.id;
+                                                const canManage = isCurrentUserAdmin && !isSelf;
+                                                const busy = memberBusyId === member.id;
+                                                const currentRole: "admin" | "member" = member.role === "admin" ? "admin" : "member";
+                                                return (
+                                                    <div key={member.id} className={styles.orgListItem}>
+                                                        <span>
+                                                            <strong>
+                                                                {member.full_name || member.username || "未設定"}
+                                                            </strong>
+                                                            <small>
+                                                                {currentRole === "admin" ? "admin（管理者）" : "member（通常）"}
+                                                                {isSelf && " ・ あなた"}
+                                                            </small>
+                                                        </span>
+                                                        {canManage ? (
+                                                            <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                                                <select
+                                                                    value={currentRole}
+                                                                    onChange={(event) =>
+                                                                        void handleChangeMemberRole(
+                                                                            member,
+                                                                            event.target.value as "admin" | "member",
+                                                                        )
+                                                                    }
+                                                                    disabled={busy}
+                                                                    aria-label="権限を変更"
+                                                                >
+                                                                    <option value="member">member</option>
+                                                                    <option value="admin">admin</option>
+                                                                </select>
+                                                                <button
+                                                                    type="button"
+                                                                    className={styles.restoreButton}
+                                                                    onClick={() => void handleRemoveMember(member)}
+                                                                    disabled={busy}
+                                                                    aria-label="メンバーを削除"
+                                                                >
+                                                                    {busy ? (
+                                                                        <Loader2 size={14} className={styles.spinner} />
+                                                                    ) : (
+                                                                        <Trash2 size={14} />
+                                                                    )}
+                                                                </button>
+                                                            </span>
+                                                        ) : null}
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     )}
                                 </div>
