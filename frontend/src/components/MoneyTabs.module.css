@@ -1,0 +1,70 @@
+/* v3.3 mock 準拠: 平坦テキスト + 下線スライド (layoutId magic motion) */
+.tabs {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 22px;
+}
+
+.tab {
+    position: relative;
+    appearance: none;
+    border: 0;
+    background: transparent;
+    padding: 10px 0;
+    color: #56716b;
+    font: var(--md-sys-typescale-label-large);
+    font-weight: 600;
+    cursor: pointer;
+    transition: color 0.2s var(--md-sys-motion-easing-standard, ease);
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+}
+
+.tab:hover {
+    color: #0f766e;
+}
+
+.tabActive {
+    color: #0f3d39;
+}
+
+.label {
+    font: inherit;
+}
+
+.badge {
+    display: inline-block;
+    min-width: 18px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: rgba(15, 118, 110, 0.1);
+    color: #56716b;
+    font: var(--md-sys-typescale-label-small);
+    font-weight: 700;
+    text-align: center;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+.tabActive .badge {
+    background: rgba(20, 184, 166, 0.18);
+    color: #0f3d39;
+}
+
+.underline {
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: #0f766e;
+    border-radius: 2px 2px 0 0;
+}
+
+.trailing {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}

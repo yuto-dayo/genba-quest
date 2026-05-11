@@ -1,0 +1,1243 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Money 改善モック v3.3 — Live Animation</title>
+  <style>
+    :root {
+      --primary: #4F46E5;
+      --primary-container: #E0E7FF;
+      --on-primary-container: #312E81;
+      --surface: #FAFAF9;
+      --surface-bright: #FFFFFF;
+      --surface-low: #F5F5F4;
+      --surface-container: #F0EFEE;
+      --outline-variant: #D6D3D1;
+      --on-surface: #1C1917;
+      --on-surface-variant: #57534E;
+      --error: #DC2626;
+      --error-container: #FEE2E2;
+      --on-error-container: #991B1B;
+      --success: #16A34A;
+      --success-container: #DCFCE7;
+      --on-success-container: #14532D;
+      --warning: #F59E0B;
+      --warning-container: #FEF3C7;
+      --on-warning-container: #78350F;
+      --radius-md: 12px;
+      --radius-lg: 20px;
+      --radius-pill: 999px;
+      --shadow-1: 0 1px 2px rgba(28,25,23,.04), 0 1px 3px rgba(28,25,23,.06);
+      --shadow-2: 0 2px 4px rgba(28,25,23,.06), 0 6px 16px rgba(28,25,23,.08);
+      --shadow-3: 0 12px 32px rgba(28,25,23,.18);
+      --font-sans: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Segoe UI", system-ui, sans-serif;
+
+      /* M3 Easing */
+      --emphasized: cubic-bezier(0.2, 0, 0, 1);
+      --emphasized-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1);
+      --emphasized-accelerate: cubic-bezier(0.3, 0, 0.8, 0.15);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans);
+      background: linear-gradient(180deg, #F5F5F4, #E7E5E4);
+      color: var(--on-surface);
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+    .header {
+      max-width: 1200px; margin: 0 auto; padding: 32px 24px 8px;
+    }
+    .header h1 { margin: 0 0 4px; font-size: 24px; }
+    .header p { margin: 0; color: var(--on-surface-variant); font-size: 14px; }
+
+    /* === デモコントロール === */
+    .demo-bar {
+      max-width: 1200px; margin: 16px auto 0; padding: 0 24px;
+      display: flex; flex-wrap: wrap; gap: 8px;
+    }
+    .demo-btn {
+      padding: 8px 14px; border-radius: var(--radius-pill);
+      background: var(--surface-bright); border: 1px solid var(--outline-variant);
+      font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit;
+      color: var(--on-surface);
+      transition: all 0.2s var(--emphasized);
+    }
+    .demo-btn:hover { background: var(--primary-container); border-color: transparent; }
+    .demo-btn.primary { background: var(--primary); color: #fff; border-color: transparent; }
+
+    .stage {
+      max-width: 1200px; margin: 0 auto; padding: 24px;
+      display: grid; gap: 32px;
+      grid-template-columns: 1fr;
+    }
+    @media (min-width: 920px) { .stage { grid-template-columns: 1fr 1fr; } }
+
+    .panel { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    .phone-cap {
+      font-size: 12px; font-weight: 700; color: var(--on-surface);
+      background: var(--surface-bright); padding: 4px 12px; border-radius: var(--radius-pill);
+      border: 1px solid var(--outline-variant);
+    }
+    .phone-cap .hint { color: var(--on-surface-variant); font-weight: 500; margin-left: 6px; }
+    .phone {
+      width: 380px; max-width: 100%;
+      background: var(--surface);
+      border-radius: 32px;
+      box-shadow: var(--shadow-3);
+      overflow: hidden;
+      border: 1px solid var(--outline-variant);
+      position: relative;
+    }
+    .phone-screen { height: 760px; overflow-y: auto; position: relative; }
+
+    /* ============== HERO with deficit toggle ============== */
+    .hero {
+      padding: 22px 18px 22px;
+      color: #fff;
+      border-radius: 0 0 28px 28px;
+      position: relative;
+      isolation: isolate;
+    }
+    .hero-bg {
+      position: absolute; inset: 0;
+      border-radius: 0 0 28px 28px;
+      transition: opacity 0.42s var(--emphasized);
+      z-index: -1;
+    }
+    .hero-bg.profit { background: linear-gradient(170deg, #312E81 0%, #4F46E5 100%); opacity: 1; }
+    .hero-bg.loss   { background: linear-gradient(170deg, #7F1D1D 0%, #DC2626 100%); opacity: 0; }
+    .hero[data-mode="loss"] .hero-bg.profit { opacity: 0; }
+    .hero[data-mode="loss"] .hero-bg.loss   { opacity: 1; }
+
+    .hero-row {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 10px;
+    }
+    .month-pill {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.2);
+      padding: 6px 6px 6px 14px; border-radius: var(--radius-pill);
+      font-size: 14px; font-weight: 600;
+    }
+    .month-pill button {
+      background: transparent; border: none; color: #fff;
+      width: 24px; height: 24px; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 14px;
+      transition: background 0.18s var(--emphasized);
+    }
+    .month-pill button:hover { background: rgba(255,255,255,.22); }
+    .menu-dot { color: rgba(255,255,255,.7); font-size: 22px; cursor: pointer; }
+    .profit-num {
+      font-size: 38px; font-weight: 800; letter-spacing: -.03em;
+      font-variant-numeric: tabular-nums; line-height: 1.05;
+    }
+    .profit-cap { font-size: 13px; opacity: .85; margin-top: 2px; }
+    .hero-breakdown {
+      display: flex; gap: 16px; margin-top: 12px;
+      font-size: 14px; opacity: .9;
+    }
+    .hero-breakdown .pair { display: flex; gap: 6px; align-items: baseline; }
+    .hero-breakdown .l { font-size: 11px; opacity: .8; }
+    .hero-breakdown .v { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+    /* バケット */
+    .bucket-strip {
+      margin: 14px 14px 0; padding: 14px 16px 12px;
+      background: var(--surface-bright); border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-1);
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .bar {
+      display: grid; grid-template-columns: 84px 1fr 60px;
+      align-items: center; gap: 10px; cursor: pointer; padding: 3px 0;
+    }
+    .bar .name { font-size: 12px; font-weight: 600; color: var(--on-surface-variant); }
+    .bar .name.urgent { color: var(--error); }
+    .bar .track { height: 8px; background: var(--surface-low); border-radius: var(--radius-pill); overflow: hidden; }
+    .bar .fill {
+      height: 100%; border-radius: var(--radius-pill);
+      transform-origin: left center;
+      animation: growBar 0.7s var(--emphasized) backwards;
+    }
+    @keyframes growBar {
+      from { transform: scaleX(0); }
+      to   { transform: scaleX(1); }
+    }
+    .bar .v {
+      text-align: right; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums;
+      animation: fadeIn 0.5s var(--emphasized) backwards;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(2px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .bar:nth-of-type(1) .fill, .bar:nth-of-type(1) .v { animation-delay: 60ms; }
+    .bar:nth-of-type(2) .fill, .bar:nth-of-type(2) .v { animation-delay: 120ms; }
+    .bar:nth-of-type(3) .fill, .bar:nth-of-type(3) .v { animation-delay: 180ms; }
+    .bar:nth-of-type(4) .fill, .bar:nth-of-type(4) .v { animation-delay: 240ms; }
+    .fill-1 { background: linear-gradient(90deg, #4F46E5, #6366F1); }
+    .fill-2 { background: linear-gradient(90deg, #F59E0B, #FBBF24); }
+    .fill-3 { background: linear-gradient(90deg, #16A34A, #22C55E); }
+    .fill-4 { background: linear-gradient(90deg, #DC2626, #EF4444); }
+
+    /* タブ + 下線アニメ (layoutId 風) */
+    .sticky {
+      position: sticky; top: 0; z-index: 5;
+      background: rgba(250,250,249,.94); backdrop-filter: blur(12px);
+      padding: 8px 16px; margin-top: 14px;
+      border-bottom: 1px solid var(--outline-variant);
+    }
+    .tabs { display: flex; gap: 22px; align-items: center; position: relative; }
+    .tab {
+      background: transparent; border: none; padding: 10px 0;
+      font-size: 14px; font-weight: 600; cursor: pointer;
+      color: var(--on-surface-variant); position: relative; font-family: inherit;
+      transition: color 0.2s var(--emphasized);
+    }
+    .tab.active { color: var(--on-surface); }
+    .tab .badge {
+      display: inline-block; min-width: 18px; padding: 1px 6px;
+      background: var(--surface-container); color: var(--on-surface-variant);
+      border-radius: var(--radius-pill); font-size: 11px; font-weight: 700;
+      margin-left: 4px; vertical-align: 1px;
+      transition: all 0.2s var(--emphasized);
+    }
+    .tab.active .badge { background: var(--primary-container); color: var(--on-primary-container); }
+    .tab-underline {
+      position: absolute; bottom: -1px; left: 0;
+      height: 2px; background: var(--primary); border-radius: 2px 2px 0 0;
+      transition: left 0.4s var(--emphasized), width 0.4s var(--emphasized);
+    }
+    .filter-icon, .search-icon {
+      width: 36px; height: 36px; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--on-surface-variant); font-size: 16px;
+      transition: background 0.18s var(--emphasized);
+    }
+    .filter-icon { margin-left: auto; }
+    .filter-icon:hover, .search-icon:hover { background: var(--surface-low); }
+
+    /* 取引リスト */
+    .list { padding: 0 14px 100px; }
+    .day-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding: 16px 4px 6px;
+    }
+    .day-head .d { font-size: 11px; font-weight: 700; color: var(--on-surface); }
+    .day-head .s { font-size: 11px; color: var(--on-surface-variant); font-variant-numeric: tabular-nums; }
+    .tx {
+      background: var(--surface-bright); border-radius: var(--radius-md);
+      padding: 11px 14px; margin-bottom: 6px;
+      display: grid; grid-template-columns: 32px 1fr auto;
+      gap: 12px; align-items: center;
+      box-shadow: var(--shadow-1); cursor: pointer;
+      animation: txEnter 0.4s var(--emphasized) backwards;
+    }
+    @keyframes txEnter {
+      from { opacity: 0; transform: translateY(8px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .tx-icon {
+      width: 32px; height: 32px; border-radius: 10px;
+      display: inline-flex; align-items: center; justify-content: center; font-size: 14px;
+    }
+    .tx-icon.exp { background: var(--error-container); color: var(--on-error-container); }
+    .tx-icon.sale { background: var(--success-container); color: var(--on-success-container); }
+    .tx-body { min-width: 0; }
+    .tx-title { font-size: 14px; font-weight: 600; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tx-sub { font-size: 11px; color: var(--on-surface-variant); margin-top: 2px; }
+    .tx-sub .billed { color: var(--success); font-weight: 600; }
+    .tx-amount { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+    .tx-amount.neg { color: var(--error); }
+    .tx-amount.pos { color: var(--success); }
+
+    /* FAB + メニュー */
+    .fab-host {
+      position: absolute; right: 16px; bottom: 16px;
+      pointer-events: none;
+      display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+    }
+    .fab {
+      width: 56px; height: 56px; border-radius: 50%;
+      background: var(--primary); color: #fff; border: none;
+      box-shadow: 0 8px 24px rgba(79,70,229,.4);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 28px; font-weight: 300;
+      pointer-events: auto;
+      transition: transform 0.3s var(--emphasized);
+    }
+    .fab.open { transform: rotate(45deg); }
+    .fab-menu {
+      display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+      pointer-events: auto;
+    }
+    .fab-menu-item {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 8px 14px 8px 16px; border-radius: var(--radius-pill);
+      background: var(--surface-bright); border: 1px solid var(--outline-variant);
+      box-shadow: var(--shadow-2); cursor: pointer; font-family: inherit;
+      font-size: 13px; font-weight: 600;
+      opacity: 0; transform: translateY(10px) scale(0.85);
+      animation: fabItem 0.3s var(--emphasized) forwards;
+    }
+    .fab-menu[hidden] { display: none; }
+    .fab-menu-item:nth-child(1) { animation-delay: 0ms; }
+    .fab-menu-item:nth-child(2) { animation-delay: 50ms; }
+    .fab-menu-item:nth-child(3) { animation-delay: 100ms; }
+    @keyframes fabItem {
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .fab-menu-item .ic {
+      width: 28px; height: 28px; border-radius: 8px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--primary-container); color: var(--on-primary-container);
+      font-size: 14px;
+    }
+
+    /* ============== ボトムシート (Drag to dismiss) ============== */
+    .sheet-backdrop {
+      position: absolute; inset: 0; background: rgba(0,0,0,.45);
+      pointer-events: auto; z-index: 50;
+      opacity: 0; transition: opacity 0.4s var(--emphasized);
+    }
+    .sheet-backdrop[hidden] { display: none; }
+    .sheet-backdrop.show { opacity: 1; }
+    .sheet {
+      position: absolute; left: 0; right: 0; bottom: 0;
+      background: var(--surface-bright);
+      border-radius: 24px 24px 0 0;
+      padding: 12px 18px 16px;
+      box-shadow: 0 -12px 32px rgba(0,0,0,.2);
+      max-height: 88%;
+      overflow-y: auto;
+      transform: translateY(100%);
+      transition: transform 0.4s var(--emphasized);
+      z-index: 60;
+      touch-action: none;
+    }
+    .sheet.show { transform: translateY(0); }
+    .sheet[hidden] { display: none; }
+    .sheet.dragging { transition: none; }
+    .sheet-grabber {
+      width: 36px; height: 4px; background: var(--outline-variant);
+      border-radius: 2px; margin: 0 auto 12px;
+      cursor: grab;
+    }
+    .sheet-grab-area {
+      padding: 12px 0 0;
+      margin: -12px 0 0;
+      cursor: grab;
+    }
+    .sheet-grab-area:active { cursor: grabbing; }
+    .sheet-title {
+      font-size: 17px; font-weight: 700; margin: 0 0 4px;
+    }
+    .sheet-sub {
+      font-size: 12px; color: var(--on-surface-variant); margin-bottom: 14px;
+    }
+    .filter-section { margin-bottom: 16px; }
+    .filter-section .label {
+      font-size: 11px; font-weight: 700; color: var(--on-surface-variant);
+      letter-spacing: .04em; margin-bottom: 8px;
+    }
+    .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip {
+      padding: 6px 12px; border-radius: var(--radius-pill);
+      background: var(--surface-low); border: 1px solid transparent;
+      font-size: 12px; font-weight: 600; cursor: pointer;
+      color: var(--on-surface-variant); font-family: inherit;
+      transition: all 0.18s var(--emphasized);
+    }
+    .chip:hover { background: var(--primary-container); }
+    .chip.active {
+      background: var(--primary-container); color: var(--on-primary-container);
+    }
+    .sheet-cta {
+      position: sticky; bottom: 0; background: var(--surface-bright);
+      padding: 12px 0 0; margin-top: 8px;
+      border-top: 1px solid var(--outline-variant);
+      display: grid; grid-template-columns: 1fr 2fr; gap: 8px;
+    }
+    .btn {
+      padding: 12px; border-radius: var(--radius-pill); border: none;
+      font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit;
+      transition: all 0.2s var(--emphasized);
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: #4338CA; }
+    .btn-secondary {
+      background: var(--surface-low); color: var(--on-surface);
+      border: 1px solid var(--outline-variant);
+    }
+    .btn-secondary:hover { background: var(--surface-container); }
+
+    /* ============== ベルドロワー ============== */
+    .drawer-screen {
+      height: 760px; background: var(--surface);
+      position: relative;
+    }
+    .drawer-header {
+      padding: 14px 16px;
+      background: var(--surface-bright);
+      border-bottom: 1px solid var(--outline-variant);
+      display: flex; align-items: center; gap: 12px;
+    }
+    .drawer-header .back { font-size: 22px; cursor: pointer; color: var(--on-surface-variant); }
+    .drawer-header .title { font-size: 17px; font-weight: 700; flex: 1; }
+    .drawer-header .clear { font-size: 12px; color: var(--primary); font-weight: 600; cursor: pointer; }
+
+    .drawer-section { padding: 16px 14px 8px; }
+    .drawer-section-head {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0 4px 8px;
+    }
+    .drawer-section-head .h {
+      font-size: 12px; font-weight: 700; color: var(--on-surface-variant);
+      letter-spacing: .04em;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .drawer-section-head .h .ic-mini {
+      width: 16px; height: 16px; border-radius: 4px;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 10px; color: #fff; background: var(--primary);
+    }
+    .drawer-section-head .count {
+      font-size: 11px; font-weight: 700; padding: 2px 8px;
+      border-radius: var(--radius-pill);
+      background: var(--error); color: #fff;
+      transition: all 0.3s var(--emphasized);
+    }
+
+    /* 承認カード swipe */
+    .swipe-wrap {
+      position: relative; margin-bottom: 8px;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+    .swipe-bg {
+      position: absolute; inset: 0; display: flex; align-items: center;
+      justify-content: space-between; padding: 0 22px;
+      font-size: 14px; font-weight: 700;
+      pointer-events: none;
+    }
+    .swipe-bg .approve {
+      color: var(--success); background: linear-gradient(90deg, transparent, rgba(22,163,74,.12));
+      padding: 100% 16px; height: 100%; display: flex; align-items: center;
+      transition: opacity 0.15s; opacity: 0;
+    }
+    .swipe-bg .reject {
+      color: var(--error); background: linear-gradient(90deg, rgba(220,38,38,.12), transparent);
+      padding: 100% 16px; height: 100%; display: flex; align-items: center;
+      transition: opacity 0.15s; opacity: 0;
+    }
+    .swipe-wrap[data-action="approve"] .swipe-bg .approve { opacity: 1; }
+    .swipe-wrap[data-action="reject"] .swipe-bg .reject { opacity: 1; }
+
+    .approval-card {
+      background: var(--surface-bright);
+      padding: 14px;
+      box-shadow: var(--shadow-1);
+      position: relative; z-index: 1;
+      touch-action: pan-y;
+      cursor: grab;
+      user-select: none;
+      transition: transform 0.4s var(--emphasized), opacity 0.4s var(--emphasized);
+    }
+    .approval-card.dragging { transition: none; cursor: grabbing; }
+    .approval-card .ck {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-bottom: 6px;
+    }
+    .approval-card .badge {
+      font-size: 10px; font-weight: 700; padding: 2px 8px;
+      border-radius: var(--radius-pill);
+    }
+    .approval-card .badge.var { background: var(--warning-container); color: var(--on-warning-container); }
+    .approval-card .badge.fix { background: var(--primary-container); color: var(--on-primary-container); }
+    .approval-card .who { font-size: 11px; color: var(--on-surface-variant); }
+    .approval-card .title-row {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-bottom: 4px;
+    }
+    .approval-card .ttl { font-size: 15px; font-weight: 700; }
+    .approval-card .amt {
+      font-size: 16px; font-weight: 800; color: var(--error);
+      font-variant-numeric: tabular-nums;
+    }
+    .approval-card .meta {
+      font-size: 11px; color: var(--on-surface-variant);
+      display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px;
+    }
+    .approval-card .progress { margin-bottom: 12px; }
+    .approval-card .progress-row {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 11px; color: var(--on-surface-variant);
+      margin-bottom: 4px;
+    }
+    .approval-card .progress-row .me-state { font-weight: 700; color: var(--error); }
+    .approval-card .progress-row.complete .me-state { color: var(--success); }
+    .approval-card .progress-bar {
+      height: 6px; background: var(--surface-low); border-radius: 3px; overflow: hidden;
+    }
+    .approval-card .progress-fill {
+      height: 100%; background: linear-gradient(90deg, #4F46E5, #6366F1);
+      border-radius: 3px;
+      transition: width 0.5s var(--emphasized), background 0.3s var(--emphasized);
+    }
+    .approval-card .progress-fill.complete {
+      background: linear-gradient(90deg, #16A34A, #22C55E);
+    }
+    .approval-card .avatars {
+      display: flex; gap: 4px; margin-top: 6px;
+    }
+    .approval-card .avatar {
+      width: 24px; height: 24px; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 700;
+      background: var(--surface-low); color: var(--on-surface-variant);
+      border: 2px solid var(--surface-bright);
+      transition: background 0.3s var(--emphasized), color 0.3s var(--emphasized);
+    }
+    .approval-card .avatar.done { background: var(--success); color: #fff; }
+    .approval-card .avatar.me { background: var(--primary); color: #fff; }
+    .approval-card .avatar.bounce {
+      animation: avatarBounce 0.42s var(--emphasized);
+    }
+    @keyframes avatarBounce {
+      0%   { transform: scale(1); }
+      40%  { transform: scale(1.22); }
+      100% { transform: scale(1); }
+    }
+    .approval-card .actions {
+      display: grid; grid-template-columns: 1fr 1fr 1.4fr; gap: 6px;
+    }
+    .approval-card .actions.consensus {
+      grid-template-columns: 1fr 2fr;
+    }
+    .actions .btn {
+      padding: 9px; font-size: 13px; border-radius: var(--radius-pill);
+    }
+    .btn-reject {
+      background: var(--surface-low); color: var(--error);
+      border: 1px solid var(--error);
+    }
+    .btn-reject:hover { background: var(--error-container); }
+    .btn-reroute {
+      background: var(--surface-low); color: var(--on-surface-variant);
+      border: 1px solid var(--outline-variant);
+      font-size: 11px;
+    }
+    .btn-approve { background: var(--success); color: #fff; }
+    .btn-approve:hover { background: #15803D; }
+
+    .empty-state {
+      padding: 40px 20px; text-align: center;
+      color: var(--on-surface-variant);
+      font-size: 13px;
+      animation: fadeIn 0.5s var(--emphasized);
+    }
+    .empty-state .e-ic { font-size: 32px; margin-bottom: 8px; opacity: .5; }
+
+    .info-row {
+      background: var(--surface-bright); padding: 12px 14px;
+      border-radius: var(--radius-md); margin-bottom: 6px;
+      box-shadow: var(--shadow-1);
+      display: grid; grid-template-columns: 28px 1fr auto;
+      gap: 10px; align-items: center;
+    }
+    .info-row .ic {
+      width: 28px; height: 28px; border-radius: 8px;
+      background: var(--surface-low); color: var(--on-surface-variant);
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .info-row .ttl { font-size: 13px; font-weight: 600; }
+    .info-row .sub { font-size: 11px; color: var(--on-surface-variant); margin-top: 1px; }
+    .info-row .when { font-size: 10px; color: var(--on-surface-variant); }
+
+    /* notes */
+    .notes {
+      max-width: 1200px; margin: 0 auto; padding: 16px 24px 48px;
+      color: var(--on-surface-variant); font-size: 14px;
+    }
+    .notes h3 { color: var(--on-surface); margin-top: 24px; margin-bottom: 6px; }
+    .notes ul { padding-left: 18px; margin-top: 4px; }
+    .notes li { margin-bottom: 4px; }
+    .notes code { background: var(--surface-low); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Money 改善モック v3.3 — Live Animation</h1>
+  <p>触れる！数値カウントアップ・棒スタッガー・スワイプ承認・シートドラッグ全部動きます</p>
+</div>
+
+<div class="demo-bar">
+  <button class="demo-btn primary" id="btn-recount">数値カウントアップ再生</button>
+  <button class="demo-btn" id="btn-toggle-deficit">黒字 ⇔ 赤字 切替</button>
+  <button class="demo-btn" id="btn-open-sheet">フィルタシート開く</button>
+  <button class="demo-btn" id="btn-reset-bell">承認カード戻す</button>
+  <button class="demo-btn" id="btn-rerender-bars">棒グラフ再生</button>
+</div>
+
+<div class="stage">
+
+  <!-- ============== ① Money トップ ============== -->
+  <div class="panel">
+    <div class="phone-cap">① Money トップ <span class="hint">タブ切替・FAB タップ・絞込タップ可</span></div>
+    <div class="phone">
+      <div class="phone-screen" id="screen-money">
+        <div class="hero" data-mode="profit">
+          <div class="hero-bg profit"></div>
+          <div class="hero-bg loss"></div>
+          <div class="hero-row">
+            <div class="month-pill">
+              <button id="btn-prev-month">‹</button><span id="month-label">5月</span><button id="btn-next-month">›</button>
+            </div>
+            <span class="menu-dot">⋯</span>
+          </div>
+          <div class="profit-num" id="hero-profit">¥0</div>
+          <div class="profit-cap" id="hero-cap">利益（手残り）</div>
+          <div class="hero-breakdown">
+            <span class="pair"><span class="l">売上</span><span class="v" id="hero-sales">¥0</span></span>
+            <span class="pair"><span class="l">経費</span><span class="v" id="hero-expenses">¥0</span></span>
+          </div>
+        </div>
+
+        <div class="bucket-strip" id="bucket-strip">
+          <div class="bar"><span class="name urgent">未請求</span><div class="track"><div class="fill fill-4" style="width:14%"></div></div><span class="v">82万</span></div>
+          <div class="bar"><span class="name">入金待ち</span><div class="track"><div class="fill fill-2" style="width:22%"></div></div><span class="v">124万</span></div>
+          <div class="bar"><span class="name">支払予定</span><div class="track"><div class="fill fill-1" style="width:11%"></div></div><span class="v">64万</span></div>
+          <div class="bar"><span class="name">入金済み</span><div class="track"><div class="fill fill-3" style="width:56%"></div></div><span class="v">320万</span></div>
+        </div>
+
+        <div class="sticky">
+          <div class="tabs" id="tabs">
+            <button class="tab active" data-tab="tx">取引<span class="badge">32</span></button>
+            <button class="tab" data-tab="partner">取引先<span class="badge">10</span></button>
+            <span class="filter-icon" id="open-filter-sheet">⚙</span>
+            <span class="search-icon">🔍</span>
+            <span class="tab-underline" id="tab-underline"></span>
+          </div>
+        </div>
+
+        <div class="list" id="tx-list">
+          <div class="day-head"><span class="d">5月10日 (土)</span><span class="s">+¥598,800</span></div>
+          <div class="tx" style="animation-delay: 0ms">
+            <div class="tx-icon sale">📈</div>
+            <div class="tx-body">
+              <div class="tx-title">○○邸 中間金</div>
+              <div class="tx-sub">○○邸新築</div>
+            </div>
+            <div class="tx-amount pos">+¥600,000</div>
+          </div>
+          <div class="tx" style="animation-delay: 60ms">
+            <div class="tx-icon exp">🅿</div>
+            <div class="tx-body">
+              <div class="tx-title">コインパーキング</div>
+              <div class="tx-sub">○○邸新築 · <span class="billed">立替</span></div>
+            </div>
+            <div class="tx-amount neg">−¥1,200</div>
+          </div>
+          <div class="day-head"><span class="d">5月9日 (金)</span><span class="s">−¥12,000</span></div>
+          <div class="tx" style="animation-delay: 120ms">
+            <div class="tx-icon exp">🛠</div>
+            <div class="tx-body">
+              <div class="tx-title">工具レンタル</div>
+              <div class="tx-sub">△△邸改装</div>
+            </div>
+            <div class="tx-amount neg">−¥12,000</div>
+          </div>
+        </div>
+
+        <div class="fab-host">
+          <div class="fab-menu" id="fab-menu" hidden>
+            <button class="fab-menu-item"><span>請求書を作る</span><span class="ic">📄</span></button>
+            <button class="fab-menu-item"><span>売上を記録</span><span class="ic">📈</span></button>
+            <button class="fab-menu-item"><span>経費を記録</span><span class="ic">🧾</span></button>
+          </div>
+          <button class="fab" id="fab-btn">+</button>
+        </div>
+
+        <!-- フィルタシート -->
+        <div class="sheet-backdrop" id="sheet-backdrop" hidden></div>
+        <div class="sheet" id="sheet" hidden>
+          <div class="sheet-grab-area">
+            <div class="sheet-grabber"></div>
+          </div>
+          <h3 class="sheet-title">絞り込み</h3>
+          <div class="sheet-sub">ハンドル下方向にドラッグで閉じる</div>
+
+          <div class="filter-section">
+            <div class="label">種別</div>
+            <div class="chip-row">
+              <button class="chip active">全て</button>
+              <button class="chip">経費</button>
+              <button class="chip">売上</button>
+              <button class="chip">請求</button>
+            </div>
+          </div>
+
+          <div class="filter-section">
+            <div class="label">取引先</div>
+            <div class="chip-row">
+              <button class="chip active">○○工務店</button>
+              <button class="chip">△△建設</button>
+              <button class="chip">××商店</button>
+              <button class="chip">+ 7社</button>
+            </div>
+          </div>
+
+          <div class="filter-section">
+            <div class="label">カテゴリ</div>
+            <div class="chip-row">
+              <button class="chip">仕入れ</button>
+              <button class="chip">外注</button>
+              <button class="chip active">駐車代</button>
+              <button class="chip">工具</button>
+            </div>
+          </div>
+
+          <div class="filter-section">
+            <div class="label">期間</div>
+            <div class="chip-row">
+              <button class="chip active">今月</button>
+              <button class="chip">先月</button>
+              <button class="chip">3ヶ月</button>
+            </div>
+          </div>
+
+          <div class="sheet-cta">
+            <button class="btn btn-secondary" id="sheet-clear">クリア</button>
+            <button class="btn btn-primary" id="sheet-apply">適用 (12件)</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ============== ② ベルドロワー ============== -->
+  <div class="panel">
+    <div class="phone-cap">② ベル <span class="hint">カードを左右スワイプ・全員承認の「あ」をタップ</span></div>
+    <div class="phone">
+      <div class="drawer-screen">
+        <div class="drawer-header">
+          <span class="back">‹</span>
+          <span class="title">通知</span>
+          <span class="clear" id="bell-clear">全て既読</span>
+        </div>
+
+        <div class="drawer-section">
+          <div class="drawer-section-head">
+            <span class="h"><span class="ic-mini">👤</span>自分が承認担当</span>
+            <span class="count" id="self-count">2</span>
+          </div>
+          <div id="self-list">
+            <div class="swipe-wrap" data-id="s1">
+              <div class="swipe-bg">
+                <span class="reject">✕ 却下</span>
+                <span class="approve">✓ 承認</span>
+              </div>
+              <div class="approval-card">
+                <div class="ck">
+                  <span class="badge var">変動経費</span>
+                  <span class="who">起票: 田中  · 5/10 14:23</span>
+                </div>
+                <div class="title-row">
+                  <span class="ttl">セメント仕入れ</span>
+                  <span class="amt">−¥18,400</span>
+                </div>
+                <div class="meta"><span>○○商事</span><span>·</span><span>○○邸新築</span><span>·</span><span>立替対象</span></div>
+                <div class="actions">
+                  <button class="btn btn-reject">却下</button>
+                  <button class="btn btn-reroute">他の人に</button>
+                  <button class="btn btn-approve">承認</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="swipe-wrap" data-id="s2">
+              <div class="swipe-bg">
+                <span class="reject">✕ 却下</span>
+                <span class="approve">✓ 承認</span>
+              </div>
+              <div class="approval-card">
+                <div class="ck">
+                  <span class="badge var">変動経費</span>
+                  <span class="who">起票: 佐藤  · 5/10 09:15</span>
+                </div>
+                <div class="title-row">
+                  <span class="ttl">コインパーキング</span>
+                  <span class="amt">−¥1,200</span>
+                </div>
+                <div class="meta"><span>△△邸改装</span><span>·</span><span>立替対象</span></div>
+                <div class="actions">
+                  <button class="btn btn-reject">却下</button>
+                  <button class="btn btn-reroute">他の人に</button>
+                  <button class="btn btn-approve">承認</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="drawer-section">
+          <div class="drawer-section-head">
+            <span class="h"><span class="ic-mini" style="background:var(--warning)">👥</span>全員承認待ち</span>
+            <span class="count" style="background:var(--warning)">1</span>
+          </div>
+
+          <div class="approval-card" id="consensus-card" style="border-radius:var(--radius-md);">
+            <div class="ck">
+              <span class="badge fix">固定経費</span>
+              <span class="who">起票: 親方  · 5/8 18:00</span>
+            </div>
+            <div class="title-row">
+              <span class="ttl">月極駐車場 (○○P)</span>
+              <span class="amt">−¥18,000/月</span>
+            </div>
+            <div class="meta"><span>本社経費</span><span>·</span><span>毎月発生</span><span>·</span><span>新規契約</span></div>
+            <div class="progress">
+              <div class="progress-row" id="consensus-row">
+                <span><span id="consensus-count">3</span> / 5 承認済み</span>
+                <span class="me-state" id="consensus-me">あなた未承認</span>
+              </div>
+              <div class="progress-bar"><div class="progress-fill" id="consensus-fill" style="width:60%"></div></div>
+              <div class="avatars" id="consensus-avatars">
+                <div class="avatar done" data-key="oya">親</div>
+                <div class="avatar done" data-key="ta">田</div>
+                <div class="avatar done" data-key="sa">佐</div>
+                <div class="avatar me" data-key="me">あ</div>
+                <div class="avatar" data-key="ya">山</div>
+              </div>
+            </div>
+            <div class="actions consensus">
+              <button class="btn btn-reject">却下</button>
+              <button class="btn btn-approve" id="consensus-approve">承認する</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="drawer-section">
+          <div class="drawer-section-head">
+            <span class="h">お知らせ</span>
+          </div>
+          <div class="info-row">
+            <div class="ic">💰</div>
+            <div><div class="ttl">××商店から入金</div><div class="sub">¥420,000 / 4月分請求</div></div>
+            <div class="when">2h</div>
+          </div>
+          <div class="info-row">
+            <div class="ic" style="background:var(--error-container);color:var(--on-error-container)">⚠</div>
+            <div><div class="ttl">△△建設 入金予定が来週</div><div class="sub">¥820,000 / 5/16 (金)</div></div>
+            <div class="when">8h</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="notes">
+  <h3>触れる動作</h3>
+  <ul>
+    <li><b>数値カウントアップ</b> ── ヒーローの ¥1,240,500 が spring 物理で着地。「数値カウントアップ再生」or 月切替 ‹ › で再生</li>
+    <li><b>棒グラフの stagger</b> ── バケット4本が60ms間隔で順に伸びる。「棒グラフ再生」で再現</li>
+    <li><b>赤字色クロスフェード</b> ── 「黒字⇔赤字切替」で背景グラデが2層opacityで交差。位置は不変</li>
+    <li><b>タブ下線スライド</b> ── 取引/取引先タップで下線が emphasized easing でスライド (layoutId 風)</li>
+    <li><b>FAB 45度回転 + メニューstagger</b> ── + ボタンタップで回転、メニュー項目が50ms間隔で出現</li>
+    <li><b>ボトムシート ドラッグto閉じる</b> ── ハンドル/タイトル部を下方向にドラッグ。30%超 or 速度500px/s超で閉じる、未満なら戻る。背景dimは指の動きと同期</li>
+    <li><b>承認カード スワイプ</b> ── ベルの上2枚を左右にスワイプ。100px超 or 速度500超でコミットして飛んでいく。途中で離すと戻る</li>
+    <li><b>アバター fill-in バウンス</b> ── 全員承認カードの「あ」(あなた) アバターか「承認する」ボタンをタップで、アバターが緑にバウンス、進捗バーが伸びる、最後の人だと shimmer 風緑へ</li>
+    <li><b>取引リスト stagger entrance</b> ── 各取引が60ms間隔でフェード+up</li>
+  </ul>
+
+  <h3>本実装で使う Framer Motion パターン</h3>
+  <ul>
+    <li>カウントアップ: <code>useMotionValue + useTransform + animate(mv, target, {type:"spring", stiffness:120, damping:20})</code></li>
+    <li>棒 stagger: <code>variants + staggerChildren:0.06</code></li>
+    <li>シートドラッグ: <code>drag="y" + dragElastic={top:0,bottom:0.2} + useTransform(y, [0,H], [0.45,0])</code> で背景opacity直結</li>
+    <li>承認スワイプ: <code>drag="x" + onDragEnd で offset/velocity 判定 + animate(x, ±W, {velocity:info.velocity.x})</code></li>
+    <li>タブ下線: <code>layoutId="tab-underline"</code> で magic motion</li>
+    <li>アバターバウンス: <code>animate={{scale:[1, 1.22, 1]}} transition={{duration:0.42, times:[0,0.4,1]}}</code></li>
+    <li>赤字色フェード: 2層 motion.div を opacity でクロスフェード (linear-gradient は補間不可)</li>
+    <li><code>&lt;MotionConfig reducedMotion="user"&gt;</code> 全体適用 + 数値は即値フォールバック</li>
+  </ul>
+</div>
+
+<script>
+(() => {
+  const yenFmt = new Intl.NumberFormat("ja-JP", { style: "currency", currency: "JPY", maximumFractionDigits: 0 });
+
+  // ===== 数値カウントアップ (spring 物理) =====
+  function springCount(el, from, to, opts) {
+    const o = Object.assign({ stiffness: 120, damping: 20, mass: 1 }, opts || {});
+    let v = from, velocity = 0;
+    const dt = 1/60;
+    const restDelta = Math.max(1, Math.abs(to) * 0.0005);
+    let raf;
+    function step() {
+      const force = -o.stiffness * (v - to);
+      const damp = -o.damping * velocity;
+      const accel = (force + damp) / o.mass;
+      velocity += accel * dt;
+      v += velocity * dt;
+      el.textContent = yenFmt.format(Math.round(v));
+      if (Math.abs(v - to) > restDelta || Math.abs(velocity) > restDelta) {
+        raf = requestAnimationFrame(step);
+      } else {
+        el.textContent = yenFmt.format(to);
+      }
+    }
+    cancelAnimationFrame(raf);
+    step();
+  }
+
+  const monthData = {
+    "5月":  { profit: 1240500,  sales: 6780000, expenses: 5539500, deficit: false },
+    "4月":  { profit: 1420000,  sales: 7100000, expenses: 5680000, deficit: false },
+    "3月":  { profit: 860000,   sales: 5400000, expenses: 4540000, deficit: false },
+    "2月":  { profit: -184000,  sales: 3200000, expenses: 3384000, deficit: true },
+    "1月":  { profit: 1124000,  sales: 6200000, expenses: 5076000, deficit: false },
+    "12月": { profit: 982000,   sales: 5800000, expenses: 4818000, deficit: false },
+  };
+  const monthOrder = ["12月","1月","2月","3月","4月","5月"];
+  let currentIdx = 5;
+
+  const $profit = document.getElementById("hero-profit");
+  const $sales  = document.getElementById("hero-sales");
+  const $exp    = document.getElementById("hero-expenses");
+  const $cap    = document.getElementById("hero-cap");
+  const $hero   = document.querySelector(".hero");
+  const $month  = document.getElementById("month-label");
+
+  function showMonth(idx, animate=true) {
+    const m = monthOrder[idx];
+    const d = monthData[m];
+    $month.textContent = m;
+    $hero.dataset.mode = d.deficit ? "loss" : "profit";
+    $cap.textContent = d.deficit ? "赤字（手残りマイナス）" : "利益（手残り）";
+    if (animate) {
+      springCount($profit, 0, d.profit);
+      springCount($sales,  0, d.sales);
+      springCount($exp,    0, d.expenses);
+    } else {
+      $profit.textContent = yenFmt.format(d.profit);
+      $sales.textContent  = yenFmt.format(d.sales);
+      $exp.textContent    = yenFmt.format(d.expenses);
+    }
+  }
+  showMonth(currentIdx);
+
+  document.getElementById("btn-prev-month").addEventListener("click", () => {
+    currentIdx = Math.max(0, currentIdx - 1); showMonth(currentIdx);
+  });
+  document.getElementById("btn-next-month").addEventListener("click", () => {
+    currentIdx = Math.min(monthOrder.length - 1, currentIdx + 1); showMonth(currentIdx);
+  });
+  document.getElementById("btn-recount").addEventListener("click", () => showMonth(currentIdx));
+  document.getElementById("btn-toggle-deficit").addEventListener("click", () => {
+    const isLoss = $hero.dataset.mode === "loss";
+    if (isLoss) { currentIdx = 5; showMonth(5); }
+    else { currentIdx = 3; showMonth(3); /* 2月=赤字に切替 */ }
+  });
+
+  // ===== 棒グラフ再生 =====
+  document.getElementById("btn-rerender-bars").addEventListener("click", () => {
+    const strip = document.getElementById("bucket-strip");
+    const cloned = strip.cloneNode(true);
+    strip.parentNode.replaceChild(cloned, strip);
+    cloned.id = "bucket-strip";
+  });
+
+  // ===== タブ下線スライド =====
+  const tabs = document.getElementById("tabs");
+  const underline = document.getElementById("tab-underline");
+  function moveUnderline() {
+    const active = tabs.querySelector(".tab.active");
+    if (!active) return;
+    const rect = active.getBoundingClientRect();
+    const parent = tabs.getBoundingClientRect();
+    underline.style.left = (rect.left - parent.left) + "px";
+    underline.style.width = rect.width + "px";
+  }
+  tabs.querySelectorAll(".tab").forEach(t => {
+    t.addEventListener("click", () => {
+      tabs.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+      t.classList.add("active");
+      moveUnderline();
+    });
+  });
+  setTimeout(moveUnderline, 50);
+  window.addEventListener("resize", moveUnderline);
+
+  // ===== FAB 45度回転 + メニュー =====
+  const fab = document.getElementById("fab-btn");
+  const fabMenu = document.getElementById("fab-menu");
+  fab.addEventListener("click", () => {
+    const isOpen = fab.classList.toggle("open");
+    fab.textContent = isOpen ? "×" : "+";
+    if (isOpen) {
+      fabMenu.hidden = false;
+      // restart animation by removing and re-adding the items
+      fabMenu.querySelectorAll(".fab-menu-item").forEach(it => {
+        it.style.animation = "none";
+        void it.offsetWidth;
+        it.style.animation = "";
+      });
+    } else {
+      fabMenu.hidden = true;
+    }
+  });
+
+  // ===== ボトムシート ドラッグto閉じる =====
+  const sheet = document.getElementById("sheet");
+  const backdrop = document.getElementById("sheet-backdrop");
+  const grabArea = sheet.querySelector(".sheet-grab-area");
+
+  function openSheet() {
+    backdrop.hidden = false;
+    sheet.hidden = false;
+    requestAnimationFrame(() => {
+      backdrop.classList.add("show");
+      sheet.classList.add("show");
+    });
+  }
+  function closeSheet() {
+    backdrop.classList.remove("show");
+    sheet.classList.remove("show");
+    sheet.style.transform = "";
+    backdrop.style.opacity = "";
+    setTimeout(() => { backdrop.hidden = true; sheet.hidden = true; }, 400);
+  }
+  document.getElementById("open-filter-sheet").addEventListener("click", openSheet);
+  document.getElementById("btn-open-sheet").addEventListener("click", openSheet);
+  document.getElementById("sheet-apply").addEventListener("click", closeSheet);
+  document.getElementById("sheet-clear").addEventListener("click", closeSheet);
+  backdrop.addEventListener("click", closeSheet);
+
+  // drag
+  let sheetDrag = null;
+  grabArea.addEventListener("pointerdown", (e) => {
+    sheetDrag = {
+      startY: e.clientY,
+      lastY: e.clientY,
+      lastT: e.timeStamp,
+      velocity: 0,
+      pid: e.pointerId,
+    };
+    grabArea.setPointerCapture(e.pointerId);
+    sheet.classList.add("dragging");
+    backdrop.style.transition = "none";
+  });
+  grabArea.addEventListener("pointermove", (e) => {
+    if (!sheetDrag) return;
+    const dy = Math.max(0, e.clientY - sheetDrag.startY);
+    const dt = e.timeStamp - sheetDrag.lastT;
+    if (dt > 0) sheetDrag.velocity = ((e.clientY - sheetDrag.lastY) / dt) * 1000;
+    sheetDrag.lastY = e.clientY; sheetDrag.lastT = e.timeStamp;
+    sheet.style.transform = `translateY(${dy}px)`;
+    const h = sheet.offsetHeight;
+    backdrop.style.opacity = Math.max(0, 0.45 * (1 - dy / h));
+  });
+  function endSheetDrag(e) {
+    if (!sheetDrag) return;
+    const dy = Math.max(0, e.clientY - sheetDrag.startY);
+    const h = sheet.offsetHeight;
+    sheet.classList.remove("dragging");
+    backdrop.style.transition = "";
+    if (dy > h * 0.3 || sheetDrag.velocity > 500) {
+      closeSheet();
+    } else {
+      sheet.style.transform = "";
+      backdrop.style.opacity = "";
+    }
+    sheetDrag = null;
+  }
+  grabArea.addEventListener("pointerup", endSheetDrag);
+  grabArea.addEventListener("pointercancel", endSheetDrag);
+
+  // chip toggle in sheet
+  sheet.querySelectorAll(".chip-row").forEach(row => {
+    row.addEventListener("click", (e) => {
+      const c = e.target.closest(".chip");
+      if (!c) return;
+      // single-select per row for demo
+      row.querySelectorAll(".chip").forEach(x => x.classList.remove("active"));
+      c.classList.add("active");
+    });
+  });
+
+  // ===== 承認カード スワイプ =====
+  let originalSelfList = null;
+  function setupSwipeCard(wrap) {
+    const card = wrap.querySelector(".approval-card");
+    let drag = null;
+
+    card.addEventListener("pointerdown", (e) => {
+      // ボタン上では発動しない
+      if (e.target.closest(".btn")) return;
+      drag = {
+        startX: e.clientX,
+        lastX: e.clientX,
+        lastT: e.timeStamp,
+        velocity: 0,
+        pid: e.pointerId,
+      };
+      card.setPointerCapture(e.pointerId);
+      card.classList.add("dragging");
+    });
+    card.addEventListener("pointermove", (e) => {
+      if (!drag) return;
+      const dx = e.clientX - drag.startX;
+      const dt = e.timeStamp - drag.lastT;
+      if (dt > 0) drag.velocity = ((e.clientX - drag.lastX) / dt) * 1000;
+      drag.lastX = e.clientX; drag.lastT = e.timeStamp;
+      const rotate = (dx / 200) * 12;
+      card.style.transform = `translateX(${dx}px) rotate(${rotate}deg)`;
+      if (dx > 20) wrap.dataset.action = "approve";
+      else if (dx < -20) wrap.dataset.action = "reject";
+      else delete wrap.dataset.action;
+    });
+    function end(e) {
+      if (!drag) return;
+      const dx = e.clientX - drag.startX;
+      const past = Math.abs(dx) > 100;
+      const fast = Math.abs(drag.velocity) > 500;
+      card.classList.remove("dragging");
+      if (past || fast) {
+        const dir = dx > 0 ? 1 : -1;
+        // velocity継承 — 距離を残速度から推定
+        const distance = dir * window.innerWidth;
+        card.style.transform = `translateX(${distance}px) rotate(${dir * 30}deg)`;
+        wrap.style.opacity = "0";
+        setTimeout(() => {
+          wrap.style.display = "none";
+          updateBellCount();
+        }, 380);
+      } else {
+        card.style.transform = "";
+        delete wrap.dataset.action;
+      }
+      drag = null;
+    }
+    card.addEventListener("pointerup", end);
+    card.addEventListener("pointercancel", end);
+
+    // ボタン経由でも消える
+    card.querySelectorAll(".btn-approve, .btn-reject").forEach(b => {
+      b.addEventListener("click", () => {
+        const dir = b.classList.contains("btn-approve") ? 1 : -1;
+        card.style.transition = "transform 0.4s cubic-bezier(0.2,0,0,1), opacity 0.4s";
+        card.style.transform = `translateX(${dir * window.innerWidth}px) rotate(${dir * 30}deg)`;
+        wrap.style.opacity = "0";
+        setTimeout(() => { wrap.style.display = "none"; updateBellCount(); }, 380);
+      });
+    });
+  }
+
+  function setupAllSwipes() {
+    document.querySelectorAll("#self-list .swipe-wrap").forEach(setupSwipeCard);
+  }
+
+  function updateBellCount() {
+    const remaining = document.querySelectorAll("#self-list .swipe-wrap")
+      .length - document.querySelectorAll("#self-list .swipe-wrap[style*='display: none']").length;
+    document.getElementById("self-count").textContent = remaining;
+    if (remaining === 0) {
+      const list = document.getElementById("self-list");
+      if (!list.querySelector(".empty-state")) {
+        const e = document.createElement("div");
+        e.className = "empty-state";
+        e.innerHTML = '<div class="e-ic">✓</div>すべて承認済みです<br/><small>お疲れさまでした</small>';
+        list.appendChild(e);
+      }
+    }
+  }
+
+  // 承認カード戻す
+  function snapshotSelfList() {
+    if (!originalSelfList) {
+      originalSelfList = document.getElementById("self-list").innerHTML;
+    }
+  }
+  snapshotSelfList();
+  document.getElementById("btn-reset-bell").addEventListener("click", () => {
+    const list = document.getElementById("self-list");
+    list.innerHTML = originalSelfList;
+    document.getElementById("self-count").textContent = "2";
+    setupAllSwipes();
+    // 全員承認カードもリセット
+    consensusState = { count: 3, fillPct: 60, approved: ["oya","ta","sa"] };
+    renderConsensus();
+  });
+
+  setupAllSwipes();
+
+  // ===== 全員承認 - アバター fill-in バウンス =====
+  let consensusState = { count: 3, fillPct: 60, approved: ["oya","ta","sa"] };
+  const totalReviewers = 5;
+  const allKeys = ["oya","ta","sa","me","ya"];
+
+  function renderConsensus() {
+    document.getElementById("consensus-count").textContent = consensusState.count;
+    const fill = document.getElementById("consensus-fill");
+    fill.style.width = (consensusState.count / totalReviewers * 100) + "%";
+    if (consensusState.count >= totalReviewers) {
+      fill.classList.add("complete");
+      document.getElementById("consensus-row").classList.add("complete");
+      document.getElementById("consensus-me").textContent = "全員承認完了!";
+    } else if (consensusState.approved.includes("me")) {
+      document.getElementById("consensus-me").textContent = "あなた承認済み";
+      document.getElementById("consensus-me").style.color = "var(--success)";
+    } else {
+      document.getElementById("consensus-me").textContent = "あなた未承認";
+      document.getElementById("consensus-me").style.color = "var(--error)";
+    }
+    document.querySelectorAll("#consensus-avatars .avatar").forEach(a => {
+      const k = a.dataset.key;
+      if (consensusState.approved.includes(k)) {
+        a.classList.add("done");
+        if (k === "me") a.classList.remove("me");
+      } else {
+        a.classList.remove("done");
+        if (k === "me") a.classList.add("me");
+      }
+    });
+  }
+
+  function approveAvatar(key) {
+    if (consensusState.approved.includes(key)) return;
+    consensusState.approved.push(key);
+    consensusState.count = consensusState.approved.length;
+    const av = document.querySelector(`#consensus-avatars .avatar[data-key="${key}"]`);
+    if (av) {
+      av.classList.add("bounce");
+      setTimeout(() => av.classList.remove("bounce"), 420);
+    }
+    renderConsensus();
+  }
+
+  document.getElementById("consensus-approve").addEventListener("click", () => {
+    approveAvatar("me");
+    // すべて済んだら次のreviewer (山田) もデモで自動承認
+    setTimeout(() => approveAvatar("ya"), 800);
+  });
+  document.querySelectorAll("#consensus-avatars .avatar").forEach(a => {
+    a.addEventListener("click", () => approveAvatar(a.dataset.key));
+  });
+  renderConsensus();
+
+})();
+</script>
+</body>
+</html>
