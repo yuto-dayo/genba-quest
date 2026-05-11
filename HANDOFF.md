@@ -25,43 +25,43 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `残り commit 4 (lint fix)`. Source: realtime
+- [focus] NEXT_CMD: `force-push + PR #25 merge`. Source: realtime
+- [H0047] Completed: VendorCard lint 修正再適用 (cherry-pick skip で失われた分)
+- [H0047] Remaining: force-push + PR #25 merge
 - [H0046] Completed: cherry-pick commit 3 (v3.3 mock 準拠) 適用中
 - [H0046] Remaining: 残り commit 4 (lint fix)
-- [H0045] Completed: cherry-pick 進行: HANDOFF conflict 再 resolve
-- [H0045] Remaining: 残コミット適用
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0047] Auto-captured decision: VendorCard lint 修正再適用 (cherry-pick skip で失われた分)
 - [H0046] Auto-captured decision: cherry-pick commit 3 (v3.3 mock 準拠) 適用中
 - [H0045] Auto-captured decision: cherry-pick 進行: HANDOFF conflict 再 resolve
 - [H0044] Auto-captured decision: PR #1-#3 rollup マージ完了 (PR #26)、PR #25 を master 起点でクリーンに再構築中
 - [H0043] Auto-captured decision: PR #23 (feat/money-hero-redesign) の ESLint failure を fix: ChevronLeft / PLMetric / formatCurrency dead code 削除
-- [H0042] Auto-captured decision: セッション終了補足: 次セッション番号 #5 (タブ+フィルタシート+取引先タブ)、起点ブランチは feat/money-hero-redesign
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0046] No new landmines reported in this chunk.
+- [H0047] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0047] force-push + PR #25 merge
 - [H0046] 残り commit 4 (lint fix)
 - [H0045] 残コミット適用
 - [H0044] PR #5 4 commit cherry-pick 続行 → push → merge
 - [H0043] push して CI 通過 → PR #23 merge → PR #25 merge
-- [H0042] PR #5/8: git checkout -b feat/money-tabs-filter-sheet origin/feat/money-hero-redesign で開始
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `19`
+- current_l3_entries: `20`
 - last_compacted_at: `2026-05-11 15:24:59 +0900`
 - archived_entries: `27`
 <!-- HANDOFF_L2_STATE_END -->
@@ -386,5 +386,21 @@
   - Auto-captured decision: cherry-pick commit 3 (v3.3 mock 準拠) 適用中
 - Validation:
   - `pending`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-11 18:09:09 +0900
+
+- Entry-ID: `H0047`
+- Completed:
+  - [x] VendorCard lint 修正再適用 (cherry-pick skip で失われた分)
+- Remaining:
+  - [ ] force-push + PR #25 merge
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: VendorCard lint 修正再適用 (cherry-pick skip で失われた分)
+- Validation:
+  - `eslint 0 / tsc 0`
 - Landmines:
   - No new landmines reported in this chunk.

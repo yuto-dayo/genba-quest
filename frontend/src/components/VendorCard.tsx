@@ -20,10 +20,11 @@ export function VendorCard({ client, onClick }: VendorCardProps) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
 
+    // 各 VendorCard は key={client.id} で render されるので client.id は不変。
+    // 初期 state (loading=true, error=false) を effect 内で再代入しない
+    // (lint: react-hooks/set-state-in-effect — cascading render を避ける)
     useEffect(() => {
         let cancelled = false;
-        setLoading(true);
-        setError(false);
         fetchActiveBillingRule(client.id)
             .then((result) => {
                 if (!cancelled) setPreview(result);
