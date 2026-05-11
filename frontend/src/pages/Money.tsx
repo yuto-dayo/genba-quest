@@ -13,7 +13,6 @@ import {
     FileText,
     X,
     ChevronRight,
-    ChevronLeft,
     Search,
     FilterX,
 } from "lucide-react";
@@ -49,10 +48,6 @@ import styles from "./Money.module.css";
 const formatDate = (dateStr?: string | null) => {
     if (!dateStr) return "";
     return dateStr.replace(/-/g, "/");
-};
-
-const formatCurrency = (value: number) => {
-    return `¥${Math.abs(value).toLocaleString()}`;
 };
 
 const getAccountingImpactSign = (tx: Pick<AccountingTransaction, "kind" | "amount_total">) => {
@@ -982,38 +977,6 @@ export function Money() {
     );
 }
 
-// PLメトリックコンポーネント（横一列用）
-function PLMetric({
-    label,
-    value,
-    color,
-    badge,
-    negative,
-    highlight,
-}: {
-    label: string;
-    value: number;
-    color: "income" | "expense" | "profit" | "distribute";
-    badge?: string;
-    negative?: boolean;
-    highlight?: boolean;
-}) {
-    const sign = negative && value > 0 ? "-" : value < 0 ? "-" : "";
-
-    return (
-        <div className={`${styles.plMetric} ${highlight ? styles.highlight : ""}`}>
-            <span className={styles.metricLabel}>{label}</span>
-            <span className={`${styles.metricValue} ${styles[color]}`}>
-                {sign}{formatCurrency(value)}
-            </span>
-            {badge && (
-                <span className={`${styles.metricBadge} ${styles[color]}`}>
-                    {badge}
-                </span>
-            )}
-        </div>
-    );
-}
 
 // 取引行コンポーネント
 function TransactionRow({
