@@ -1175,8 +1175,9 @@ export function SiteFormModal({ site, initialAction, onClose, onSuccess }: SiteF
                 </form>
                 </motion.div>
             </div>
-            {showExpenseModal && site && (
+            {site && (
                 <ExpenseModal
+                    open={showExpenseModal}
                     onClose={() => setShowExpenseModal(false)}
                     onSuccess={handleExpenseSuccess}
                     initialSiteId={site.id}
