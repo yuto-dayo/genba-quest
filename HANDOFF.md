@@ -1,4 +1,4 @@
-# Project Handoff Profile / Domain Index - 2026-05-10
+# Project Handoff Profile / Domain Index - 2026-05-11
 
 ## Active Domains
 
@@ -6,6 +6,7 @@
 | ------ | ---- | ------------ | ------ |
 | deploy/production | `handoff/deploy/production.md` | 2026-05-07 | Open production /money in browser if visual smoke is needed |
 | local | `handoff/local.md` | 2026-05-10 | User selected option (a): production migration repair + s... |
+| server | `handoff/server.md` | 2026-05-11 | active |
 
 ## Domain Selection Guide
 

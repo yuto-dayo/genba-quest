@@ -24,6 +24,7 @@ export type AppEntryStateRecord =
           state: "needs_onboarding";
           viewer_email: string | null;
           bootstrap_allowed: boolean;
+          bootstrap_with_code_enabled: boolean;
           memberships: [];
           pending_invites: [];
       }
@@ -31,6 +32,7 @@ export type AppEntryStateRecord =
           state: "needs_invite_action";
           viewer_email: string | null;
           bootstrap_allowed: boolean;
+          bootstrap_with_code_enabled: boolean;
           memberships: [];
           pending_invites: AppEntryPendingInvite[];
       }
@@ -127,6 +129,19 @@ function isAuthenticatedOrgCreationMode(): boolean {
     return (process.env.ORG_CREATION_MODE || "").trim().toLowerCase() === "authenticated";
 }
 
+export function isOrgBootstrapWithCodeEnabled(): boolean {
+    if (isDevBootstrapMode()) {
+        return true;
+    }
+
+    const flag = (process.env.ORG_CREATION_WITH_CODE_ENABLED || "").trim().toLowerCase();
+    if (flag === "false" || flag === "0" || flag === "off") {
+        return false;
+    }
+
+    return true;
+}
+
 export function isOrgBootstrapAllowed(viewerEmail: string | null | undefined): boolean {
     if (isDevBootstrapMode()) {
         return true;
@@ -193,11 +208,14 @@ export async function resolveAppEntryState(input: {
         };
     }
 
+    const bootstrapWithCodeEnabled = isOrgBootstrapWithCodeEnabled();
+
     if (!viewerEmail) {
         return {
             state: "needs_onboarding",
             viewer_email: null,
             bootstrap_allowed: bootstrapAllowed,
+            bootstrap_with_code_enabled: bootstrapWithCodeEnabled,
             memberships: [],
             pending_invites: [],
         };
@@ -210,6 +228,7 @@ export async function resolveAppEntryState(input: {
             state: "needs_onboarding",
             viewer_email: viewerEmail,
             bootstrap_allowed: bootstrapAllowed,
+            bootstrap_with_code_enabled: bootstrapWithCodeEnabled,
             memberships: [],
             pending_invites: [],
         };
@@ -228,6 +247,7 @@ export async function resolveAppEntryState(input: {
         state: "needs_invite_action",
         viewer_email: viewerEmail,
         bootstrap_allowed: bootstrapAllowed,
+        bootstrap_with_code_enabled: bootstrapWithCodeEnabled,
         memberships: [],
         pending_invites: inviteSummaries,
     };

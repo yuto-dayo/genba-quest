@@ -10,6 +10,13 @@ export interface OrgBootstrapInput {
     slug?: string | null;
 }
 
+export interface OrgBootstrapWithCodeInput {
+    userId: string;
+    name: string;
+    code: string;
+    slug?: string | null;
+}
+
 export interface OrgBootstrapResult {
     active_org: {
         id: string;
@@ -202,6 +209,96 @@ export class OrgBootstrapService {
         }
 
         console.log("[ORG] bootstrap created:", {
+            org_id: payload.org_id,
+            user_id: input.userId,
+        });
+
+        return {
+            active_org: {
+                id: payload.org_id,
+                name: payload.org_name,
+                slug: payload.org_slug,
+                status: payload.org_status,
+            },
+            membership: {
+                org_id: payload.membership_org_id,
+                user_id: payload.membership_user_id,
+                role: payload.membership_role,
+                status: payload.membership_status,
+            },
+        };
+    }
+
+    async bootstrapWithCode(input: OrgBootstrapWithCodeInput): Promise<OrgBootstrapResult> {
+        const normalizedName = input.name.trim();
+        if (!normalizedName) {
+            throw new Error("ORG_BOOTSTRAP_NAME_REQUIRED");
+        }
+
+        const normalizedCode = input.code.trim();
+        if (!normalizedCode) {
+            throw new Error("ORG_CREATION_CODE_REQUIRED");
+        }
+
+        const normalizedSlug = normalizeSlug(input.slug);
+        await ensureProfileRecord(input.userId);
+
+        const rpcClient = supabaseAdmin as unknown as {
+            rpc?: (
+                fn: string,
+                args?: Record<string, unknown>,
+            ) => Promise<{ data: unknown; error: { message?: string } | null }>;
+        };
+
+        if (typeof rpcClient.rpc !== "function") {
+            throw new Error("ORG_CREATION_RPC_NOT_AVAILABLE");
+        }
+
+        const { data, error } = await rpcClient.rpc("create_org_with_code", {
+            p_user_id: input.userId,
+            p_name: normalizedName,
+            p_code: normalizedCode,
+            p_slug: normalizedSlug,
+        });
+
+        if (error) {
+            const message = error.message || "";
+            if (message.includes("ORG_CREATION_CODE_REQUIRED")) {
+                throw new Error("ORG_CREATION_CODE_REQUIRED");
+            }
+            if (message.includes("ORG_CREATION_CODE_INVALID")) {
+                throw new Error("ORG_CREATION_CODE_INVALID");
+            }
+            if (message.includes("ORG_CREATION_CODE_EXPIRED")) {
+                throw new Error("ORG_CREATION_CODE_EXPIRED");
+            }
+            if (message.includes("ORG_CREATION_CODE_REVOKED")) {
+                throw new Error("ORG_CREATION_CODE_REVOKED");
+            }
+            if (message.includes("ORG_CREATION_CODE_EXHAUSTED")) {
+                throw new Error("ORG_CREATION_CODE_EXHAUSTED");
+            }
+            if (message.includes("ORG_BOOTSTRAP_NAME_REQUIRED")) {
+                throw new Error("ORG_BOOTSTRAP_NAME_REQUIRED");
+            }
+            if (isSlugConflictMessage(message)) {
+                throw new Error("ORG_BOOTSTRAP_SLUG_CONFLICT");
+            }
+            if (
+                message.includes("create_org_with_code") &&
+                (message.includes("does not exist") || message.includes("Could not find the function"))
+            ) {
+                throw new Error("ORG_CREATION_RPC_NOT_AVAILABLE");
+            }
+            throw error;
+        }
+
+        const payload = normalizeRpcPayload(data);
+        if (!payload) {
+            throw new Error("ORG_BOOTSTRAP_RPC_EMPTY_RESULT");
+        }
+
+        console.log("[ORG] bootstrap with code created:", {
             org_id: payload.org_id,
             user_id: input.userId,
         });

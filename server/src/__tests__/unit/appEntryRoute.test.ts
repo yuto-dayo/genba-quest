@@ -98,6 +98,7 @@ describe("app entry router", () => {
       state: "needs_onboarding",
       viewer_email: "worker@example.com",
       bootstrap_allowed: true,
+      bootstrap_with_code_enabled: true,
       memberships: [],
       pending_invites: [],
     });
@@ -124,6 +125,7 @@ describe("app entry router", () => {
       state: "needs_onboarding",
       viewer_email: "dev@example.com",
       bootstrap_allowed: true,
+      bootstrap_with_code_enabled: true,
       memberships: [],
       pending_invites: [],
     });
@@ -149,6 +151,7 @@ describe("app entry router", () => {
       state: "needs_onboarding",
       viewer_email: "new-owner@example.com",
       bootstrap_allowed: true,
+      bootstrap_with_code_enabled: true,
       memberships: [],
       pending_invites: [],
     });
@@ -191,6 +194,7 @@ describe("app entry router", () => {
       state: "needs_invite_action",
       viewer_email: "worker@example.com",
       bootstrap_allowed: false,
+      bootstrap_with_code_enabled: true,
       memberships: [],
       pending_invites: [
         {
