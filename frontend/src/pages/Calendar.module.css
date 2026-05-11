@@ -245,6 +245,13 @@
     width: 100%;
 }
 
+.scopeLegend {
+    margin: 6px 0 0;
+    text-align: right;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+}
+
 .segmentButton {
     display: inline-flex;
     align-items: center;

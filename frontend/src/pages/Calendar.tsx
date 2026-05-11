@@ -877,6 +877,11 @@ export function Calendar() {
                                 </button>
                             </div>
                         </div>
+                        <p className={styles.scopeLegend} aria-live="polite">
+                            {scope === 'organization'
+                                ? '全員の予定と人数不足を表示'
+                                : '自分の予定と休みを編集'}
+                        </p>
                     </div>
                 </div>
 
