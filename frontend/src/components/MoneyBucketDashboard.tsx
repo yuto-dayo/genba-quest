@@ -3,6 +3,7 @@
  * 番頭レス可視性 — 開いた瞬間に「未割当 / 要確認 / 確認待ち / 帳簿入り /
  * 高額な工具 / 先行仕入れ・古い」の6つの観点で全状況が一望できる。
  *
+ * v3.3 mock 準拠の bucket-strip レイアウト: 水平棒グラフで stagger 表示。
  * 文言は docs/MONEY_EXPENSE_FLOW.md §11 の正本に従い、frontend/src/lib/
  * expenseLabels.ts から参照する。エンドポイントは S-5 で追加した
  * GET /api/v1/accounting/expense_buckets。
@@ -12,7 +13,6 @@ import { useEffect, useState } from "react";
 import { fetchExpenseBuckets, type ExpenseBucketsReport } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
 import {
-    BUCKET_HINT,
     BUCKET_LABEL,
     BUCKET_TONE,
     type BucketKey,
@@ -83,13 +83,19 @@ export function MoneyBucketDashboard({ month, onSelectBucket, refreshKey }: Prop
         );
     }
 
+    // 棒の長さは「バケット間の相対比」で決める。最大金額を 100% とし、他を比率で。
+    const maxAmount = DISPLAY_ORDER.reduce((max, key) => {
+        const amt = Math.abs(report?.buckets[key]?.amount ?? 0);
+        return amt > max ? amt : max;
+    }, 0);
+
     return (
         <section className={styles.section} aria-label="経費の状態">
             <div className={styles.sectionHeader}>
                 <h2 className={styles.sectionTitle}>状態でわける</h2>
                 <span className={styles.sectionHint}>タップで一覧</span>
             </div>
-            <div className={styles.grid}>
+            <div className={styles.strip}>
                 {DISPLAY_ORDER.map((key) => {
                     const data = report?.buckets[key];
                     const tone = BUCKET_TONE[key];
@@ -101,9 +107,12 @@ export function MoneyBucketDashboard({ month, onSelectBucket, refreshKey }: Prop
                             && report.oldest_unassigned_age_days >= 3
                             ? `⚠ 最古 ${report.oldest_unassigned_age_days}日前`
                             : null;
+                    const fillPct = loading || maxAmount === 0
+                        ? 0
+                        : Math.max(2, Math.round((Math.abs(amount) / maxAmount) * 100));
 
                     const classes = [
-                        styles.bucket,
+                        styles.bar,
                         tone === "warn" ? styles.warn : "",
                         tone === "bad" ? styles.bad : "",
                         tone === "good" ? styles.good : "",
@@ -121,21 +130,21 @@ export function MoneyBucketDashboard({ month, onSelectBucket, refreshKey }: Prop
                             onClick={() => onSelectBucket?.(key)}
                             disabled={loading}
                             aria-busy={loading}
+                            aria-label={`${BUCKET_LABEL[key]} ${count}件 ${formatYen(amount)}`}
                         >
                             {showPulse && <span className={styles.pulse} aria-hidden="true" />}
-                            <div className={styles.name}>
-                                <span>{BUCKET_LABEL[key]}</span>
+                            <div className={styles.barLabel}>
+                                <span className={styles.name}>{BUCKET_LABEL[key]}</span>
+                                {staleNote && <span className={styles.staleAlert}>{staleNote}</span>}
+                            </div>
+                            <div className={styles.track}>
+                                <div className={styles.fill} style={{ width: `${fillPct}%` }} />
+                            </div>
+                            <div className={styles.valueCol}>
+                                <span className={styles.amount}>
+                                    {loading ? "—" : formatYen(amount)}
+                                </span>
                                 <span className={styles.count}>{loading ? "—" : count}</span>
-                            </div>
-                            <div className={styles.amount}>
-                                {loading ? "—" : formatYen(amount)}
-                            </div>
-                            <div className={styles.hint}>
-                                {staleNote ? (
-                                    <span className={styles.staleAlert}>{staleNote}</span>
-                                ) : (
-                                    BUCKET_HINT[key]
-                                )}
                             </div>
                         </button>
                     );
