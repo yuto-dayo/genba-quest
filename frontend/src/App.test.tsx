@@ -224,9 +224,9 @@ describe("App entry gate", () => {
 
         render(<App />);
 
-        expect(await screen.findByText("招待を受けて参加")).toBeInTheDocument();
+        expect(await screen.findByText("チームに参加しましょう")).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "組織を作成" })).not.toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "招待で参加" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "招待で参加する" })).toBeInTheDocument();
     });
 
     it("hides bootstrap form on onboarding even when bootstrap is allowed", async () => {
@@ -240,7 +240,7 @@ describe("App entry gate", () => {
 
         render(<App />);
 
-        expect(await screen.findByText("招待を受けて参加")).toBeInTheDocument();
+        expect(await screen.findByText("チームに参加しましょう")).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "組織を作成" })).not.toBeInTheDocument();
         expect(screen.queryByText("新しい組織を作成")).not.toBeInTheDocument();
     });
@@ -410,7 +410,7 @@ describe("App entry gate", () => {
 
         render(<App />);
 
-        expect(await screen.findByText("招待を受けて参加")).toBeInTheDocument();
+        expect(await screen.findByText("チームに参加しましょう")).toBeInTheDocument();
         expect(screen.queryByPlaceholderText("例: GENBA 本部")).not.toBeInTheDocument();
         expect(screen.queryByPlaceholderText("例: genba-hq")).not.toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "組織を作成" })).not.toBeInTheDocument();
@@ -560,13 +560,16 @@ describe("App entry gate", () => {
         fireEvent.change(await screen.findByLabelText("メールアドレス"), {
             target: { value: "new-worker@example.com" },
         });
-        fireEvent.change(screen.getByLabelText("初回登録用パスワード"), {
+        fireEvent.click(
+            screen.getByRole("button", { name: "はじめての方はこちら（パスワードを決めてアカウントを作る）" }),
+        );
+        fireEvent.change(await screen.findByLabelText("パスワードを決める"), {
             target: { value: "password-1234" },
         });
-        fireEvent.change(screen.getByLabelText("初回登録用パスワード（確認）"), {
+        fireEvent.change(screen.getByLabelText("パスワードをもう一度"), {
             target: { value: "password-1234" },
         });
-        fireEvent.click(screen.getByRole("button", { name: "初回登録して進む" }));
+        fireEvent.click(screen.getByRole("button", { name: "アカウントを作る" }));
 
         await waitFor(() => {
             expect(signUp).toHaveBeenCalledWith({
@@ -591,13 +594,16 @@ describe("App entry gate", () => {
         fireEvent.change(await screen.findByLabelText("メールアドレス"), {
             target: { value: "worker@example.com" },
         });
-        fireEvent.change(screen.getByLabelText("初回登録用パスワード"), {
+        fireEvent.click(
+            screen.getByRole("button", { name: "はじめての方はこちら（パスワードを決めてアカウントを作る）" }),
+        );
+        fireEvent.change(await screen.findByLabelText("パスワードを決める"), {
             target: { value: "password-1234" },
         });
-        fireEvent.change(screen.getByLabelText("初回登録用パスワード（確認）"), {
+        fireEvent.change(screen.getByLabelText("パスワードをもう一度"), {
             target: { value: "password-1234" },
         });
-        fireEvent.click(screen.getByRole("button", { name: "初回登録して進む" }));
+        fireEvent.click(screen.getByRole("button", { name: "アカウントを作る" }));
 
         expect(await screen.findByText("メールアドレスの形式を確認してください。")).toBeInTheDocument();
     });
@@ -613,7 +619,11 @@ describe("App entry gate", () => {
         fireEvent.change(await screen.findByLabelText("メールアドレス"), {
             target: { value: "worker@example.com" },
         });
-        fireEvent.click(screen.getByRole("button", { name: "非常用リンクを送る" }));
+        // Magic-link entry is now nested in a <details> disclosure; open it first.
+        fireEvent.click(
+            screen.getByText("パスワードを使わずに入る（メールでログインリンク）"),
+        );
+        fireEvent.click(await screen.findByRole("button", { name: "ログインリンクをメールで送る" }));
 
         expect(await screen.findByText("メール送信の上限に達しました。しばらく待ってから再度お試しください。")).toBeInTheDocument();
     });
@@ -709,7 +719,7 @@ describe("App entry gate", () => {
 
         render(<App />);
 
-        expect(await screen.findByText("招待を受けて参加")).toBeInTheDocument();
+        expect(await screen.findByText("チームに参加しましょう")).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "参加する" })).not.toBeInTheDocument();
         expect(acceptOrgInvite).not.toHaveBeenCalled();
     });
@@ -724,7 +734,7 @@ describe("App entry gate", () => {
 
         render(<App />);
 
-        await screen.findByText("Googleでログイン");
+        await screen.findByText("ログインして始める");
         await act(async () => {
             authStateCallback?.("PASSWORD_RECOVERY", {
                 user: {

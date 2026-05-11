@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `PR2 frontend: stepped login + /join landing + create-team flow`
+- NEXT_CMD: `Open both PRs to master; consider Phase 2 stepped login + /join landing as follow-ups`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/server.md`
@@ -18,8 +18,8 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `d00238e`
-  - Updated: `2026-05-11T12:23:50+0900`
+  - HEAD: `dc8e24e`
+  - Updated: `2026-05-11T12:39:38+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
@@ -35,28 +35,30 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `PR2 frontend: stepped login + /join landing + create-team flow`. Source: realtime
+- [focus] NEXT_CMD: `Open both PRs to master; consider Phase 2 stepped login + /join landing as follow-ups`. Source: realtime
+- [H0003] Completed: PR2 frontend: CreateTeamWithCodeGate + OnboardingGate create-team entry + AuthGate cleanup (collapse signup panel, plain language)
+- [H0003] Remaining: Open both PRs to master; consider Phase 2 stepped login + /join landing as follow-ups
 - [H0002] Completed: Built invite-code-gated org creation backend (PR1): org_creation_codes + create_org_with_code RPC + POST /api/v1/org/bootstrap-with-code + bootstrap_with_code_enabled flag
 - [H0002] Remaining: PR2 frontend: stepped login + /join landing + create-team flow
-- [H0001] Completed: Cleared stale server nodemon watchers and verified server dev startup on port 4001
-- [H0001] Remaining: Run cd server && npm run dev; if it crashes again, capture the stack trace above nodemon's app crashed line
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0003] Auto-captured decision: PR2 frontend: CreateTeamWithCodeGate + OnboardingGate create-team entry + AuthGate cleanup (collapse signup panel, plain language)
 - [H0002] Auto-captured decision: Built invite-code-gated org creation backend (PR1): org_creation_codes + create_org_with_code RPC + POST /api/v1/org/bootstrap-with-code + bootstrap_with_code_enabled flag
 - [H0001] Auto-captured decision: Cleared stale server nodemon watchers and verified server dev startup on port 4001
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0002] No new landmines reported in this chunk.
+- [H0003] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0003] Open both PRs to master; consider Phase 2 stepped login + /join landing as follow-ups
 - [H0002] PR2 frontend: stepped login + /join landing + create-team flow
 - [H0001] Run cd server && npm run dev; if it crashes again, capture the stack trace above nodemon's app crashed line
 <!-- HANDOFF_L2_THREADS_END -->
@@ -65,7 +67,7 @@
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `2`
+- current_l3_entries: `3`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -96,13 +98,15 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] PR2 frontend: CreateTeamWithCodeGate + OnboardingGate create-team entry + AuthGate cleanup (collapse signup panel, plain language)
 - [x] Built invite-code-gated org creation backend (PR1): org_creation_codes + create_org_with_code RPC + POST /api/v1/org/bootstrap-with-code + bootstrap_with_code_enabled flag
 - [x] Cleared stale server nodemon watchers and verified server dev startup on port 4001
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: PR2 frontend: stepped login + /join landing + create-team flow
+- [ ] **P0**: Open both PRs to master; consider Phase 2 stepped login + /join landing as follow-ups
+- [ ] **P1**: PR2 frontend: stepped login + /join landing + create-team flow
 - [ ] **P1**: Run cd server && npm run dev; if it crashes again, capture the stack trace above nodemon's app crashed line
 ---
 
@@ -187,5 +191,21 @@ cd frontend && npx eslint src/
   - Auto-captured decision: Built invite-code-gated org creation backend (PR1): org_creation_codes + create_org_with_code RPC + POST /api/v1/org/bootstrap-with-code + bootstrap_with_code_enabled flag
 - Validation:
   - `tsc clean; 401/403 unit tests pass (2 pre-existing SiteCompleteWithCloseService failures unrelated)`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-11 12:39:38 +0900
+
+- Entry-ID: `H0003`
+- Completed:
+  - [x] PR2 frontend: CreateTeamWithCodeGate + OnboardingGate create-team entry + AuthGate cleanup (collapse signup panel, plain language)
+- Remaining:
+  - [ ] Open both PRs to master; consider Phase 2 stepped login + /join landing as follow-ups
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: PR2 frontend: CreateTeamWithCodeGate + OnboardingGate create-team entry + AuthGate cleanup (collapse signup panel, plain language)
+- Validation:
+  - `tsc clean; 95/95 vitest pass (5 file infra failures unchanged from master)`
 - Landmines:
   - No new landmines reported in this chunk.

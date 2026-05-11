@@ -1227,6 +1227,7 @@ export type AppEntryStateRecord =
           state: "needs_onboarding";
           viewer_email: string | null;
           bootstrap_allowed: boolean;
+          bootstrap_with_code_enabled: boolean;
           memberships: [];
           pending_invites: [];
       }
@@ -1234,6 +1235,7 @@ export type AppEntryStateRecord =
           state: "needs_invite_action";
           viewer_email: string | null;
           bootstrap_allowed: boolean;
+          bootstrap_with_code_enabled: boolean;
           memberships: [];
           pending_invites: AppEntryPendingInvite[];
       }
@@ -1295,6 +1297,18 @@ export const bootstrapFirstOrg = (payload: OrgBootstrapRequest) =>
 
 export const bootstrapOrg = (payload: OrgBootstrapRequest) =>
     api<OrgBootstrapResponse>("/api/v1/org/bootstrap", {
+        method: "POST",
+        body: JSON.stringify(payload),
+    });
+
+export interface OrgBootstrapWithCodeRequest {
+    name: string;
+    code: string;
+    slug?: string | null;
+}
+
+export const bootstrapOrgWithCode = (payload: OrgBootstrapWithCodeRequest) =>
+    api<OrgBootstrapResponse>("/api/v1/org/bootstrap-with-code", {
         method: "POST",
         body: JSON.stringify(payload),
     });
