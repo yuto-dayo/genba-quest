@@ -10,6 +10,7 @@ import {
     Receipt,
     Copy,
 } from "lucide-react";
+import { BottomSheet } from "./BottomSheet";
 import {
     uploadDocument,
     analyzeDocumentOcr,
@@ -28,6 +29,7 @@ import { generateExpenseJournalLines, normalizeNetSubtotal, type ExpenseCategory
 import styles from "./ExpenseModal.module.css";
 
 interface ExpenseModalProps {
+    open: boolean;
     onClose: () => void;
     onSuccess: () => void;
     initialSiteId?: string;
@@ -89,6 +91,7 @@ const SCOPE_OPTIONS = [
 type ExpenseScopeValue = typeof SCOPE_OPTIONS[number]["value"];
 
 export function ExpenseModal({
+    open,
     onClose,
     onSuccess,
     initialSiteId = "",
@@ -482,23 +485,8 @@ export function ExpenseModal({
     };
 
     return (
-        <motion.div
-            className={styles.overlay}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-        >
-            <motion.div
-                className={styles.modal}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="expense-modal-title"
-                initial={{ opacity: 0, y: 32 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 24 }}
-                onClick={(e) => e.stopPropagation()}
-            >
+        <BottomSheet open={open} onClose={onClose} ariaLabel="経費登録">
+            <div className={styles.modal}>
                 <header className={styles.header}>
                     <h2 id="expense-modal-title" className={styles.title}>経費登録</h2>
                     <button className={styles.closeButton} onClick={onClose} aria-label="閉じる">
@@ -930,7 +918,7 @@ export function ExpenseModal({
                         </div>
                     </form>
                 </div>
-            </motion.div>
-        </motion.div>
+            </div>
+        </BottomSheet>
     );
 }

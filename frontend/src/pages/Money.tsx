@@ -1048,24 +1048,23 @@ export function Money() {
             {/* モーダル群 */}
             <AnimatePresence>
                 {/* <MoneyActionSheet /> は mobileFabDock 内の Expanding FAB メニューに変更したため削除 */}
-                {showExpenseModal && (
-                    <ExpenseModal
-                        onClose={closeExpenseModal}
-                        onSuccess={handleExpenseCreated}
-                        initialSiteId={expenseDraft?.siteId}
-                        initialCategory={expenseDraft?.category}
-                        initialTaxCategory={expenseDraft?.taxCategory}
-                        initialVendorName={expenseDraft?.vendorName}
-                        initialRecordedDate={expenseDraft?.recordedDate}
-                        initialAmountSubtotal={expenseDraft?.amountSubtotal}
-                        initialTaxAmount={expenseDraft?.taxAmount}
-                        initialAmountTotal={expenseDraft?.amountTotal}
-                        initialDescription={expenseDraft?.description}
-                        initialCostCenter={expenseDraft?.costCenter}
-                        initialExpenseItemCode={expenseDraft?.expenseItemCode}
-                        initialExpenseItemOther={expenseDraft?.expenseItemOther}
-                    />
-                )}
+                <ExpenseModal
+                    open={showExpenseModal}
+                    onClose={closeExpenseModal}
+                    onSuccess={handleExpenseCreated}
+                    initialSiteId={expenseDraft?.siteId}
+                    initialCategory={expenseDraft?.category}
+                    initialTaxCategory={expenseDraft?.taxCategory}
+                    initialVendorName={expenseDraft?.vendorName}
+                    initialRecordedDate={expenseDraft?.recordedDate}
+                    initialAmountSubtotal={expenseDraft?.amountSubtotal}
+                    initialTaxAmount={expenseDraft?.taxAmount}
+                    initialAmountTotal={expenseDraft?.amountTotal}
+                    initialDescription={expenseDraft?.description}
+                    initialCostCenter={expenseDraft?.costCenter}
+                    initialExpenseItemCode={expenseDraft?.expenseItemCode}
+                    initialExpenseItemOther={expenseDraft?.expenseItemOther}
+                />
                 {showSalesModal && (
                     <SalesModal
                         onClose={closeSalesModal}
