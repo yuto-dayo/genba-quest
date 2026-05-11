@@ -47,7 +47,7 @@ import { FloatingActionButton } from "../components/FloatingActionButton";
 import { MoneyBucketDashboard } from "../components/MoneyBucketDashboard";
 import { MoneyHero } from "../components/MoneyHero";
 import { MoneyTabs, type MoneyTab } from "../components/MoneyTabs";
-import { MoneyFilterSheet } from "../components/MoneyFilterSheet";
+import { MoneyFilterSheet, type ExpenseCategory } from "../components/MoneyFilterSheet";
 import { VendorCard } from "../components/VendorCard";
 import styles from "./Money.module.css";
 
@@ -72,6 +72,8 @@ interface SearchFilters {
     dateFrom: string;
     dateTo: string;
     query: string;
+    clientId: string | null;
+    category: ExpenseCategory | null;
 }
 
 interface ExpenseCorrectionDraft {
@@ -135,6 +137,8 @@ const defaultFilters: SearchFilters = {
     dateFrom: "",
     dateTo: "",
     query: "",
+    clientId: null,
+    category: null,
 };
 
 // モバイル判定
@@ -186,13 +190,12 @@ export function Money() {
     const [activeTab, setActiveTab] = useState<MoneyTab>("transactions");
     const [showFilterSheet, setShowFilterSheet] = useState(false);
 
-    // 取引先一覧 (取引先タブ初訪時に lazy load)
+    // 取引先一覧 — フィルタシート (取引先 chips) でも使うのでマウント時にロード
     const [clients, setClients] = useState<Client[] | null>(null);
     const [clientsLoading, setClientsLoading] = useState(false);
     const [clientsError, setClientsError] = useState<string | null>(null);
 
     useEffect(() => {
-        if (activeTab !== "vendors" || clients !== null) return;
         let cancelled = false;
         setClientsLoading(true);
         setClientsError(null);
@@ -209,7 +212,7 @@ export function Money() {
         return () => {
             cancelled = true;
         };
-    }, [activeTab, clients]);
+    }, []);
 
     // 承認モーダル
     const [showApprovalsModal, setShowApprovalsModal] = useState(false);
@@ -414,9 +417,11 @@ export function Money() {
     }, []);
 
     // フィルター変更時に検索を実行（デバウンス的に）
+    // 注: clientId/category はサーバ未対応なのでクライアントサイドで filteredTransactions に適用
     useEffect(() => {
-        const hasActiveFilters = filters.kind !== "all" || filters.datePreset !== "all" || filters.query;
-        if (hasActiveFilters) {
+        const needsServerSearch =
+            filters.kind !== "all" || filters.datePreset !== "all" || filters.query;
+        if (needsServerSearch) {
             executeFilterSearch(filters, filters.query);
         } else {
             setSearchResults(null);
@@ -450,6 +455,10 @@ export function Money() {
             setFilters(prev => ({ ...prev, datePreset: "all", dateFrom: "", dateTo: "" }));
         } else if (key === "query") {
             setFilters(prev => ({ ...prev, query: "" }));
+        } else if (key === "clientId") {
+            setFilters(prev => ({ ...prev, clientId: null }));
+        } else if (key === "category") {
+            setFilters(prev => ({ ...prev, category: null }));
         }
     };
 
@@ -459,10 +468,20 @@ export function Money() {
     };
 
     // アクティブなフィルターがあるか
-    const hasActiveFilters = filters.kind !== "all" || filters.datePreset !== "all" || filters.query;
+    const hasActiveFilters =
+        filters.kind !== "all" ||
+        filters.datePreset !== "all" ||
+        !!filters.query ||
+        filters.clientId !== null ||
+        filters.category !== null;
 
-    // 表示する取引（検索結果 or 全取引）
-    const filteredTransactions = searchResults !== null ? searchResults : transactions;
+    // 表示する取引（検索結果 or 全取引）+ clientId/category はクライアントサイド適用
+    const baseTransactions = searchResults !== null ? searchResults : transactions;
+    const filteredTransactions = baseTransactions.filter((tx) => {
+        if (filters.clientId && tx.client_id !== filters.clientId) return false;
+        if (filters.category && tx.category !== filters.category) return false;
+        return true;
+    });
 
     // 表示する取引（最新10件 or 全件）
     const displayedTransactions = showAllTransactions
@@ -641,26 +660,27 @@ export function Money() {
 
             <div className={styles.workspaceGrid}>
                 <div className={styles.primaryColumn}>
-                    {/* タブ + フィルタトリガ (PR #5) */}
+                    {/* タブ + フィルタトリガ (PR #5, v3.3 mock 準拠) */}
                     <div className={styles.tabsRow}>
                         <MoneyTabs
                             value={activeTab}
                             onChange={setActiveTab}
                             txCount={activeTab === "transactions" ? filteredTransactions.length : undefined}
                             vendorCount={clients?.length}
+                            trailing={
+                                activeTab === "transactions" && (
+                                    <button
+                                        type="button"
+                                        className={styles.filterTriggerBtn}
+                                        onClick={() => setShowFilterSheet(true)}
+                                        aria-label="フィルタを開く"
+                                    >
+                                        <SlidersHorizontal size={16} />
+                                        {hasActiveFilters && <span className={styles.filterDot} aria-hidden />}
+                                    </button>
+                                )
+                            }
                         />
-                        {activeTab === "transactions" && (
-                            <button
-                                type="button"
-                                className={styles.filterTriggerBtn}
-                                onClick={() => setShowFilterSheet(true)}
-                                aria-label="フィルタを開く"
-                            >
-                                <SlidersHorizontal size={14} />
-                                <span>フィルタ</span>
-                                {hasActiveFilters && <span className={styles.filterDot} aria-hidden />}
-                            </button>
-                        )}
                     </div>
 
                     {activeTab === "transactions" && (
@@ -852,6 +872,28 @@ export function Money() {
                                             <span className={styles.filterTag}>
                                                 "{filters.query}"
                                                 <button onClick={() => clearFilter("query")}>
+                                                    <X size={12} />
+                                                </button>
+                                            </span>
+                                        )}
+                                        {filters.clientId && (
+                                            <span className={styles.filterTag}>
+                                                {clients?.find((c) => c.id === filters.clientId)?.name ?? "取引先"}
+                                                <button onClick={() => clearFilter("clientId")}>
+                                                    <X size={12} />
+                                                </button>
+                                            </span>
+                                        )}
+                                        {filters.category && (
+                                            <span className={styles.filterTag}>
+                                                {filters.category === "material" && "仕入れ"}
+                                                {filters.category === "tool" && "工具"}
+                                                {filters.category === "travel" && "駐車代"}
+                                                {filters.category === "fuel" && "ガソリン"}
+                                                {filters.category === "food" && "食事"}
+                                                {filters.category === "utility" && "光熱通信"}
+                                                {filters.category === "other" && "その他"}
+                                                <button onClick={() => clearFilter("category")}>
                                                     <X size={12} />
                                                 </button>
                                             </span>
@@ -1079,6 +1121,8 @@ export function Money() {
                 onClose={() => setShowFilterSheet(false)}
                 filters={filters}
                 onFiltersChange={setFilters}
+                clients={clients}
+                matchedCount={filteredTransactions.length}
             />
 
             {isMobile && (

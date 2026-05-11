@@ -1,5 +1,5 @@
+import { type ReactNode } from "react";
 import { motion } from "framer-motion";
-import { Receipt, Users } from "lucide-react";
 import { motion as motionTokens } from "../lib/motion/tokens";
 import styles from "./MoneyTabs.module.css";
 
@@ -10,17 +10,19 @@ interface MoneyTabsProps {
     onChange: (tab: MoneyTab) => void;
     txCount?: number;
     vendorCount?: number;
+    /** Optional trailing content rendered on the right (filter / search icon buttons). */
+    trailing?: ReactNode;
 }
 
-const TABS: Array<{ id: MoneyTab; label: string; Icon: typeof Receipt }> = [
-    { id: "transactions", label: "取引", Icon: Receipt },
-    { id: "vendors", label: "取引先", Icon: Users },
+const TABS: Array<{ id: MoneyTab; label: string }> = [
+    { id: "transactions", label: "取引" },
+    { id: "vendors", label: "取引先" },
 ];
 
-export function MoneyTabs({ value, onChange, txCount, vendorCount }: MoneyTabsProps) {
+export function MoneyTabs({ value, onChange, txCount, vendorCount, trailing }: MoneyTabsProps) {
     return (
         <div className={styles.tabs} role="tablist" aria-label="Moneyビュー切替">
-            {TABS.map(({ id, label, Icon }) => {
+            {TABS.map(({ id, label }) => {
                 const isActive = value === id;
                 const count = id === "transactions" ? txCount : vendorCount;
                 return (
@@ -32,17 +34,14 @@ export function MoneyTabs({ value, onChange, txCount, vendorCount }: MoneyTabsPr
                         className={`${styles.tab} ${isActive ? styles.tabActive : ""}`}
                         onClick={() => onChange(id)}
                     >
-                        <span className={styles.tabContent}>
-                            <Icon size={16} aria-hidden />
-                            <span>{label}</span>
-                            {typeof count === "number" && (
-                                <span className={styles.tabCount}>{count}</span>
-                            )}
-                        </span>
+                        <span className={styles.label}>{label}</span>
+                        {typeof count === "number" && (
+                            <span className={styles.badge}>{count}</span>
+                        )}
                         {isActive && (
                             <motion.span
-                                layoutId="moneyTabIndicator"
-                                className={styles.indicator}
+                                layoutId="moneyTabUnderline"
+                                className={styles.underline}
                                 transition={motionTokens.spatialFast}
                                 aria-hidden
                             />
@@ -50,6 +49,7 @@ export function MoneyTabs({ value, onChange, txCount, vendorCount }: MoneyTabsPr
                     </button>
                 );
             })}
+            {trailing && <div className={styles.trailing}>{trailing}</div>}
         </div>
     );
 }

@@ -44,15 +44,29 @@
 
 .header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     padding: 4px 20px 12px;
+    gap: 12px;
+}
+
+.headerText {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
 }
 
 .title {
     margin: 0;
     color: #123f3a;
     font: var(--md-sys-typescale-headline-small);
+}
+
+.sub {
+    margin: 0;
+    color: #56716b;
+    font: var(--md-sys-typescale-body-small);
 }
 
 .closeBtn {
@@ -127,6 +141,24 @@
     background: #115e59;
 }
 
+/* 「+ N社」省略チップ — toggle ではないので outline 表現 */
+.chipMore {
+    appearance: none;
+    border: 1px dashed rgba(15, 118, 110, 0.36);
+    background: transparent;
+    color: #0f766e;
+    padding: 8px 16px;
+    border-radius: 999px;
+    font: var(--md-sys-typescale-label-large);
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.chipMore:hover {
+    background: rgba(20, 184, 166, 0.1);
+}
+
 .dateInputs {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -152,7 +184,8 @@
 }
 
 .footer {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr 2fr;
     gap: 12px;
     padding: 14px 20px 18px;
     border-top: 1px solid rgba(15, 118, 110, 0.1);
@@ -162,7 +195,6 @@
 
 .clearBtn,
 .applyBtn {
-    flex: 1;
     appearance: none;
     border-radius: 999px;
     padding: 12px 18px;

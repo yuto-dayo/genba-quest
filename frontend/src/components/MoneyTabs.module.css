@@ -1,12 +1,9 @@
+/* v3.3 mock 準拠: 平坦テキスト + 下線スライド (layoutId magic motion) */
 .tabs {
     position: relative;
-    display: inline-flex;
-    align-items: stretch;
-    gap: 4px;
-    padding: 4px;
-    border-radius: 999px;
-    background: rgba(15, 118, 110, 0.06);
-    border: 1px solid rgba(15, 118, 110, 0.12);
+    display: flex;
+    align-items: center;
+    gap: 22px;
 }
 
 .tab {
@@ -14,13 +11,15 @@
     appearance: none;
     border: 0;
     background: transparent;
+    padding: 10px 0;
     color: #56716b;
-    padding: 8px 16px;
-    border-radius: 999px;
     font: var(--md-sys-typescale-label-large);
     font-weight: 600;
     cursor: pointer;
-    transition: color 0.18s ease;
+    transition: color 0.2s var(--md-sys-motion-easing-standard, ease);
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
 }
 
 .tab:hover {
@@ -28,42 +27,44 @@
 }
 
 .tabActive {
-    color: #0f766e;
+    color: #0f3d39;
 }
 
-.tabContent {
-    position: relative;
-    z-index: 1;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
+.label {
+    font: inherit;
 }
 
-.tabCount {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 20px;
-    height: 18px;
-    padding: 0 6px;
+.badge {
+    display: inline-block;
+    min-width: 18px;
+    padding: 1px 6px;
     border-radius: 999px;
-    background: rgba(15, 118, 110, 0.14);
-    color: #0f766e;
+    background: rgba(15, 118, 110, 0.1);
+    color: #56716b;
     font: var(--md-sys-typescale-label-small);
     font-weight: 700;
+    text-align: center;
+    transition: background 0.2s ease, color 0.2s ease;
 }
 
-.tabActive .tabCount {
-    background: rgba(255, 255, 255, 0.9);
+.tabActive .badge {
+    background: rgba(20, 184, 166, 0.18);
+    color: #0f3d39;
 }
 
-.indicator {
+.underline {
     position: absolute;
-    inset: 0;
-    border-radius: 999px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(240, 253, 250, 0.96));
-    box-shadow:
-        0 1px 2px rgba(7, 24, 22, 0.06),
-        0 4px 12px rgba(7, 24, 22, 0.08);
-    z-index: 0;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: #0f766e;
+    border-radius: 2px 2px 0 0;
+}
+
+.trailing {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
 }
