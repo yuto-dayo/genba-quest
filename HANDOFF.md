@@ -25,43 +25,43 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `実機で見え方確認・スマホで親指届くか検証`. Source: realtime
+- [focus] NEXT_CMD: `Phase 1: profiles拡張 (phone/job_type/employment_kind/振込先4列/インボイス番号/住所/緊急連絡) を別ブランチで実装`. Source: realtime
+- [H0033] Completed: feat(org): 招待発行(POST/GET/DELETE) + ?invite=<uuid>自動受諾 + プロフィール氏名/username編集
+- [H0033] Remaining: Phase 1: profiles拡張 (phone/job_type/employment_kind/振込先4列/インボイス番号/住所/緊急連絡) を別ブランチで実装
 - [H0032] Completed: feat(nav): ベルを下部ナビから外し全画面共通の floating ボタンへ移行（FAB の左横に着地）
 - [H0032] Remaining: 実機で見え方確認・スマホで親指届くか検証
-- [H0031] Completed: fix(sites): PUT /:id で status を active/tentative/in_progress に制限し completed/deleted バイパスを封じた
-- [H0031] Remaining: 他バグ調査継続 or 担当者ON/OFFのoptimistic lock
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0033] Auto-captured decision: feat(org): 招待発行(POST/GET/DELETE) + ?invite=<uuid>自動受諾 + プロフィール氏名/username編集
 - [H0032] Auto-captured decision: feat(nav): ベルを下部ナビから外し全画面共通の floating ボタンへ移行（FAB の左横に着地）
 - [H0031] Auto-captured decision: fix(sites): PUT /:id で status を active/tentative/in_progress に制限し completed/deleted バイパスを封じた
 - [H0030] Auto-captured decision: chore(sites): 論理削除時の dead status='deleted' 書き込みを除去（deleted_at が唯一の真実）
 - [H0029] Auto-captured decision: fix(sites): 連続施工+期間未入力をフロント/サーバー両面でブロック
-- [H0028] Auto-captured decision: feat(reward): V3.3 Phase 6 cutover — remap V3.2 history to V3.3 scale (migration) + fetchPriorMonthLevel defensive mapping (audit #7) + remove SiteDetailModal levelDraftSectio...
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0032] No new landmines reported in this chunk.
+- [H0033] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0033] Phase 1: profiles拡張 (phone/job_type/employment_kind/振込先4列/インボイス番号/住所/緊急連絡) を別ブランチで実装
 - [H0032] 実機で見え方確認・スマホで親指届くか検証
 - [H0031] 他バグ調査継続 or 担当者ON/OFFのoptimistic lock
 - [H0030] 現場ページ周辺の他バグ調査を継続
 - [H0029] 別セッションのPathV33作業を待ち、必要に応じてuseCalendar側にも保険を入れる
-- [H0028] V3.3 implementation complete; merge PR #14 after manual smoke test
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `14`
+- current_l3_entries: `15`
 - last_compacted_at: `2026-05-11 07:44:56 +0900`
 - archived_entries: `18`
 <!-- HANDOFF_L2_STATE_END -->
@@ -303,5 +303,21 @@
   - Auto-captured decision: feat(nav): ベルを下部ナビから外し全画面共通の floating ボタンへ移行（FAB の左横に着地）
 - Validation:
   - `frontend tsc ✅ / vitest App.test 25/25 ✅`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-11 13:43:11 +0900
+
+- Entry-ID: `H0033`
+- Completed:
+  - [x] feat(org): 招待発行(POST/GET/DELETE) + ?invite=<uuid>自動受諾 + プロフィール氏名/username編集
+- Remaining:
+  - [ ] Phase 1: profiles拡張 (phone/job_type/employment_kind/振込先4列/インボイス番号/住所/緊急連絡) を別ブランチで実装
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: feat(org): 招待発行(POST/GET/DELETE) + ?invite=<uuid>自動受諾 + プロフィール氏名/username編集
+- Validation:
+  - `frontend tsc/eslint/vite build/App.test 25/25 OK, server tsc OK, vitest 120 pass (baseline), server jest 422 pass (baseline)`
 - Landmines:
   - No new landmines reported in this chunk.
