@@ -159,6 +159,7 @@ export type ProposalType =
     | "site.close.finalize"
     | "site.close.reopen"
     | "policy.update"
+    | "profile.view_request"
     | "luqo.catalog.add"
     | "luqo.star.achieve"
     | "luqo.score.update"
@@ -1098,6 +1099,80 @@ export const removeOrgMember = (userId: string) =>
     api<{ membership: Member }>(`/api/v1/org/members/${userId}`, {
         method: "DELETE",
     });
+
+// ============================================================
+// Profile view consent (Phase 2-1)
+// 拡張プロフィール閲覧の本人承認フロー
+// ============================================================
+
+export interface ProfileViewGrant {
+    id: string;
+    org_id: string;
+    proposal_id: string;
+    target_user_id: string;
+    requesting_admin_id: string;
+    purpose: string;
+    granted_at: string;
+    expires_at: string;
+    revoked_at: string | null;
+    revoked_by: string | null;
+    revocation_reason: string | null;
+    created_at: string;
+}
+
+export interface ExtendedProfile {
+    id: string;
+    phone: string | null;
+    job_type: string | null;
+    employment_kind: string | null;
+    trade_name: string | null;
+    invoice_registration_number: string | null;
+    bank_name: string | null;
+    branch_name: string | null;
+    account_type: string | null;
+    account_number: string | null;
+    account_holder_kana: string | null;
+    postal_code: string | null;
+    prefecture: string | null;
+    city: string | null;
+    address_line1: string | null;
+    address_line2: string | null;
+    emergency_contact_name: string | null;
+    emergency_phone: string | null;
+}
+
+export interface ProfileViewExtendedResult {
+    profile: ExtendedProfile;
+    grant: ProfileViewGrant | null;
+}
+
+export const createProfileViewRequest = (input: {
+    target_user_id: string;
+    purpose: string;
+    duration_hours?: number;
+}) =>
+    api<{ proposal: ProposalRecord; auto_approved: boolean; auto_executed: boolean }>(
+        "/api/v1/profile-view-requests",
+        {
+            method: "POST",
+            body: JSON.stringify(input),
+        },
+    );
+
+export const revokeProfileViewGrant = (grantId: string, reason?: string) =>
+    api<{ grant: ProfileViewGrant }>(`/api/v1/profile-view-grants/${grantId}/revoke`, {
+        method: "POST",
+        body: JSON.stringify({ reason: reason ?? null }),
+    });
+
+export const fetchProfileViewGrantsIncoming = () =>
+    api<{ grants: ProfileViewGrant[] }>("/api/v1/profile-view-grants/incoming");
+
+export const fetchProfileViewGrantsOutgoing = () =>
+    api<{ grants: ProfileViewGrant[] }>("/api/v1/profile-view-grants/outgoing");
+
+export const fetchExtendedProfile = (userId: string) =>
+    api<ProfileViewExtendedResult>(`/api/v1/profile-view-extended/${userId}`);
 
 export const fetchClients = (params?: { status?: "active" | "deleted" | "all" }) => {
     const searchParams = new URLSearchParams();

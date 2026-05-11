@@ -19,6 +19,7 @@ interface MockChain {
   update: jest.Mock;
   delete: jest.Mock;
   eq: jest.Mock;
+  gt: jest.Mock;
   gte: jest.Mock;
   lte: jest.Mock;
   lt: jest.Mock;
@@ -38,7 +39,7 @@ export function createChain(result: SupabaseResult = { data: null, error: null }
   const chain: MockChain = {} as MockChain;
   chain._result = result;
 
-  const chainable = ['select', 'insert', 'upsert', 'update', 'delete', 'eq', 'gte', 'lte', 'lt', 'neq', 'in', 'is', 'order', 'limit', 'range'] as const;
+  const chainable = ['select', 'insert', 'upsert', 'update', 'delete', 'eq', 'gt', 'gte', 'lte', 'lt', 'neq', 'in', 'is', 'order', 'limit', 'range'] as const;
   for (const method of chainable) {
     chain[method] = jest.fn().mockReturnValue(chain);
   }

@@ -24,6 +24,7 @@ import { PathV31Service } from "./PathV31Service";
 import { PathV32SimpleRewardService } from "./PathV32SimpleRewardService";
 import { LUQOService } from "./LUQOService";
 import { assignOnSubmit } from "./ProposalAssignmentService";
+import { ProfileViewConsentService, profileViewConsentService } from "./ProfileViewConsentService";
 
 // ============================================================
 // Types
@@ -149,6 +150,7 @@ export class ProposalService {
   private pathGovernedModuleService: PathGovernedModuleService;
   private pathV31Service: PathV31Service;
   private pathV32SimpleRewardService: PathV32SimpleRewardService;
+  private profileViewConsentService: ProfileViewConsentService;
 
   constructor(orgId: string = '00000000-0000-0000-0000-000000000001') {
     this.orgId = orgId;
@@ -156,6 +158,7 @@ export class ProposalService {
     this.pathGovernedModuleService = new PathGovernedModuleService(orgId);
     this.pathV31Service = new PathV31Service(orgId);
     this.pathV32SimpleRewardService = new PathV32SimpleRewardService(orgId);
+    this.profileViewConsentService = profileViewConsentService;
     const fallbackMode = (process.env.PROPOSAL_RPC_FALLBACK_MODE || 'allow').toLowerCase();
     this.disableRpcFallback = ['disabled', 'deny', 'off'].includes(fallbackMode);
   }
@@ -348,6 +351,25 @@ export class ProposalService {
   }
 
   private async assertCanApprove(proposal: Proposal, approver: ActorRef): Promise<void> {
+    // ドメインゲート: profile.view_request は「本人 (target_user_id) のみ」が承認できる。
+    // PolicyEngine の specific spec はポリシー定義時点の静的 value しか受け付けないため、
+    // payload に紐づく動的な承認者制約はここで強制する。
+    if (proposal.type === 'profile.view_request') {
+      const targetId =
+        typeof proposal.payload?.target_user_id === 'string'
+          ? proposal.payload.target_user_id
+          : null;
+      if (!targetId) {
+        throw new Error('PROFILE_VIEW_REQUEST_TARGET_MISSING');
+      }
+      if (approver.type !== 'human') {
+        throw new Error('PROFILE_VIEW_REQUEST_APPROVER_MUST_BE_HUMAN');
+      }
+      if (approver.id !== targetId) {
+        throw new Error('PROFILE_VIEW_REQUEST_APPROVER_MUST_BE_TARGET_USER');
+      }
+    }
+
     const canApproveResult = await this.engine.canApprove(proposal, approver);
     if (!canApproveResult.allowed) {
       throw new Error(canApproveResult.reason || 'APPROVAL_NOT_ALLOWED');
@@ -963,6 +985,7 @@ export class ProposalService {
       'site.create': 'site.created',
       'site.close.finalize': 'site.close.finalized',
       'site.close.reopen': 'site.close.reopened',
+      'profile.view_request': 'profile.view_granted',
     };
     return mapping[type] || 'internal_transfer';
   }
@@ -1912,6 +1935,12 @@ export class ProposalService {
     if (proposal.type === 'path.level.update' && proposal.payload?.calculation_system === 'path_v32_simple') {
       await this.pathV32SimpleRewardService.syncLevelUpdateFromExecutedProposal(proposal);
     }
+
+    // profile.view_request: 本人承認の結果として閲覧チケット (profile_view_grants) を発行する。
+    // 仕訳発生も金額もないが、grant 行と governance event でアクセス権の発生を追跡する。
+    if (proposal.type === 'profile.view_request') {
+      await this.profileViewConsentService.createGrantFromExecutedProposal(proposal);
+    }
   }
 
   private mapExecutedProposalToGovernanceEvent(proposal: Proposal): string {
@@ -1965,6 +1994,10 @@ export class ProposalService {
       return proposal.payload?.run_type === 'reversal'
         ? 'finance.journal.entry_reversed'
         : 'finance.journal.adjustment_posted';
+    }
+
+    if (proposal.type === 'profile.view_request') {
+      return 'governance.profile_view.granted';
     }
 
     return 'governance.proposal.executed';
@@ -2051,6 +2084,13 @@ export class ProposalService {
 
     if (proposal.type === 'reward.pool.adjust' || proposal.type === 'path.level.update') {
       return proposal.payload?.calculation_system === 'path_v32_simple';
+    }
+
+    // profile.view_request はすべての lifecycle (created/approved/rejected/executed) を
+    // 監査対象として記録する。admin が「いつ・誰に対して・なぜ拡張情報を覗いたか」を
+    // 後から第三者がトレース可能であることが本 Proposal の存在意義。
+    if (proposal.type === 'profile.view_request') {
+      return true;
     }
 
     return false;

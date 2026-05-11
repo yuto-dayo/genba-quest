@@ -12,6 +12,8 @@ import {
     Plus,
     ReceiptText,
     Search,
+    Shield,
+    ShieldOff,
     Trash2,
     UserPlus,
     Users,
@@ -23,10 +25,12 @@ import {
     fetchInvoiceSettings,
     fetchMembers,
     fetchMyProfile,
+    fetchProfileViewGrantsIncoming,
     listOrgInvites,
     removeOrgMember,
     restoreClient,
     revokeOrgInvite,
+    revokeProfileViewGrant,
     updateMemberRole,
     updateMyProfile,
     type Client,
@@ -35,12 +39,14 @@ import {
     type MyProfileRecord,
     type OrgInviteRecord,
     type OrgInviteRole,
+    type ProfileViewGrant,
 } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
 import { supabase } from "../lib/supabase";
 import { useActiveOrgStore, type ActiveOrgOption } from "../stores/activeOrg";
 import { InvoiceSettingsModal } from "../components/InvoiceSettingsModal";
 import { ClientSettingsModal } from "../components/ClientSettingsModal";
+import { ProfileViewConsentModal } from "../components/ProfileViewConsentModal";
 import styles from "./Settings.module.css";
 
 const statusMeta = {
@@ -267,6 +273,10 @@ export function Settings() {
     const [profileMessage, setProfileMessage] = useState<string | null>(null);
     const [settingsQuery, setSettingsQuery] = useState("");
     const [selectedSetting, setSelectedSetting] = useState<SettingPanel | null>(null);
+    const [extendedViewTarget, setExtendedViewTarget] = useState<Member | null>(null);
+    const [incomingGrants, setIncomingGrants] = useState<ProfileViewGrant[]>([]);
+    const [incomingGrantsLoading, setIncomingGrantsLoading] = useState(false);
+    const [revokingGrantId, setRevokingGrantId] = useState<string | null>(null);
     const [orgName, setOrgName] = useState("");
     const [orgSlug, setOrgSlug] = useState("");
     const [orgCreateBusy, setOrgCreateBusy] = useState(false);
@@ -317,10 +327,48 @@ export function Settings() {
             } catch {
                 setMyProfile(null);
             }
+
+            try {
+                setIncomingGrantsLoading(true);
+                const incoming = await fetchProfileViewGrantsIncoming();
+                setIncomingGrants(incoming.grants);
+            } catch {
+                setIncomingGrants([]);
+            } finally {
+                setIncomingGrantsLoading(false);
+            }
         } catch (err: unknown) {
             setPageError(getErrorMessage(err));
         } finally {
             setLoading(false);
+        }
+    };
+
+    const refreshIncomingGrants = async () => {
+        try {
+            const incoming = await fetchProfileViewGrantsIncoming();
+            setIncomingGrants(incoming.grants);
+        } catch {
+            // 失敗時は維持
+        }
+    };
+
+    const handleRevokeIncomingGrant = async (grant: ProfileViewGrant) => {
+        if (
+            !window.confirm(
+                `${grant.purpose ? `「${grant.purpose}」の` : ""}閲覧許可を取り消しますか？`,
+            )
+        ) {
+            return;
+        }
+        setRevokingGrantId(grant.id);
+        try {
+            await revokeProfileViewGrant(grant.id);
+            await refreshIncomingGrants();
+        } catch (err) {
+            setPageError(getErrorMessage(err));
+        } finally {
+            setRevokingGrantId(null);
         }
     };
 
@@ -1319,6 +1367,15 @@ export function Settings() {
                                                         </span>
                                                         {canManage ? (
                                                             <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                                                <button
+                                                                    type="button"
+                                                                    className={styles.secondaryButton}
+                                                                    onClick={() => setExtendedViewTarget(member)}
+                                                                    aria-label="拡張情報を見る (本人承認が必要)"
+                                                                    title="拡張情報を見る (本人承認が必要)"
+                                                                >
+                                                                    <Shield size={14} />
+                                                                </button>
                                                                 <select
                                                                     value={currentRole}
                                                                     onChange={(event) =>
@@ -1348,6 +1405,71 @@ export function Settings() {
                                                                 </button>
                                                             </span>
                                                         ) : null}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className={styles.infoCard}>
+                                    <div className={styles.infoCardHeader}>
+                                        <div>
+                                            <h3 className={styles.infoCardTitle}>あなたを見られる人</h3>
+                                            <p className={styles.infoCardDescription}>
+                                                振込先や住所など、あなたの拡張情報を一時的に見る権限を持つ人の一覧です。いつでも取り消せます。
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {incomingGrantsLoading ? (
+                                        <div className={styles.emptyList}>
+                                            <Loader2 size={14} className={styles.spinner} /> 確認中...
+                                        </div>
+                                    ) : incomingGrants.length === 0 ? (
+                                        <div className={styles.emptyList}>
+                                            まだあなたの拡張情報を見られる人はいません
+                                        </div>
+                                    ) : (
+                                        <div className={styles.orgList}>
+                                            {incomingGrants.map((grant) => {
+                                                const now = Date.now();
+                                                const expired = new Date(grant.expires_at).getTime() <= now;
+                                                const revoked = grant.revoked_at !== null;
+                                                const active = !expired && !revoked;
+                                                const adminName =
+                                                    members.find((m) => m.id === grant.requesting_admin_id)?.full_name ||
+                                                    members.find((m) => m.id === grant.requesting_admin_id)?.username ||
+                                                    "不明な管理者";
+                                                const stateLabel = revoked
+                                                    ? "取り消し済み"
+                                                    : expired
+                                                    ? "期限切れ"
+                                                    : "閲覧中";
+                                                return (
+                                                    <div key={grant.id} className={styles.orgListItem}>
+                                                        <span>
+                                                            <strong>{adminName}</strong>
+                                                            <small>
+                                                                {stateLabel} ・ 目的: {grant.purpose}
+                                                            </small>
+                                                        </span>
+                                                        {active && (
+                                                            <button
+                                                                type="button"
+                                                                className={styles.restoreButton}
+                                                                onClick={() => void handleRevokeIncomingGrant(grant)}
+                                                                disabled={revokingGrantId === grant.id}
+                                                                aria-label="閲覧許可を取り消す"
+                                                                title="閲覧許可を取り消す"
+                                                            >
+                                                                {revokingGrantId === grant.id ? (
+                                                                    <Loader2 size={14} className={styles.spinner} />
+                                                                ) : (
+                                                                    <ShieldOff size={14} />
+                                                                )}
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 );
                                             })}
@@ -1453,6 +1575,18 @@ export function Settings() {
                             await refreshClients();
                             closeClientModal();
                         }}
+                    />
+                )}
+
+                {extendedViewTarget && (
+                    <ProfileViewConsentModal
+                        targetUserId={extendedViewTarget.id}
+                        targetDisplayName={
+                            extendedViewTarget.full_name ||
+                            extendedViewTarget.username ||
+                            "未設定"
+                        }
+                        onClose={() => setExtendedViewTarget(null)}
                     />
                 )}
             </AnimatePresence>
