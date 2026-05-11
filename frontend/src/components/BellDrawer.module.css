@@ -130,6 +130,58 @@
     gap: 8px;
 }
 
+/* Swipe gesture wrapper (v3.3 mock approval-card swipe) */
+.swipeWrap {
+    position: relative;
+    overflow: hidden;
+    border-radius: 12px;
+}
+
+.swipeBg {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    padding: 0 22px;
+    font-size: 14px;
+    font-weight: 700;
+    pointer-events: none;
+    border-radius: 12px;
+}
+
+.swipeBgApprove {
+    justify-content: flex-start;
+    color: #15803d;
+    background: linear-gradient(90deg, rgba(22, 163, 74, 0.18), rgba(22, 163, 74, 0.02));
+}
+
+.swipeBgReject {
+    justify-content: flex-end;
+    color: #b91c1c;
+    background: linear-gradient(90deg, rgba(220, 38, 38, 0.02), rgba(220, 38, 38, 0.18));
+}
+
+.swipeCard {
+    position: relative;
+    z-index: 1;
+    touch-action: pan-y;
+    cursor: grab;
+}
+
+.swipeCard:active {
+    cursor: grabbing;
+}
+
+.swipeError {
+    margin-top: 6px;
+    padding: 6px 10px;
+    background: rgba(220, 53, 69, 0.08);
+    border: 1px solid rgba(220, 53, 69, 0.3);
+    border-radius: 8px;
+    color: #b91c1c;
+    font-size: 11px;
+}
+
 .consensusCard {
     appearance: none;
     text-align: left;
@@ -232,7 +284,45 @@
     height: 100%;
     background: linear-gradient(90deg, #4f46e5, #6366f1);
     border-radius: 3px;
-    transition: width 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+    transition: width 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), background 0.3s ease;
+}
+
+.progressComplete {
+    background: linear-gradient(90deg, #16a34a, #22c55e);
+}
+
+.avatars {
+    display: flex;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+.avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    background: rgba(0, 0, 0, 0.06);
+    color: var(--md-sys-color-on-surface-variant, #5b6470);
+    border: 2px solid var(--md-sys-color-surface, #ffffff);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+    transition: background 0.3s ease, color 0.3s ease, transform 0.3s ease;
+}
+
+.avatarDone {
+    background: linear-gradient(135deg, #16a34a, #22c55e);
+    color: #fff;
+    animation: avatarPop 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+@keyframes avatarPop {
+    0%   { transform: scale(0.6); opacity: 0; }
+    50%  { transform: scale(1.18); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
 }
 
 .emptyHint {

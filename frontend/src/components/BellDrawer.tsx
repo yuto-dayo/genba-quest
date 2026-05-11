@@ -14,13 +14,24 @@
  *  - 全アプリ共通ヘッダへの bell 移設 (現状は Money 内)
  */
 
-import { motion, AnimatePresence } from "framer-motion";
+import { useState } from "react";
+import {
+    motion,
+    AnimatePresence,
+    useMotionValue,
+    useTransform,
+    type PanInfo,
+} from "framer-motion";
 import { Bell, ChevronLeft, CheckCircle, AlertTriangle, Users, User } from "lucide-react";
 import { ApprovalCard } from "./ApprovalCard";
-import type { AccountingTransaction, ProposalRecord } from "../lib/api";
+import { reviewExpense, type AccountingTransaction, type ProposalRecord } from "../lib/api";
+import { getErrorMessage } from "../lib/error";
 import { motion as motionTokens } from "../lib/motion/tokens";
 import styles from "./BellDrawer.module.css";
 import triggerStyles from "./BellTrigger.module.css";
+
+const SWIPE_COMMIT_OFFSET = 100;
+const SWIPE_COMMIT_VELOCITY = 500;
 
 interface BellTriggerProps {
     count: number;
@@ -144,7 +155,7 @@ export function BellDrawer({
                                         ) : (
                                             <div className={styles.cardList}>
                                                 {selfApprovals.map((tx) => (
-                                                    <ApprovalCard
+                                                    <SwipeableApprovalRow
                                                         key={tx.id}
                                                         transaction={tx}
                                                         onComplete={onSelfApprovalComplete}
@@ -226,6 +237,13 @@ function ConsensusProposalCard({ proposal, onClick }: ConsensusProposalCardProps
           })
         : null;
 
+    const approved = (proposal.approvals ?? []).filter((a) => a.decision === "approve");
+    const required = Math.max(1, proposal.required_approvals ?? 1);
+    const approvedCount = Math.min(approved.length, required);
+    const remaining = Math.max(0, required - approvedCount);
+    const progressPct = Math.round((approvedCount / required) * 100);
+    const isComplete = approvedCount >= required;
+
     return (
         <button type="button" className={styles.consensusCard} onClick={onClick}>
             <div className={styles.consensusHead}>
@@ -242,6 +260,40 @@ function ConsensusProposalCard({ proposal, onClick }: ConsensusProposalCardProps
                     <span className={styles.consensusAmount}>{formatYen(amount)}</span>
                 )}
             </div>
+
+            <div className={styles.consensusProgress}>
+                <div className={styles.consensusProgressRow}>
+                    <span>
+                        <strong>{approvedCount}</strong> / {required} 承認済み
+                    </span>
+                    {remaining > 0 && (
+                        <span className={styles.meState}>あと {remaining} 名</span>
+                    )}
+                </div>
+                <div className={styles.progressBar}>
+                    <div
+                        className={`${styles.progressFill} ${isComplete ? styles.progressComplete : ""}`}
+                        style={{ width: `${progressPct}%` }}
+                    />
+                </div>
+                <div className={styles.avatars}>
+                    {approved.map((a, idx) => (
+                        <span
+                            key={`done-${a.actor.id ?? idx}`}
+                            className={`${styles.avatar} ${styles.avatarDone}`}
+                            title={a.actor.name}
+                        >
+                            {(a.actor.name || "?").slice(0, 1)}
+                        </span>
+                    ))}
+                    {Array.from({ length: remaining }).map((_, idx) => (
+                        <span key={`pending-${idx}`} className={styles.avatar} aria-hidden>
+                            ?
+                        </span>
+                    ))}
+                </div>
+            </div>
+
             <div className={styles.consensusMeta}>
                 <AlertTriangle size={11} aria-hidden /> タップで承認画面を開く
             </div>
@@ -271,4 +323,94 @@ function readProposalTitle(p: ProposalRecord): string {
 
 function readRequester(p: ProposalRecord): string | null {
     return p.created_by?.name?.trim() || null;
+}
+
+// ============================================================
+// Swipe gesture wrapper for approval cards (v3.3 mock 仕様)
+//   - 右に 100px or 500px/s 超で commit → 承認
+//   - 左に 100px or 500px/s 超で commit → 却下 (reason="スワイプで却下")
+//   - drag 中に左右の "✓ 承認" / "✕ 却下" 背景が透明度で出現
+//   - commit 時にカードが画面外へスライドアウト
+// ============================================================
+
+interface SwipeableApprovalRowProps {
+    transaction: AccountingTransaction;
+    onComplete: () => void;
+}
+
+function SwipeableApprovalRow({ transaction, onComplete }: SwipeableApprovalRowProps) {
+    const x = useMotionValue(0);
+    const approveOpacity = useTransform(x, [20, 100], [0, 1]);
+    const rejectOpacity = useTransform(x, [-100, -20], [1, 0]);
+    const [pending, setPending] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [exiting, setExiting] = useState<"approve" | "reject" | null>(null);
+
+    async function commit(action: "approve" | "reject") {
+        if (pending) return;
+        setPending(true);
+        setError(null);
+        try {
+            const reason = action === "reject" ? "スワイプで却下" : undefined;
+            await reviewExpense(transaction.id, action, reason);
+            setExiting(action);
+            // wait for exit animation, then notify parent
+            setTimeout(() => onComplete(), 320);
+        } catch (err: unknown) {
+            setError(getErrorMessage(err));
+            x.set(0);
+        } finally {
+            setPending(false);
+        }
+    }
+
+    function handleDragEnd(_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) {
+        if (pending || exiting) return;
+        const { offset, velocity } = info;
+        if (offset.x > SWIPE_COMMIT_OFFSET || velocity.x > SWIPE_COMMIT_VELOCITY) {
+            void commit("approve");
+        } else if (offset.x < -SWIPE_COMMIT_OFFSET || velocity.x < -SWIPE_COMMIT_VELOCITY) {
+            void commit("reject");
+        } else {
+            x.set(0);
+        }
+    }
+
+    return (
+        <div className={styles.swipeWrap}>
+            <motion.div
+                className={`${styles.swipeBg} ${styles.swipeBgReject}`}
+                style={{ opacity: rejectOpacity }}
+                aria-hidden
+            >
+                ✕ 却下
+            </motion.div>
+            <motion.div
+                className={`${styles.swipeBg} ${styles.swipeBgApprove}`}
+                style={{ opacity: approveOpacity }}
+                aria-hidden
+            >
+                ✓ 承認
+            </motion.div>
+            <motion.div
+                className={styles.swipeCard}
+                style={{ x }}
+                drag={exiting || pending ? false : "x"}
+                dragConstraints={{ left: -200, right: 200 }}
+                dragElastic={0.2}
+                onDragEnd={handleDragEnd}
+                animate={
+                    exiting === "approve"
+                        ? { x: 480, opacity: 0 }
+                        : exiting === "reject"
+                            ? { x: -480, opacity: 0 }
+                            : undefined
+                }
+                transition={{ duration: 0.32, ease: [0.2, 0.8, 0.2, 1] }}
+            >
+                <ApprovalCard transaction={transaction} onComplete={onComplete} />
+                {error && <div className={styles.swipeError}>{error}</div>}
+            </motion.div>
+        </div>
+    );
 }
