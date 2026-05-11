@@ -1,0 +1,75 @@
+/* ============================================================
+   Floating Bell Button — fixed bottom-right, sits to the left of FAB
+   ============================================================ */
+
+.bellContainer {
+    position: fixed;
+    right: calc(24px + 56px + 12px); /* FAB right offset + FAB width + gap */
+    bottom: max(24px, env(safe-area-inset-bottom, 24px));
+    z-index: 800;
+    pointer-events: auto;
+}
+
+.bell {
+    width: 56px;
+    height: 56px;
+    border: none;
+    border-radius: var(--md-sys-shape-corner-large);
+    background: color-mix(in srgb, var(--md-sys-color-primary-container) 92%, white);
+    color: var(--md-sys-color-on-primary-container);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--md-sys-elevation-level3);
+    position: relative;
+    transition:
+        box-shadow var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard),
+        background var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+}
+
+.bell:hover {
+    box-shadow: var(--md-sys-elevation-level4);
+}
+
+.bell:focus-visible {
+    outline: 2px solid var(--md-sys-color-primary);
+    outline-offset: 2px;
+}
+
+.bellPending {
+    background: var(--md-sys-color-warning-container);
+    color: var(--md-sys-color-on-warning-container);
+    box-shadow: var(--md-sys-elevation-level4), 0 0 0 2px color-mix(in srgb, var(--md-sys-color-warning) 32%, transparent);
+}
+
+.bellIconWrap {
+    display: inline-flex;
+    transform-origin: center top;
+}
+
+.bellBadge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--md-sys-color-error);
+    color: var(--md-sys-color-on-error);
+    border-radius: var(--md-sys-shape-corner-full);
+    font: var(--md-sys-typescale-label-small);
+    font-weight: 700;
+    line-height: 1;
+    box-shadow: 0 0 0 2px var(--md-sys-color-surface);
+}
+
+@media (max-width: 768px) {
+    .bellContainer {
+        right: calc(16px + 56px + 12px); /* FAB mobile right offset + FAB width + gap */
+        bottom: calc(76px + env(safe-area-inset-bottom, 0px) + 16px);
+    }
+}
