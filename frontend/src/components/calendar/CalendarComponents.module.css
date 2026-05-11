@@ -217,6 +217,10 @@
     gap: 1px;
     min-width: 0;
     pointer-events: none;
+    --completed-run-header-offset: 31px;
+    --completed-run-lane-height: 19px;
+    --completed-run-bar-height: 16px;
+    --completed-run-bar-inset: 10px;
 }
 
 .completedRunBar {
@@ -229,8 +233,12 @@
     justify-content: center;
     gap: 3px;
     min-width: 0;
-    height: 16px;
-    margin: var(--completed-run-offset, 31px) 10px 0;
+    height: var(--completed-run-bar-height);
+    margin-top: calc(
+        var(--completed-run-header-offset)
+            + var(--completed-run-lane, 0) * var(--completed-run-lane-height)
+    );
+    margin-inline: var(--completed-run-bar-inset);
     padding: 0 7px;
     border-radius: 999px;
     background: var(--completed-site-color, #0d9488);
@@ -410,9 +418,14 @@
         gap: 4px;
     }
 
+    .completedRunLayer {
+        --completed-run-header-offset: 26px;
+        --completed-run-lane-height: 17px;
+        --completed-run-bar-height: 15px;
+        --completed-run-bar-inset: 7px;
+    }
+
     .completedRunBar {
-        height: 15px;
-        margin-inline: 7px;
         padding: 0 5px;
     }
 

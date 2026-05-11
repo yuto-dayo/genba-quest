@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `Continue calendar-cleanup-v2 from 項目 10. Branch feature/calendar-cleanup-v2 from master + cherry-pick 28444ab + this commit.`
+- NEXT_CMD: `項目10 (モバイルセル情報密度削減) 続行。feature/calendar-cleanup-v2。`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/HANDOFF.md`
@@ -18,8 +18,8 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `c830e25`
-  - Updated: `2026-05-11T22:20:15+0900`
+  - HEAD: `438841d`
+  - Updated: `2026-05-11T22:25:31+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
@@ -33,43 +33,43 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `Continue calendar-cleanup-v2 from 項目 10. Branch feature/calendar-cleanup-v2 from master + cherry-pick 28444ab + this commit.`. Source: realtime
+- [focus] NEXT_CMD: `項目10 (モバイルセル情報密度削減) 続行。feature/calendar-cleanup-v2。`. Source: realtime
+- [H0009] Completed: Calendar 項目11: completedRunBar 縦レーン配置を px→token化。MonthCalendar から '31+lane*19'px の手計算を撤去し、--completed-run-lane (整数) を渡すだけに。CSS .completedRunLayer に --completed-run-header-offset / --lane-height / --bar-height / --bar-inset の token を導入し、@media (max-width:768px) で latent bug を解消 (lane-height も 19→17px に縮小)。
+- [H0009] Remaining: 項目10 (モバイルセル情報密度削減) 続行。feature/calendar-cleanup-v2。
 - [H0008] Completed: Calendar: 3-button availability row → single 休み on/off toggle (role=switch, isLeaveOn driven by selectedLeaveSchedule). Dropped availabilityTokens state & token branch in clearAvailabilityToken. CSS .leaveToggle/.leaveToggleOn replaces .availabilityToken*. Tests updated to role=switch + aria-checked.
 - [H0008] Remaining: Continue calendar-cleanup-v2 from 項目 10. Branch feature/calendar-cleanup-v2 from master + cherry-pick 28444ab + this commit.
-- [H0007] Completed: v3.4 退行 fix: bell→inbox ルート (siteLevelDraft) / BottomSheet PartnerSection の ReactNode を type-only import / SiteFormModal の ExpenseModal に open prop / Money.test.tsx api mock + component mock 追加
-- [H0007] Remaining: fix branch push + PR + merge / 残 6 件 (CommunicationRecordSheet 5 + PATH Sections 1) は既知の既存 failure
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0009] Auto-captured decision: Calendar 項目11: completedRunBar 縦レーン配置を px→token化。MonthCalendar から '31+lane*19'px の手計算を撤去し、--completed-run-lane (整数) を渡す�...
 - [H0008] Auto-captured decision: Calendar: 3-button availability row → single 休み on/off toggle (role=switch, isLeaveOn driven by selectedLeaveSchedule). Dropped availabilityTokens state & token branch in ...
 - [H0007] Auto-captured decision: v3.4 退行 fix: bell→inbox ルート (siteLevelDraft) / BottomSheet PartnerSection の ReactNode を type-only import / SiteFormModal の ExpenseModal に open prop / Money.t...
 - [H0006] Auto-captured decision: v3.4 確定: MonthlyTrendChart cherry-pick + MoneyBucketDashboard 削除 + v3.4 mock 追加
 - [H0005] Auto-captured decision: #30 (bell drawer + consolidation) merge — banner 撤去 + CashflowBucketStrip 残置で resolve
-- [H0004] Auto-captured decision: #33 (tx day-head + stagger) merge
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0008] No new landmines reported in this chunk.
+- [H0009] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0009] 項目10 (モバイルセル情報密度削減) 続行。feature/calendar-cleanup-v2。
 - [H0008] Continue calendar-cleanup-v2 from 項目 10. Branch feature/calendar-cleanup-v2 from master + cherry-pick 28444ab + this commit.
 - [H0007] fix branch push + PR + merge / 残 6 件 (CommunicationRecordSheet 5 + PATH Sections 1) は既知の既存 failure
 - [H0006] preview で v3.4 動作確認 → 必要なら微調整 → push
 - [H0005] MoneyBucketDashboard 廃止 + MonthlyTrendChart 配置 + v3.4 mock commit
-- [H0004] #30 (bell drawer) merge → MoneyBucketDashboard 廃止 + MonthlyTrendChart 配置
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `8`
+- current_l3_entries: `9`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -100,6 +100,7 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] Calendar 項目11: completedRunBar 縦レーン配置を px→token化。MonthCalendar から '31+lane*19'px の手計算を撤去し、--completed-run-lane (整数) を渡すだけに。CSS .completedRunLayer に --completed-run-header-offset / --lane-height / --bar-height / --bar-inset の token を導入し、@media (max-width:768px) で latent bug を解消 (lane-height も 19→17px に縮小)。
 - [x] Calendar: 3-button availability row → single 休み on/off toggle (role=switch, isLeaveOn driven by selectedLeaveSchedule). Dropped availabilityTokens state & token branch in clearAvailabilityToken. CSS .leaveToggle/.leaveToggleOn replaces .availabilityToken*. Tests updated to role=switch + aria-checked.
 - [x] v3.4 退行 fix: bell→inbox ルート (siteLevelDraft) / BottomSheet PartnerSection の ReactNode を type-only import / SiteFormModal の ExpenseModal に open prop / Money.test.tsx api mock + component mock 追加
 - [x] v3.4 確定: MonthlyTrendChart cherry-pick + MoneyBucketDashboard 削除 + v3.4 mock 追加
@@ -112,11 +113,11 @@ Phase: A-0/A-1
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: Continue calendar-cleanup-v2 from 項目 10. Branch feature/calendar-cleanup-v2 from master + cherry-pick 28444ab + this commit.
+- [ ] **P0**: 項目10 (モバイルセル情報密度削減) 続行。feature/calendar-cleanup-v2。
+- [ ] **P1**: Continue calendar-cleanup-v2 from 項目 10. Branch feature/calendar-cleanup-v2 from master + cherry-pick 28444ab + this commit.
 - [ ] **P1**: fix branch push + PR + merge / 残 6 件 (CommunicationRecordSheet 5 + PATH Sections 1) は既知の既存 failure
 - [ ] **P1**: preview で v3.4 動作確認 → 必要なら微調整 → push
 - [ ] **P1**: MoneyBucketDashboard 廃止 + MonthlyTrendChart 配置 + v3.4 mock commit
-- [ ] **P1**: #30 (bell drawer) merge → MoneyBucketDashboard 廃止 + MonthlyTrendChart 配置
 ---
 
 ## 5. Changed Files
@@ -295,5 +296,21 @@ cd frontend && npx eslint src/
   - Auto-captured decision: Calendar: 3-button availability row → single 休み on/off toggle (role=switch, isLeaveOn driven by selectedLeaveSchedule). Dropped availabilityTokens state & token branch in ...
 - Validation:
   - `npx tsc --noEmit (clean), vitest src/pages/Calendar.test.tsx (12/12 pass), Vite HMR clean. Browser smoke blocked by backend ECONNREFUSED (env).`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-11 22:25:31 +0900
+
+- Entry-ID: `H0009`
+- Completed:
+  - [x] Calendar 項目11: completedRunBar 縦レーン配置を px→token化。MonthCalendar から '31+lane*19'px の手計算を撤去し、--completed-run-lane (整数) を渡すだけに。CSS .completedRunLayer に --completed-run-header-offset / --lane-height / --bar-height / --bar-inset の token を導入し、@media (max-width:768px) で latent bug を解消 (lane-height も 19→17px に縮小)。
+- Remaining:
+  - [ ] 項目10 (モバイルセル情報密度削減) 続行。feature/calendar-cleanup-v2。
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: Calendar 項目11: completedRunBar 縦レーン配置を px→token化。MonthCalendar から '31+lane*19'px の手計算を撤去し、--completed-run-lane (整数) を渡す�...
+- Validation:
+  - `tsc clean / vitest 12/12 / Vite HMR clean / browser blocked by backend ECONNREFUSED (env).`
 - Landmines:
   - No new landmines reported in this chunk.
