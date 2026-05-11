@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `fix branch push + PR + merge / 残 6 件 (CommunicationRecordSheet 5 + PATH Sections 1) は既知の既存 failure`
+- NEXT_CMD: `Continue calendar-cleanup-v2 from 項目 10. Branch feature/calendar-cleanup-v2 from master + cherry-pick 28444ab + this commit.`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/HANDOFF.md`
@@ -18,8 +18,8 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `c2d2aa7`
-  - Updated: `2026-05-11T21:52:43+0900`
+  - HEAD: `c830e25`
+  - Updated: `2026-05-11T22:20:15+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
@@ -33,43 +33,43 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `fix branch push + PR + merge / 残 6 件 (CommunicationRecordSheet 5 + PATH Sections 1) は既知の既存 failure`. Source: realtime
+- [focus] NEXT_CMD: `Continue calendar-cleanup-v2 from 項目 10. Branch feature/calendar-cleanup-v2 from master + cherry-pick 28444ab + this commit.`. Source: realtime
+- [H0008] Completed: Calendar: 3-button availability row → single 休み on/off toggle (role=switch, isLeaveOn driven by selectedLeaveSchedule). Dropped availabilityTokens state & token branch in clearAvailabilityToken. CSS .leaveToggle/.leaveToggleOn replaces .availabilityToken*. Tests updated to role=switch + aria-checked.
+- [H0008] Remaining: Continue calendar-cleanup-v2 from 項目 10. Branch feature/calendar-cleanup-v2 from master + cherry-pick 28444ab + this commit.
 - [H0007] Completed: v3.4 退行 fix: bell→inbox ルート (siteLevelDraft) / BottomSheet PartnerSection の ReactNode を type-only import / SiteFormModal の ExpenseModal に open prop / Money.test.tsx api mock + component mock 追加
 - [H0007] Remaining: fix branch push + PR + merge / 残 6 件 (CommunicationRecordSheet 5 + PATH Sections 1) は既知の既存 failure
-- [H0006] Completed: v3.4 確定: MonthlyTrendChart cherry-pick + MoneyBucketDashboard 削除 + v3.4 mock 追加
-- [H0006] Remaining: preview で v3.4 動作確認 → 必要なら微調整 → push
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0008] Auto-captured decision: Calendar: 3-button availability row → single 休み on/off toggle (role=switch, isLeaveOn driven by selectedLeaveSchedule). Dropped availabilityTokens state & token branch in ...
 - [H0007] Auto-captured decision: v3.4 退行 fix: bell→inbox ルート (siteLevelDraft) / BottomSheet PartnerSection の ReactNode を type-only import / SiteFormModal の ExpenseModal に open prop / Money.t...
 - [H0006] Auto-captured decision: v3.4 確定: MonthlyTrendChart cherry-pick + MoneyBucketDashboard 削除 + v3.4 mock 追加
 - [H0005] Auto-captured decision: #30 (bell drawer + consolidation) merge — banner 撤去 + CashflowBucketStrip 残置で resolve
 - [H0004] Auto-captured decision: #33 (tx day-head + stagger) merge
-- [H0003] Auto-captured decision: #32 (BottomSheet drag) merge — HANDOFF auto-merge conflict resolved by --ours
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0007] No new landmines reported in this chunk.
+- [H0008] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0008] Continue calendar-cleanup-v2 from 項目 10. Branch feature/calendar-cleanup-v2 from master + cherry-pick 28444ab + this commit.
 - [H0007] fix branch push + PR + merge / 残 6 件 (CommunicationRecordSheet 5 + PATH Sections 1) は既知の既存 failure
 - [H0006] preview で v3.4 動作確認 → 必要なら微調整 → push
 - [H0005] MoneyBucketDashboard 廃止 + MonthlyTrendChart 配置 + v3.4 mock commit
 - [H0004] #30 (bell drawer) merge → MoneyBucketDashboard 廃止 + MonthlyTrendChart 配置
-- [H0003] #33 (tx day-head) #30 (bell drawer) を merge
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `7`
+- current_l3_entries: `8`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -100,6 +100,7 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] Calendar: 3-button availability row → single 休み on/off toggle (role=switch, isLeaveOn driven by selectedLeaveSchedule). Dropped availabilityTokens state & token branch in clearAvailabilityToken. CSS .leaveToggle/.leaveToggleOn replaces .availabilityToken*. Tests updated to role=switch + aria-checked.
 - [x] v3.4 退行 fix: bell→inbox ルート (siteLevelDraft) / BottomSheet PartnerSection の ReactNode を type-only import / SiteFormModal の ExpenseModal に open prop / Money.test.tsx api mock + component mock 追加
 - [x] v3.4 確定: MonthlyTrendChart cherry-pick + MoneyBucketDashboard 削除 + v3.4 mock 追加
 - [x] #30 (bell drawer + consolidation) merge — banner 撤去 + CashflowBucketStrip 残置で resolve
@@ -111,11 +112,11 @@ Phase: A-0/A-1
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: fix branch push + PR + merge / 残 6 件 (CommunicationRecordSheet 5 + PATH Sections 1) は既知の既存 failure
+- [ ] **P0**: Continue calendar-cleanup-v2 from 項目 10. Branch feature/calendar-cleanup-v2 from master + cherry-pick 28444ab + this commit.
+- [ ] **P1**: fix branch push + PR + merge / 残 6 件 (CommunicationRecordSheet 5 + PATH Sections 1) は既知の既存 failure
 - [ ] **P1**: preview で v3.4 動作確認 → 必要なら微調整 → push
 - [ ] **P1**: MoneyBucketDashboard 廃止 + MonthlyTrendChart 配置 + v3.4 mock commit
 - [ ] **P1**: #30 (bell drawer) merge → MoneyBucketDashboard 廃止 + MonthlyTrendChart 配置
-- [ ] **P1**: #33 (tx day-head) #30 (bell drawer) を merge
 ---
 
 ## 5. Changed Files
@@ -278,5 +279,21 @@ cd frontend && npx eslint src/
   - Auto-captured decision: v3.4 退行 fix: bell→inbox ルート (siteLevelDraft) / BottomSheet PartnerSection の ReactNode を type-only import / SiteFormModal の ExpenseModal に open prop / Money.t...
 - Validation:
   - `frontend build pass / App.test + Money.test 29/29 pass / 全 vitest 120/126 (残 6 は本 PR 範囲外)`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-11 22:20:15 +0900
+
+- Entry-ID: `H0008`
+- Completed:
+  - [x] Calendar: 3-button availability row → single 休み on/off toggle (role=switch, isLeaveOn driven by selectedLeaveSchedule). Dropped availabilityTokens state & token branch in clearAvailabilityToken. CSS .leaveToggle/.leaveToggleOn replaces .availabilityToken*. Tests updated to role=switch + aria-checked.
+- Remaining:
+  - [ ] Continue calendar-cleanup-v2 from 項目 10. Branch feature/calendar-cleanup-v2 from master + cherry-pick 28444ab + this commit.
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: Calendar: 3-button availability row → single 休み on/off toggle (role=switch, isLeaveOn driven by selectedLeaveSchedule). Dropped availabilityTokens state & token branch in ...
+- Validation:
+  - `npx tsc --noEmit (clean), vitest src/pages/Calendar.test.tsx (12/12 pass), Vite HMR clean. Browser smoke blocked by backend ECONNREFUSED (env).`
 - Landmines:
   - No new landmines reported in this chunk.

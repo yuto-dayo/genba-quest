@@ -553,7 +553,7 @@
 .personalAvailabilityHeader {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: center;
     gap: 12px;
 }
 
@@ -563,27 +563,10 @@
     color: var(--md-sys-color-on-surface);
 }
 
-.personalAvailabilityHeader p {
-    margin: 4px 0 0;
+.personalAvailabilityDate {
+    margin: 0 0 2px;
     color: var(--md-sys-color-on-surface-variant);
     font: var(--md-sys-typescale-body-small);
-}
-
-.availabilityCurrent {
-    display: inline-flex;
-    align-items: center;
-    min-height: 30px;
-    padding: 0 10px;
-    border-radius: 999px;
-    background: var(--md-sys-color-surface);
-    color: var(--md-sys-color-on-surface);
-    font: var(--md-sys-typescale-label-medium);
-}
-
-.availabilityTokenRow {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
 }
 
 .availabilityMessage {
@@ -592,35 +575,40 @@
     font: var(--md-sys-typescale-body-small);
 }
 
-.availabilityTokenButton {
+.leaveToggle {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     min-height: 38px;
-    padding: 0 14px;
+    padding: 0 18px;
     border-radius: 999px;
     border: 1px solid var(--md-sys-color-outline-variant);
     background: var(--md-sys-color-surface);
     color: var(--md-sys-color-on-surface-variant);
     font: var(--md-sys-typescale-label-medium);
     cursor: pointer;
+    transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
 }
 
-.availabilityTokenButton:disabled {
+.leaveToggle:hover {
+    color: var(--md-sys-color-on-surface);
+    background: var(--md-sys-color-surface-container);
+}
+
+.leaveToggle:disabled {
     cursor: not-allowed;
     opacity: 0.58;
 }
 
-.availabilityTokenLeaveActive {
+.leaveToggleOn {
     border-color: transparent;
     background: var(--md-sys-color-error-container);
     color: var(--md-sys-color-on-error-container);
 }
 
-.availabilityTokenAvailableActive {
-    border-color: transparent;
-    background: var(--md-sys-color-primary-container);
-    color: var(--md-sys-color-on-primary-container);
+.leaveToggleOn:hover {
+    background: var(--md-sys-color-error-container);
+    color: var(--md-sys-color-on-error-container);
 }
 
 .sideStack,
@@ -779,10 +767,11 @@
 
     .personalAvailabilityHeader {
         flex-direction: column;
+        align-items: stretch;
     }
 
-    .availabilityTokenButton {
-        flex: 1 1 140px;
+    .leaveToggle {
+        width: 100%;
     }
 
     .restSummaryToggleButton {
@@ -884,7 +873,7 @@
     .monthNavChevron,
     .monthPickerOption,
     .segmentButton,
-    .availabilityTokenButton,
+    .leaveToggle,
     .restSummaryToggleButton {
         transition: none;
     }
