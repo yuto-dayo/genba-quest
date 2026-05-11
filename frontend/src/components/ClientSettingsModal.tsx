@@ -18,6 +18,7 @@ import {
     type Client,
     type CreateClientRequest,
 } from "../lib/api";
+import { BillingRuleSection } from "./BillingRuleSection";
 import {
     areAddressesEqual,
     composeAddress,
@@ -689,6 +690,8 @@ export function ClientSettingsModal({
                                     />
                                 </label>
                             </div>
+
+                            {isEdit && client && <BillingRuleSection clientId={client.id} />}
                         </section>
 
                         <div className={styles.footer}>

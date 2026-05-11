@@ -23,6 +23,7 @@ import { PathGovernedModuleService } from "./PathGovernedModuleService";
 import { PathV31Service } from "./PathV31Service";
 import { PathV32SimpleRewardService } from "./PathV32SimpleRewardService";
 import { LUQOService } from "./LUQOService";
+import { assignOnSubmit } from "./ProposalAssignmentService";
 
 // ============================================================
 // Types
@@ -279,6 +280,20 @@ export class ProposalService {
       });
       updatedProposal = executeResult;
       autoExecuted = true;
+    } else if (newStatus === 'pending') {
+      // pending 化したらランダムに承認担当を割り当てる (random_one モード)
+      // 失敗しても submit 自体は成功扱い
+      try {
+        const creatorUserId =
+          submitter.type === 'human' && typeof submitter.id === 'string' ? submitter.id : null;
+        await assignOnSubmit({
+          org_id: this.orgId,
+          proposal_id: proposalId,
+          creator_user_id: creatorUserId,
+        });
+      } catch (assignErr) {
+        console.error('[ProposalService] Failed to auto-assign reviewer:', assignErr);
+      }
     }
 
     return {

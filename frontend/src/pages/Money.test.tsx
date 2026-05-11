@@ -25,6 +25,17 @@ vi.mock("framer-motion", () => ({
         },
     ),
     AnimatePresence: ({ children }: { children: ReactNode }) => <>{children}</>,
+    useReducedMotion: () => false,
+    useMotionValue: (initial: number) => {
+        let current = initial;
+        return {
+            get: () => current,
+            set: (v: number) => { current = v; },
+            on: () => () => {},
+        };
+    },
+    useTransform: <T,>(_mv: unknown, transformer: (v: number) => T) => transformer(0) as unknown,
+    animate: () => ({ stop: () => {} }),
 }));
 
 vi.mock("../lib/api", () => ({
@@ -182,7 +193,7 @@ describe("Money PATH proposal queue", () => {
         await waitFor(() => expect(fetchPL).toHaveBeenCalledTimes(2));
 
         expect(screen.queryByText("読み込みに失敗しました")).not.toBeInTheDocument();
-        expect(screen.getByText("お金の流れ")).toBeInTheDocument();
+        expect(screen.getByText("利益（手残り）")).toBeInTheDocument();
     });
 
     it("shows PATH action failures in the modal without replacing the Money page", async () => {
@@ -198,7 +209,7 @@ describe("Money PATH proposal queue", () => {
 
         expect(screen.getByText("承認結果の同期に失敗しました")).toBeInTheDocument();
         expect(screen.queryByText("読み込みに失敗しました")).not.toBeInTheDocument();
-        expect(screen.getByText("お金の流れ")).toBeInTheDocument();
+        expect(screen.getByText("利益（手残り）")).toBeInTheDocument();
     });
 
     it("opens AI/integration proposals via the deep link entry point", async () => {
