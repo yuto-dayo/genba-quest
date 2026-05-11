@@ -4,12 +4,61 @@ import { supabaseAdmin } from "../lib/supabaseClient";
 
 const router = Router();
 
+type EmploymentKind = "employee" | "sole_proprietor" | "helper";
+type AccountType = "ordinary" | "checking";
+
+const PROFILE_COLUMNS = [
+    "id",
+    "username",
+    "full_name",
+    "avatar_url",
+    "phone",
+    "job_type",
+    "employment_kind",
+    "trade_name",
+    "invoice_registration_number",
+    "bank_name",
+    "branch_name",
+    "account_type",
+    "account_number",
+    "account_holder_kana",
+    "postal_code",
+    "prefecture",
+    "city",
+    "address_line1",
+    "address_line2",
+    "emergency_contact_name",
+    "emergency_phone",
+].join(",");
+
 interface ProfileRecord {
     id: string;
     username: string | null;
     full_name: string | null;
     avatar_url: string | null;
+    phone: string | null;
+    job_type: string | null;
+    employment_kind: EmploymentKind;
+    trade_name: string | null;
+    invoice_registration_number: string | null;
+    bank_name: string | null;
+    branch_name: string | null;
+    account_type: AccountType | null;
+    account_number: string | null;
+    account_holder_kana: string | null;
+    postal_code: string | null;
+    prefecture: string | null;
+    city: string | null;
+    address_line1: string | null;
+    address_line2: string | null;
+    emergency_contact_name: string | null;
+    emergency_phone: string | null;
 }
+
+const EMPLOYMENT_KINDS: readonly EmploymentKind[] = ["employee", "sole_proprietor", "helper"];
+const ACCOUNT_TYPES: readonly AccountType[] = ["ordinary", "checking"];
+const INVOICE_NUMBER_PATTERN = /^T[0-9]{13}$/;
+const POSTAL_CODE_PATTERN = /^[0-9]{3}-?[0-9]{4}$/;
 
 function normalizeText(value: unknown, maxLength: number): string | null {
     if (typeof value !== "string") {
@@ -22,6 +71,113 @@ function normalizeText(value: unknown, maxLength: number): string | null {
     return trimmed.slice(0, maxLength);
 }
 
+function normalizeDigits(value: unknown, maxLength: number): string | null {
+    const text = normalizeText(value, maxLength);
+    if (text === null) {
+        return null;
+    }
+    return text.replace(/[^0-9]/g, "") || null;
+}
+
+interface ValidationError {
+    code: string;
+}
+
+function buildUpdates(body: Record<string, unknown>): Record<string, string | null> | ValidationError {
+    const updates: Record<string, string | null> = {};
+
+    if ("full_name" in body) {
+        updates.full_name = normalizeText(body.full_name, 80);
+    }
+
+    if ("username" in body) {
+        const username = normalizeText(body.username, 40);
+        if (username !== null && username.length < 3) {
+            return { code: "PROFILE_USERNAME_TOO_SHORT" };
+        }
+        updates.username = username;
+    }
+
+    if ("phone" in body) {
+        updates.phone = normalizeText(body.phone, 32);
+    }
+
+    if ("job_type" in body) {
+        updates.job_type = normalizeText(body.job_type, 40);
+    }
+
+    if ("employment_kind" in body) {
+        const kind = typeof body.employment_kind === "string" ? body.employment_kind : "";
+        if (!EMPLOYMENT_KINDS.includes(kind as EmploymentKind)) {
+            return { code: "PROFILE_EMPLOYMENT_KIND_INVALID" };
+        }
+        updates.employment_kind = kind;
+    }
+
+    if ("trade_name" in body) {
+        updates.trade_name = normalizeText(body.trade_name, 80);
+    }
+
+    if ("invoice_registration_number" in body) {
+        const value = normalizeText(body.invoice_registration_number, 14);
+        if (value !== null && !INVOICE_NUMBER_PATTERN.test(value)) {
+            return { code: "PROFILE_INVOICE_NUMBER_INVALID" };
+        }
+        updates.invoice_registration_number = value;
+    }
+
+    if ("bank_name" in body) {
+        updates.bank_name = normalizeText(body.bank_name, 40);
+    }
+    if ("branch_name" in body) {
+        updates.branch_name = normalizeText(body.branch_name, 40);
+    }
+    if ("account_type" in body) {
+        if (body.account_type === null || body.account_type === "") {
+            updates.account_type = null;
+        } else if (typeof body.account_type === "string" && ACCOUNT_TYPES.includes(body.account_type as AccountType)) {
+            updates.account_type = body.account_type;
+        } else {
+            return { code: "PROFILE_ACCOUNT_TYPE_INVALID" };
+        }
+    }
+    if ("account_number" in body) {
+        updates.account_number = normalizeDigits(body.account_number, 16);
+    }
+    if ("account_holder_kana" in body) {
+        updates.account_holder_kana = normalizeText(body.account_holder_kana, 80);
+    }
+
+    if ("postal_code" in body) {
+        const value = normalizeText(body.postal_code, 8);
+        if (value !== null && !POSTAL_CODE_PATTERN.test(value)) {
+            return { code: "PROFILE_POSTAL_CODE_INVALID" };
+        }
+        updates.postal_code = value;
+    }
+    if ("prefecture" in body) {
+        updates.prefecture = normalizeText(body.prefecture, 16);
+    }
+    if ("city" in body) {
+        updates.city = normalizeText(body.city, 64);
+    }
+    if ("address_line1" in body) {
+        updates.address_line1 = normalizeText(body.address_line1, 128);
+    }
+    if ("address_line2" in body) {
+        updates.address_line2 = normalizeText(body.address_line2, 128);
+    }
+
+    if ("emergency_contact_name" in body) {
+        updates.emergency_contact_name = normalizeText(body.emergency_contact_name, 80);
+    }
+    if ("emergency_phone" in body) {
+        updates.emergency_phone = normalizeText(body.emergency_phone, 32);
+    }
+
+    return updates;
+}
+
 router.get("/me", async (req: AuthenticatedRequest, res: Response) => {
     try {
         if (!req.userId) {
@@ -31,7 +187,7 @@ router.get("/me", async (req: AuthenticatedRequest, res: Response) => {
 
         const { data, error } = await supabaseAdmin
             .from("profiles")
-            .select("id,username,full_name,avatar_url")
+            .select(PROFILE_COLUMNS)
             .eq("id", req.userId)
             .maybeSingle();
 
@@ -44,7 +200,7 @@ router.get("/me", async (req: AuthenticatedRequest, res: Response) => {
             return;
         }
 
-        res.json({ profile: data as ProfileRecord });
+        res.json({ profile: data as unknown as ProfileRecord });
     } catch (err) {
         console.error("[PROFILE] read failed:", err);
         res.status(500).json({ error: "Internal server error" });
@@ -58,21 +214,14 @@ router.patch("/me", async (req: AuthenticatedRequest, res: Response) => {
             return;
         }
 
-        const updates: Record<string, string | null> = {};
-
-        if ("full_name" in req.body) {
-            updates.full_name = normalizeText(req.body.full_name, 80);
+        const body = (req.body && typeof req.body === "object" ? req.body : {}) as Record<string, unknown>;
+        const updatesOrError = buildUpdates(body);
+        if ("code" in updatesOrError) {
+            res.status(400).json({ error: updatesOrError.code });
+            return;
         }
 
-        if ("username" in req.body) {
-            const username = normalizeText(req.body.username, 40);
-            if (username !== null && username.length < 3) {
-                res.status(400).json({ error: "PROFILE_USERNAME_TOO_SHORT" });
-                return;
-            }
-            updates.username = username;
-        }
-
+        const updates = updatesOrError;
         if (Object.keys(updates).length === 0) {
             res.status(400).json({ error: "PROFILE_NO_FIELDS" });
             return;
@@ -82,7 +231,7 @@ router.patch("/me", async (req: AuthenticatedRequest, res: Response) => {
             .from("profiles")
             .update(updates)
             .eq("id", req.userId)
-            .select("id,username,full_name,avatar_url")
+            .select(PROFILE_COLUMNS)
             .single();
 
         if (error) {
@@ -93,7 +242,7 @@ router.patch("/me", async (req: AuthenticatedRequest, res: Response) => {
             throw error;
         }
 
-        res.json({ profile: data as ProfileRecord });
+        res.json({ profile: data as unknown as ProfileRecord });
     } catch (err) {
         console.error("[PROFILE] update failed:", err);
         res.status(500).json({ error: "Internal server error" });

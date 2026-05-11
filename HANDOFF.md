@@ -25,43 +25,43 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `Phase 1: profiles拡張 (phone/job_type/employment_kind/振込先4列/インボイス番号/住所/緊急連絡) を別ブランチで実装`. Source: realtime
+- [focus] NEXT_CMD: `PR #18 のmerge後、必要に応じてvendorsテーブル (法人外注先) や admin向け他メンバー閲覧API を Phase 2 で検討`. Source: realtime
+- [H0034] Completed: feat(profile): profiles拡張 (phone/job_type/employment_kind/振込先5列/インボイス番号/住所5列/緊急連絡) + Settings UI 4カード + 機微列のRLS REVOKE
+- [H0034] Remaining: PR #18 のmerge後、必要に応じてvendorsテーブル (法人外注先) や admin向け他メンバー閲覧API を Phase 2 で検討
 - [H0033] Completed: feat(org): 招待発行(POST/GET/DELETE) + ?invite=<uuid>自動受諾 + プロフィール氏名/username編集
 - [H0033] Remaining: Phase 1: profiles拡張 (phone/job_type/employment_kind/振込先4列/インボイス番号/住所/緊急連絡) を別ブランチで実装
-- [H0032] Completed: feat(nav): ベルを下部ナビから外し全画面共通の floating ボタンへ移行（FAB の左横に着地）
-- [H0032] Remaining: 実機で見え方確認・スマホで親指届くか検証
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0034] Auto-captured decision: feat(profile): profiles拡張 (phone/job_type/employment_kind/振込先5列/インボイス番号/住所5列/緊急連絡) + Settings UI 4カード + 機微列のRLS REVOKE
 - [H0033] Auto-captured decision: feat(org): 招待発行(POST/GET/DELETE) + ?invite=<uuid>自動受諾 + プロフィール氏名/username編集
 - [H0032] Auto-captured decision: feat(nav): ベルを下部ナビから外し全画面共通の floating ボタンへ移行（FAB の左横に着地）
 - [H0031] Auto-captured decision: fix(sites): PUT /:id で status を active/tentative/in_progress に制限し completed/deleted バイパスを封じた
 - [H0030] Auto-captured decision: chore(sites): 論理削除時の dead status='deleted' 書き込みを除去（deleted_at が唯一の真実）
-- [H0029] Auto-captured decision: fix(sites): 連続施工+期間未入力をフロント/サーバー両面でブロック
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0033] No new landmines reported in this chunk.
+- [H0034] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0034] PR #18 のmerge後、必要に応じてvendorsテーブル (法人外注先) や admin向け他メンバー閲覧API を Phase 2 で検討
 - [H0033] Phase 1: profiles拡張 (phone/job_type/employment_kind/振込先4列/インボイス番号/住所/緊急連絡) を別ブランチで実装
 - [H0032] 実機で見え方確認・スマホで親指届くか検証
 - [H0031] 他バグ調査継続 or 担当者ON/OFFのoptimistic lock
 - [H0030] 現場ページ周辺の他バグ調査を継続
-- [H0029] 別セッションのPathV33作業を待ち、必要に応じてuseCalendar側にも保険を入れる
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `15`
+- current_l3_entries: `16`
 - last_compacted_at: `2026-05-11 07:44:56 +0900`
 - archived_entries: `18`
 <!-- HANDOFF_L2_STATE_END -->
@@ -319,5 +319,21 @@
   - Auto-captured decision: feat(org): 招待発行(POST/GET/DELETE) + ?invite=<uuid>自動受諾 + プロフィール氏名/username編集
 - Validation:
   - `frontend tsc/eslint/vite build/App.test 25/25 OK, server tsc OK, vitest 120 pass (baseline), server jest 422 pass (baseline)`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-11 13:49:28 +0900
+
+- Entry-ID: `H0034`
+- Completed:
+  - [x] feat(profile): profiles拡張 (phone/job_type/employment_kind/振込先5列/インボイス番号/住所5列/緊急連絡) + Settings UI 4カード + 機微列のRLS REVOKE
+- Remaining:
+  - [ ] PR #18 のmerge後、必要に応じてvendorsテーブル (法人外注先) や admin向け他メンバー閲覧API を Phase 2 で検討
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: feat(profile): profiles拡張 (phone/job_type/employment_kind/振込先5列/インボイス番号/住所5列/緊急連絡) + Settings UI 4カード + 機微列のRLS REVOKE
+- Validation:
+  - `frontend tsc/eslint/vite build/App.test 25/25 OK, server tsc OK`
 - Landmines:
   - No new landmines reported in this chunk.
