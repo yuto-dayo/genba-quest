@@ -1,0 +1,113 @@
+/* ============================================================
+   Cashflow Bucket Strip — v3.3 mock の 4 bar (PR #10)
+   未請求 (urgent) / 入金待ち (warn) / 支払予定 (neutral) / 入金済み (good)
+   ============================================================ */
+
+.section {
+    margin-top: var(--md-sys-spacing-lg, 24px);
+}
+
+.header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: var(--md-sys-spacing-sm, 12px);
+    padding: 0 var(--md-sys-spacing-xs, 4px);
+}
+
+.title {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--md-sys-color-on-surface-variant, #5b6470);
+    letter-spacing: 0.04em;
+}
+
+.hint {
+    font-size: 11px;
+    color: var(--md-sys-color-on-surface-variant, #5b6470);
+    opacity: 0.7;
+}
+
+.strip {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 14px 14px 12px;
+    background: var(--md-sys-color-surface, #ffffff);
+    border: 1px solid var(--md-sys-color-outline-variant, #d8dee5);
+    border-radius: 16px;
+}
+
+.bar {
+    display: grid;
+    grid-template-columns: 84px 1fr 76px;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 4px;
+}
+
+.name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--md-sys-color-on-surface-variant, #5b6470);
+    white-space: nowrap;
+}
+
+.urgent .name { color: #b22d39; }
+.warn .name   { color: #ad7a17; }
+.good .name   { color: #1f8c3c; }
+
+.track {
+    position: relative;
+    height: 8px;
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.fill {
+    height: 100%;
+    border-radius: 999px;
+    width: 0%;
+    transition: width 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+    background: linear-gradient(90deg, #6366f1, #818cf8);
+}
+
+.urgent .fill { background: linear-gradient(90deg, #dc2626, #ef4444); }
+.warn .fill   { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.good .fill   { background: linear-gradient(90deg, #16a34a, #22c55e); }
+
+.amount {
+    text-align: right;
+    font-size: 13px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--md-sys-color-on-surface, #1a1f27);
+}
+
+.empty {
+    opacity: 0.5;
+}
+
+.skeleton {
+    height: 96px;
+    background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.04), transparent);
+    background-size: 200% 100%;
+    animation: cf-shimmer 1.4s linear infinite;
+    border-radius: 12px;
+}
+
+@keyframes cf-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.errorBox {
+    padding: 10px 12px;
+    background: rgba(220, 53, 69, 0.08);
+    border: 1px solid rgba(220, 53, 69, 0.3);
+    border-radius: 10px;
+    color: #b22d39;
+    font-size: 12px;
+}
