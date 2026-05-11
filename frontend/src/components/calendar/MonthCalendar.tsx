@@ -549,7 +549,7 @@ export function MonthCalendar({
                                         '--completed-run-row': segment.row,
                                         '--completed-run-column': segment.columnStart,
                                         '--completed-run-span': segment.columnSpan,
-                                        '--completed-run-offset': `${31 + segment.lane * 19}px`,
+                                        '--completed-run-lane': segment.lane,
                                     } as CSSProperties
                                 }
                             >

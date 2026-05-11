@@ -33,7 +33,7 @@
     border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 46%, transparent);
     border-right: none;
     border-left: none;
-    border-radius: 18px;
+    border-radius: 20px;
     overflow: hidden;
     min-width: 0;
 }
@@ -217,6 +217,13 @@
     gap: 1px;
     min-width: 0;
     pointer-events: none;
+    /* Fluid sizes interpolate between 360px and 768px viewports; outside
+       that range the clamp() bounds pin them to the original step values. */
+    --completed-run-header-offset: clamp(26px, 1.2vw + 22px, 31px);
+    --completed-run-lane-height: clamp(17px, 0.5vw + 15px, 19px);
+    --completed-run-bar-height: clamp(15px, 0.25vw + 14px, 16px);
+    --completed-run-bar-inset: clamp(7px, 0.75vw + 4px, 10px);
+    --completed-run-bar-padding-x: clamp(5px, 0.5vw + 3.2px, 7px);
 }
 
 .completedRunBar {
@@ -229,9 +236,13 @@
     justify-content: center;
     gap: 3px;
     min-width: 0;
-    height: 16px;
-    margin: var(--completed-run-offset, 31px) 10px 0;
-    padding: 0 7px;
+    height: var(--completed-run-bar-height);
+    margin-top: calc(
+        var(--completed-run-header-offset)
+            + var(--completed-run-lane, 0) * var(--completed-run-lane-height)
+    );
+    margin-inline: var(--completed-run-bar-inset);
+    padding: 0 var(--completed-run-bar-padding-x);
     border-radius: 999px;
     background: var(--completed-site-color, #0d9488);
     color: var(--completed-site-text, white);
@@ -410,12 +421,6 @@
         gap: 4px;
     }
 
-    .completedRunBar {
-        height: 15px;
-        margin-inline: 7px;
-        padding: 0 5px;
-    }
-
 }
 
 @media (max-width: 480px) {
@@ -451,11 +456,38 @@
         min-width: 18px;
         padding: 0;
     }
+
+    /* Reduce day-cell info density on small screens. Site colour is already
+       conveyed by the completedRunBar overlay, so the colour dots become
+       noise here. Cap visible rest initials to keep the cell breathable. */
+    .scheduleColorDots {
+        display: none;
+    }
+
+    .dayRestInitial {
+        width: 16px;
+        height: 16px;
+        font-size: 10px;
+    }
+
+    .dayGlyphRow > .dayRestInitial:nth-of-type(n + 3) {
+        display: none;
+    }
 }
 
 @media (max-width: 360px) {
     .dayCell {
         min-height: 58px;
+    }
+
+    /* At the tightest width, the icon chip duplicates information from rest
+       initials (already coloured) or from the completedRunBar overlay. */
+    .availabilityIconChip {
+        display: none;
+    }
+
+    .dayGlyphRow > .dayRestInitial:nth-of-type(n + 2) {
+        display: none;
     }
 }
 

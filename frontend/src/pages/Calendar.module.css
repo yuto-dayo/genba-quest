@@ -14,25 +14,22 @@
     content: '';
     position: absolute;
     inset: 0 0 auto;
-    height: 360px;
-    border-radius: 40px;
-    background:
-        radial-gradient(circle at top left, rgba(20, 184, 166, 0.18), transparent 48%),
-        radial-gradient(circle at top right, rgba(249, 115, 22, 0.14), transparent 42%),
-        linear-gradient(
-            180deg,
-            color-mix(in srgb, var(--md-sys-color-primary-container) 44%, white),
-            transparent
-        );
+    height: 160px;
+    border-radius: 24px;
+    background: linear-gradient(
+        180deg,
+        var(--md-sys-color-surface-container-low),
+        transparent
+    );
     pointer-events: none;
     z-index: -1;
 }
 
 .headerTools {
-    display: grid;
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    justify-items: center;
+    justify-content: space-between;
     gap: 12px;
     width: 100%;
     min-width: 0;
@@ -51,11 +48,13 @@
 
 .navBtn:hover,
 .availabilityTokenButton:hover {
-    transform: translateY(-1px);
+    background: var(--md-sys-color-surface-container-high);
+    color: var(--md-sys-color-on-surface);
 }
 
 .segmentButton:hover {
-    background: color-mix(in srgb, var(--md-sys-color-surface) 62%, transparent);
+    background: var(--md-sys-color-surface-container);
+    color: var(--md-sys-color-on-surface);
 }
 
 .navBtn:focus-visible,
@@ -82,17 +81,11 @@
     justify-content: center;
     width: 36px;
     height: 36px;
-    border: none;
+    border: 1px solid var(--md-sys-color-outline-variant);
     border-radius: 999px;
-    background: color-mix(in srgb, var(--md-sys-color-surface) 92%, white);
+    background: var(--md-sys-color-surface);
     color: var(--md-sys-color-on-surface-variant);
-    box-shadow: var(--md-sys-elevation-level1);
     cursor: pointer;
-}
-
-.navBtn:hover {
-    background: var(--md-sys-color-surface-container-high);
-    color: var(--md-sys-color-on-surface);
 }
 
 .monthNavLabel {
@@ -150,12 +143,10 @@
     z-index: 20;
     width: min(250px, calc(100vw - 32px));
     padding: 8px;
-    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 64%, transparent);
-    border-radius: 24px;
-    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 92%, white);
-    box-shadow:
-        var(--md-sys-elevation-level3),
-        inset 0 1px 0 color-mix(in srgb, white 82%, transparent);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 20px;
+    background: var(--md-sys-color-surface-container-low);
+    box-shadow: var(--md-sys-elevation-level2);
     transform-origin: top left;
 }
 
@@ -184,7 +175,7 @@
 .monthPickerDivider {
     width: 1px;
     margin: 6px 0;
-    background: color-mix(in srgb, var(--md-sys-color-outline-variant) 72%, transparent);
+    background: var(--md-sys-color-outline-variant);
 }
 
 .monthPickerOption {
@@ -193,7 +184,7 @@
     justify-content: center;
     min-height: 40px;
     border: none;
-    border-radius: 16px;
+    border-radius: 20px;
     background: transparent;
     color: var(--md-sys-color-on-surface-variant);
     font: var(--md-sys-typescale-label-large);
@@ -210,14 +201,13 @@
 }
 
 .monthPickerOption:hover {
-    background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 78%, white);
+    background: var(--md-sys-color-surface-container);
     color: var(--md-sys-color-on-surface);
 }
 
 .monthPickerOptionActive {
-    background: color-mix(in srgb, var(--md-sys-color-primary-container) 72%, white);
-    color: var(--md-sys-color-primary);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--md-sys-color-primary) 18%, transparent);
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
 }
 
 .mainPanel {
@@ -233,20 +223,20 @@
     gap: 2px;
     min-width: 0;
     padding: 4px;
-    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 72%, transparent);
+    border: 1px solid var(--md-sys-color-outline-variant);
     border-radius: 999px;
-    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 86%, white);
-    box-shadow: inset 0 1px 0 color-mix(in srgb, white 84%, transparent);
+    background: var(--md-sys-color-surface-container-low);
 }
 
 .calendarControlsRow {
     display: inline-flex;
     flex-wrap: wrap;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-end;
     gap: 10px;
     min-width: 0;
-    width: min(520px, 100%);
+    flex: 1 1 320px;
+    max-width: 520px;
 }
 
 .calendarModeSegment {
@@ -255,7 +245,12 @@
     width: 100%;
 }
 
-.active {}
+.scopeLegend {
+    margin: 6px 0 0;
+    text-align: right;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+}
 
 .segmentButton {
     display: inline-flex;
@@ -274,31 +269,18 @@
     box-shadow: none;
 }
 
-.segmentButton.active {
-    box-shadow:
-        var(--md-sys-elevation-level1),
-        inset 0 0 0 1px color-mix(in srgb, var(--md-sys-color-primary) 14%, transparent);
-}
-
 .scopeActive {
-    background: color-mix(in srgb, var(--md-sys-color-primary-container) 76%, white);
-    color: var(--md-sys-color-primary);
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
 }
 
 .viewActive {
-    background: color-mix(in srgb, var(--md-sys-color-secondary-container) 68%, white);
+    background: var(--md-sys-color-secondary-container);
     color: var(--md-sys-color-on-secondary-container);
-    box-shadow:
-        var(--md-sys-elevation-level1),
-        inset 0 0 0 1px color-mix(in srgb, var(--md-sys-color-secondary) 20%, transparent);
 }
 
 .modeBoundary {
-    border-left: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 70%, transparent);
-}
-
-.segmentButton.active:hover {
-    filter: brightness(0.99);
+    border-left: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .mainPanel {
@@ -355,7 +337,7 @@
     gap: 4px;
     padding: 4px;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 78%, white);
+    background: var(--md-sys-color-surface-container);
 }
 
 .restSummaryToggleButton {
@@ -404,9 +386,9 @@
     min-width: 92px;
     min-height: 44px;
     padding: 8px 12px 8px 14px;
-    border-radius: 16px;
-    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 50%, transparent);
-    background: color-mix(in srgb, var(--md-sys-color-surface) 88%, white);
+    border-radius: 20px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background: var(--md-sys-color-surface);
     color: var(--md-sys-color-on-surface-variant);
 }
 
@@ -417,8 +399,8 @@
     width: 28px;
     height: 28px;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--md-sys-color-primary) 16%, white);
-    color: var(--md-sys-color-primary);
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
     font: var(--md-sys-typescale-label-large);
     font-weight: 700;
 }
@@ -459,7 +441,7 @@
     justify-content: space-between;
     gap: 14px;
     padding-bottom: 14px;
-    border-bottom: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 46%, transparent);
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .yearSummaryEyebrow,
@@ -487,7 +469,7 @@
     min-height: 34px;
     padding: 0 12px;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--md-sys-color-primary-container) 70%, white);
+    background: var(--md-sys-color-primary-container);
     color: var(--md-sys-color-on-primary-container);
     font: var(--md-sys-typescale-label-medium);
     font-weight: 700;
@@ -506,9 +488,9 @@
     gap: 14px;
     min-height: 58px;
     padding: 10px 12px;
-    border-radius: 16px;
-    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 42%, transparent);
-    background: color-mix(in srgb, var(--md-sys-color-surface) 90%, white);
+    border-radius: 20px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background: var(--md-sys-color-surface);
 }
 
 .yearSummaryMember {
@@ -546,25 +528,21 @@
     height: 9px;
     overflow: hidden;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 80%, white);
+    background: var(--md-sys-color-surface-container-high);
 }
 
 .yearSummaryMeter span {
     display: block;
     height: 100%;
     border-radius: inherit;
-    background: linear-gradient(
-        90deg,
-        var(--md-sys-color-primary),
-        color-mix(in srgb, var(--md-sys-color-secondary) 72%, white)
-    );
+    background: var(--md-sys-color-primary);
 }
 
 .yearSummaryEmpty {
     margin: 0;
     padding: 20px;
-    border-radius: 16px;
-    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 74%, white);
+    border-radius: 20px;
+    background: var(--md-sys-color-surface-container-low);
     color: var(--md-sys-color-on-surface-variant);
     font: var(--md-sys-typescale-body-medium);
 }
@@ -573,20 +551,16 @@
     display: grid;
     gap: 12px;
     margin-bottom: 16px;
-    padding: 18px;
-    border-radius: 24px;
-    background: linear-gradient(
-        135deg,
-        color-mix(in srgb, var(--md-sys-color-secondary-container) 74%, white),
-        color-mix(in srgb, var(--md-sys-color-primary-container) 82%, white)
-    );
-    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 65%, transparent);
+    padding: 16px;
+    border-radius: 20px;
+    background: var(--md-sys-color-surface-container-low);
+    border: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .personalAvailabilityHeader {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: center;
     gap: 12px;
 }
 
@@ -596,27 +570,10 @@
     color: var(--md-sys-color-on-surface);
 }
 
-.personalAvailabilityHeader p {
-    margin: 4px 0 0;
+.personalAvailabilityDate {
+    margin: 0 0 2px;
     color: var(--md-sys-color-on-surface-variant);
     font: var(--md-sys-typescale-body-small);
-}
-
-.availabilityCurrent {
-    display: inline-flex;
-    align-items: center;
-    min-height: 30px;
-    padding: 0 10px;
-    border-radius: 999px;
-    background: var(--md-sys-color-surface);
-    color: var(--md-sys-color-on-surface);
-    font: var(--md-sys-typescale-label-medium);
-}
-
-.availabilityTokenRow {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
 }
 
 .availabilityMessage {
@@ -625,35 +582,40 @@
     font: var(--md-sys-typescale-body-small);
 }
 
-.availabilityTokenButton {
+.leaveToggle {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     min-height: 38px;
-    padding: 0 14px;
+    padding: 0 18px;
     border-radius: 999px;
-    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 70%, transparent);
+    border: 1px solid var(--md-sys-color-outline-variant);
     background: var(--md-sys-color-surface);
     color: var(--md-sys-color-on-surface-variant);
     font: var(--md-sys-typescale-label-medium);
     cursor: pointer;
+    transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
 }
 
-.availabilityTokenButton:disabled {
+.leaveToggle:hover {
+    color: var(--md-sys-color-on-surface);
+    background: var(--md-sys-color-surface-container);
+}
+
+.leaveToggle:disabled {
     cursor: not-allowed;
     opacity: 0.58;
 }
 
-.availabilityTokenLeaveActive {
+.leaveToggleOn {
     border-color: transparent;
-    background: color-mix(in srgb, var(--md-sys-color-error-container) 86%, white);
+    background: var(--md-sys-color-error-container);
     color: var(--md-sys-color-on-error-container);
 }
 
-.availabilityTokenAvailableActive {
-    border-color: transparent;
-    background: color-mix(in srgb, var(--md-sys-color-primary-container) 88%, white);
-    color: var(--md-sys-color-on-primary-container);
+.leaveToggleOn:hover {
+    background: var(--md-sys-color-error-container);
+    color: var(--md-sys-color-on-error-container);
 }
 
 .sideStack,
@@ -670,7 +632,7 @@
 .personalScenarioPanel {
     padding: 16px;
     border-radius: 20px;
-    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 40%, transparent);
+    border: 1px solid var(--md-sys-color-outline-variant);
     background: var(--md-sys-color-surface);
 }
 
@@ -700,8 +662,8 @@
 }
 
 .proposalStatus {
-    background: color-mix(in srgb, #ffd29a 75%, white);
-    color: #6b4600;
+    background: var(--md-sys-color-warning-container);
+    color: var(--md-sys-color-on-warning-container);
 }
 
 .proposalTitle {
@@ -723,26 +685,30 @@
 .attentionCard {
     display: grid;
     gap: 8px;
-    background: color-mix(in srgb, #fff5d6 70%, white);
+    background: var(--md-sys-color-warning-container);
 }
 
 .attentionType {
     justify-self: start;
-    background: color-mix(in srgb, #ffd29a 70%, white);
-    color: #6b4600;
+    background: var(--md-sys-color-warning-container);
+    color: var(--md-sys-color-on-warning-container);
 }
 
 .drawerCard {
-    background: color-mix(in srgb, var(--md-sys-color-tertiary-container) 68%, white);
+    background: var(--md-sys-color-tertiary-container);
 }
 
 .personalScenarioPanel {
-    background: color-mix(in srgb, var(--md-sys-color-primary-container) 54%, white);
+    background: var(--md-sys-color-primary-container);
 }
 
 @media (max-width: 1024px) {
     .headerTools {
-        justify-content: center;
+        justify-content: flex-start;
+    }
+
+    .calendarControlsRow {
+        justify-content: flex-start;
     }
 }
 
@@ -808,10 +774,11 @@
 
     .personalAvailabilityHeader {
         flex-direction: column;
+        align-items: stretch;
     }
 
-    .availabilityTokenButton {
-        flex: 1 1 140px;
+    .leaveToggle {
+        width: 100%;
     }
 
     .restSummaryToggleButton {
@@ -830,7 +797,7 @@
         min-width: 0;
         min-height: 36px;
         padding: 4px 6px;
-        border-radius: 14px;
+        border-radius: 20px;
     }
 
     .restSummaryInitial {
@@ -913,7 +880,7 @@
     .monthNavChevron,
     .monthPickerOption,
     .segmentButton,
-    .availabilityTokenButton,
+    .leaveToggle,
     .restSummaryToggleButton {
         transition: none;
     }

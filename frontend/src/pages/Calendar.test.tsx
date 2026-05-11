@@ -561,11 +561,10 @@ describe("Calendar page", () => {
         render(<Calendar />);
 
         fireEvent.click(screen.getByRole("button", { name: "自分" }));
-        await waitFor(() => {
-            expect(screen.getByRole("button", { name: "休み" })).toBeDisabled();
-        });
+        const leaveToggle = await screen.findByRole("switch", { name: "休み" });
+        expect(leaveToggle).toHaveAttribute("aria-checked", "true");
 
-        fireEvent.click(screen.getByRole("button", { name: "解除" }));
+        fireEvent.click(leaveToggle);
 
         await waitFor(() => {
             expect(deletePersonalSchedule).toHaveBeenCalledWith("schedule-1");
@@ -600,11 +599,10 @@ describe("Calendar page", () => {
         render(<Calendar />);
 
         fireEvent.click(screen.getByRole("button", { name: "自分" }));
-        await waitFor(() => {
-            expect(screen.getByRole("button", { name: "休み" })).toBeDisabled();
-        });
+        const leaveToggle = await screen.findByRole("switch", { name: "休み" });
+        expect(leaveToggle).toHaveAttribute("aria-checked", "true");
 
-        fireEvent.click(screen.getByRole("button", { name: "解除" }));
+        fireEvent.click(leaveToggle);
 
         await waitFor(() => {
             expect(rejectProposal).toHaveBeenCalledWith("proposal-1", "休みを解除");

@@ -26,7 +26,6 @@ import { buildDayScheduleBoard } from '../lib/dayScheduleBoard';
 import { supabase } from '../lib/supabase';
 import type { CalendarScope } from '../types/calendarCockpit';
 import type {
-    AvailabilityTokenKind,
     CalendarDay,
     CalendarPersonalSchedule,
 } from '../types/calendar';
@@ -303,9 +302,6 @@ export function Calendar() {
     const [members, setMembers] = useState<Member[]>([]);
     const [availabilityMessage, setAvailabilityMessage] = useState<string | null>(null);
     const [isAvailabilitySubmitting, setIsAvailabilitySubmitting] = useState(false);
-    const [availabilityTokens, setAvailabilityTokens] = useState<
-        Partial<Record<string, AvailabilityTokenKind>>
-    >({});
     const [viewMode, setViewMode] = useState<CalendarViewMode>('month');
     const [monthPickerOpen, setMonthPickerOpen] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
@@ -560,11 +556,7 @@ export function Calendar() {
     };
 
     const selectedLeaveSchedule = pickSelectedLeaveSchedule(visibleSelectedDate, currentUserId);
-    const selectedAvailabilityToken = selectedLeaveSchedule
-        ? 'leave_request'
-        : visibleSelectedDate
-          ? availabilityTokens[visibleSelectedDate.date] ?? null
-          : null;
+    const isLeaveOn = selectedLeaveSchedule !== null;
 
     const monthLabel = `${year}/${String(month).padStart(2, '0')}`;
     const yearOptions = useMemo(() => {
@@ -632,24 +624,6 @@ export function Calendar() {
         });
     }, [monthPickerOpen, month, year]);
 
-    const setAvailabilityToken = (kind: AvailabilityTokenKind) => {
-        if (!visibleSelectedDate) {
-            return;
-        }
-
-        setAvailabilityTokens((current) => {
-            if (current[visibleSelectedDate.date] === kind) {
-                const next = { ...current };
-                delete next[visibleSelectedDate.date];
-                return next;
-            }
-            return {
-                ...current,
-                [visibleSelectedDate.date]: kind,
-            };
-        });
-    };
-
     const submitLeaveRequest = async () => {
         if (!visibleSelectedDate || isAvailabilitySubmitting) {
             return;
@@ -664,11 +638,6 @@ export function Calendar() {
                 date: visibleSelectedDate.date,
             });
             await reloadAssignments();
-            setAvailabilityTokens((current) => {
-                const next = { ...current };
-                delete next[visibleSelectedDate.date];
-                return next;
-            });
             setAvailabilityMessage(
                 result.auto_executed
                     ? '休みを入れました。'
@@ -682,48 +651,39 @@ export function Calendar() {
         }
     };
 
-    const clearAvailabilityToken = async () => {
-        if (!visibleSelectedDate) {
+    const clearLeaveRequest = async () => {
+        if (!visibleSelectedDate || !selectedLeaveSchedule || isAvailabilitySubmitting) {
             return;
         }
 
-        if (isAvailabilitySubmitting) {
-            return;
-        }
+        setIsAvailabilitySubmitting(true);
+        setAvailabilityMessage(null);
 
-        if (selectedLeaveSchedule) {
-            setIsAvailabilitySubmitting(true);
-            setAvailabilityMessage(null);
-
-            try {
-                if (selectedLeaveSchedule.source === 'personal_schedule') {
-                    await deletePersonalSchedule(selectedLeaveSchedule.id);
-                } else if (selectedLeaveSchedule.status === 'pending') {
-                    await rejectProposal(selectedLeaveSchedule.id, '休みを解除');
-                } else {
-                    throw new Error('Approved leave proposal cannot be cleared before execution');
-                }
-
-                await reloadAssignments();
-                setAvailabilityMessage('休みを解除しました。');
-            } catch (error) {
-                console.error('Failed to clear leave request:', error);
-                setAvailabilityMessage('休みを解除できませんでした。もう一度お試しください。');
-            } finally {
-                setIsAvailabilitySubmitting(false);
-            }
-            return;
-        }
-
-        setAvailabilityTokens((current) => {
-            if (!current[visibleSelectedDate.date]) {
-                return current;
+        try {
+            if (selectedLeaveSchedule.source === 'personal_schedule') {
+                await deletePersonalSchedule(selectedLeaveSchedule.id);
+            } else if (selectedLeaveSchedule.status === 'pending') {
+                await rejectProposal(selectedLeaveSchedule.id, '休みを解除');
+            } else {
+                throw new Error('Approved leave proposal cannot be cleared before execution');
             }
 
-            const next = { ...current };
-            delete next[visibleSelectedDate.date];
-            return next;
-        });
+            await reloadAssignments();
+            setAvailabilityMessage('休みを解除しました。');
+        } catch (error) {
+            console.error('Failed to clear leave request:', error);
+            setAvailabilityMessage('休みを解除できませんでした。もう一度お試しください。');
+        } finally {
+            setIsAvailabilitySubmitting(false);
+        }
+    };
+
+    const toggleLeave = () => {
+        if (isLeaveOn) {
+            void clearLeaveRequest();
+        } else {
+            void submitLeaveRequest();
+        }
     };
 
     const handleToggleAssignment = async ({
@@ -883,7 +843,7 @@ export function Calendar() {
                             >
                                 <button
                                     type="button"
-                                    className={`${styles.segmentButton} ${scope === 'organization' ? `${styles.active} ${styles.scopeActive}` : ''}`}
+                                    className={`${styles.segmentButton} ${scope === 'organization' ? styles.scopeActive : ''}`}
                                     onClick={() => setScope('organization')}
                                     aria-pressed={scope === 'organization'}
                                 >
@@ -892,7 +852,7 @@ export function Calendar() {
                                 </button>
                                 <button
                                     type="button"
-                                    className={`${styles.segmentButton} ${scope === 'personal' ? `${styles.active} ${styles.scopeActive}` : ''}`}
+                                    className={`${styles.segmentButton} ${scope === 'personal' ? styles.scopeActive : ''}`}
                                     onClick={() => setScope('personal')}
                                     aria-pressed={scope === 'personal'}
                                 >
@@ -901,7 +861,7 @@ export function Calendar() {
                                 </button>
                                 <button
                                     type="button"
-                                    className={`${styles.segmentButton} ${styles.modeBoundary} ${viewMode === 'month' ? `${styles.active} ${styles.viewActive}` : ''}`}
+                                    className={`${styles.segmentButton} ${styles.modeBoundary} ${viewMode === 'month' ? styles.viewActive : ''}`}
                                     onClick={() => setViewMode('month')}
                                     aria-pressed={viewMode === 'month'}
                                 >
@@ -909,7 +869,7 @@ export function Calendar() {
                                 </button>
                                 <button
                                     type="button"
-                                    className={`${styles.segmentButton} ${viewMode === 'year' ? `${styles.active} ${styles.viewActive}` : ''}`}
+                                    className={`${styles.segmentButton} ${viewMode === 'year' ? styles.viewActive : ''}`}
                                     onClick={() => setViewMode('year')}
                                     aria-pressed={viewMode === 'year'}
                                 >
@@ -917,6 +877,11 @@ export function Calendar() {
                                 </button>
                             </div>
                         </div>
+                        <p className={styles.scopeLegend} aria-live="polite">
+                            {scope === 'organization'
+                                ? '全員の予定と人数不足を表示'
+                                : '自分の予定と休みを編集'}
+                        </p>
                     </div>
                 </div>
 
@@ -962,52 +927,26 @@ export function Calendar() {
                     >
                         <div className={styles.personalAvailabilityHeader}>
                             <div>
-                                <h3>空き・休み</h3>
-                                <p>{formatDateLabel(visibleSelectedDate.date)}</p>
+                                <p className={styles.personalAvailabilityDate}>
+                                    {formatDateLabel(visibleSelectedDate.date)}
+                                </p>
+                                <h3>この日を休みにする</h3>
                             </div>
-                            {selectedAvailabilityToken && (
-                                <span className={styles.availabilityCurrent}>
-                                    {selectedAvailabilityToken === 'leave_request'
-                                        ? '休み'
-                                        : '空きあり'}
-                                </span>
-                            )}
-                        </div>
-
-                        <div className={styles.availabilityTokenRow}>
                             <button
                                 type="button"
-                                className={`${styles.availabilityTokenButton} ${
-                                    selectedAvailabilityToken === 'leave_request'
-                                        ? styles.availabilityTokenLeaveActive
-                                        : ''
+                                role="switch"
+                                aria-checked={isLeaveOn}
+                                className={`${styles.leaveToggle} ${
+                                    isLeaveOn ? styles.leaveToggleOn : ''
                                 }`}
-                                onClick={() => void submitLeaveRequest()}
-                                disabled={
-                                    isAvailabilitySubmitting ||
-                                    selectedLeaveSchedule !== null
-                                }
-                            >
-                                {isAvailabilitySubmitting ? '送信中' : '休み'}
-                            </button>
-                            <button
-                                type="button"
-                                className={`${styles.availabilityTokenButton} ${
-                                    selectedAvailabilityToken === 'available'
-                                        ? styles.availabilityTokenAvailableActive
-                                        : ''
-                                }`}
-                                onClick={() => setAvailabilityToken('available')}
-                            >
-                                空きあり
-                            </button>
-                            <button
-                                type="button"
-                                className={styles.availabilityTokenButton}
-                                onClick={() => void clearAvailabilityToken()}
+                                onClick={toggleLeave}
                                 disabled={isAvailabilitySubmitting}
                             >
-                                {isAvailabilitySubmitting && selectedLeaveSchedule ? '解除中' : '解除'}
+                                {isAvailabilitySubmitting
+                                    ? '反映中…'
+                                    : isLeaveOn
+                                      ? '休み'
+                                      : '休みにする'}
                             </button>
                         </div>
 
@@ -1030,7 +969,6 @@ export function Calendar() {
                             onSelectDate={handleSelectDate}
                             onInspectDate={handleInspectDate}
                             selectedDate={visibleSelectedDate}
-                            availabilityTokens={scope === 'personal' ? availabilityTokens : undefined}
                             restInitialByUserId={restInitialByUserId}
                             shortageSiteCountByDate={
                                 scope === 'organization' ? shortageSiteCountByDate : undefined
