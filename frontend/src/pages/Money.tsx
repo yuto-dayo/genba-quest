@@ -60,6 +60,16 @@ const formatDate = (dateStr?: string | null) => {
     return dateStr.replace(/-/g, "/");
 };
 
+// PR #12: day-head 用フォーマット (例: "5月10日 (土)")
+const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
+const formatDayHead = (iso: string) => {
+    if (!iso) return "—";
+    const [, m, d] = iso.split("-").map(Number);
+    const dt = new Date(iso);
+    const weekday = Number.isNaN(dt.getDay()) ? "" : WEEKDAY_LABELS[dt.getDay()];
+    return weekday ? `${m}月${d}日 (${weekday})` : `${m}月${d}日`;
+};
+
 const getAccountingImpactSign = (tx: Pick<AccountingTransaction, "kind" | "amount_total">) => {
     const isReversalAmount = tx.amount_total < 0;
     if (tx.kind === "expense") {
@@ -509,6 +519,26 @@ export function Money() {
     const displayedTransactions = showAllTransactions
         ? filteredTransactions
         : filteredTransactions.slice(0, 10);
+
+    // PR #12: 日付グルーピング + 日次サマリ + stagger 用 index
+    // mock v3.3 の day-head に従い、日付ごとの net (sale/invoice - expense) を計算する。
+    const groupedTransactions = (() => {
+        const map = new Map<string, { date: string; sum: number; items: AccountingTransaction[] }>();
+        for (const tx of displayedTransactions) {
+            const date = tx.recorded_date || "";
+            const sign = getAccountingImpactSign(tx) === "+" ? 1 : -1;
+            const contribution = sign * Math.abs(tx.amount_total);
+            const existing = map.get(date);
+            if (existing) {
+                existing.sum += contribution;
+                existing.items.push(tx);
+            } else {
+                map.set(date, { date, sum: contribution, items: [tx] });
+            }
+        }
+        // recorded_date DESC (新しい日付から)
+        return Array.from(map.values()).sort((a, b) => b.date.localeCompare(a.date));
+    })();
 
     const handleApprovalComplete = () => {
         window.dispatchEvent(new CustomEvent("pending-approvals-updated"));
@@ -983,13 +1013,34 @@ export function Money() {
                         ) : (
                             <>
                                 <div className={styles.txList}>
-                                    {displayedTransactions.map((tx) => (
-                                        <TransactionRow
-                                            key={tx.id}
-                                            tx={tx}
-                                            onOpenDetail={() => setSelectedTransaction(tx)}
-                                        />
-                                    ))}
+                                    {(() => {
+                                        let runningIdx = 0;
+                                        return groupedTransactions.map((group) => (
+                                            <div key={group.date} className={styles.txDayGroup}>
+                                                <div className={styles.dayHead}>
+                                                    <span className={styles.dayHeadDate}>
+                                                        {formatDayHead(group.date)}
+                                                    </span>
+                                                    <span
+                                                        className={`${styles.dayHeadSum} ${group.sum >= 0 ? styles.daySumPos : styles.daySumNeg}`}
+                                                    >
+                                                        {group.sum >= 0 ? "+" : "−"}¥{Math.abs(group.sum).toLocaleString()}
+                                                    </span>
+                                                </div>
+                                                {group.items.map((tx) => {
+                                                    const idx = runningIdx++;
+                                                    return (
+                                                        <TransactionRow
+                                                            key={tx.id}
+                                                            tx={tx}
+                                                            staggerIndex={idx}
+                                                            onOpenDetail={() => setSelectedTransaction(tx)}
+                                                        />
+                                                    );
+                                                })}
+                                            </div>
+                                        ));
+                                    })()}
                                 </div>
 
                                 {/* もっと見る / 閉じる */}
@@ -1204,9 +1255,11 @@ export function Money() {
 function TransactionRow({
     tx,
     onOpenDetail,
+    staggerIndex = 0,
 }: {
     tx: AccountingTransaction;
     onOpenDetail: () => void;
+    staggerIndex?: number;
 }) {
     const getStatusMeta = () => {
         if (tx.voids_transaction_id) {
@@ -1273,8 +1326,9 @@ function TransactionRow({
         <motion.button
             type="button"
             className={`${styles.txRow} ${kindToneClass} ${isHighRisk ? styles.highRiskRow : ""} ${isPending ? styles.pendingRow : ""}`}
-            initial={{ opacity: 0, y: 5 }}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, delay: Math.min(staggerIndex, 12) * 0.06, ease: [0.2, 0.8, 0.2, 1] }}
             onClick={onOpenDetail}
         >
             <div className={styles.colDate}>
