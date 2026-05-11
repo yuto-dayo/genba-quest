@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `#32 (BottomSheet drag) #33 (tx day-head) #30 (bell drawer) を順次 merge`
+- NEXT_CMD: `#33 (tx day-head) #30 (bell drawer) を merge`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/HANDOFF.md`
@@ -18,8 +18,8 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `f242254`
-  - Updated: `2026-05-11T21:30:46+0900`
+  - HEAD: `ada6d21`
+  - Updated: `2026-05-11T21:31:21+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
@@ -33,28 +33,30 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `#32 (BottomSheet drag) #33 (tx day-head) #30 (bell drawer) を順次 merge`. Source: realtime
+- [focus] NEXT_CMD: `#33 (tx day-head) #30 (bell drawer) を merge`. Source: realtime
+- [H0003] Completed: #32 (BottomSheet drag) merge — HANDOFF auto-merge conflict resolved by --ours
+- [H0003] Remaining: #33 (tx day-head) #30 (bell drawer) を merge
 - [H0002] Completed: rollup branch #27 merge (partners 3 section) + #31 merge (cashflow strip) + conflict resolve
 - [H0002] Remaining: #32 (BottomSheet drag) #33 (tx day-head) #30 (bell drawer) を順次 merge
-- [H0001] Completed: PR #6: Money 取引先タブを 3 section (もらう/払う/完了) に置換し、GET /accounting/partners/summary を新設
-- [H0001] Remaining: PR を作成して PR #6 をレビュー依頼
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0003] Auto-captured decision: #32 (BottomSheet drag) merge — HANDOFF auto-merge conflict resolved by --ours
 - [H0002] Auto-captured decision: rollup branch #27 merge (partners 3 section) + #31 merge (cashflow strip) + conflict resolve
 - [H0001] Auto-captured decision: PR #6: Money 取引先タブを 3 section (もらう/払う/完了) に置換し、GET /accounting/partners/summary を新設
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0002] No new landmines reported in this chunk.
+- [H0003] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0003] #33 (tx day-head) #30 (bell drawer) を merge
 - [H0002] #32 (BottomSheet drag) #33 (tx day-head) #30 (bell drawer) を順次 merge
 - [H0001] PR を作成して PR #6 をレビュー依頼
 <!-- HANDOFF_L2_THREADS_END -->
@@ -63,7 +65,7 @@
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `2`
+- current_l3_entries: `3`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -94,13 +96,15 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] #32 (BottomSheet drag) merge — HANDOFF auto-merge conflict resolved by --ours
 - [x] rollup branch #27 merge (partners 3 section) + #31 merge (cashflow strip) + conflict resolve
 - [x] PR #6: Money 取引先タブを 3 section (もらう/払う/完了) に置換し、GET /accounting/partners/summary を新設
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: #32 (BottomSheet drag) #33 (tx day-head) #30 (bell drawer) を順次 merge
+- [ ] **P0**: #33 (tx day-head) #30 (bell drawer) を merge
+- [ ] **P1**: #32 (BottomSheet drag) #33 (tx day-head) #30 (bell drawer) を順次 merge
 - [ ] **P1**: PR を作成して PR #6 をレビュー依頼
 ---
 
@@ -184,5 +188,21 @@ cd frontend && npx eslint src/
   - Auto-captured decision: rollup branch #27 merge (partners 3 section) + #31 merge (cashflow strip) + conflict resolve
 - Validation:
   - `server tsc pass / conflict marker なし`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-11 21:31:21 +0900
+
+- Entry-ID: `H0003`
+- Completed:
+  - [x] #32 (BottomSheet drag) merge — HANDOFF auto-merge conflict resolved by --ours
+- Remaining:
+  - [ ] #33 (tx day-head) #30 (bell drawer) を merge
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: #32 (BottomSheet drag) merge — HANDOFF auto-merge conflict resolved by --ours
+- Validation:
+  - `frontend tsc pass`
 - Landmines:
   - No new landmines reported in this chunk.

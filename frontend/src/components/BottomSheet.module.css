@@ -1,0 +1,57 @@
+/* ============================================================
+   BottomSheet (PR #11) — 共通ボトムシート wrapper.
+   下方向ドラッグで閉じる、handle, backdrop, escape 全部入り。
+   ============================================================ */
+
+.overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1001;
+    background: #071816;
+    backdrop-filter: blur(2px);
+}
+
+.sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1002;
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+    border-top-left-radius: 28px;
+    border-top-right-radius: 28px;
+    background: var(--md-sys-color-surface-container-lowest, #ffffff);
+    box-shadow: 0 -16px 48px rgba(7, 24, 22, 0.18);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    touch-action: pan-y;
+}
+
+.handleArea {
+    display: flex;
+    justify-content: center;
+    padding: 10px 0 4px;
+    cursor: grab;
+    flex-shrink: 0;
+}
+
+.handleArea:active {
+    cursor: grabbing;
+}
+
+.handle {
+    width: 44px;
+    height: 5px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.18);
+}
+
+.body {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
