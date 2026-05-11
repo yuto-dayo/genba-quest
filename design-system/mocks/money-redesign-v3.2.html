@@ -1,0 +1,957 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Money 改善モック v3.2 — GENBA QUEST</title>
+  <style>
+    :root {
+      --primary: #4F46E5;
+      --primary-container: #E0E7FF;
+      --on-primary-container: #312E81;
+      --surface: #FAFAF9;
+      --surface-bright: #FFFFFF;
+      --surface-low: #F5F5F4;
+      --surface-container: #F0EFEE;
+      --outline-variant: #D6D3D1;
+      --on-surface: #1C1917;
+      --on-surface-variant: #57534E;
+      --error: #DC2626;
+      --error-container: #FEE2E2;
+      --on-error-container: #991B1B;
+      --success: #16A34A;
+      --success-container: #DCFCE7;
+      --on-success-container: #14532D;
+      --warning: #F59E0B;
+      --warning-container: #FEF3C7;
+      --on-warning-container: #78350F;
+      --radius-md: 12px;
+      --radius-lg: 20px;
+      --radius-pill: 999px;
+      --shadow-1: 0 1px 2px rgba(28,25,23,.04), 0 1px 3px rgba(28,25,23,.06);
+      --shadow-2: 0 2px 4px rgba(28,25,23,.06), 0 6px 16px rgba(28,25,23,.08);
+      --shadow-3: 0 12px 32px rgba(28,25,23,.18);
+      --font-sans: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Segoe UI", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans);
+      background: linear-gradient(180deg, #F5F5F4, #E7E5E4);
+      color: var(--on-surface);
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+    .header {
+      max-width: 1400px; margin: 0 auto; padding: 32px 24px 8px;
+    }
+    .header h1 { margin: 0 0 4px; font-size: 24px; }
+    .header p { margin: 0; color: var(--on-surface-variant); font-size: 14px; }
+
+    .stage {
+      max-width: 1400px; margin: 0 auto; padding: 24px;
+      display: grid; gap: 32px; grid-template-columns: 1fr;
+    }
+    @media (min-width: 920px) { .stage { grid-template-columns: 1fr 1fr; } }
+    @media (min-width: 1380px) { .stage { grid-template-columns: repeat(3, 1fr); } }
+
+    .panel { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    .phone-cap {
+      font-size: 12px; font-weight: 700; color: var(--on-surface);
+      background: var(--surface-bright); padding: 4px 12px; border-radius: var(--radius-pill);
+      border: 1px solid var(--outline-variant);
+    }
+    .phone {
+      width: 380px; max-width: 100%;
+      background: var(--surface);
+      border-radius: 32px;
+      box-shadow: var(--shadow-3);
+      overflow: hidden;
+      border: 1px solid var(--outline-variant);
+      position: relative;
+    }
+    .phone-screen { height: 760px; overflow-y: auto; position: relative; }
+
+    /* ============== HERO (簡素化) ============== */
+    .hero {
+      padding: 22px 18px 22px;
+      background: linear-gradient(170deg, #312E81 0%, #4F46E5 100%);
+      color: #fff;
+      border-radius: 0 0 28px 28px;
+    }
+    .hero.deficit {
+      background: linear-gradient(170deg, #7F1D1D 0%, #DC2626 100%);
+    }
+    .hero-row {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 10px;
+    }
+    .month-pill {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.2);
+      padding: 6px 6px 6px 14px; border-radius: var(--radius-pill);
+      font-size: 14px; font-weight: 600;
+    }
+    .month-pill button {
+      background: transparent; border: none; color: #fff;
+      width: 24px; height: 24px; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 14px;
+    }
+    .menu-dot { color: rgba(255,255,255,.7); font-size: 22px; cursor: pointer; }
+    .profit-num {
+      font-size: 38px; font-weight: 800; letter-spacing: -.03em;
+      font-variant-numeric: tabular-nums; line-height: 1.05;
+    }
+    .profit-cap { font-size: 13px; opacity: .85; margin-top: 2px; }
+    .hero-breakdown {
+      display: flex; gap: 16px; margin-top: 12px;
+      font-size: 14px; opacity: .9;
+    }
+    .hero-breakdown .pair { display: flex; gap: 6px; align-items: baseline; }
+    .hero-breakdown .l { font-size: 11px; opacity: .8; }
+    .hero-breakdown .v { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+    /* バケット */
+    .bucket-strip {
+      margin: 14px 14px 0; padding: 14px 16px 12px;
+      background: var(--surface-bright); border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-1);
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .bar {
+      display: grid; grid-template-columns: 84px 1fr 60px;
+      align-items: center; gap: 10px; cursor: pointer; padding: 3px 0;
+    }
+    .bar .name { font-size: 12px; font-weight: 600; color: var(--on-surface-variant); }
+    .bar .name.urgent { color: var(--error); }
+    .bar .track { height: 8px; background: var(--surface-low); border-radius: var(--radius-pill); overflow: hidden; }
+    .bar .fill { height: 100%; border-radius: var(--radius-pill); }
+    .bar .v { text-align: right; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .fill-1 { background: linear-gradient(90deg, #4F46E5, #6366F1); }
+    .fill-2 { background: linear-gradient(90deg, #F59E0B, #FBBF24); }
+    .fill-3 { background: linear-gradient(90deg, #16A34A, #22C55E); }
+    .fill-4 { background: linear-gradient(90deg, #DC2626, #EF4444); }
+
+    /* ============== グラフカード (横スワイプ) ============== */
+    .chart-carousel {
+      margin: 14px 0 0;
+      padding: 0 14px;
+    }
+    .chart-cards {
+      display: flex; gap: 10px; overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      padding-bottom: 8px;
+      -ms-overflow-style: none; scrollbar-width: none;
+    }
+    .chart-cards::-webkit-scrollbar { display: none; }
+    .chart-card {
+      flex: none; width: 320px;
+      background: var(--surface-bright);
+      border-radius: var(--radius-lg);
+      padding: 14px 16px 12px;
+      box-shadow: var(--shadow-1);
+      scroll-snap-align: start;
+    }
+    .chart-card-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-bottom: 12px;
+    }
+    .chart-card-head .title { font-size: 13px; font-weight: 700; }
+    .chart-card-head .more { font-size: 11px; color: var(--primary); font-weight: 600; cursor: pointer; }
+    .chart-card-head .sub { font-size: 11px; color: var(--on-surface-variant); }
+
+    /* 棒グラフ (利益推移) */
+    .bar-chart {
+      display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px;
+      align-items: end; height: 100px;
+      margin-bottom: 6px;
+    }
+    .bar-col {
+      display: flex; flex-direction: column; align-items: center;
+      height: 100%; justify-content: flex-end;
+    }
+    .bar-col .b {
+      width: 100%; max-width: 28px;
+      background: linear-gradient(180deg, #6366F1, #4F46E5);
+      border-radius: 4px 4px 0 0;
+      transition: height .3s ease;
+    }
+    .bar-col .b.deficit { background: linear-gradient(180deg, #EF4444, #DC2626); }
+    .bar-col .b.current {
+      background: linear-gradient(180deg, #818CF8, #4F46E5);
+      box-shadow: 0 0 0 2px var(--primary-container);
+    }
+    .bar-col .lbl {
+      font-size: 10px; color: var(--on-surface-variant);
+      margin-top: 4px;
+    }
+    .bar-col .lbl.current { color: var(--on-surface); font-weight: 700; }
+    .bar-col .val {
+      font-size: 10px; color: var(--on-surface-variant);
+      margin-bottom: 2px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* 横棒グラフ */
+    .hbar-list { display: flex; flex-direction: column; gap: 8px; }
+    .hbar {
+      display: grid; grid-template-columns: 80px 1fr 56px;
+      align-items: center; gap: 8px;
+      font-size: 12px;
+    }
+    .hbar .name {
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      color: var(--on-surface);
+    }
+    .hbar .track {
+      height: 14px; background: var(--surface-low); border-radius: 4px; overflow: hidden;
+      position: relative;
+    }
+    .hbar .fill {
+      height: 100%; border-radius: 4px;
+      display: flex; align-items: center; padding-left: 6px;
+      font-size: 10px; color: #fff; font-weight: 700;
+    }
+    .hbar .v {
+      text-align: right; font-weight: 700; font-variant-numeric: tabular-nums;
+      color: var(--on-surface-variant);
+    }
+    .chart-dots {
+      display: flex; justify-content: center; gap: 4px;
+      margin-top: 4px;
+    }
+    .chart-dots .d {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--outline-variant);
+    }
+    .chart-dots .d.active { background: var(--primary); width: 18px; border-radius: 3px; }
+
+    /* スティッキータブ */
+    .sticky {
+      position: sticky; top: 0; z-index: 5;
+      background: rgba(250,250,249,.94); backdrop-filter: blur(12px);
+      padding: 8px 16px; margin-top: 14px;
+      border-bottom: 1px solid var(--outline-variant);
+    }
+    .tabs { display: flex; gap: 22px; align-items: center; }
+    .tab {
+      background: transparent; border: none; padding: 10px 0;
+      font-size: 14px; font-weight: 600; cursor: pointer;
+      color: var(--on-surface-variant); position: relative; font-family: inherit;
+    }
+    .tab.active { color: var(--on-surface); }
+    .tab.active::after {
+      content: ""; position: absolute; left: 0; right: 0; bottom: -1px;
+      height: 2px; background: var(--primary); border-radius: 2px 2px 0 0;
+    }
+    .tab .badge {
+      display: inline-block; min-width: 18px; padding: 1px 6px;
+      background: var(--surface-container); color: var(--on-surface-variant);
+      border-radius: var(--radius-pill); font-size: 11px; font-weight: 700;
+      margin-left: 4px; vertical-align: 1px;
+    }
+    .tab.active .badge { background: var(--primary-container); color: var(--on-primary-container); }
+    .filter-icon, .search-icon {
+      width: 36px; height: 36px; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--on-surface-variant); font-size: 16px;
+      position: relative;
+    }
+    .filter-icon { margin-left: auto; }
+    .filter-icon .dot {
+      position: absolute; top: 6px; right: 6px;
+      width: 6px; height: 6px; border-radius: 50%; background: var(--primary);
+    }
+
+    /* 取引リスト */
+    .list { padding: 0 14px 100px; }
+    .day-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding: 16px 4px 6px;
+    }
+    .day-head .d { font-size: 11px; font-weight: 700; color: var(--on-surface); }
+    .day-head .s { font-size: 11px; color: var(--on-surface-variant); font-variant-numeric: tabular-nums; }
+    .tx {
+      background: var(--surface-bright); border-radius: var(--radius-md);
+      padding: 11px 14px; margin-bottom: 6px;
+      display: grid; grid-template-columns: 32px 1fr auto;
+      gap: 12px; align-items: center;
+      box-shadow: var(--shadow-1); cursor: pointer;
+    }
+    .tx-icon {
+      width: 32px; height: 32px; border-radius: 10px;
+      display: inline-flex; align-items: center; justify-content: center; font-size: 14px;
+    }
+    .tx-icon.exp { background: var(--error-container); color: var(--on-error-container); }
+    .tx-icon.sale { background: var(--success-container); color: var(--on-success-container); }
+    .tx-icon.inv { background: var(--primary-container); color: var(--on-primary-container); }
+    .tx-body { min-width: 0; }
+    .tx-title { font-size: 14px; font-weight: 600; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tx-sub { font-size: 11px; color: var(--on-surface-variant); margin-top: 2px; }
+    .tx-sub .urgent { color: var(--error); font-weight: 600; }
+    .tx-sub .billed { color: var(--success); font-weight: 600; }
+    .tx-amount { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+    .tx-amount.neg { color: var(--error); }
+    .tx-amount.pos { color: var(--success); }
+
+    /* FAB */
+    .fab-host {
+      position: absolute; right: 16px; bottom: 16px;
+      pointer-events: none;
+    }
+    .fab {
+      width: 56px; height: 56px; border-radius: 50%;
+      background: var(--primary); color: #fff; border: none;
+      box-shadow: 0 8px 24px rgba(79,70,229,.4);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 28px; font-weight: 300;
+      pointer-events: auto;
+    }
+
+    /* ============== フィルタシート ============== */
+    .sheet-screen {
+      background: rgba(0,0,0,.45);
+      height: 760px; position: relative;
+    }
+    .sheet-bg {
+      position: absolute; inset: 0;
+      background:
+        linear-gradient(180deg, rgba(0,0,0,.0) 0%, rgba(0,0,0,.0) 30%, rgba(0,0,0,.55) 100%),
+        linear-gradient(170deg, #312E81 0%, #4F46E5 28%, var(--surface) 28%);
+      filter: blur(.3px);
+    }
+    .sheet {
+      position: absolute; left: 0; right: 0; bottom: 0;
+      background: var(--surface-bright);
+      border-radius: 24px 24px 0 0;
+      padding: 12px 18px 16px;
+      box-shadow: 0 -12px 32px rgba(0,0,0,.2);
+      max-height: 88%;
+      overflow-y: auto;
+    }
+    .sheet-grabber {
+      width: 36px; height: 4px; background: var(--outline-variant);
+      border-radius: 2px; margin: 0 auto 12px;
+    }
+    .sheet-title {
+      font-size: 17px; font-weight: 700; margin: 0 0 4px;
+    }
+    .sheet-sub {
+      font-size: 12px; color: var(--on-surface-variant); margin-bottom: 14px;
+    }
+    .filter-section { margin-bottom: 16px; }
+    .filter-section .label {
+      font-size: 11px; font-weight: 700; color: var(--on-surface-variant);
+      letter-spacing: .04em; margin-bottom: 8px;
+    }
+    .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip {
+      padding: 6px 12px; border-radius: var(--radius-pill);
+      background: var(--surface-low); border: 1px solid transparent;
+      font-size: 12px; font-weight: 600; cursor: pointer;
+      color: var(--on-surface-variant); font-family: inherit;
+    }
+    .chip.active {
+      background: var(--primary-container); color: var(--on-primary-container);
+      border-color: transparent;
+    }
+    .chip-search {
+      width: 100%; padding: 8px 14px; border-radius: var(--radius-pill);
+      border: 1px solid var(--outline-variant); background: var(--surface-low);
+      font-size: 13px; font-family: inherit; margin-bottom: 8px;
+    }
+    .date-range {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    }
+    .date-input {
+      padding: 8px 12px; border-radius: var(--radius-md);
+      border: 1px solid var(--outline-variant); background: var(--surface-low);
+      font-size: 13px; font-family: inherit;
+    }
+    .toggle-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 0;
+    }
+    .toggle-row .l { font-size: 13px; font-weight: 600; }
+    .switch {
+      position: relative; width: 40px; height: 22px; border-radius: var(--radius-pill);
+      background: var(--primary); cursor: pointer; flex: none;
+    }
+    .switch::after {
+      content: ""; position: absolute; top: 2px; right: 2px;
+      width: 18px; height: 18px; border-radius: 50%; background: #fff;
+      box-shadow: var(--shadow-1);
+    }
+    .switch.off { background: var(--outline-variant); }
+    .switch.off::after { left: 2px; right: auto; }
+    .sheet-cta {
+      position: sticky; bottom: 0; background: var(--surface-bright);
+      padding: 12px 0 0; margin-top: 8px;
+      border-top: 1px solid var(--outline-variant);
+      display: grid; grid-template-columns: 1fr 2fr; gap: 8px;
+    }
+    .btn {
+      padding: 12px; border-radius: var(--radius-pill); border: none;
+      font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-secondary {
+      background: var(--surface-low); color: var(--on-surface);
+      border: 1px solid var(--outline-variant);
+    }
+
+    /* ============== ベルドロワー ============== */
+    .drawer-screen {
+      height: 760px; background: var(--surface);
+    }
+    .drawer-header {
+      padding: 14px 16px;
+      background: var(--surface-bright);
+      border-bottom: 1px solid var(--outline-variant);
+      display: flex; align-items: center; gap: 12px;
+    }
+    .drawer-header .back { font-size: 22px; cursor: pointer; color: var(--on-surface-variant); }
+    .drawer-header .title { font-size: 17px; font-weight: 700; flex: 1; }
+    .drawer-header .clear { font-size: 12px; color: var(--primary); font-weight: 600; cursor: pointer; }
+
+    .drawer-section {
+      padding: 16px 14px 8px;
+    }
+    .drawer-section-head {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0 4px 8px;
+    }
+    .drawer-section-head .h {
+      font-size: 12px; font-weight: 700; color: var(--on-surface-variant);
+      letter-spacing: .04em;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .drawer-section-head .h .ic-mini {
+      width: 16px; height: 16px; border-radius: 4px;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 10px; color: #fff; background: var(--primary);
+    }
+    .drawer-section-head .count {
+      font-size: 11px; font-weight: 700; padding: 2px 8px;
+      border-radius: var(--radius-pill);
+      background: var(--error); color: #fff;
+    }
+
+    .approval-card {
+      background: var(--surface-bright); border-radius: var(--radius-md);
+      padding: 14px; margin-bottom: 8px;
+      box-shadow: var(--shadow-1);
+    }
+    .approval-card .ck {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-bottom: 6px;
+    }
+    .approval-card .badge {
+      font-size: 10px; font-weight: 700; padding: 2px 8px;
+      border-radius: var(--radius-pill);
+    }
+    .approval-card .badge.var { background: var(--warning-container); color: var(--on-warning-container); }
+    .approval-card .badge.fix { background: var(--primary-container); color: var(--on-primary-container); }
+    .approval-card .who {
+      font-size: 11px; color: var(--on-surface-variant);
+    }
+    .approval-card .title-row {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-bottom: 4px;
+    }
+    .approval-card .ttl { font-size: 15px; font-weight: 700; }
+    .approval-card .amt {
+      font-size: 16px; font-weight: 800; color: var(--error);
+      font-variant-numeric: tabular-nums;
+    }
+    .approval-card .meta {
+      font-size: 11px; color: var(--on-surface-variant);
+      display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px;
+    }
+    .approval-card .progress {
+      margin-bottom: 12px;
+    }
+    .approval-card .progress-row {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 11px; color: var(--on-surface-variant);
+      margin-bottom: 4px;
+    }
+    .approval-card .progress-bar {
+      height: 6px; background: var(--surface-low); border-radius: 3px; overflow: hidden;
+    }
+    .approval-card .progress-fill {
+      height: 100%; background: linear-gradient(90deg, #4F46E5, #6366F1);
+      border-radius: 3px;
+    }
+    .approval-card .avatars {
+      display: flex; gap: 4px; margin-top: 6px;
+    }
+    .approval-card .avatar {
+      width: 22px; height: 22px; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 700;
+      background: var(--surface-low); color: var(--on-surface-variant);
+      border: 2px solid var(--surface-bright);
+    }
+    .approval-card .avatar.done { background: var(--success); color: #fff; }
+    .approval-card .avatar.me { background: var(--primary); color: #fff; }
+    .approval-card .actions {
+      display: grid; grid-template-columns: 1fr 1fr 1.4fr; gap: 6px;
+    }
+    .actions .btn {
+      padding: 9px; font-size: 13px; border-radius: var(--radius-pill);
+    }
+    .btn-reject {
+      background: var(--surface-low); color: var(--error);
+      border: 1px solid var(--error);
+    }
+    .btn-reroute {
+      background: var(--surface-low); color: var(--on-surface-variant);
+      border: 1px solid var(--outline-variant);
+      font-size: 11px;
+    }
+    .btn-approve {
+      background: var(--success); color: #fff;
+    }
+
+    .info-row {
+      background: var(--surface-bright); padding: 12px 14px;
+      border-radius: var(--radius-md); margin-bottom: 6px;
+      box-shadow: var(--shadow-1);
+      display: grid; grid-template-columns: 28px 1fr auto;
+      gap: 10px; align-items: center;
+    }
+    .info-row .ic {
+      width: 28px; height: 28px; border-radius: 8px;
+      background: var(--surface-low); color: var(--on-surface-variant);
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .info-row .body { min-width: 0; }
+    .info-row .ttl { font-size: 13px; font-weight: 600; }
+    .info-row .sub { font-size: 11px; color: var(--on-surface-variant); margin-top: 1px; }
+    .info-row .when { font-size: 10px; color: var(--on-surface-variant); }
+
+    /* notes */
+    .notes {
+      max-width: 1400px; margin: 0 auto; padding: 16px 24px 48px;
+      color: var(--on-surface-variant); font-size: 14px;
+    }
+    .notes h3 { color: var(--on-surface); margin-top: 24px; margin-bottom: 6px; }
+    .notes ul { padding-left: 18px; margin-top: 4px; }
+    .notes li { margin-bottom: 4px; }
+    .notes code { background: var(--surface-low); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Money 改善モック v3.2</h1>
+  <p>ヒーロー簡素化 + グラフカード + フィルタシート + ベルドロワー（ランダム/全員承認）</p>
+</div>
+
+<div class="stage">
+
+  <!-- ============== ① Money トップ ============== -->
+  <div class="panel">
+    <div class="phone-cap">① Money — 簡素ヒーロー + グラフカード</div>
+    <div class="phone">
+      <div class="phone-screen">
+        <div class="hero">
+          <div class="hero-row">
+            <div class="month-pill">
+              <button>‹</button><span>5月</span><button>›</button>
+            </div>
+            <span class="menu-dot">⋯</span>
+          </div>
+          <div class="profit-num">¥1,240,500</div>
+          <div class="profit-cap">利益（手残り）</div>
+          <div class="hero-breakdown">
+            <span class="pair"><span class="l">売上</span><span class="v">¥6,780,000</span></span>
+            <span class="pair"><span class="l">経費</span><span class="v">¥5,539,500</span></span>
+          </div>
+        </div>
+
+        <div class="bucket-strip">
+          <div class="bar"><span class="name urgent">未請求</span><div class="track"><div class="fill fill-4" style="width:14%"></div></div><span class="v">82万</span></div>
+          <div class="bar"><span class="name">入金待ち</span><div class="track"><div class="fill fill-2" style="width:22%"></div></div><span class="v">124万</span></div>
+          <div class="bar"><span class="name">支払予定</span><div class="track"><div class="fill fill-1" style="width:11%"></div></div><span class="v">64万</span></div>
+          <div class="bar"><span class="name">入金済み</span><div class="track"><div class="fill fill-3" style="width:56%"></div></div><span class="v">320万</span></div>
+        </div>
+
+        <!-- グラフカード (横スワイプ) -->
+        <div class="chart-carousel">
+          <div class="chart-cards">
+            <!-- カード1: 利益推移 -->
+            <div class="chart-card">
+              <div class="chart-card-head">
+                <div>
+                  <div class="title">利益の推移</div>
+                  <div class="sub">直近6ヶ月</div>
+                </div>
+                <span class="more">詳細→</span>
+              </div>
+              <div class="bar-chart">
+                <div class="bar-col"><span class="val">98万</span><div class="b" style="height:65%"></div><div class="lbl">12月</div></div>
+                <div class="bar-col"><span class="val">112万</span><div class="b" style="height:75%"></div><div class="lbl">1月</div></div>
+                <div class="bar-col"><span class="val">−18万</span><div class="b deficit" style="height:18%"></div><div class="lbl">2月</div></div>
+                <div class="bar-col"><span class="val">86万</span><div class="b" style="height:58%"></div><div class="lbl">3月</div></div>
+                <div class="bar-col"><span class="val">142万</span><div class="b" style="height:95%"></div><div class="lbl">4月</div></div>
+                <div class="bar-col"><span class="val">124万</span><div class="b current" style="height:83%"></div><div class="lbl current">5月</div></div>
+              </div>
+            </div>
+
+            <!-- カード2: カテゴリ別経費 -->
+            <div class="chart-card">
+              <div class="chart-card-head">
+                <div>
+                  <div class="title">カテゴリ別 経費</div>
+                  <div class="sub">5月 合計 554万</div>
+                </div>
+                <span class="more">詳細→</span>
+              </div>
+              <div class="hbar-list">
+                <div class="hbar"><span class="name">仕入れ</span><div class="track"><div class="fill" style="width:78%;background:#4F46E5">433万</div></div><span class="v">78%</span></div>
+                <div class="hbar"><span class="name">外注</span><div class="track"><div class="fill" style="width:14%;background:#6366F1">78万</div></div><span class="v">14%</span></div>
+                <div class="hbar"><span class="name">駐車代</span><div class="track"><div class="fill" style="width:4%;background:#818CF8"></div></div><span class="v">4%</span></div>
+                <div class="hbar"><span class="name">工具</span><div class="track"><div class="fill" style="width:2%;background:#A5B4FC"></div></div><span class="v">2%</span></div>
+                <div class="hbar"><span class="name">その他</span><div class="track"><div class="fill" style="width:2%;background:#C7D2FE"></div></div><span class="v">2%</span></div>
+              </div>
+            </div>
+
+            <!-- カード3: 取引先別売上 -->
+            <div class="chart-card">
+              <div class="chart-card-head">
+                <div>
+                  <div class="title">取引先別 売上</div>
+                  <div class="sub">5月 合計 678万</div>
+                </div>
+                <span class="more">詳細→</span>
+              </div>
+              <div class="hbar-list">
+                <div class="hbar"><span class="name">○○工務店</span><div class="track"><div class="fill" style="width:62%;background:#16A34A">420万</div></div><span class="v">62%</span></div>
+                <div class="hbar"><span class="name">△△建設</span><div class="track"><div class="fill" style="width:24%;background:#22C55E">160万</div></div><span class="v">24%</span></div>
+                <div class="hbar"><span class="name">××商店</span><div class="track"><div class="fill" style="width:9%;background:#4ADE80"></div></div><span class="v">9%</span></div>
+                <div class="hbar"><span class="name">□□邸</span><div class="track"><div class="fill" style="width:5%;background:#86EFAC"></div></div><span class="v">5%</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="chart-dots">
+            <span class="d active"></span>
+            <span class="d"></span>
+            <span class="d"></span>
+          </div>
+        </div>
+
+        <div class="sticky">
+          <div class="tabs">
+            <button class="tab active">取引<span class="badge">32</span></button>
+            <button class="tab">取引先<span class="badge">10</span></button>
+            <span class="filter-icon">⚙<span class="dot"></span></span>
+            <span class="search-icon">🔍</span>
+          </div>
+        </div>
+
+        <div class="list">
+          <div class="day-head"><span class="d">5月10日 (土)</span><span class="s">+¥598,800</span></div>
+          <div class="tx">
+            <div class="tx-icon sale">📈</div>
+            <div class="tx-body">
+              <div class="tx-title">○○邸 中間金</div>
+              <div class="tx-sub">○○邸新築</div>
+            </div>
+            <div class="tx-amount pos">+¥600,000</div>
+          </div>
+          <div class="tx">
+            <div class="tx-icon exp">🅿</div>
+            <div class="tx-body">
+              <div class="tx-title">コインパーキング</div>
+              <div class="tx-sub">○○邸新築 · <span class="billed">立替</span></div>
+            </div>
+            <div class="tx-amount neg">−¥1,200</div>
+          </div>
+
+          <div class="day-head"><span class="d">5月9日 (金)</span><span class="s">−¥12,000</span></div>
+          <div class="tx">
+            <div class="tx-icon exp">🛠</div>
+            <div class="tx-body">
+              <div class="tx-title">工具レンタル</div>
+              <div class="tx-sub">△△邸改装</div>
+            </div>
+            <div class="tx-amount neg">−¥12,000</div>
+          </div>
+        </div>
+
+        <div class="fab-host">
+          <button class="fab">+</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============== ② フィルタシート展開 ============== -->
+  <div class="panel">
+    <div class="phone-cap">② フィルタシート (絞り込み)</div>
+    <div class="phone">
+      <div class="sheet-screen">
+        <div class="sheet-bg"></div>
+        <div class="sheet">
+          <div class="sheet-grabber"></div>
+          <h3 class="sheet-title">絞り込み</h3>
+          <div class="sheet-sub">取引先別・カテゴリ別の細かい確認はここから</div>
+
+          <div class="filter-section">
+            <div class="label">種別</div>
+            <div class="chip-row">
+              <button class="chip active">全て</button>
+              <button class="chip">経費</button>
+              <button class="chip">売上</button>
+              <button class="chip">請求</button>
+            </div>
+          </div>
+
+          <div class="filter-section">
+            <div class="label">取引先</div>
+            <input class="chip-search" placeholder="取引先を検索 (10社)" />
+            <div class="chip-row">
+              <button class="chip active">○○工務店</button>
+              <button class="chip">△△建設</button>
+              <button class="chip">××商店</button>
+              <button class="chip">○○商事</button>
+              <button class="chip">+ 6社</button>
+            </div>
+          </div>
+
+          <div class="filter-section">
+            <div class="label">現場</div>
+            <div class="chip-row">
+              <button class="chip">○○邸新築</button>
+              <button class="chip active">△△邸改装</button>
+              <button class="chip">□□邸リフォーム</button>
+              <button class="chip">+ 4現場</button>
+            </div>
+          </div>
+
+          <div class="filter-section">
+            <div class="label">カテゴリ</div>
+            <div class="chip-row">
+              <button class="chip">仕入れ</button>
+              <button class="chip">外注</button>
+              <button class="chip active">駐車代</button>
+              <button class="chip">工具</button>
+              <button class="chip">交通費</button>
+              <button class="chip">通信費</button>
+            </div>
+          </div>
+
+          <div class="filter-section">
+            <div class="label">状態</div>
+            <div class="chip-row">
+              <button class="chip">未請求</button>
+              <button class="chip">入金待ち</button>
+              <button class="chip">立替予定</button>
+              <button class="chip">完了</button>
+            </div>
+          </div>
+
+          <div class="filter-section">
+            <div class="label">期間</div>
+            <div class="chip-row" style="margin-bottom:8px">
+              <button class="chip active">今月</button>
+              <button class="chip">先月</button>
+              <button class="chip">3ヶ月</button>
+              <button class="chip">カスタム</button>
+            </div>
+            <div class="date-range">
+              <input class="date-input" value="2026/05/01" />
+              <input class="date-input" value="2026/05/31" />
+            </div>
+          </div>
+
+          <div class="filter-section">
+            <div class="toggle-row">
+              <div class="l">客先請求対象のみ</div>
+              <div class="switch off"></div>
+            </div>
+          </div>
+
+          <div class="sheet-cta">
+            <button class="btn btn-secondary">クリア</button>
+            <button class="btn btn-primary">適用 (12件)</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============== ③ ベルドロワー ============== -->
+  <div class="panel">
+    <div class="phone-cap">③ ベルドロワー (承認 + 通知)</div>
+    <div class="phone">
+      <div class="drawer-screen">
+        <div class="drawer-header">
+          <span class="back">‹</span>
+          <span class="title">通知</span>
+          <span class="clear">全て既読</span>
+        </div>
+
+        <!-- 自分宛 (random_one) -->
+        <div class="drawer-section">
+          <div class="drawer-section-head">
+            <span class="h"><span class="ic-mini">👤</span>自分が承認担当</span>
+            <span class="count">2</span>
+          </div>
+
+          <div class="approval-card">
+            <div class="ck">
+              <span class="badge var">変動経費</span>
+              <span class="who">起票: 田中  · 5/10 14:23</span>
+            </div>
+            <div class="title-row">
+              <span class="ttl">セメント仕入れ</span>
+              <span class="amt">−¥18,400</span>
+            </div>
+            <div class="meta">
+              <span>○○商事</span><span>·</span><span>○○邸新築</span><span>·</span><span>立替対象</span>
+            </div>
+            <div class="actions">
+              <button class="btn btn-reject">却下</button>
+              <button class="btn btn-reroute">他の人に</button>
+              <button class="btn btn-approve">承認</button>
+            </div>
+          </div>
+
+          <div class="approval-card">
+            <div class="ck">
+              <span class="badge var">変動経費</span>
+              <span class="who">起票: 佐藤  · 5/10 09:15</span>
+            </div>
+            <div class="title-row">
+              <span class="ttl">コインパーキング</span>
+              <span class="amt">−¥1,200</span>
+            </div>
+            <div class="meta">
+              <span>△△邸改装</span><span>·</span><span>立替対象</span>
+            </div>
+            <div class="actions">
+              <button class="btn btn-reject">却下</button>
+              <button class="btn btn-reroute">他の人に</button>
+              <button class="btn btn-approve">承認</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 全員承認待ち (all_members) -->
+        <div class="drawer-section">
+          <div class="drawer-section-head">
+            <span class="h"><span class="ic-mini" style="background:var(--warning)">👥</span>全員承認待ち</span>
+            <span class="count" style="background:var(--warning);color:var(--on-warning-container)">1</span>
+          </div>
+
+          <div class="approval-card">
+            <div class="ck">
+              <span class="badge fix">固定経費</span>
+              <span class="who">起票: 親方  · 5/8 18:00</span>
+            </div>
+            <div class="title-row">
+              <span class="ttl">月極駐車場 (○○P)</span>
+              <span class="amt">−¥18,000/月</span>
+            </div>
+            <div class="meta">
+              <span>本社経費</span><span>·</span><span>毎月発生</span><span>·</span><span>新規契約</span>
+            </div>
+            <div class="progress">
+              <div class="progress-row">
+                <span>3 / 5 承認済み</span>
+                <span style="font-weight:700;color:var(--error)">あなた未承認</span>
+              </div>
+              <div class="progress-bar"><div class="progress-fill" style="width:60%"></div></div>
+              <div class="avatars">
+                <div class="avatar done" title="親方">親</div>
+                <div class="avatar done" title="田中">田</div>
+                <div class="avatar done" title="佐藤">佐</div>
+                <div class="avatar me" title="あなた">あ</div>
+                <div class="avatar" title="山田">山</div>
+              </div>
+            </div>
+            <div class="actions" style="grid-template-columns: 1fr 2fr;">
+              <button class="btn btn-reject">却下</button>
+              <button class="btn btn-approve">承認する</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- お知らせ -->
+        <div class="drawer-section">
+          <div class="drawer-section-head">
+            <span class="h">お知らせ</span>
+          </div>
+          <div class="info-row">
+            <div class="ic">💰</div>
+            <div class="body">
+              <div class="ttl">××商店から入金</div>
+              <div class="sub">¥420,000 / 4月分請求</div>
+            </div>
+            <div class="when">2h</div>
+          </div>
+          <div class="info-row">
+            <div class="ic" style="background:var(--error-container);color:var(--on-error-container)">⚠</div>
+            <div class="body">
+              <div class="ttl">△△建設 入金予定が来週</div>
+              <div class="sub">¥820,000 / 5/16 (金)</div>
+            </div>
+            <div class="when">8h</div>
+          </div>
+          <div class="info-row">
+            <div class="ic">📅</div>
+            <div class="body">
+              <div class="ttl">○○工務店 締め日まで5日</div>
+              <div class="sub">5/16 金曜  まとめ請求準備</div>
+            </div>
+            <div class="when">1d</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="notes">
+  <h3>v3.2 で変わったこと</h3>
+  <ul>
+    <li><b>ヒーロー = 利益大 + 売上/経費 サブ</b> ── 「黒字可視化」MVP に直結。3指標を1画面で。赤字月はヒーロー全体が赤グラデに切替（モック内 `.hero.deficit` で再現）</li>
+    <li><b>カウンタを全廃</b> ── 「まだ請求してない」「親方チェック待ち」両方ベルへ。ヒーローが純粋に「お金の状態」だけになる</li>
+    <li><b>グラフカード横スワイプ</b> ── (1) 利益推移6ヶ月、(2) カテゴリ別経費、(3) 取引先別売上。ドット indicator で位置把握</li>
+    <li><b>フィルタシート明示</b> ── 取引先別/カテゴリ別の細かい確認は全部ここ。集計UIを作らず「フィルタ済みリスト」で読み取り</li>
+    <li><b>ベルドロワー2セクション</b> ── 「自分が承認担当」(random_one) と「全員承認待ち」(all_members) を区別。後者は進捗バー + アバター列で番頭レス可視性</li>
+  </ul>
+
+  <h3>グラフ実装のヒント</h3>
+  <ul>
+    <li>ライブラリ不要 ── HTML/CSSだけで足りる軽量グラフ。React 化時は <code>recharts</code> 等使ってもいいが、現状の質素さを保つなら自前 div で十分</li>
+    <li>「詳細→」リンクから各グラフの拡大画面（時系列ドリルダウン）へ。ただし MVP では未実装でOK</li>
+    <li>赤字月の色分岐は重要 ── 利益が「ある/ない」が一目に</li>
+    <li>カテゴリ別/取引先別 top 5 + その他 で 6行以下に収める（モバイル可読性）</li>
+  </ul>
+
+  <h3>ベルドロワーの実装ヒント</h3>
+  <ul>
+    <li>「自分が承認担当」= <code>proposals WHERE assigned_reviewer_id=me AND status='pending'</code></li>
+    <li>「全員承認待ち」= <code>proposals WHERE approval_mode='all_members' AND I haven't approved yet</code></li>
+    <li>進捗バー: <code>承認済み数 / 必要数</code>、アバター列で誰が承認/未承認か可視化</li>
+    <li>「他の人に回す」ボタンは random_one のみ。all_members では却下しか選択肢がない（全員必要なので）</li>
+    <li>承認/却下した瞬間にカードが消える（楽観的UI）、ロールバックできるようトーストで「取り消し」</li>
+  </ul>
+
+  <h3>残課題（MVP+α）</h3>
+  <ul>
+    <li>グラフ詳細画面 → Phase 2</li>
+    <li>カスタムフィルタの保存（よく使う組み合わせをチップ化） → Phase 2</li>
+    <li>承認の delegation（休暇時に代理人を一時指名） → 必要に応じて</li>
+    <li>赤字月のヒーロー切替アニメーション → デザイン詳細</li>
+  </ul>
+</div>
+
+</body>
+</html>

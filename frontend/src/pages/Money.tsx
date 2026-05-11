@@ -14,6 +14,8 @@ import {
     X,
     ChevronRight,
     Search,
+    SlidersHorizontal,
+    Users,
     FilterX,
 } from "lucide-react";
 import {
@@ -23,6 +25,7 @@ import {
     fetchPendingProposals,
     fetchTransactions,
     fetchPendingApprovals,
+    fetchClients,
     instructProposal,
     rejectProposal,
     searchTransactions,
@@ -30,6 +33,7 @@ import {
     type PLReport,
     type AccountingTransaction,
     type ProposalRecord,
+    type Client,
 } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
 import { ExpenseModal } from "../components/ExpenseModal";
@@ -42,6 +46,9 @@ import { ApprovalCard } from "../components/ApprovalCard";
 import { FloatingActionButton } from "../components/FloatingActionButton";
 import { MoneyBucketDashboard } from "../components/MoneyBucketDashboard";
 import { MoneyHero } from "../components/MoneyHero";
+import { MoneyTabs, type MoneyTab } from "../components/MoneyTabs";
+import { MoneyFilterSheet } from "../components/MoneyFilterSheet";
+import { VendorCard } from "../components/VendorCard";
 import styles from "./Money.module.css";
 
 // 日付フォーマットヘルパー (YYYY/MM/DD)
@@ -174,6 +181,35 @@ export function Money() {
     const [searchLoading, setSearchLoading] = useState(false);
     const [searchResults, setSearchResults] = useState<AccountingTransaction[] | null>(null);
     const [showDatePicker, setShowDatePicker] = useState(false);
+
+    // タブ (PR #5) — 取引 / 取引先
+    const [activeTab, setActiveTab] = useState<MoneyTab>("transactions");
+    const [showFilterSheet, setShowFilterSheet] = useState(false);
+
+    // 取引先一覧 (取引先タブ初訪時に lazy load)
+    const [clients, setClients] = useState<Client[] | null>(null);
+    const [clientsLoading, setClientsLoading] = useState(false);
+    const [clientsError, setClientsError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (activeTab !== "vendors" || clients !== null) return;
+        let cancelled = false;
+        setClientsLoading(true);
+        setClientsError(null);
+        fetchClients({ status: "active" })
+            .then((data) => {
+                if (!cancelled) setClients(data);
+            })
+            .catch((err: unknown) => {
+                if (!cancelled) setClientsError(getErrorMessage(err));
+            })
+            .finally(() => {
+                if (!cancelled) setClientsLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [activeTab, clients]);
 
     // 承認モーダル
     const [showApprovalsModal, setShowApprovalsModal] = useState(false);
@@ -605,6 +641,30 @@ export function Money() {
 
             <div className={styles.workspaceGrid}>
                 <div className={styles.primaryColumn}>
+                    {/* タブ + フィルタトリガ (PR #5) */}
+                    <div className={styles.tabsRow}>
+                        <MoneyTabs
+                            value={activeTab}
+                            onChange={setActiveTab}
+                            txCount={activeTab === "transactions" ? filteredTransactions.length : undefined}
+                            vendorCount={clients?.length}
+                        />
+                        {activeTab === "transactions" && (
+                            <button
+                                type="button"
+                                className={styles.filterTriggerBtn}
+                                onClick={() => setShowFilterSheet(true)}
+                                aria-label="フィルタを開く"
+                            >
+                                <SlidersHorizontal size={14} />
+                                <span>フィルタ</span>
+                                {hasActiveFilters && <span className={styles.filterDot} aria-hidden />}
+                            </button>
+                        )}
+                    </div>
+
+                    {activeTab === "transactions" && (
+                    <>
                     {/* 統合検索セクション */}
                     <motion.section
                         className={styles.searchSection}
@@ -879,6 +939,60 @@ export function Money() {
                             </>
                         )}
                     </motion.section>
+                    </>
+                    )}
+
+                    {activeTab === "vendors" && (
+                        <motion.section
+                            className={styles.vendorsSection}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.05 }}
+                        >
+                            <div className={styles.sectionHeader}>
+                                <div>
+                                    <p className={styles.sectionKicker}>取引先と締めルール</p>
+                                    <h2 className={styles.sectionTitle}>取引先</h2>
+                                </div>
+                                {clients && (
+                                    <span className={styles.txCountBadge}>{clients.length}件</span>
+                                )}
+                            </div>
+
+                            {clientsLoading && (
+                                <div className={styles.vendorsLoading}>
+                                    <RefreshCw size={16} className={styles.spinIcon} />
+                                    <span>取引先を読み込み中</span>
+                                </div>
+                            )}
+
+                            {clientsError && (
+                                <div className={styles.vendorsError}>
+                                    取引先の取得に失敗: {clientsError}
+                                </div>
+                            )}
+
+                            {!clientsLoading && !clientsError && clients && clients.length === 0 && (
+                                <div className={styles.emptyState}>
+                                    <div className={styles.emptyIcon}>
+                                        <Users size={40} />
+                                    </div>
+                                    <p className={styles.emptyTitle}>取引先がまだありません</p>
+                                    <p className={styles.emptyDescription}>
+                                        現場登録や見積もり受領のタイミングで自動的に追加されます
+                                    </p>
+                                </div>
+                            )}
+
+                            {!clientsLoading && !clientsError && clients && clients.length > 0 && (
+                                <div className={styles.vendorGrid}>
+                                    {clients.map((client) => (
+                                        <VendorCard key={client.id} client={client} />
+                                    ))}
+                                </div>
+                            )}
+                        </motion.section>
+                    )}
                 </div>
 
                 <aside className={styles.secondaryColumn}>
@@ -959,6 +1073,13 @@ export function Money() {
                     />
                 )}
             </AnimatePresence>
+
+            <MoneyFilterSheet
+                open={showFilterSheet}
+                onClose={() => setShowFilterSheet(false)}
+                filters={filters}
+                onFiltersChange={setFilters}
+            />
 
             {isMobile && (
                 <FloatingActionButton

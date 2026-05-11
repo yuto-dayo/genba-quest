@@ -1,0 +1,603 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Money 改善モック v2 — GENBA QUEST</title>
+  <style>
+    :root {
+      --primary: #4F46E5;
+      --primary-container: #E0E7FF;
+      --on-primary-container: #312E81;
+      --surface: #FAFAF9;
+      --surface-bright: #FFFFFF;
+      --surface-low: #F5F5F4;
+      --surface-container: #F0EFEE;
+      --outline-variant: #D6D3D1;
+      --on-surface: #1C1917;
+      --on-surface-variant: #57534E;
+      --error: #DC2626;
+      --error-container: #FEE2E2;
+      --on-error-container: #991B1B;
+      --success: #16A34A;
+      --success-container: #DCFCE7;
+      --on-success-container: #14532D;
+      --warning: #F59E0B;
+      --warning-container: #FEF3C7;
+      --on-warning-container: #78350F;
+      --radius-md: 12px;
+      --radius-lg: 20px;
+      --radius-pill: 999px;
+      --shadow-1: 0 1px 2px rgba(28,25,23,.04), 0 1px 3px rgba(28,25,23,.06);
+      --shadow-2: 0 2px 4px rgba(28,25,23,.06), 0 6px 16px rgba(28,25,23,.08);
+      --font-sans: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Segoe UI", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans);
+      background: var(--surface);
+      color: var(--on-surface);
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.5;
+    }
+    .stage {
+      max-width: 1200px; margin: 0 auto; padding: 32px 24px;
+      display: grid; gap: 32px;
+      grid-template-columns: 1fr;
+    }
+    @media (min-width: 1100px) {
+      .stage { grid-template-columns: 420px 420px 1fr; align-items: start; }
+    }
+    .header h1 { margin: 0 0 4px; font-size: 24px; }
+    .header p { margin: 0; color: var(--on-surface-variant); font-size: 14px; }
+    .phone {
+      width: 420px; max-width: 100%;
+      background: var(--surface);
+      border-radius: 32px;
+      box-shadow: var(--shadow-2);
+      overflow: hidden;
+      border: 1px solid var(--outline-variant);
+    }
+    .phone-screen { height: 760px; overflow-y: auto; }
+    .phone-cap {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 20px 8px; font-size: 11px; color: var(--on-surface-variant);
+    }
+    .phone-cap b { color: var(--primary); }
+
+    /* ============== HERO (ultra-minimal) ============== */
+    .hero {
+      padding: 24px 20px 28px;
+      background: linear-gradient(170deg, #312E81 0%, #4F46E5 100%);
+      color: #fff;
+      border-radius: 0 0 28px 28px;
+    }
+    .hero-row {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 14px;
+    }
+    .month-pill {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.2);
+      padding: 6px 6px 6px 14px; border-radius: var(--radius-pill);
+      font-size: 14px; font-weight: 600;
+    }
+    .month-pill button {
+      background: rgba(255,255,255,.0); border: none; color: #fff;
+      width: 24px; height: 24px; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 14px;
+    }
+    .month-pill button:hover { background: rgba(255,255,255,.22); }
+    .menu-dot { color: rgba(255,255,255,.7); font-size: 22px; cursor: pointer; user-select: none; }
+
+    .profit-num {
+      font-size: 44px; font-weight: 800; letter-spacing: -.02em;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.05;
+    }
+    .profit-cap {
+      font-size: 13px; opacity: .85; margin-top: 2px;
+    }
+
+    /* 2 counters (削った: 入金待ちはバケット側へ統合) */
+    .counters {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+      margin: 18px -4px -36px;
+      padding: 0 4px;
+    }
+    .counter {
+      background: #fff;
+      border-radius: var(--radius-lg);
+      padding: 14px 16px 14px;
+      text-align: left;
+      border: none;
+      cursor: pointer;
+      box-shadow: var(--shadow-2);
+      display: flex; gap: 12px; align-items: center;
+      position: relative;
+      color: var(--on-surface);
+    }
+    .counter .ic {
+      width: 40px; height: 40px; border-radius: 12px;
+      display: inline-flex; align-items: center; justify-content: center;
+      flex: none; font-size: 20px;
+    }
+    .counter .ic.danger { background: var(--error-container); color: var(--on-error-container); }
+    .counter .ic.warn { background: var(--warning-container); color: var(--on-warning-container); }
+    .counter .body { min-width: 0; flex: 1; }
+    .counter .lbl { font-size: 12px; color: var(--on-surface-variant); font-weight: 600; }
+    .counter .num {
+      font-size: 22px; font-weight: 800; letter-spacing: -.01em;
+      font-variant-numeric: tabular-nums; line-height: 1.1;
+      display: flex; align-items: baseline; gap: 4px;
+    }
+    .counter .num small { font-size: 13px; font-weight: 600; }
+    .counter .pulse {
+      position: absolute; top: 12px; right: 12px;
+      width: 8px; height: 8px; border-radius: 50%; background: var(--error);
+      animation: pulse 1.6s infinite;
+    }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(220,38,38,.5); }
+      70% { box-shadow: 0 0 0 8px rgba(220,38,38,0); }
+      100% { box-shadow: 0 0 0 0 rgba(220,38,38,0); }
+    }
+
+    /* バケット (タイトル削除・棒だけ) */
+    .bucket-strip {
+      margin: 56px 16px 0;
+      padding: 16px 18px 14px;
+      background: var(--surface-bright);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-1);
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .bar {
+      display: grid; grid-template-columns: 86px 1fr 70px;
+      align-items: center; gap: 12px;
+      cursor: pointer; padding: 4px 0;
+    }
+    .bar .name { font-size: 13px; font-weight: 600; color: var(--on-surface-variant); }
+    .bar .name.urgent { color: var(--error); }
+    .bar .track { height: 10px; background: var(--surface-low); border-radius: var(--radius-pill); overflow: hidden; }
+    .bar .fill { height: 100%; border-radius: var(--radius-pill); transition: width .3s ease; }
+    .bar .v { text-align: right; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .fill-1 { background: linear-gradient(90deg, #4F46E5, #6366F1); }
+    .fill-2 { background: linear-gradient(90deg, #F59E0B, #FBBF24); }
+    .fill-3 { background: linear-gradient(90deg, #16A34A, #22C55E); }
+    .fill-4 { background: linear-gradient(90deg, #DC2626, #EF4444); }
+
+    /* スティッキー: タブ + 検索アイコンだけ */
+    .sticky {
+      position: sticky; top: 0; z-index: 10;
+      background: rgba(250,250,249,.94); backdrop-filter: blur(12px);
+      padding: 10px 16px;
+      margin-top: 14px;
+      border-bottom: 1px solid var(--outline-variant);
+    }
+    .tabs {
+      display: flex; gap: 24px; align-items: center;
+      position: relative;
+    }
+    .tab {
+      background: transparent; border: none; padding: 10px 0;
+      font-size: 15px; font-weight: 600; cursor: pointer;
+      color: var(--on-surface-variant); position: relative;
+      font-family: inherit;
+    }
+    .tab.active { color: var(--on-surface); }
+    .tab.active::after {
+      content: ""; position: absolute; left: 0; right: 0; bottom: -1px;
+      height: 2px; background: var(--primary); border-radius: 2px 2px 0 0;
+    }
+    .tab .badge {
+      display: inline-block; min-width: 18px; padding: 1px 6px;
+      background: var(--surface-container); color: var(--on-surface-variant);
+      border-radius: var(--radius-pill); font-size: 11px; font-weight: 700;
+      margin-left: 4px; vertical-align: 1px;
+    }
+    .tab.active .badge { background: var(--primary-container); color: var(--on-primary-container); }
+    .search-icon {
+      margin-left: auto; width: 36px; height: 36px; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--on-surface-variant);
+      font-size: 18px;
+    }
+    .search-icon:hover { background: var(--surface-low); }
+
+    /* 取引リスト (削った: tag, 余白) */
+    .list { padding: 0 16px 100px; }
+    .day-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding: 18px 4px 6px;
+    }
+    .day-head .d { font-size: 12px; font-weight: 700; color: var(--on-surface); }
+    .day-head .s { font-size: 12px; color: var(--on-surface-variant); font-variant-numeric: tabular-nums; }
+    .tx {
+      background: var(--surface-bright);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      margin-bottom: 6px;
+      display: grid;
+      grid-template-columns: 36px 1fr auto;
+      gap: 12px; align-items: center;
+      box-shadow: var(--shadow-1);
+      cursor: pointer;
+    }
+    .tx-icon {
+      width: 36px; height: 36px; border-radius: 10px;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 16px;
+    }
+    .tx-icon.exp { background: var(--error-container); color: var(--on-error-container); }
+    .tx-icon.sale { background: var(--success-container); color: var(--on-success-container); }
+    .tx-icon.inv { background: var(--primary-container); color: var(--on-primary-container); }
+    .tx-body { min-width: 0; }
+    .tx-title { font-size: 14px; font-weight: 600; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tx-sub { font-size: 11px; color: var(--on-surface-variant); margin-top: 2px; }
+    .tx-sub .urgent { color: var(--error); font-weight: 600; }
+    .tx-amount { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+    .tx-amount.neg { color: var(--error); }
+    .tx-amount.pos { color: var(--success); }
+
+    /* === 取引先ビュー === */
+    .partner-list { padding: 4px 16px 100px; }
+    .partner-section-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding: 18px 4px 8px;
+    }
+    .partner-section-head .h {
+      font-size: 12px; font-weight: 700; color: var(--on-surface-variant);
+      letter-spacing: .04em;
+    }
+    .partner-section-head .h.warn { color: var(--error); }
+    .partner-card {
+      background: var(--surface-bright);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      margin-bottom: 8px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 4px 16px;
+      align-items: center;
+      box-shadow: var(--shadow-1);
+      cursor: pointer;
+    }
+    .partner-card .name {
+      font-size: 15px; font-weight: 700;
+      grid-column: 1; grid-row: 1;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .partner-card .meta {
+      font-size: 11px; color: var(--on-surface-variant);
+      grid-column: 1; grid-row: 2;
+      display: flex; gap: 6px; align-items: center;
+    }
+    .partner-card .meta .urgent { color: var(--error); font-weight: 700; }
+    .partner-card .amount {
+      font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums;
+      grid-column: 2; grid-row: 1 / span 2;
+      text-align: right;
+    }
+    .partner-card .amount.neg { color: var(--error); }
+    .partner-card .amount.pos { color: var(--success); }
+    .partner-card .amount.due { color: var(--primary); }
+    .partner-card .amount small {
+      display: block; font-size: 10px; font-weight: 500; color: var(--on-surface-variant);
+      margin-top: 2px;
+    }
+
+    /* === Notes === */
+    .notes {
+      max-width: 1200px; margin: 0 auto; padding: 0 24px 48px;
+      color: var(--on-surface-variant); font-size: 14px;
+    }
+    .notes h3 { color: var(--on-surface); margin-top: 32px; margin-bottom: 8px; }
+    .notes ul { padding-left: 18px; margin-top: 4px; }
+    .notes li { margin-bottom: 6px; }
+    .notes del { color: var(--on-surface-variant); opacity: .7; }
+    .notes .added { color: var(--success); font-weight: 600; }
+    .notes code {
+      background: var(--surface-low); padding: 1px 6px; border-radius: 4px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="header">
+    <h1>Money v2</h1>
+    <p>削れるだけ削って、取引先タブを足した。</p>
+    <p style="margin-top: 12px; font-size: 12px;">→ 中央: 取引タブ<br/>→ 右: 取引先タブ</p>
+  </div>
+
+  <!-- ============== 取引タブ ============== -->
+  <div class="phone">
+    <div class="phone-cap"><span>1 / 2</span><b>取引</b></div>
+    <div class="phone-screen">
+      <div class="hero">
+        <div class="hero-row">
+          <div class="month-pill">
+            <button aria-label="前月">‹</button>
+            <span>5月</span>
+            <button aria-label="翌月">›</button>
+          </div>
+          <span class="menu-dot" aria-label="メニュー">⋯</span>
+        </div>
+        <div class="profit-num">¥124<span style="font-size:24px;">万</span></div>
+        <div class="profit-cap">手残り</div>
+
+        <div class="counters">
+          <button class="counter">
+            <span class="pulse" aria-hidden="true"></span>
+            <span class="ic danger">⚠</span>
+            <span class="body">
+              <span class="lbl">まだ請求してない</span>
+              <span class="num">3<small>件</small></span>
+            </span>
+          </button>
+          <button class="counter">
+            <span class="ic warn">⏳</span>
+            <span class="body">
+              <span class="lbl">親方チェック待ち</span>
+              <span class="num">5<small>件</small></span>
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <div class="bucket-strip">
+        <div class="bar">
+          <span class="name urgent">未請求</span>
+          <div class="track"><div class="fill fill-4" style="width:14%"></div></div>
+          <span class="v">82万</span>
+        </div>
+        <div class="bar">
+          <span class="name">入金待ち</span>
+          <div class="track"><div class="fill fill-2" style="width:22%"></div></div>
+          <span class="v">124万</span>
+        </div>
+        <div class="bar">
+          <span class="name">支払予定</span>
+          <div class="track"><div class="fill fill-1" style="width:11%"></div></div>
+          <span class="v">64万</span>
+        </div>
+        <div class="bar">
+          <span class="name">入金済み</span>
+          <div class="track"><div class="fill fill-3" style="width:56%"></div></div>
+          <span class="v">320万</span>
+        </div>
+      </div>
+
+      <div class="sticky">
+        <div class="tabs">
+          <button class="tab active">取引<span class="badge">32</span></button>
+          <button class="tab">取引先<span class="badge">14</span></button>
+          <span class="search-icon" aria-label="検索">🔍</span>
+        </div>
+      </div>
+
+      <div class="list">
+        <div class="day-head"><span class="d">5月10日 (土)</span><span class="s">+58万</span></div>
+        <div class="tx">
+          <div class="tx-icon sale">📈</div>
+          <div class="tx-body">
+            <div class="tx-title">○○邸 中間金</div>
+            <div class="tx-sub">○○邸新築</div>
+          </div>
+          <div class="tx-amount pos">+60万</div>
+        </div>
+        <div class="tx">
+          <div class="tx-icon exp">🧾</div>
+          <div class="tx-body">
+            <div class="tx-title">セメント仕入れ</div>
+            <div class="tx-sub"><span class="urgent">親方チェック待ち</span> · ○○商事</div>
+          </div>
+          <div class="tx-amount neg">−1.8万</div>
+        </div>
+
+        <div class="day-head"><span class="d">5月9日 (金)</span><span class="s">−1.8万</span></div>
+        <div class="tx">
+          <div class="tx-icon exp">⛽</div>
+          <div class="tx-body">
+            <div class="tx-title">軽油 給油</div>
+            <div class="tx-sub">事務所</div>
+          </div>
+          <div class="tx-amount neg">−6,200</div>
+        </div>
+        <div class="tx">
+          <div class="tx-icon exp">🛠</div>
+          <div class="tx-body">
+            <div class="tx-title">工具レンタル</div>
+            <div class="tx-sub">△△邸改装</div>
+          </div>
+          <div class="tx-amount neg">−1.2万</div>
+        </div>
+
+        <div class="day-head"><span class="d">5月8日 (木)</span><span class="s">+42万</span></div>
+        <div class="tx">
+          <div class="tx-icon inv">📄</div>
+          <div class="tx-body">
+            <div class="tx-title">××商店 請求書</div>
+            <div class="tx-sub"><span class="urgent">入金待ち 7日目</span></div>
+          </div>
+          <div class="tx-amount" style="color:var(--primary)">42万</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============== 取引先タブ ============== -->
+  <div class="phone">
+    <div class="phone-cap"><span>2 / 2</span><b>取引先</b></div>
+    <div class="phone-screen">
+      <div class="hero">
+        <div class="hero-row">
+          <div class="month-pill">
+            <button aria-label="前月">‹</button>
+            <span>5月</span>
+            <button aria-label="翌月">›</button>
+          </div>
+          <span class="menu-dot" aria-label="メニュー">⋯</span>
+        </div>
+        <div class="profit-num">¥124<span style="font-size:24px;">万</span></div>
+        <div class="profit-cap">手残り</div>
+
+        <div class="counters">
+          <button class="counter">
+            <span class="pulse" aria-hidden="true"></span>
+            <span class="ic danger">⚠</span>
+            <span class="body">
+              <span class="lbl">まだ請求してない</span>
+              <span class="num">3<small>件</small></span>
+            </span>
+          </button>
+          <button class="counter">
+            <span class="ic warn">⏳</span>
+            <span class="body">
+              <span class="lbl">親方チェック待ち</span>
+              <span class="num">5<small>件</small></span>
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <div class="bucket-strip">
+        <div class="bar">
+          <span class="name urgent">未請求</span>
+          <div class="track"><div class="fill fill-4" style="width:14%"></div></div>
+          <span class="v">82万</span>
+        </div>
+        <div class="bar">
+          <span class="name">入金待ち</span>
+          <div class="track"><div class="fill fill-2" style="width:22%"></div></div>
+          <span class="v">124万</span>
+        </div>
+        <div class="bar">
+          <span class="name">支払予定</span>
+          <div class="track"><div class="fill fill-1" style="width:11%"></div></div>
+          <span class="v">64万</span>
+        </div>
+        <div class="bar">
+          <span class="name">入金済み</span>
+          <div class="track"><div class="fill fill-3" style="width:56%"></div></div>
+          <span class="v">320万</span>
+        </div>
+      </div>
+
+      <div class="sticky">
+        <div class="tabs">
+          <button class="tab">取引<span class="badge">32</span></button>
+          <button class="tab active">取引先<span class="badge">14</span></button>
+          <span class="search-icon" aria-label="検索">🔍</span>
+        </div>
+      </div>
+
+      <div class="partner-list">
+        <!-- もらう側 -->
+        <div class="partner-section-head">
+          <span class="h warn">もらう (請求/入金待ち)</span>
+          <span class="h">合計 206万</span>
+        </div>
+        <div class="partner-card">
+          <div class="name">○○邸オーナー</div>
+          <div class="meta"><span class="urgent">入金待ち 7日目</span></div>
+          <div class="amount due">42万<small>請求済</small></div>
+        </div>
+        <div class="partner-card">
+          <div class="name">△△工務店</div>
+          <div class="meta"><span class="urgent">未請求 2件</span> · 直近 5/5</div>
+          <div class="amount neg">82万<small>未請求</small></div>
+        </div>
+        <div class="partner-card">
+          <div class="name">××建設</div>
+          <div class="meta">入金待ち · 残14日</div>
+          <div class="amount due">82万<small>請求済</small></div>
+        </div>
+
+        <!-- 払う側 -->
+        <div class="partner-section-head">
+          <span class="h">払う (仕入れ/外注)</span>
+          <span class="h">合計 64万</span>
+        </div>
+        <div class="partner-card">
+          <div class="name">○○商事</div>
+          <div class="meta">取引 8件 · 月末締</div>
+          <div class="amount neg">32万<small>支払予定</small></div>
+        </div>
+        <div class="partner-card">
+          <div class="name">△△建材</div>
+          <div class="meta">取引 5件 · 月末締</div>
+          <div class="amount neg">18万<small>支払予定</small></div>
+        </div>
+        <div class="partner-card">
+          <div class="name">大工 山田さん</div>
+          <div class="meta">外注 · 5/15払</div>
+          <div class="amount neg">14万<small>支払予定</small></div>
+        </div>
+
+        <!-- 完了 -->
+        <div class="partner-section-head">
+          <span class="h">完了</span>
+          <span class="h">5月 320万</span>
+        </div>
+        <div class="partner-card">
+          <div class="name">□□邸オーナー</div>
+          <div class="meta">入金済 · 5/3</div>
+          <div class="amount pos">+180万</div>
+        </div>
+        <div class="partner-card">
+          <div class="name">◇◇リフォーム</div>
+          <div class="meta">入金済 · 5/8</div>
+          <div class="amount pos">+140万</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="notes">
+  <h3>削ったもの (Elon式)</h3>
+  <ul>
+    <li><del>eyebrow「2026年5月の現場マネー」</del> ── 月ピルが既に5月を示してる</li>
+    <li><del>ヒーローのメタ「📈 売上 ¥6.78M / 💸 経費 ¥5.54M / 利益率 18.3%」</del> ── 手残りだけで足りる。詳細は月ピルをタップで月次レポへ</li>
+    <li><del>カウンタ3つ目「入金待ち」</del> ── バケット棒に既にいる。重複削除</li>
+    <li><del>「絞込」ピル</del> ── タブで賄える</li>
+    <li><del>バケットタイトル「バケットの内訳」</del> ── 棒だけで自明</li>
+    <li><del>「詳細→」リンク</del> ── 棒自体タップ可能</li>
+    <li><del>取引タグ「経費」「売上」「請求」</del> ── アイコン色で代替</li>
+    <li><del>検索ボックス常時表示</del> ── 🔍 アイコンに格納。タブ切替が主動線、検索は2軍</li>
+    <li><del>FAB ラベル化提案</del> ── 既存実装で既にラベルメニュー出る。前回提案撤回</li>
+    <li><del>カウンタの「hint」行</del> ── 数字だけ残す</li>
+    <li><del>「¥」記号 (大きい数字)</del> ── 「124万」表記に統一。直感優先</li>
+  </ul>
+
+  <h3>足したもの</h3>
+  <ul>
+    <li><span class="added">取引先タブ</span> ── 同じヒーロー/バケット下、リストだけ取引先カードに切替</li>
+    <li><span class="added">取引先カード</span> ── もらう / 払う / 完了 の3セクション。職人が「あの会社いくら未払いだっけ?」「○○邸オーナーから入金まだ?」を1画面で</li>
+    <li><span class="added">職人語へ全面リライト</span> ── 利益→<b>手残り</b>、未承認→<b>親方チェック</b>、請求漏れの見込み→<b>まだ請求してない</b></li>
+  </ul>
+
+  <h3>削れるか迷ったもの (議論したい)</h3>
+  <ul>
+    <li><b>バケット棒 4本</b> ── ヒーロー手残りとカウンタで本当に十分なら、棒ごと削る選択もある。ただ「お金の今いる場所」の俯瞰は職人にも需要ある気がする (内装業 = 入金タイミングが命)</li>
+    <li><b>手残りの大数字 ¥124万</b> ── 「黒字可視化」は MVP 北極星。残すべきだが、赤字の月は表示文脈どうする? (例: 黒文字 → 赤文字 + 「赤字」ラベル)</li>
+    <li><b>menu-dot ⋯</b> ── 月切替以外の機能 (CSV出力など) を逃がす場所。現時点で必要かは要確認</li>
+    <li><b>day-head の小計</b> ── 取引リストのみ表示。取引先タブには不要</li>
+  </ul>
+
+  <h3>取引先タブの未決事項</h3>
+  <ul>
+    <li>セクション順は「もらう → 払う → 完了」で OK か (緊急度順)</li>
+    <li>カードタップ後の遷移先 ── 取引先別の取引一覧 + 過去推移グラフ?</li>
+    <li>外注職人 (大工 山田さん) を「取引先」に並べていいか ── 内装屋的には自然?</li>
+    <li>セクション「もらう」内のソート ── 入金待ち日数の長い順 or 金額大きい順</li>
+  </ul>
+</div>
+
+</body>
+</html>

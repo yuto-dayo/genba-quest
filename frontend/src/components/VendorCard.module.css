@@ -1,0 +1,127 @@
+.card {
+    appearance: none;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    padding: 16px 18px;
+    border-radius: 20px;
+    border: 1px solid rgba(15, 118, 110, 0.14);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(245, 252, 250, 0.94));
+    box-shadow: 0 1px 2px rgba(7, 24, 22, 0.04), 0 8px 20px rgba(7, 24, 22, 0.04);
+    cursor: pointer;
+    color: #123f3a;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.card:hover {
+    border-color: rgba(15, 118, 110, 0.28);
+    box-shadow: 0 1px 2px rgba(7, 24, 22, 0.06), 0 12px 28px rgba(7, 24, 22, 0.08);
+}
+
+.head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.headText {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.name {
+    font: var(--md-sys-typescale-title-medium);
+    font-weight: 700;
+    color: #0f3d39;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dept {
+    font: var(--md-sys-typescale-label-small);
+    color: #56716b;
+}
+
+.chevron {
+    color: #0f766e;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.rulePill {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    background: rgba(20, 184, 166, 0.14);
+    color: #0f766e;
+    font: var(--md-sys-typescale-label-medium);
+    font-weight: 600;
+}
+
+.previewRow {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.previewItem {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    font: var(--md-sys-typescale-body-small);
+    color: #1b4a44;
+}
+
+.previewItem strong {
+    font: var(--md-sys-typescale-title-small);
+    font-weight: 700;
+    color: #0f3d39;
+}
+
+.previewLabel {
+    color: #56716b;
+}
+
+.previewIcon {
+    color: #0f766e;
+    transform: translateY(2px);
+}
+
+.muted {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #56716b;
+    font: var(--md-sys-typescale-body-small);
+}
+
+.unset {
+    color: #b6541f;
+    font: var(--md-sys-typescale-body-small);
+}
+
+.spin {
+    animation: vc-spin 0.9s linear infinite;
+}
+
+@keyframes vc-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}

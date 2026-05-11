@@ -1,0 +1,668 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Money 改善モック — GENBA QUEST</title>
+  <style>
+    :root {
+      --primary: #4F46E5;
+      --primary-container: #E0E7FF;
+      --on-primary-container: #312E81;
+      --surface: #FAFAF9;
+      --surface-bright: #FFFFFF;
+      --surface-low: #F5F5F4;
+      --surface-container: #F0EFEE;
+      --surface-high: #E7E5E4;
+      --outline: #78716C;
+      --outline-variant: #D6D3D1;
+      --on-surface: #1C1917;
+      --on-surface-variant: #57534E;
+      --error: #DC2626;
+      --error-container: #FEE2E2;
+      --on-error-container: #991B1B;
+      --success: #16A34A;
+      --success-container: #DCFCE7;
+      --on-success-container: #14532D;
+      --warning: #F59E0B;
+      --warning-container: #FEF3C7;
+      --on-warning-container: #78350F;
+
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 20px;
+      --radius-pill: 999px;
+
+      --shadow-1: 0 1px 2px rgba(28,25,23,.04), 0 1px 3px rgba(28,25,23,.06);
+      --shadow-2: 0 2px 4px rgba(28,25,23,.06), 0 6px 16px rgba(28,25,23,.08);
+
+      --font-sans: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Segoe UI", system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans);
+      background: var(--surface);
+      color: var(--on-surface);
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.5;
+    }
+
+    /* === Compare layout: side-by-side BEFORE / AFTER === */
+    .compare {
+      display: grid;
+      gap: 24px;
+      padding: 24px;
+      grid-template-columns: 1fr;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    @media (min-width: 980px) {
+      .compare { grid-template-columns: 1fr 1fr; }
+    }
+    .compare h2 {
+      margin: 0 0 12px;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--on-surface-variant);
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .compare .label-after { color: var(--primary); }
+    .phone {
+      width: 100%;
+      max-width: 420px;
+      margin: 0 auto;
+      background: var(--surface);
+      border-radius: 32px;
+      box-shadow: var(--shadow-2);
+      overflow: hidden;
+      border: 1px solid var(--outline-variant);
+    }
+    .phone-screen {
+      height: 760px;
+      overflow-y: auto;
+      padding-bottom: 80px;
+    }
+
+    /* === Common === */
+    .stack { display: flex; flex-direction: column; }
+    .row { display: flex; align-items: center; }
+    .gap-4 { gap: 4px; } .gap-8 { gap: 8px; } .gap-12 { gap: 12px; } .gap-16 { gap: 16px; }
+    .pad-16 { padding: 16px; }
+    .pad-20 { padding: 20px; }
+    .icon { width: 18px; height: 18px; flex: none; }
+    .badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 8px; border-radius: var(--radius-pill);
+      font-size: 11px; font-weight: 600;
+    }
+    .muted { color: var(--on-surface-variant); }
+
+    /* ========== BEFORE (現状の縮約モック) ========== */
+    .b-section { background: var(--surface-bright); margin: 12px; border-radius: var(--radius-lg); padding: 16px; box-shadow: var(--shadow-1); }
+    .b-deck-eyebrow { font-size: 11px; color: var(--on-surface-variant); margin: 0; }
+    .b-deck-title { font-size: 22px; margin: 4px 0; font-weight: 700; }
+    .b-deck-desc { font-size: 12px; color: var(--on-surface-variant); margin: 0 0 12px; }
+    .b-month {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--surface-low); padding: 6px 12px; border-radius: var(--radius-pill);
+      font-size: 13px; font-weight: 600;
+    }
+    .b-profit-card {
+      background: linear-gradient(135deg, #EEF2FF, #E0E7FF);
+      border-radius: var(--radius-md); padding: 14px; margin-top: 12px;
+    }
+    .b-profit-card strong { display: block; font-size: 28px; font-weight: 800; color: var(--on-primary-container); margin: 4px 0; }
+    .b-pl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+    .b-pl-cell { padding: 10px 12px; background: var(--surface-low); border-radius: var(--radius-md); }
+    .b-pl-cell .l { font-size: 11px; color: var(--on-surface-variant); }
+    .b-pl-cell .v { font-size: 16px; font-weight: 700; }
+    .b-bucket-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    }
+    .b-bucket {
+      background: var(--surface-low); border-radius: var(--radius-md); padding: 12px;
+      font-size: 12px;
+    }
+    .b-bucket .v { font-size: 18px; font-weight: 700; margin-top: 4px; }
+    .b-actions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .b-actions button {
+      background: var(--surface-low); border: 1px solid var(--outline-variant);
+      border-radius: var(--radius-md); padding: 12px 6px; font-size: 11px;
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      cursor: pointer; color: var(--on-surface);
+    }
+    .b-search-input {
+      width: 100%; padding: 10px 12px; border-radius: var(--radius-pill);
+      border: 1px solid var(--outline-variant); background: var(--surface-low);
+      font-size: 14px;
+    }
+    .b-segment {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;
+      margin: 12px 0; background: var(--surface-low); padding: 4px; border-radius: var(--radius-pill);
+    }
+    .b-segment button {
+      border: none; background: transparent; padding: 8px 4px; font-size: 12px;
+      border-radius: var(--radius-pill); cursor: pointer; color: var(--on-surface-variant);
+    }
+    .b-segment button.active { background: var(--surface-bright); color: var(--on-surface); font-weight: 600; box-shadow: var(--shadow-1); }
+    .b-row-tx {
+      display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--outline-variant);
+      font-size: 13px;
+    }
+    .b-row-tx:last-child { border-bottom: none; }
+    .b-row-tx .v { margin-left: auto; font-weight: 700; }
+
+    /* ========== AFTER (再設計) ========== */
+
+    /* Top: hero with 3 actionable counters */
+    .a-hero {
+      background: linear-gradient(160deg, #312E81 0%, #4F46E5 60%, #6366F1 100%);
+      color: #fff;
+      padding: 20px 16px 24px;
+      border-radius: 0 0 28px 28px;
+      position: relative;
+    }
+    .a-hero-top {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .a-hero-eyebrow {
+      font-size: 11px; opacity: .8; margin: 0; letter-spacing: .04em;
+    }
+    .a-hero-month {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.18);
+      color: #fff; padding: 6px 10px; border-radius: var(--radius-pill);
+      font-size: 12px; font-weight: 600; backdrop-filter: blur(8px);
+    }
+    .a-hero-month button {
+      background: transparent; border: none; color: #fff; cursor: pointer;
+      width: 22px; height: 22px; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .a-hero-month button:hover { background: rgba(255,255,255,.18); }
+    .a-profit-line {
+      display: flex; align-items: baseline; gap: 8px;
+      margin-top: 4px;
+    }
+    .a-profit-line .num {
+      font-size: 36px; font-weight: 800; letter-spacing: -.02em;
+      font-variant-numeric: tabular-nums;
+    }
+    .a-profit-line .lbl { font-size: 13px; opacity: .85; }
+    .a-profit-meta {
+      display: flex; gap: 12px; font-size: 12px; opacity: .9;
+      margin-top: 6px;
+    }
+    .a-profit-meta span { display: inline-flex; align-items: center; gap: 4px; }
+
+    /* Counter row — 3 actionable cards */
+    .a-counters {
+      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
+      margin: 16px -4px -42px;
+      padding: 0 4px;
+    }
+    .a-counter {
+      background: #fff;
+      border-radius: var(--radius-lg);
+      padding: 14px 10px 12px;
+      text-align: left;
+      border: none;
+      cursor: pointer;
+      box-shadow: var(--shadow-2);
+      display: flex; flex-direction: column; gap: 4px;
+      position: relative;
+      color: var(--on-surface);
+      transition: transform .15s ease;
+    }
+    .a-counter:active { transform: scale(.97); }
+    .a-counter .ic {
+      width: 28px; height: 28px; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      margin-bottom: 2px;
+    }
+    .a-counter .ic.warn { background: var(--warning-container); color: var(--on-warning-container); }
+    .a-counter .ic.danger { background: var(--error-container); color: var(--on-error-container); }
+    .a-counter .ic.ok { background: var(--success-container); color: var(--on-success-container); }
+    .a-counter .lbl { font-size: 11px; color: var(--on-surface-variant); font-weight: 600; }
+    .a-counter .num {
+      font-size: 22px; font-weight: 800; letter-spacing: -.01em;
+      font-variant-numeric: tabular-nums; line-height: 1.1;
+    }
+    .a-counter .num.zero { color: var(--on-surface-variant); }
+    .a-counter .hint { font-size: 10px; color: var(--on-surface-variant); }
+    .a-counter .pulse {
+      position: absolute; top: 10px; right: 10px;
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--error);
+      box-shadow: 0 0 0 0 rgba(220,38,38,.5);
+      animation: pulse 1.6s infinite;
+    }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(220,38,38,.5); }
+      70% { box-shadow: 0 0 0 8px rgba(220,38,38,0); }
+      100% { box-shadow: 0 0 0 0 rgba(220,38,38,0); }
+    }
+
+    /* Bucket compact strip */
+    .a-bucket-strip {
+      margin: 56px 12px 0;
+      background: var(--surface-bright);
+      border-radius: var(--radius-lg);
+      padding: 14px 16px;
+      box-shadow: var(--shadow-1);
+    }
+    .a-bucket-strip-head {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 10px;
+    }
+    .a-bucket-strip-title { font-size: 13px; font-weight: 700; }
+    .a-bucket-strip-link { font-size: 12px; color: var(--primary); font-weight: 600; cursor: pointer; }
+    .a-bucket-bars { display: flex; flex-direction: column; gap: 8px; }
+    .a-bucket-bar {
+      display: grid;
+      grid-template-columns: 80px 1fr 60px;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+    }
+    .a-bucket-bar .name { color: var(--on-surface-variant); font-weight: 600; }
+    .a-bucket-bar .track {
+      height: 8px; background: var(--surface-low); border-radius: var(--radius-pill);
+      overflow: hidden;
+    }
+    .a-bucket-bar .fill {
+      height: 100%; border-radius: var(--radius-pill);
+    }
+    .a-bucket-bar .v { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .fill-1 { background: linear-gradient(90deg, #4F46E5, #6366F1); }
+    .fill-2 { background: linear-gradient(90deg, #F59E0B, #FBBF24); }
+    .fill-3 { background: linear-gradient(90deg, #16A34A, #22C55E); }
+    .fill-4 { background: linear-gradient(90deg, #DC2626, #EF4444); }
+
+    /* Sticky compact filter (C) */
+    .a-sticky {
+      position: sticky; top: 0; z-index: 10;
+      background: rgba(250,250,249,.92);
+      backdrop-filter: blur(12px);
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--outline-variant);
+      margin-top: 16px;
+    }
+    .a-search-row {
+      display: flex; gap: 8px; align-items: center;
+    }
+    .a-search {
+      flex: 1; display: flex; align-items: center; gap: 8px;
+      background: var(--surface-bright); border: 1px solid var(--outline-variant);
+      border-radius: var(--radius-pill); padding: 8px 14px;
+    }
+    .a-search input {
+      border: none; outline: none; background: transparent; flex: 1;
+      font-size: 14px; font-family: inherit;
+    }
+    .a-filter-pill {
+      flex: none; display: inline-flex; align-items: center; gap: 4px;
+      background: var(--surface-bright); border: 1px solid var(--outline-variant);
+      border-radius: var(--radius-pill); padding: 8px 12px; font-size: 12px;
+      font-weight: 600; cursor: pointer;
+    }
+    .a-filter-pill .dot {
+      width: 6px; height: 6px; border-radius: 50%; background: var(--primary);
+    }
+    .a-chips {
+      display: flex; gap: 6px; overflow-x: auto;
+      margin-top: 8px; padding-bottom: 2px;
+      -ms-overflow-style: none; scrollbar-width: none;
+    }
+    .a-chips::-webkit-scrollbar { display: none; }
+    .a-chip {
+      flex: none; padding: 6px 12px; border-radius: var(--radius-pill);
+      background: var(--surface-bright); border: 1px solid var(--outline-variant);
+      font-size: 12px; cursor: pointer; color: var(--on-surface-variant);
+      font-weight: 500;
+    }
+    .a-chip.active {
+      background: var(--primary-container); color: var(--on-primary-container);
+      border-color: transparent; font-weight: 700;
+    }
+
+    /* Transaction list — grouped by date */
+    .a-list { padding: 8px 12px 80px; }
+    .a-day-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding: 16px 4px 6px; font-size: 12px;
+    }
+    .a-day-head .d { font-weight: 700; color: var(--on-surface); }
+    .a-day-head .s { color: var(--on-surface-variant); font-variant-numeric: tabular-nums; }
+    .a-tx {
+      background: var(--surface-bright);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      margin-bottom: 6px;
+      display: grid;
+      grid-template-columns: 32px 1fr auto;
+      gap: 12px; align-items: center;
+      box-shadow: var(--shadow-1);
+      cursor: pointer;
+    }
+    .a-tx-icon {
+      width: 32px; height: 32px; border-radius: 10px;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .a-tx-icon.exp { background: var(--error-container); color: var(--on-error-container); }
+    .a-tx-icon.sale { background: var(--success-container); color: var(--on-success-container); }
+    .a-tx-icon.inv { background: var(--primary-container); color: var(--on-primary-container); }
+    .a-tx-body { min-width: 0; }
+    .a-tx-title { font-size: 14px; font-weight: 600; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .a-tx-sub { font-size: 11px; color: var(--on-surface-variant); margin-top: 2px; display: flex; gap: 6px; align-items: center; }
+    .a-tx-sub .tag {
+      padding: 1px 6px; border-radius: 4px; background: var(--surface-low);
+      font-size: 10px;
+    }
+    .a-tx-sub .tag.warn { background: var(--warning-container); color: var(--on-warning-container); }
+    .a-tx-amount {
+      font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums;
+    }
+    .a-tx-amount.neg { color: var(--error); }
+    .a-tx-amount.pos { color: var(--success); }
+
+    /* FAB */
+    .a-fab {
+      position: sticky; bottom: 16px; margin: 0 16px 16px auto;
+      width: 56px; height: 56px; border-radius: 50%;
+      background: var(--primary); color: #fff; border: none;
+      box-shadow: 0 8px 24px rgba(79,70,229,.4);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      font-size: 28px; font-weight: 300;
+      float: right;
+    }
+
+    /* === Notes section === */
+    .notes {
+      max-width: 1200px; margin: 0 auto; padding: 0 24px 48px;
+      color: var(--on-surface-variant); font-size: 14px;
+    }
+    .notes h3 { color: var(--on-surface); margin-top: 24px; }
+    .notes ul { padding-left: 18px; }
+    .notes li { margin-bottom: 6px; }
+    .notes .legend {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--surface-bright); border: 1px solid var(--outline-variant);
+      padding: 4px 10px; border-radius: var(--radius-pill);
+      font-size: 12px; margin-right: 6px;
+    }
+    .header {
+      max-width: 1200px; margin: 0 auto; padding: 32px 24px 0;
+    }
+    .header h1 { margin: 0 0 4px; font-size: 24px; }
+    .header p { margin: 0; color: var(--on-surface-variant); }
+
+    /* SVG icon helper — using inline svgs */
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Money 改善モック</h1>
+  <p>左: 現状の構造を縮約 / 右: 提案 (A. ヒーロー3カウンタ + C. フィルター圧縮)</p>
+</div>
+
+<div class="compare">
+  <!-- ============== BEFORE ============== -->
+  <div>
+    <h2>BEFORE — 現状</h2>
+    <div class="phone">
+      <div class="phone-screen">
+        <!-- PL deck -->
+        <div class="b-section">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+            <div>
+              <p class="b-deck-eyebrow">今月の経理</p>
+              <h2 class="b-deck-title">お金の流れ</h2>
+              <p class="b-deck-desc">利益、未処理、請求書をまとめて確認できます。</p>
+            </div>
+            <div class="b-month">‹ 2026年5月 ›</div>
+          </div>
+          <div class="b-profit-card">
+            <span style="font-size:11px;color:var(--on-surface-variant)">利益</span>
+            <strong>¥1,240,500</strong>
+            <span style="font-size:11px;color:var(--on-surface-variant)">利益率 18.3%</span>
+          </div>
+          <div class="b-pl">
+            <div class="b-pl-cell"><div class="l">売上</div><div class="v">¥6,780,000</div></div>
+            <div class="b-pl-cell"><div class="l">経費</div><div class="v">¥5,539,500</div></div>
+            <div class="b-pl-cell"><div class="l">分配可能</div><div class="v">¥868,350</div></div>
+            <div class="b-pl-cell"><div class="l">承認待ち</div><div class="v" style="color:var(--warning)">5件</div></div>
+          </div>
+        </div>
+
+        <!-- bucket dashboard -->
+        <div class="b-section">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <strong style="font-size:14px;">バケット一望</strong>
+            <span style="font-size:11px;" class="muted">5月のお金フロー</span>
+          </div>
+          <div class="b-bucket-row">
+            <div class="b-bucket"><div class="muted">未請求</div><div class="v">¥820,000</div></div>
+            <div class="b-bucket"><div class="muted">入金待ち</div><div class="v">¥1,240,000</div></div>
+            <div class="b-bucket"><div class="muted">支払予定</div><div class="v">¥640,500</div></div>
+            <div class="b-bucket"><div class="muted">入金済み</div><div class="v">¥3,200,000</div></div>
+          </div>
+        </div>
+
+        <!-- quick actions -->
+        <div class="b-section">
+          <div class="b-actions">
+            <button>🧾<br/>経費を記録</button>
+            <button>📈<br/>売上を記録</button>
+            <button>📄<br/>請求書を作る</button>
+          </div>
+        </div>
+
+        <!-- search -->
+        <div class="b-section">
+          <input class="b-search-input" placeholder="取引・請求書・現場を検索" />
+          <div class="b-segment">
+            <button class="active">全て</button>
+            <button>経費</button>
+            <button>売上</button>
+            <button>請求</button>
+          </div>
+          <div style="display:flex;gap:6px;font-size:12px;color:var(--on-surface-variant);">
+            <span>📅 今月</span><span>·</span><span>32件</span>
+          </div>
+          <div style="margin-top:10px;">
+            <div class="b-row-tx"><span>5/10</span><span>セメント仕入れ</span><span class="v" style="color:var(--error)">-¥18,400</span></div>
+            <div class="b-row-tx"><span>5/10</span><span>○○邸 中間金</span><span class="v" style="color:var(--success)">+¥600,000</span></div>
+            <div class="b-row-tx"><span>5/9</span><span>軽油 給油</span><span class="v" style="color:var(--error)">-¥6,200</span></div>
+            <div class="b-row-tx"><span>5/9</span><span>工具レンタル</span><span class="v" style="color:var(--error)">-¥12,000</span></div>
+            <div class="b-row-tx"><span>5/8</span><span>××商店 請求書発行</span><span class="v" style="color:var(--primary)">¥420,000</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============== AFTER ============== -->
+  <div>
+    <h2 class="label-after">AFTER — 提案 (A + C)</h2>
+    <div class="phone">
+      <div class="phone-screen">
+        <!-- HERO -->
+        <div class="a-hero">
+          <div class="a-hero-top">
+            <p class="a-hero-eyebrow">2026年5月の現場マネー</p>
+            <div class="a-hero-month">
+              <button aria-label="前月">‹</button>
+              <span>5月</span>
+              <button aria-label="翌月">›</button>
+            </div>
+          </div>
+          <div class="a-profit-line">
+            <span class="num">¥1,240,500</span>
+            <span class="lbl">今月の利益</span>
+          </div>
+          <div class="a-profit-meta">
+            <span>📈 売上 ¥6.78M</span>
+            <span>💸 経費 ¥5.54M</span>
+            <span>利益率 18.3%</span>
+          </div>
+
+          <!-- 3 actionable counters -->
+          <div class="a-counters">
+            <button class="a-counter" aria-label="請求漏れの見込みを開く">
+              <span class="pulse" aria-hidden="true"></span>
+              <span class="ic danger">⚠️</span>
+              <span class="lbl">請求漏れの見込み</span>
+              <span class="num">3<span style="font-size:13px;font-weight:600;margin-left:2px;">件</span></span>
+              <span class="hint">¥820,000相当</span>
+            </button>
+            <button class="a-counter" aria-label="未承認の取引を開く">
+              <span class="ic warn">⏳</span>
+              <span class="lbl">未承認</span>
+              <span class="num">5<span style="font-size:13px;font-weight:600;margin-left:2px;">件</span></span>
+              <span class="hint">タップで承認</span>
+            </button>
+            <button class="a-counter" aria-label="入金待ちを開く">
+              <span class="ic ok">💰</span>
+              <span class="lbl">入金待ち</span>
+              <span class="num">¥1.24M</span>
+              <span class="hint">3件 / 最古 30日</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Bucket compact strip -->
+        <div class="a-bucket-strip">
+          <div class="a-bucket-strip-head">
+            <span class="a-bucket-strip-title">バケットの内訳</span>
+            <span class="a-bucket-strip-link">詳細 →</span>
+          </div>
+          <div class="a-bucket-bars">
+            <div class="a-bucket-bar">
+              <span class="name">未請求</span>
+              <div class="track"><div class="fill fill-4" style="width:14%"></div></div>
+              <span class="v">¥820K</span>
+            </div>
+            <div class="a-bucket-bar">
+              <span class="name">入金待ち</span>
+              <div class="track"><div class="fill fill-2" style="width:22%"></div></div>
+              <span class="v">¥1.24M</span>
+            </div>
+            <div class="a-bucket-bar">
+              <span class="name">支払予定</span>
+              <div class="track"><div class="fill fill-1" style="width:11%"></div></div>
+              <span class="v">¥640K</span>
+            </div>
+            <div class="a-bucket-bar">
+              <span class="name">入金済み</span>
+              <div class="track"><div class="fill fill-3" style="width:56%"></div></div>
+              <span class="v">¥3.20M</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sticky compact filter (C) -->
+        <div class="a-sticky">
+          <div class="a-search-row">
+            <div class="a-search">
+              <span style="color:var(--on-surface-variant)">🔍</span>
+              <input placeholder="取引・現場で検索" />
+            </div>
+            <button class="a-filter-pill" aria-label="フィルター">
+              <span>絞込</span><span class="dot"></span>
+            </button>
+          </div>
+          <div class="a-chips">
+            <button class="a-chip active">全て 32</button>
+            <button class="a-chip">経費 18</button>
+            <button class="a-chip">売上 9</button>
+            <button class="a-chip">請求 5</button>
+            <button class="a-chip">📅 今月</button>
+            <button class="a-chip">⚠️ 要対応 8</button>
+          </div>
+        </div>
+
+        <!-- Transaction list -->
+        <div class="a-list">
+          <div class="a-day-head"><span class="d">5月10日 (土)</span><span class="s">+¥581,600</span></div>
+          <div class="a-tx">
+            <div class="a-tx-icon sale">📈</div>
+            <div class="a-tx-body">
+              <div class="a-tx-title">○○邸 中間金</div>
+              <div class="a-tx-sub"><span class="tag">○○邸新築</span><span>振込入金</span></div>
+            </div>
+            <div class="a-tx-amount pos">+¥600,000</div>
+          </div>
+          <div class="a-tx">
+            <div class="a-tx-icon exp">🧾</div>
+            <div class="a-tx-body">
+              <div class="a-tx-title">セメント仕入れ</div>
+              <div class="a-tx-sub"><span class="tag warn">未承認</span><span>○○商事</span></div>
+            </div>
+            <div class="a-tx-amount neg">-¥18,400</div>
+          </div>
+
+          <div class="a-day-head"><span class="d">5月9日 (金)</span><span class="s">-¥18,200</span></div>
+          <div class="a-tx">
+            <div class="a-tx-icon exp">⛽</div>
+            <div class="a-tx-body">
+              <div class="a-tx-title">軽油 給油</div>
+              <div class="a-tx-sub"><span class="tag">経費</span><span>HQ</span></div>
+            </div>
+            <div class="a-tx-amount neg">-¥6,200</div>
+          </div>
+          <div class="a-tx">
+            <div class="a-tx-icon exp">🛠️</div>
+            <div class="a-tx-body">
+              <div class="a-tx-title">工具レンタル</div>
+              <div class="a-tx-sub"><span class="tag">△△邸改装</span></div>
+            </div>
+            <div class="a-tx-amount neg">-¥12,000</div>
+          </div>
+
+          <div class="a-day-head"><span class="d">5月8日 (木)</span><span class="s">+¥420,000</span></div>
+          <div class="a-tx">
+            <div class="a-tx-icon inv">📄</div>
+            <div class="a-tx-body">
+              <div class="a-tx-title">××商店 請求書発行</div>
+              <div class="a-tx-sub"><span class="tag warn">入金待ち 7日目</span></div>
+            </div>
+            <div class="a-tx-amount" style="color:var(--primary)">¥420,000</div>
+          </div>
+        </div>
+
+        <!-- FAB -->
+        <button class="a-fab" aria-label="記録">+</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="notes">
+  <h3>変えたところ</h3>
+  <ul>
+    <li><strong>ヒーロー3カウンタ</strong> ──「請求漏れ / 未承認 / 入金待ち」を最上段に。MVP北極星「請求漏れゼロ + 黒字可視化」と1:1で対応。各カウンタはタップでフィルタ済み一覧へ遷移する起点。</li>
+    <li><strong>利益は1行に圧縮</strong> ── 売上/経費は補足メタとしてヒーローに同居。詳細PLは月次レポート画面に逃がす想定。</li>
+    <li><strong>バケットを横棒グラフ化</strong> ── 4枚のカード比較から、相対比率が一目で分かるストリップへ。</li>
+    <li><strong>フィルターをスティッキー1行</strong> ── 検索 + 絞込ボタン + 横スクロールチップに圧縮。「⚠️ 要対応」のような状況チップで番頭レス可視性を強化。</li>
+    <li><strong>取引リストを日付グループ化</strong> ── 日次小計付き。アイコン色分けで経費/売上/請求書が瞬時に判別。</li>
+    <li><strong>クイックアクションをFABに統合</strong> ── 縦幅を取らず、いつでも記録できる。</li>
+  </ul>
+
+  <h3>まだ決めてないこと</h3>
+  <ul>
+    <li>「請求漏れの見込み」のロジック (現場完了済み × 請求書未発行?) は <code>MoneyBucketDashboard</code> の既存ロジックと整合させる必要あり</li>
+    <li>FAB のタップ後挙動 (即記録 / 種別シート展開 / Sherpa起動)</li>
+    <li>横スクロールチップの初期セット (現場別チップを混ぜるか)</li>
+    <li>承認待ち導線を「未承認カウンタ」に一本化するか、既存モーダルも残すか</li>
+  </ul>
+</div>
+
+</body>
+</html>
