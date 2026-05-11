@@ -1,0 +1,57 @@
+.trigger {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px 8px 12px;
+    margin: 12px 0 0;
+    background: var(--md-sys-color-surface, #ffffff);
+    border: 1px solid var(--md-sys-color-outline-variant, #d8dee5);
+    border-radius: 999px;
+    cursor: pointer;
+    color: var(--md-sys-color-on-surface, #1a1f27);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    position: relative;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+}
+
+.trigger:hover {
+    border-color: var(--md-sys-color-outline, #b3bdc7);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+.trigger:active {
+    transform: scale(0.98);
+}
+
+.trigger:focus-visible {
+    outline: 2px solid var(--md-sys-color-primary, #4f46e5);
+    outline-offset: 2px;
+}
+
+.badge {
+    position: absolute;
+    top: -4px;
+    left: 24px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: #dc2626;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 800;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    box-shadow: 0 0 0 2px var(--md-sys-color-surface, #ffffff);
+    font-variant-numeric: tabular-nums;
+}
+
+.label {
+    line-height: 1;
+}
