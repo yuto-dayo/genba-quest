@@ -39,6 +39,7 @@ import { FloatingActionButton } from "./components/FloatingActionButton";
 import {
   acceptOrgInvite,
   bootstrapFirstOrg,
+  bootstrapOrgWithCode,
   fetchAppEntryState,
   fetchNotifications,
   fetchPendingApprovals,
@@ -591,6 +592,7 @@ function AuthGate({ onUseDevAuth }: { onUseDevAuth?: () => void }) {
   const [password, setPassword] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
   const [signupPasswordConfirm, setSignupPasswordConfirm] = useState("");
+  const [signupExpanded, setSignupExpanded] = useState(false);
   const [busyMode, setBusyMode] = useState<AuthRequestMode | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -808,8 +810,8 @@ function AuthGate({ onUseDevAuth }: { onUseDevAuth?: () => void }) {
   return (
     <EntryLayout
       badge="ログイン"
-      title="Googleでログイン"
-      description="Googleアカウントで入れます。招待はメールアドレスで確認します。"
+      title="ログインして始める"
+      description="Googleで続けるか、メールアドレスとパスワードでログインできます。"
     >
       <form className={styles.authForm} onSubmit={handleSubmit}>
         <button
@@ -896,66 +898,91 @@ function AuthGate({ onUseDevAuth }: { onUseDevAuth?: () => void }) {
           </button>
         </div>
 
-        <div className={styles.signupPanel}>
-          <div className={styles.signupPanelHeader}>
-            <span className={styles.entryIconBadge}>
-              <Mail size={18} />
-            </span>
-            <div>
-              <h2>初回登録</h2>
-              <p>招待されたメールアドレスに、次回から使うパスワードを設定します。</p>
+        {!signupExpanded ? (
+          <button
+            type="button"
+            className={styles.textButton}
+            onClick={() => {
+              setSignupExpanded(true);
+              setError(null);
+            }}
+          >
+            はじめての方はこちら（パスワードを決めてアカウントを作る）
+          </button>
+        ) : (
+          <div className={styles.signupPanel}>
+            <div className={styles.signupPanelHeader}>
+              <span className={styles.entryIconBadge}>
+                <Mail size={18} />
+              </span>
+              <div>
+                <h2>はじめての方</h2>
+                <p>招待されたメールアドレスに、次回から使うパスワードを決めます。</p>
+              </div>
             </div>
+            <label className={styles.entryField}>
+              <span>パスワードを決める</span>
+              <input
+                className={styles.entryInput}
+                type="password"
+                autoComplete="new-password"
+                value={signupPassword}
+                onChange={(event) => {
+                  setSignupPassword(event.target.value);
+                  setError(null);
+                }}
+              />
+            </label>
+            <label className={styles.entryField}>
+              <span>パスワードをもう一度</span>
+              <input
+                className={styles.entryInput}
+                type="password"
+                autoComplete="new-password"
+                value={signupPasswordConfirm}
+                onChange={(event) => {
+                  setSignupPasswordConfirm(event.target.value);
+                  setError(null);
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              className={`${styles.secondaryButton} ${busyMode === "signup" ? styles.primaryButtonBusy : ""}`}
+              disabled={signupDisabled}
+              aria-busy={busyMode === "signup"}
+              onClick={() => void signUpWithPassword()}
+            >
+              {busyMode === "signup" ? <Loader2 size={16} className={styles.spinnerIcon} /> : <LogIn size={16} />}
+              アカウントを作る
+            </button>
+            <button
+              type="button"
+              className={styles.textButton}
+              onClick={() => setSignupExpanded(false)}
+              disabled={busyMode === "signup"}
+            >
+              ログインに戻る
+            </button>
           </div>
-          <label className={styles.entryField}>
-            <span>初回登録用パスワード</span>
-            <input
-              className={styles.entryInput}
-              type="password"
-              autoComplete="new-password"
-              value={signupPassword}
-              onChange={(event) => {
-                setSignupPassword(event.target.value);
-                setError(null);
-              }}
-            />
-          </label>
-          <label className={styles.entryField}>
-            <span>初回登録用パスワード（確認）</span>
-            <input
-              className={styles.entryInput}
-              type="password"
-              autoComplete="new-password"
-              value={signupPasswordConfirm}
-              onChange={(event) => {
-                setSignupPasswordConfirm(event.target.value);
-                setError(null);
-              }}
-            />
-          </label>
-          <button
-            type="button"
-            className={`${styles.secondaryButton} ${busyMode === "signup" ? styles.primaryButtonBusy : ""}`}
-            disabled={signupDisabled}
-            aria-busy={busyMode === "signup"}
-            onClick={() => void signUpWithPassword()}
-          >
-            {busyMode === "signup" ? <Loader2 size={16} className={styles.spinnerIcon} /> : <LogIn size={16} />}
-            初回登録して進む
-          </button>
-        </div>
+        )}
 
-        <div className={styles.authActions}>
-          <button
-            type="button"
-            className={`${styles.secondaryButton} ${busyMode === "magic" ? styles.primaryButtonBusy : ""}`}
-            disabled={magicDisabled}
-            aria-busy={busyMode === "magic"}
-            onClick={() => void requestMagicLink()}
-          >
-            {busyMode === "magic" ? <Loader2 size={16} className={styles.spinnerIcon} /> : <Mail size={16} />}
-            非常用リンクを送る
-          </button>
-        </div>
+        <details className={styles.entryDetails}>
+          <summary>パスワードを使わずに入る（メールでログインリンク）</summary>
+          <div className={styles.authActions}>
+            <button
+              type="button"
+              className={`${styles.secondaryButton} ${busyMode === "magic" ? styles.primaryButtonBusy : ""}`}
+              disabled={magicDisabled}
+              aria-busy={busyMode === "magic"}
+              onClick={() => void requestMagicLink()}
+            >
+              {busyMode === "magic" ? <Loader2 size={16} className={styles.spinnerIcon} /> : <Mail size={16} />}
+              ログインリンクをメールで送る
+            </button>
+          </div>
+        </details>
+
         {onUseDevAuth && (
           <button type="button" className={styles.secondaryButton} onClick={onUseDevAuth}>
             開発用ユーザーで入る
@@ -1137,29 +1164,138 @@ function SystemBootstrapGate({
 
 function OnboardingGate({
   viewerEmail,
+  bootstrapWithCodeEnabled,
   onOpenInviteHelp,
+  onStartCreateTeam,
 }: {
   viewerEmail: string | null;
+  bootstrapWithCodeEnabled: boolean;
   onOpenInviteHelp: () => void;
+  onStartCreateTeam: () => void;
 }) {
   return (
     <EntryLayout
-      badge="未所属"
-      title="招待を受けて参加"
-      description="このアカウントは、まだどの組織にも参加していません。参加するには、管理者からの招待を受けてください。"
+      badge="まずは参加から"
+      title="チームに参加しましょう"
+      description="このアカウントはまだどのチームにも入っていません。招待を受けて参加するか、新しいチームを作って始められます。"
     >
       <div className={styles.entryActions}>
+        {bootstrapWithCodeEnabled && (
+          <button type="button" className={styles.primaryButton} onClick={onStartCreateTeam}>
+            <ChevronRight size={16} />
+            新しいチームを作る
+          </button>
+        )}
+
         <button type="button" className={styles.secondaryButton} onClick={onOpenInviteHelp}>
           <Mail size={16} />
-          招待で参加
+          招待で参加する
         </button>
 
         <div className={styles.entryInfoCard}>
-          <h2>管理者に招待を依頼</h2>
-          <p>招待はメールアドレス単位で届きます。招待を受けたメールアドレスでログインしてください。</p>
+          <h2>新しいチームを作るには</h2>
+          <p>運営から配布された招待コードが必要です。お持ちでない方は、招待されたメールアドレスでログインしてください。</p>
           {viewerEmail && <p className={styles.entryInfoMeta}>現在のログインメール: {viewerEmail}</p>}
         </div>
       </div>
+    </EntryLayout>
+  );
+}
+
+function CreateTeamWithCodeGate({
+  viewerEmail,
+  name,
+  code,
+  busy,
+  error,
+  onChangeName,
+  onChangeCode,
+  onSubmit,
+  onCancel,
+}: {
+  viewerEmail: string | null;
+  name: string;
+  code: string;
+  busy: boolean;
+  error: string | null;
+  onChangeName: (value: string) => void;
+  onChangeCode: (value: string) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+}) {
+  const submitDisabled = busy || !name.trim() || !code.trim();
+
+  return (
+    <EntryLayout
+      badge="新規チーム"
+      title="新しいチームを作る"
+      description="チーム名と招待コードを入力してください。あなたが管理者として参加します。"
+    >
+      <form
+        className={styles.authForm}
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!submitDisabled) {
+            onSubmit();
+          }
+        }}
+      >
+        <label className={styles.entryField}>
+          <span>チーム名</span>
+          <input
+            className={styles.entryInput}
+            type="text"
+            value={name}
+            onChange={(event) => onChangeName(event.target.value)}
+            placeholder="例: 〇〇内装工業"
+            autoComplete="organization"
+            required
+          />
+        </label>
+
+        <label className={styles.entryField}>
+          <span>招待コード</span>
+          <input
+            className={styles.entryInput}
+            type="text"
+            value={code}
+            onChange={(event) => onChangeCode(event.target.value)}
+            placeholder="運営から渡されたコード"
+            autoCapitalize="characters"
+            autoCorrect="off"
+            spellCheck={false}
+            required
+          />
+        </label>
+
+        {error && <p className={styles.entryError}>{error}</p>}
+
+        <div className={styles.authActions}>
+          <button
+            type="submit"
+            className={`${styles.primaryButton} ${busy ? styles.primaryButtonBusy : ""}`}
+            disabled={submitDisabled}
+            aria-busy={busy}
+          >
+            {busy ? <Loader2 size={16} className={styles.spinnerIcon} /> : <ChevronRight size={16} />}
+            このチームではじめる
+          </button>
+          <button
+            type="button"
+            className={styles.textButton}
+            onClick={onCancel}
+            disabled={busy}
+          >
+            戻る
+          </button>
+        </div>
+
+        <div className={styles.entryInfoCard}>
+          <h2>招待コードについて</h2>
+          <p>運営から発行されたコードを入力してください。1コードで作れるチーム数には上限があります。</p>
+          {viewerEmail && <p className={styles.entryInfoMeta}>作成者: {viewerEmail}</p>}
+        </div>
+      </form>
     </EntryLayout>
   );
 }
@@ -1283,6 +1419,11 @@ function AppContent() {
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [inviteBusyId, setInviteBusyId] = useState<string | null>(null);
   const [inviteError, setInviteError] = useState<string | null>(null);
+  const [createTeamMode, setCreateTeamMode] = useState(false);
+  const [createTeamName, setCreateTeamName] = useState("");
+  const [createTeamCode, setCreateTeamCode] = useState("");
+  const [createTeamBusy, setCreateTeamBusy] = useState(false);
+  const [createTeamError, setCreateTeamError] = useState<string | null>(null);
   const activeOrgId = useActiveOrgStore((state) => state.activeOrgId);
   const orgOptions = useActiveOrgStore((state) => state.options);
   const setOrgOptions = useActiveOrgStore((state) => state.setOptions);
@@ -1656,6 +1797,85 @@ function AppContent() {
     }
   }, [bootstrapName, bootstrapSlug, formatBootstrapError, setActiveOrgId, setOrgOptions]);
 
+  const formatCreateTeamError = useCallback((code: string) => {
+    if (code === "ORG_CREATION_CODE_INVALID") {
+      return "招待コードが見つかりません。コードをもう一度確認してください。";
+    }
+    if (code === "ORG_CREATION_CODE_EXPIRED") {
+      return "この招待コードは有効期限が切れています。運営から新しいコードを受け取ってください。";
+    }
+    if (code === "ORG_CREATION_CODE_REVOKED") {
+      return "この招待コードは無効化されています。運営に確認してください。";
+    }
+    if (code === "ORG_CREATION_CODE_EXHAUSTED") {
+      return "この招待コードは使用回数の上限に達しました。運営に新しいコードを依頼してください。";
+    }
+    if (code === "ORG_CREATION_CODE_REQUIRED") {
+      return "招待コードを入力してください。";
+    }
+    if (code === "ORG_BOOTSTRAP_NAME_REQUIRED") {
+      return "チーム名を入力してください。";
+    }
+    if (code === "ORG_BOOTSTRAP_SLUG_CONFLICT") {
+      return "同名のチームがすでに存在します。チーム名を少し変えて再試行してください。";
+    }
+    if (code === "ORG_CREATION_RPC_NOT_AVAILABLE") {
+      return "サーバーの準備が完了していません。時間を置いて再度お試しください。";
+    }
+    return "チームを作れませんでした。時間を置いて再度お試しください。";
+  }, []);
+
+  const handleStartCreateTeam = useCallback(() => {
+    setCreateTeamMode(true);
+    setCreateTeamName("");
+    setCreateTeamCode("");
+    setCreateTeamError(null);
+  }, []);
+
+  const handleCancelCreateTeam = useCallback(() => {
+    setCreateTeamMode(false);
+    setCreateTeamError(null);
+  }, []);
+
+  const handleCreateTeamSubmit = useCallback(async () => {
+    try {
+      setCreateTeamBusy(true);
+      setCreateTeamError(null);
+      const result = await bootstrapOrgWithCode({
+        name: createTeamName,
+        code: createTeamCode,
+      });
+
+      const nextOptions: ActiveOrgOption[] = [
+        {
+          org: {
+            id: result.active_org.id,
+            name: result.active_org.name,
+            slug: result.active_org.slug,
+            status: result.active_org.status,
+          },
+          membership: {
+            org_id: result.membership.org_id,
+            user_id: result.membership.user_id,
+            role: result.membership.role,
+            status: result.membership.status,
+          },
+        },
+      ];
+
+      setOrgOptions(nextOptions);
+      setActiveOrgId(result.active_org.id);
+      setCreateTeamMode(false);
+      setEntryState({ state: "ready_client" });
+    } catch (error) {
+      setCreateTeamError(
+        formatCreateTeamError(error instanceof Error ? error.message : "ORG_CREATION_FAILED"),
+      );
+    } finally {
+      setCreateTeamBusy(false);
+    }
+  }, [createTeamName, createTeamCode, formatCreateTeamError, setActiveOrgId, setOrgOptions]);
+
   const handleAcceptInvite = useCallback(async (inviteId: string) => {
     if (!viewerEmail) {
       setInviteError("ログイン中のメールアドレスを確認できません。別の方法でログインしてください。");
@@ -1762,10 +1982,27 @@ function AppContent() {
     }
 
     if (entryState.state === "needs_onboarding") {
+      if (createTeamMode && entryState.bootstrap_with_code_enabled) {
+        return (
+          <CreateTeamWithCodeGate
+            viewerEmail={entryState.viewer_email}
+            name={createTeamName}
+            code={createTeamCode}
+            busy={createTeamBusy}
+            error={createTeamError}
+            onChangeName={setCreateTeamName}
+            onChangeCode={setCreateTeamCode}
+            onSubmit={() => void handleCreateTeamSubmit()}
+            onCancel={handleCancelCreateTeam}
+          />
+        );
+      }
       return (
         <OnboardingGate
           viewerEmail={entryState.viewer_email}
+          bootstrapWithCodeEnabled={entryState.bootstrap_with_code_enabled}
           onOpenInviteHelp={() => setShowInviteHelp(true)}
+          onStartCreateTeam={handleStartCreateTeam}
         />
       );
     }

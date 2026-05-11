@@ -49,9 +49,25 @@ function handleOrgAccessError(res: Response, error: unknown): void {
         code === "ORG_BOOTSTRAP_NAME_REQUIRED" ||
         code === "ORG_BOOTSTRAP_RPC_EMPTY_RESULT" ||
         code === "ORG_INVITE_EMAIL_REQUIRED" ||
-        code === "ORG_INVITE_ACCEPT_EMPTY_RESULT"
+        code === "ORG_INVITE_ACCEPT_EMPTY_RESULT" ||
+        code === "ORG_CREATION_CODE_REQUIRED"
     ) {
         res.status(400).json({ error: code });
+        return;
+    }
+
+    if (
+        code === "ORG_CREATION_CODE_INVALID" ||
+        code === "ORG_CREATION_CODE_EXPIRED" ||
+        code === "ORG_CREATION_CODE_REVOKED" ||
+        code === "ORG_CREATION_CODE_EXHAUSTED"
+    ) {
+        res.status(403).json({ error: code });
+        return;
+    }
+
+    if (code === "ORG_CREATION_RPC_NOT_AVAILABLE") {
+        res.status(503).json({ error: code });
         return;
     }
 
@@ -118,6 +134,27 @@ router.post("/bootstrap", async (req: AuthenticatedRequest, res: Response) => {
             userId: req.userId,
             userEmail: req.userEmail ?? null,
             name: typeof req.body?.name === "string" ? req.body.name : "",
+            slug: typeof req.body?.slug === "string" ? req.body.slug : null,
+        });
+
+        res.status(201).json(result);
+    } catch (error) {
+        handleOrgAccessError(res, error);
+    }
+});
+
+router.post("/bootstrap-with-code", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        if (!req.userId) {
+            res.status(401).json({ error: "Unauthorized" });
+            return;
+        }
+
+        const service = new OrgBootstrapService();
+        const result = await service.bootstrapWithCode({
+            userId: req.userId,
+            name: typeof req.body?.name === "string" ? req.body.name : "",
+            code: typeof req.body?.code === "string" ? req.body.code : "",
             slug: typeof req.body?.slug === "string" ? req.body.slug : null,
         });
 
