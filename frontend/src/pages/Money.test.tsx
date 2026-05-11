@@ -81,10 +81,6 @@ vi.mock("../components/ApprovalCard", () => ({
     ApprovalCard: () => null,
 }));
 
-vi.mock("../components/MoneyBucketDashboard", () => ({
-    MoneyBucketDashboard: () => null,
-}));
-
 vi.mock("../components/FloatingActionButton", () => ({
     FloatingActionButton: () => null,
 }));
