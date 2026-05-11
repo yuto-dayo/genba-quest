@@ -4,6 +4,7 @@ import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import { supabaseAdmin } from "../lib/supabaseClient";
 import { OrgBootstrapService } from "../services/OrgBootstrapService";
 import { OrgInviteAcceptanceService } from "../services/OrgInviteAcceptanceService";
+import { OrgInviteCreationService, type OrgInviteStatus } from "../services/OrgInviteCreationService";
 import { listOrgMembers } from "../services/OrgMemberDirectoryService";
 
 const router = Router();
@@ -34,9 +35,15 @@ function handleOrgAccessError(res: Response, error: unknown): void {
     if (
         code === "ORG_INVITE_NOT_PENDING" ||
         code === "ORG_INVITE_EXPIRED" ||
-        code === "ORG_INVITE_EMAIL_MISMATCH"
+        code === "ORG_INVITE_EMAIL_MISMATCH" ||
+        code === "ORG_INVITE_PENDING_DUPLICATE"
     ) {
         res.status(409).json({ error: code });
+        return;
+    }
+
+    if (code === "ORG_INVITE_ROLE_INVALID") {
+        res.status(400).json({ error: code });
         return;
     }
 
@@ -159,6 +166,76 @@ router.post("/bootstrap-with-code", async (req: AuthenticatedRequest, res: Respo
         });
 
         res.status(201).json(result);
+    } catch (error) {
+        handleOrgAccessError(res, error);
+    }
+});
+
+router.get("/invites", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const membership = await resolveActiveOrgMembership(req, "admin");
+        const service = new OrgInviteCreationService();
+        const status = typeof req.query.status === "string"
+            ? (req.query.status as OrgInviteStatus | "all")
+            : "pending";
+        const invites = await service.list({ orgId: membership.org_id, status });
+        res.json({ invites });
+    } catch (error) {
+        handleOrgAccessError(res, error);
+    }
+});
+
+router.post("/invites", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        if (!req.userId) {
+            res.status(401).json({ error: "Unauthorized" });
+            return;
+        }
+
+        const membership = await resolveActiveOrgMembership(req, "admin");
+        const service = new OrgInviteCreationService();
+        const email = typeof req.body?.email === "string" ? req.body.email : "";
+        const role = req.body?.role === "admin" ? "admin" : "member";
+        const ttlDays = typeof req.body?.ttl_days === "number" ? req.body.ttl_days : undefined;
+
+        const invite = await service.create({
+            orgId: membership.org_id,
+            invitedBy: req.userId,
+            email,
+            role,
+            ttlDays,
+        });
+
+        res.status(201).json({ invite });
+    } catch (error) {
+        handleOrgAccessError(res, error);
+    }
+});
+
+router.delete("/invites/:inviteId", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        if (!req.userId) {
+            res.status(401).json({ error: "Unauthorized" });
+            return;
+        }
+
+        const membership = await resolveActiveOrgMembership(req, "admin");
+        const inviteId = Array.isArray(req.params.inviteId)
+            ? req.params.inviteId[0]
+            : req.params.inviteId;
+        if (!inviteId) {
+            res.status(400).json({ error: "ORG_INVITE_NOT_FOUND" });
+            return;
+        }
+
+        const service = new OrgInviteCreationService();
+        const invite = await service.revoke({
+            orgId: membership.org_id,
+            inviteId,
+            revokedBy: req.userId,
+        });
+
+        res.json({ invite });
     } catch (error) {
         handleOrgAccessError(res, error);
     }

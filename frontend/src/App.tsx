@@ -224,6 +224,26 @@ function isSiteLevelDraftNotification(notification: NotificationRecord): boolean
 }
 
 
+function formatInviteError(code: string): string {
+  if (code === "ORG_INVITE_NOT_FOUND") {
+    return "招待が見つかりませんでした。管理者に再招待を依頼してください。";
+  }
+
+  if (code === "ORG_INVITE_NOT_PENDING") {
+    return "この招待はすでに処理済みです。再読み込みしてください。";
+  }
+
+  if (code === "ORG_INVITE_EXPIRED") {
+    return "招待の有効期限が切れています。管理者に再招待を依頼してください。";
+  }
+
+  if (code === "ORG_INVITE_EMAIL_MISMATCH") {
+    return "ログイン中のメールアドレスと招待先が一致していません。招待されたメールでログインしてください。";
+  }
+
+  return "招待への参加に失敗しました。時間を置いて再度お試しください。";
+}
+
 function buildActiveOrgOptions(memberships: AppEntryMembershipRecord[]): ActiveOrgOption[] {
   return memberships.map((membership) => ({
     org: {
@@ -1360,6 +1380,7 @@ function AppContent() {
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [inviteBusyId, setInviteBusyId] = useState<string | null>(null);
   const [inviteError, setInviteError] = useState<string | null>(null);
+  const consumedInviteRef = useRef<string | null>(null);
   const [createTeamMode, setCreateTeamMode] = useState(false);
   const [createTeamName, setCreateTeamName] = useState("");
   const [createTeamCode, setCreateTeamCode] = useState("");
@@ -1376,11 +1397,53 @@ function AppContent() {
   const orgTone = activeOrg ? "default" : "warning";
   const viewerEmail = authSession?.user.email || null;
 
+  const consumeInviteFromUrl = useCallback(async (): Promise<boolean> => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+
+    const url = new URL(window.location.href);
+    const inviteId = url.searchParams.get("invite");
+    if (!inviteId || consumedInviteRef.current === inviteId) {
+      return false;
+    }
+
+    consumedInviteRef.current = inviteId;
+    url.searchParams.delete("invite");
+    window.history.replaceState({}, "", url.toString());
+
+    try {
+      const result = await acceptOrgInvite(inviteId);
+      setOrgOptions([
+        {
+          org: {
+            id: result.active_org.id,
+            name: result.active_org.name,
+            slug: result.active_org.slug,
+            status: result.active_org.status,
+          },
+          membership: {
+            org_id: result.membership.org_id,
+            user_id: result.membership.user_id,
+            role: result.membership.role,
+            status: result.membership.status,
+          },
+        },
+      ]);
+      setActiveOrgId(result.active_org.id);
+      return true;
+    } catch (error) {
+      setInviteError(formatInviteError(error instanceof Error ? error.message : "ORG_INVITE_ACCEPT_FAILED"));
+      return false;
+    }
+  }, [setActiveOrgId, setOrgOptions]);
+
   const resolveEntryState = useCallback(async () => {
     setBootstrapError(null);
     setInviteError(null);
 
     try {
+      await consumeInviteFromUrl();
       const nextState = await fetchAppEntryState();
 
       if (nextState.state === "ready") {
@@ -1419,7 +1482,7 @@ function AppContent() {
         message: error instanceof Error ? error.message : "APP_ENTRY_LOAD_FAILED",
       });
     }
-  }, [clearActiveOrg, setActiveOrgId, setOrgOptions]);
+  }, [clearActiveOrg, consumeInviteFromUrl, setActiveOrgId, setOrgOptions]);
 
   const handleSignedOut = useCallback(() => {
     clearActiveOrg();
@@ -1680,25 +1743,6 @@ function AppContent() {
     return code;
   }, []);
 
-  const formatInviteError = useCallback((code: string) => {
-    if (code === "ORG_INVITE_NOT_FOUND") {
-      return "招待が見つかりませんでした。管理者に再招待を依頼してください。";
-    }
-
-    if (code === "ORG_INVITE_NOT_PENDING") {
-      return "この招待はすでに処理済みです。再読み込みしてください。";
-    }
-
-    if (code === "ORG_INVITE_EXPIRED") {
-      return "招待の有効期限が切れています。管理者に再招待を依頼してください。";
-    }
-
-    if (code === "ORG_INVITE_EMAIL_MISMATCH") {
-      return "ログイン中のメールアドレスと招待先が一致していません。招待されたメールでログインしてください。";
-    }
-
-    return "招待への参加に失敗しました。時間を置いて再度お試しください。";
-  }, []);
 
   const handleBootstrapSubmit = useCallback(async () => {
     try {
@@ -1850,7 +1894,7 @@ function AppContent() {
     } finally {
       setInviteBusyId(null);
     }
-  }, [formatInviteError, setActiveOrgId, setOrgOptions, viewerEmail]);
+  }, [setActiveOrgId, setOrgOptions, viewerEmail]);
 
   const handleSelectOrg = useCallback((orgId: string) => {
     setActiveOrgId(orgId);

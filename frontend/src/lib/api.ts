@@ -1318,6 +1318,60 @@ export const acceptOrgInvite = (inviteId: string) =>
         method: "POST",
     });
 
+export type OrgInviteRole = "admin" | "member";
+export type OrgInviteStatus = "pending" | "accepted" | "revoked" | "expired";
+
+export interface OrgInviteRecord {
+    id: string;
+    org_id: string;
+    email_normalized: string;
+    role: OrgInviteRole;
+    status: OrgInviteStatus;
+    expires_at: string;
+    invited_by: string | null;
+    accepted_by: string | null;
+    accepted_at: string | null;
+    revoked_at: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export const listOrgInvites = (params?: { status?: OrgInviteStatus | "all" }) => {
+    const search = new URLSearchParams();
+    if (params?.status) {
+        search.append("status", params.status);
+    }
+    const query = search.toString();
+    return api<{ invites: OrgInviteRecord[] }>(`/api/v1/org/invites${query ? `?${query}` : ""}`);
+};
+
+export const createOrgInvite = (payload: { email: string; role: OrgInviteRole; ttl_days?: number }) =>
+    api<{ invite: OrgInviteRecord }>("/api/v1/org/invites", {
+        method: "POST",
+        body: JSON.stringify(payload),
+    });
+
+export const revokeOrgInvite = (inviteId: string) =>
+    api<{ invite: OrgInviteRecord }>(`/api/v1/org/invites/${encodeURIComponent(inviteId)}`, {
+        method: "DELETE",
+    });
+
+export interface MyProfileRecord {
+    id: string;
+    username: string | null;
+    full_name: string | null;
+    avatar_url: string | null;
+}
+
+export const fetchMyProfile = () =>
+    api<{ profile: MyProfileRecord }>("/api/v1/profile/me");
+
+export const updateMyProfile = (payload: { full_name?: string | null; username?: string | null }) =>
+    api<{ profile: MyProfileRecord }>("/api/v1/profile/me", {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+    });
+
 export interface Client {
     id: string;
     org_id?: string;

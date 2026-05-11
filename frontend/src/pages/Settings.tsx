@@ -4,31 +4,43 @@ import {
     ArrowLeft,
     BadgeCheck,
     Building2,
+    Check,
     ChevronRight,
+    Copy,
     FileText,
     Loader2,
     Plus,
     ReceiptText,
     Search,
     Sparkles,
+    Trash2,
+    UserPlus,
     Users,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
     bootstrapOrg,
+    createOrgInvite,
     fetchClients,
     fetchInvoiceSettings,
     fetchMembers,
+    fetchMyProfile,
     fetchPathAiReviews,
     fetchPathCertifications,
     fetchPathFinalizations,
     fetchPathForms,
     fetchPathProfiles,
+    listOrgInvites,
     PATH_BIG_SKILL_KEYS,
     restoreClient,
+    revokeOrgInvite,
+    updateMyProfile,
     type Client,
     type InvoiceSettings,
     type Member,
+    type MyProfileRecord,
+    type OrgInviteRecord,
+    type OrgInviteRole,
     type PathBigSkillKey,
     type PathBigSkillState,
     type PathMonthlyEvaluationAiReview,
@@ -189,7 +201,47 @@ function formatSkillKeyLabel(value: string) {
     return value.replaceAll("_", " ");
 }
 
-type SettingPanel = "profile" | "organization" | "invoice" | "clients";
+type SettingPanel = "profile" | "organization" | "members" | "invoice" | "clients";
+
+function buildInviteLink(inviteId: string) {
+    if (typeof window === "undefined") {
+        return `?invite=${inviteId}`;
+    }
+    const url = new URL(window.location.origin);
+    url.pathname = "/";
+    url.searchParams.set("invite", inviteId);
+    return url.toString();
+}
+
+function formatInviteError(error: unknown) {
+    const message = getErrorMessage(error);
+
+    if (message === "ORG_INVITE_EMAIL_REQUIRED") {
+        return "メールアドレスを入力してください。";
+    }
+    if (message === "ORG_INVITE_PENDING_DUPLICATE") {
+        return "このメールには未受諾の招待がすでにあります。";
+    }
+    if (message === "ORG_INVITE_ROLE_INVALID") {
+        return "権限の指定が不正です。";
+    }
+    if (message === "ORG_ROLE_REQUIRED") {
+        return "招待の作成にはadmin権限が必要です。";
+    }
+
+    return message;
+}
+
+function formatExpiresAt(value: string) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return value;
+    }
+    return date.toLocaleDateString("ja-JP", {
+        month: "numeric",
+        day: "numeric",
+    });
+}
 
 function formatOrgCreateError(error: unknown) {
     const message = getErrorMessage(error);
@@ -220,6 +272,21 @@ export function Settings() {
     const [pageError, setPageError] = useState<string | null>(null);
     const [restoringClientId, setRestoringClientId] = useState<string | null>(null);
     const [currentMember, setCurrentMember] = useState<Member | null>(null);
+    const [members, setMembers] = useState<Member[]>([]);
+    const [pendingInvites, setPendingInvites] = useState<OrgInviteRecord[]>([]);
+    const [inviteEmail, setInviteEmail] = useState("");
+    const [inviteRole, setInviteRole] = useState<OrgInviteRole>("member");
+    const [inviteBusy, setInviteBusy] = useState(false);
+    const [inviteError, setInviteError] = useState<string | null>(null);
+    const [inviteMessage, setInviteMessage] = useState<string | null>(null);
+    const [copiedInviteId, setCopiedInviteId] = useState<string | null>(null);
+    const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null);
+    const [myProfile, setMyProfile] = useState<MyProfileRecord | null>(null);
+    const [profileFullName, setProfileFullName] = useState("");
+    const [profileUsername, setProfileUsername] = useState("");
+    const [profileSaveBusy, setProfileSaveBusy] = useState(false);
+    const [profileError, setProfileError] = useState<string | null>(null);
+    const [profileMessage, setProfileMessage] = useState<string | null>(null);
     const [currentProfile, setCurrentProfile] = useState<PathSkillProfile | null>(null);
     const [currentForm, setCurrentForm] = useState<PathMonthlyEvaluationForm | null>(null);
     const [currentReview, setCurrentReview] = useState<PathMonthlyEvaluationAiReview | null>(null);
@@ -261,6 +328,7 @@ export function Settings() {
             setInvoiceSettings(settingsData);
             setClients(clientsData);
             setDeletedClients(deletedClientsData);
+            setMembers(membersData);
             setCurrentMember(currentUserId ? membersData.find((member) => member.id === currentUserId) || null : null);
 
             if (!currentUserId) {
@@ -271,6 +339,22 @@ export function Settings() {
                 setCurrentCertifications([]);
                 setRecentFinalizations([]);
                 return;
+            }
+
+            try {
+                const inviteData = await listOrgInvites({ status: "pending" });
+                setPendingInvites(inviteData.invites);
+            } catch {
+                setPendingInvites([]);
+            }
+
+            try {
+                const profileData = await fetchMyProfile();
+                setMyProfile(profileData.profile);
+                setProfileFullName(profileData.profile.full_name ?? "");
+                setProfileUsername(profileData.profile.username ?? "");
+            } catch {
+                setMyProfile(null);
             }
 
             const [profilesData, formsData, reviewsData, finalizationsData, historyData, certificationsData] =
@@ -314,6 +398,110 @@ export function Settings() {
         setEditingClient(null);
     };
 
+    const refreshInvites = async () => {
+        try {
+            const data = await listOrgInvites({ status: "pending" });
+            setPendingInvites(data.invites);
+        } catch {
+            setPendingInvites([]);
+        }
+    };
+
+    const handleCreateInvite = async () => {
+        try {
+            setInviteBusy(true);
+            setInviteError(null);
+            setInviteMessage(null);
+            const result = await createOrgInvite({
+                email: inviteEmail,
+                role: inviteRole,
+            });
+            setInviteEmail("");
+            setInviteRole("member");
+            await refreshInvites();
+            try {
+                const link = buildInviteLink(result.invite.id);
+                await navigator.clipboard.writeText(link);
+                setCopiedInviteId(result.invite.id);
+                setInviteMessage("招待リンクをコピーしました。LINE などで送ってください。");
+            } catch {
+                setInviteMessage("招待を作成しました。下のリストからリンクをコピーしてください。");
+            }
+        } catch (error: unknown) {
+            setInviteError(formatInviteError(error));
+        } finally {
+            setInviteBusy(false);
+        }
+    };
+
+    const handleCopyInvite = async (invite: OrgInviteRecord) => {
+        try {
+            await navigator.clipboard.writeText(buildInviteLink(invite.id));
+            setCopiedInviteId(invite.id);
+            setInviteMessage(`${invite.email_normalized} 宛のリンクをコピーしました。`);
+            setInviteError(null);
+        } catch (error: unknown) {
+            setInviteError(getErrorMessage(error));
+        }
+    };
+
+    const handleRevokeInvite = async (invite: OrgInviteRecord) => {
+        if (typeof window !== "undefined") {
+            const confirmed = window.confirm(`${invite.email_normalized} への招待を取り消しますか？`);
+            if (!confirmed) {
+                return;
+            }
+        }
+
+        try {
+            setRevokingInviteId(invite.id);
+            setInviteError(null);
+            await revokeOrgInvite(invite.id);
+            await refreshInvites();
+            setInviteMessage(`${invite.email_normalized} への招待を取り消しました。`);
+        } catch (error: unknown) {
+            setInviteError(formatInviteError(error));
+        } finally {
+            setRevokingInviteId(null);
+        }
+    };
+
+    const handleSaveProfile = async () => {
+        try {
+            setProfileSaveBusy(true);
+            setProfileError(null);
+            setProfileMessage(null);
+
+            const result = await updateMyProfile({
+                full_name: profileFullName.trim() || null,
+                username: profileUsername.trim() || null,
+            });
+            setMyProfile(result.profile);
+            setProfileFullName(result.profile.full_name ?? "");
+            setProfileUsername(result.profile.username ?? "");
+            setProfileMessage("プロフィールを保存しました。");
+
+            const currentMembers = await fetchMembers();
+            setMembers(currentMembers);
+            const {
+                data: { session },
+            } = await supabase.auth.getSession();
+            const uid = session?.user?.id || null;
+            setCurrentMember(uid ? currentMembers.find((member) => member.id === uid) || null : null);
+        } catch (error: unknown) {
+            const message = getErrorMessage(error);
+            if (message === "PROFILE_USERNAME_TOO_SHORT") {
+                setProfileError("ユーザー名は3文字以上で入力してください。");
+            } else if (message === "PROFILE_USERNAME_TAKEN") {
+                setProfileError("そのユーザー名は使われています。");
+            } else {
+                setProfileError(message);
+            }
+        } finally {
+            setProfileSaveBusy(false);
+        }
+    };
+
     const handleRestoreClient = async (clientId: string) => {
         try {
             setRestoringClientId(clientId);
@@ -331,6 +519,7 @@ export function Settings() {
         ? statusMeta[invoiceSettings.invoice_issuer_status]
         : statusMeta.unregistered;
     const activeOrg = orgOptions.find((option) => option.org.id === activeOrgId) || null;
+    const isCurrentUserAdmin = activeOrg?.membership.role === "admin";
     const displayName = currentMember?.full_name || currentMember?.username || "未設定";
     const currentMonth = currentMonthValue();
     const currentLevel = currentFinalization?.current_level || currentProfile?.current_level;
@@ -384,6 +573,15 @@ export function Settings() {
             title: "組織",
             summary: activeOrg?.org.name || "表示中の組織",
             icon: <Building2 size={20} />,
+        },
+        {
+            id: "members" as const,
+            group: "組織",
+            title: "メンバーと招待",
+            summary: isCurrentUserAdmin
+                ? `${members.length}人 / 招待中 ${pendingInvites.length}件`
+                : `${members.length}人`,
+            icon: <UserPlus size={20} />,
         },
         {
             id: "clients" as const,
@@ -547,6 +745,69 @@ export function Settings() {
                                         評価
                                         <ChevronRight size={16} />
                                     </Link>
+                                </div>
+
+                                <div className={styles.infoCard}>
+                                    <div className={styles.infoCardHeader}>
+                                        <div>
+                                            <h3 className={styles.infoCardTitle}>氏名・表示名</h3>
+                                            <p className={styles.infoCardDescription}>
+                                                チームに表示される名前です。空欄にするとメールアドレスが代わりに表示されます。
+                                            </p>
+                                        </div>
+                                        <Users size={18} className={styles.infoCardIcon} />
+                                    </div>
+
+                                    <div className={styles.orgCreateForm}>
+                                        <label className={styles.inputField}>
+                                            <span>氏名（フルネーム）</span>
+                                            <input
+                                                value={profileFullName}
+                                                onChange={(event) => {
+                                                    setProfileFullName(event.target.value);
+                                                    setProfileError(null);
+                                                    setProfileMessage(null);
+                                                }}
+                                                placeholder="例: 山田 太郎"
+                                                maxLength={80}
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>ユーザー名（3文字以上）</span>
+                                            <input
+                                                value={profileUsername}
+                                                onChange={(event) => {
+                                                    setProfileUsername(event.target.value);
+                                                    setProfileError(null);
+                                                    setProfileMessage(null);
+                                                }}
+                                                placeholder="例: yamada"
+                                                maxLength={40}
+                                            />
+                                        </label>
+
+                                        {profileError && <p className={styles.formError}>{profileError}</p>}
+                                        {profileMessage && <p className={styles.successMessage}>{profileMessage}</p>}
+
+                                        <button
+                                            type="button"
+                                            className={styles.primaryButton}
+                                            onClick={() => void handleSaveProfile()}
+                                            disabled={
+                                                profileSaveBusy ||
+                                                (profileFullName === (myProfile?.full_name ?? "") &&
+                                                    profileUsername === (myProfile?.username ?? ""))
+                                            }
+                                            aria-busy={profileSaveBusy}
+                                        >
+                                            {profileSaveBusy ? (
+                                                <Loader2 size={16} className={styles.spinner} />
+                                            ) : (
+                                                <Check size={16} />
+                                            )}
+                                            保存
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div className={styles.profileHero}>
@@ -875,6 +1136,160 @@ export function Settings() {
                                             </button>
                                         ))}
                                     </div>
+                                </div>
+                            </>
+                        )}
+
+                        {selectedSetting === "members" && (
+                            <>
+                                <div className={styles.detailHeader}>
+                                    <div className={styles.clientListSummary}>
+                                        <Users size={16} />
+                                        <span>{members.length}人 / 招待中 {pendingInvites.length}件</span>
+                                    </div>
+                                </div>
+
+                                {isCurrentUserAdmin && (
+                                    <div className={styles.infoCard}>
+                                        <div className={styles.infoCardHeader}>
+                                            <div>
+                                                <h3 className={styles.infoCardTitle}>招待を作る</h3>
+                                                <p className={styles.infoCardDescription}>
+                                                    招待先のメールと役割を指定すると、リンクが発行されます。
+                                                    LINE などで本人に送ってください。
+                                                </p>
+                                            </div>
+                                            <UserPlus size={18} className={styles.infoCardIcon} />
+                                        </div>
+
+                                        <div className={styles.orgCreateForm}>
+                                            <label className={styles.inputField}>
+                                                <span>メール</span>
+                                                <input
+                                                    type="email"
+                                                    autoComplete="off"
+                                                    value={inviteEmail}
+                                                    onChange={(event) => {
+                                                        setInviteEmail(event.target.value);
+                                                        setInviteError(null);
+                                                    }}
+                                                    placeholder="例: foo@example.com"
+                                                />
+                                            </label>
+                                            <label className={styles.inputField}>
+                                                <span>役割</span>
+                                                <select
+                                                    value={inviteRole}
+                                                    onChange={(event) => {
+                                                        setInviteRole(event.target.value as OrgInviteRole);
+                                                        setInviteError(null);
+                                                    }}
+                                                >
+                                                    <option value="member">member（通常）</option>
+                                                    <option value="admin">admin（管理者）</option>
+                                                </select>
+                                            </label>
+
+                                            {inviteError && <p className={styles.formError}>{inviteError}</p>}
+                                            {inviteMessage && <p className={styles.successMessage}>{inviteMessage}</p>}
+
+                                            <button
+                                                type="button"
+                                                className={styles.primaryButton}
+                                                onClick={() => void handleCreateInvite()}
+                                                disabled={inviteBusy || inviteEmail.trim().length === 0}
+                                                aria-busy={inviteBusy}
+                                            >
+                                                {inviteBusy ? (
+                                                    <Loader2 size={16} className={styles.spinner} />
+                                                ) : (
+                                                    <Plus size={16} />
+                                                )}
+                                                招待を作る
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {isCurrentUserAdmin && (
+                                    <div className={styles.infoCard}>
+                                        <div className={styles.infoCardHeader}>
+                                            <div>
+                                                <h3 className={styles.infoCardTitle}>未受諾の招待</h3>
+                                                <p className={styles.infoCardDescription}>
+                                                    リンクをコピーして本人に再送できます。期限切れ前に受諾してもらってください。
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {pendingInvites.length === 0 ? (
+                                            <div className={styles.emptyList}>招待中の人はいません</div>
+                                        ) : (
+                                            <div className={styles.orgList}>
+                                                {pendingInvites.map((invite) => (
+                                                    <div key={invite.id} className={styles.orgListItem}>
+                                                        <span>
+                                                            <strong>{invite.email_normalized}</strong>
+                                                            <small>
+                                                                {invite.role} ・ 期限 {formatExpiresAt(invite.expires_at)}
+                                                            </small>
+                                                        </span>
+                                                        <span style={{ display: "flex", gap: 8 }}>
+                                                            <button
+                                                                type="button"
+                                                                className={styles.secondaryButton}
+                                                                onClick={() => void handleCopyInvite(invite)}
+                                                            >
+                                                                {copiedInviteId === invite.id ? (
+                                                                    <Check size={16} />
+                                                                ) : (
+                                                                    <Copy size={16} />
+                                                                )}
+                                                                {copiedInviteId === invite.id ? "コピー済" : "リンク"}
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                className={styles.restoreButton}
+                                                                onClick={() => void handleRevokeInvite(invite)}
+                                                                disabled={revokingInviteId === invite.id}
+                                                                aria-label="招待を取り消す"
+                                                            >
+                                                                {revokingInviteId === invite.id ? (
+                                                                    <Loader2 size={14} className={styles.spinner} />
+                                                                ) : (
+                                                                    <Trash2 size={14} />
+                                                                )}
+                                                            </button>
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                <div className={styles.infoCard}>
+                                    <div className={styles.infoCardHeader}>
+                                        <div>
+                                            <h3 className={styles.infoCardTitle}>メンバー</h3>
+                                        </div>
+                                    </div>
+                                    {members.length === 0 ? (
+                                        <div className={styles.emptyList}>メンバーがいません</div>
+                                    ) : (
+                                        <div className={styles.orgList}>
+                                            {members.map((member) => (
+                                                <div key={member.id} className={styles.orgListItem}>
+                                                    <span>
+                                                        <strong>
+                                                            {member.full_name || member.username || "未設定"}
+                                                        </strong>
+                                                        <small>{member.role || "member"}</small>
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             </>
                         )}
