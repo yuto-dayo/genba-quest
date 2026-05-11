@@ -28,36 +28,9 @@ import { reviewExpense, type AccountingTransaction, type ProposalRecord } from "
 import { getErrorMessage } from "../lib/error";
 import { motion as motionTokens } from "../lib/motion/tokens";
 import styles from "./BellDrawer.module.css";
-import triggerStyles from "./BellTrigger.module.css";
 
 const SWIPE_COMMIT_OFFSET = 100;
 const SWIPE_COMMIT_VELOCITY = 500;
-
-interface BellTriggerProps {
-    count: number;
-    onClick: () => void;
-}
-
-export function BellTrigger({ count, onClick }: BellTriggerProps) {
-    return (
-        <button
-            type="button"
-            className={triggerStyles.trigger}
-            onClick={onClick}
-            aria-label={count > 0 ? `通知 ${count}件` : "通知"}
-        >
-            <Bell size={18} aria-hidden />
-            {count > 0 && (
-                <span className={triggerStyles.badge} aria-hidden>
-                    {count > 99 ? "99+" : count}
-                </span>
-            )}
-            <span className={triggerStyles.label}>
-                {count > 0 ? `通知 ${count}件` : "通知"}
-            </span>
-        </button>
-    );
-}
 
 interface BellDrawerProps {
     open: boolean;

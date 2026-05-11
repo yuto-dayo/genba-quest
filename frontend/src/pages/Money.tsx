@@ -43,7 +43,6 @@ import { InvoiceListPanel } from "../components/InvoiceListPanel";
 import { ProposalDetailModal } from "../components/ProposalDetailModal";
 import { TransactionDetailModal } from "../components/TransactionDetailModal";
 import { ApprovalCard } from "../components/ApprovalCard";
-import { BellDrawer, BellTrigger } from "../components/BellDrawer";
 import { FloatingActionButton } from "../components/FloatingActionButton";
 import { MoneyBucketDashboard } from "../components/MoneyBucketDashboard";
 import { MoneyHero } from "../components/MoneyHero";
@@ -217,9 +216,6 @@ export function Money() {
 
     // 承認モーダル (バッチ操作用、ベルから個別カードと別に開ける)
     const [showApprovalsModal, setShowApprovalsModal] = useState(false);
-
-    // ベルドロワー (PR #9): 自分担当 / 全員承認待ち の通知センター
-    const [showBellDrawer, setShowBellDrawer] = useState(false);
 
     // 登録モーダル
     const [showExpenseModal, setShowExpenseModal] = useState(false);
@@ -626,12 +622,6 @@ export function Money() {
                     disabled={loading}
                 />
             )}
-
-            {/* 通知ベル (PR #9) — 自分担当 / 全員承認待ち をドロワーで集約 */}
-            <BellTrigger
-                count={pendingApprovals.length + pendingProposals.length}
-                onClick={() => setShowBellDrawer(true)}
-            />
 
             {/* バケット一望 (F-1) — 番頭レス可視性の核 */}
             <MoneyBucketDashboard month={selectedMonth} />
@@ -1119,18 +1109,6 @@ export function Money() {
                 onFiltersChange={setFilters}
                 clients={clients}
                 matchedCount={filteredTransactions.length}
-            />
-
-            <BellDrawer
-                open={showBellDrawer}
-                onClose={() => setShowBellDrawer(false)}
-                selfApprovals={pendingApprovals}
-                consensusPending={pendingProposals}
-                onSelfApprovalComplete={handleApprovalComplete}
-                onOpenProposal={(proposal) => {
-                    setSelectedProposal(proposal);
-                    setShowBellDrawer(false);
-                }}
             />
 
             {isMobile && (
