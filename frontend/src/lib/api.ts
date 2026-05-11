@@ -1101,6 +1101,72 @@ export const deleteClient = (id: string, reason: string) =>
     api<Client>(`/api/v1/sites/clients/${id}`, { method: "DELETE", body: JSON.stringify({ reason }) });
 export const restoreClient = (id: string) =>
     api<Client>(`/api/v1/sites/clients/${id}/restore`, { method: "POST" });
+
+// ============================================================
+// 取引先の締め払いルール (PR #2 Money 再設計)
+// ============================================================
+
+export type BillingCycle = "weekly" | "biweekly" | "monthly" | "custom";
+
+export interface ClosingRule {
+    day?: number;
+    weekday?: number;
+    anchor_date?: string;
+}
+
+export interface PaymentRule {
+    days?: number;
+    month_offset?: number;
+    day?: number;
+}
+
+export interface BillingRuleRecord {
+    id: string;
+    org_id: string;
+    client_id: string;
+    effective_from: string;
+    effective_until: string | null;
+    billing_cycle: BillingCycle;
+    closing_rule: ClosingRule;
+    payment_rule: PaymentRule;
+    notes: string | null;
+    created_at: string;
+    updated_at: string;
+    created_by: string | null;
+}
+
+export interface BillingPeriodPreview {
+    period_start: string;
+    period_end: string;
+    payment_due_date: string;
+}
+
+export interface ActiveBillingRulePreview {
+    rule: BillingRuleRecord | null;
+    next_period: BillingPeriodPreview | null;
+}
+
+export interface CreateBillingRuleInput {
+    effective_from: string;
+    billing_cycle: BillingCycle;
+    closing_rule: ClosingRule;
+    payment_rule: PaymentRule;
+    notes?: string | null;
+}
+
+export const fetchBillingRules = (clientId: string) =>
+    api<BillingRuleRecord[]>(`/api/v1/sites/clients/${clientId}/billing-rules`);
+
+export const fetchActiveBillingRule = (clientId: string, on?: string) => {
+    const q = on ? `?on=${encodeURIComponent(on)}` : "";
+    return api<ActiveBillingRulePreview>(`/api/v1/sites/clients/${clientId}/billing-rules/active${q}`);
+};
+
+export const createBillingRule = (clientId: string, input: CreateBillingRuleInput) =>
+    api<BillingRuleRecord>(`/api/v1/sites/clients/${clientId}/billing-rules`, {
+        method: "POST",
+        body: JSON.stringify(input),
+    });
 export const scanBusinessCard = (data: {
     file_base64: string;
     mime_type: string;

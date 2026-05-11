@@ -9,6 +9,12 @@ import {
     assertRestorableClientForOrg,
     listClientsForOrg,
 } from "../services/ClientDirectoryService";
+import {
+    createBillingRule,
+    getActiveBillingRuleWithPreview,
+    listBillingRules,
+} from "../services/BillingRulesService";
+import type { BillingCycle, ClosingRule, PaymentRule } from "../services/BillingPeriodService";
 import { extractClientFromBusinessCard, getBusinessCardDefaultProvider } from "../services/BusinessCardOcrService";
 import {
     SiteCompleteWithCloseService,
@@ -755,6 +761,98 @@ router.post("/clients/:id/restore", async (req: AuthenticatedRequest, res: Respo
         }
 
         res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+// ============================================================
+// 取引先の締め払いルール (PR #1/2 Money 再設計)
+// ============================================================
+
+const BILLING_RULE_ERROR_STATUS: Record<string, number> = {
+    ERR_INVALID_EFFECTIVE_FROM: 400,
+    ERR_INVALID_CLOSING_DAY: 400,
+    ERR_INVALID_CLOSING_WEEKDAY: 400,
+    ERR_INVALID_ANCHOR_DATE: 400,
+    ERR_INVALID_BILLING_CYCLE: 400,
+    ERR_INVALID_PAYMENT_RULE: 400,
+    ERR_INVALID_PAYMENT_DAYS: 400,
+    ERR_INVALID_PAYMENT_MONTH_OFFSET: 400,
+    ERR_INVALID_PAYMENT_DAY: 400,
+    ERR_FUTURE_RULE_EXISTS: 409,
+};
+
+function billingRuleErrorResponse(res: Response, err: unknown): void {
+    if (err instanceof Error && BILLING_RULE_ERROR_STATUS[err.message] !== undefined) {
+        res.status(BILLING_RULE_ERROR_STATUS[err.message]).json({ error: err.message });
+        return;
+    }
+    console.error("[BILLING_RULES] error:", err);
+    res.status(500).json({ error: "Internal server error" });
+}
+
+router.get("/clients/:id/billing-rules", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const clientId = readParamId(req.params.id);
+        if (!clientId) {
+            res.status(400).json({ error: "client id is required" });
+            return;
+        }
+        const orgId = resolveOrgId(req.orgId);
+        await assertActiveClientForOrg(clientId, orgId);
+        const rules = await listBillingRules(orgId, clientId);
+        res.json(rules);
+    } catch (err) {
+        billingRuleErrorResponse(res, err);
+    }
+});
+
+router.get("/clients/:id/billing-rules/active", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const clientId = readParamId(req.params.id);
+        if (!clientId) {
+            res.status(400).json({ error: "client id is required" });
+            return;
+        }
+        const orgId = resolveOrgId(req.orgId);
+        await assertActiveClientForOrg(clientId, orgId);
+        const onParam = typeof req.query.on === "string" ? req.query.on : undefined;
+        const result = await getActiveBillingRuleWithPreview(orgId, clientId, onParam);
+        res.json(result);
+    } catch (err) {
+        billingRuleErrorResponse(res, err);
+    }
+});
+
+router.post("/clients/:id/billing-rules", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const clientId = readParamId(req.params.id);
+        if (!clientId) {
+            res.status(400).json({ error: "client id is required" });
+            return;
+        }
+        const orgId = resolveOrgId(req.orgId);
+        await assertActiveClientForOrg(clientId, orgId);
+
+        const body = (req.body ?? {}) as Record<string, unknown>;
+        const effective_from = typeof body.effective_from === "string" ? body.effective_from : "";
+        const billing_cycle = body.billing_cycle as BillingCycle;
+        const closing_rule = (body.closing_rule ?? {}) as ClosingRule;
+        const payment_rule = (body.payment_rule ?? {}) as PaymentRule;
+        const notes = typeof body.notes === "string" ? body.notes : null;
+
+        const created = await createBillingRule({
+            org_id: orgId,
+            client_id: clientId,
+            effective_from,
+            billing_cycle,
+            closing_rule,
+            payment_rule,
+            notes,
+            created_by: req.userId ?? null,
+        });
+        res.status(201).json(created);
+    } catch (err) {
+        billingRuleErrorResponse(res, err);
     }
 });
 
