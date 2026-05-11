@@ -1,0 +1,189 @@
+/* ============================================================
+   Monthly Trend Chart — 黒字可視化 MVP
+   直近 N ヶ月の利益 (profit = sales - expenses) を縦棒で表示。
+   選択中の月をハイライト、タップで月切替に追従。
+   ============================================================ */
+
+.card {
+    margin-top: var(--md-sys-spacing-lg, 24px);
+    padding: 14px 14px 12px;
+    background: var(--md-sys-color-surface, #ffffff);
+    border: 1px solid var(--md-sys-color-outline-variant, #d8dee5);
+    border-radius: 16px;
+}
+
+.header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.title {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--md-sys-color-on-surface-variant, #5b6470);
+    letter-spacing: 0.04em;
+}
+
+.hint {
+    font-size: 11px;
+    color: var(--md-sys-color-on-surface-variant, #5b6470);
+    opacity: 0.7;
+}
+
+/* バー領域: 上半分=黒字, 下半分=赤字 */
+.chart {
+    position: relative;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    gap: 6px;
+    height: 96px;
+    padding: 0 4px;
+}
+
+.zeroLine {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 1px;
+    background: rgba(0, 0, 0, 0.08);
+    pointer-events: none;
+}
+
+.col {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    padding: 0;
+    appearance: none;
+    -webkit-appearance: none;
+    color: inherit;
+    font: inherit;
+}
+
+.col:focus-visible {
+    outline: 2px solid var(--md-sys-color-primary, #ffb84d);
+    outline-offset: 2px;
+    border-radius: 6px;
+}
+
+/* 上半分 (黒字側) — 下端揃え */
+.posHalf {
+    flex: 1;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 1px;
+}
+
+/* 下半分 (赤字側) — 上端揃え */
+.negHalf {
+    flex: 1;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 1px;
+}
+
+.bar {
+    width: 70%;
+    max-width: 28px;
+    border-radius: 4px;
+    transition: height 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+    will-change: height;
+}
+
+.barPos {
+    background: linear-gradient(180deg, #22c55e, #16a34a);
+}
+
+.barNeg {
+    background: linear-gradient(180deg, #ef4444, #dc2626);
+}
+
+.colSelected .bar {
+    box-shadow: 0 0 0 2px var(--md-sys-color-surface, #fff), 0 0 0 4px rgba(99, 102, 241, 0.6);
+}
+
+.col:hover .bar {
+    filter: brightness(1.08);
+}
+
+.labelRow {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    gap: 6px;
+    padding: 6px 4px 0;
+}
+
+.label {
+    text-align: center;
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--md-sys-color-on-surface-variant, #5b6470);
+    font-variant-numeric: tabular-nums;
+}
+
+.labelSelected {
+    color: var(--md-sys-color-on-surface, #1a1f27);
+    font-weight: 800;
+}
+
+/* スケールヒント — 上/下に最大値の数字を薄く出す */
+.scaleHint {
+    position: absolute;
+    right: 4px;
+    font-size: 10px;
+    color: var(--md-sys-color-on-surface-variant, #5b6470);
+    opacity: 0.55;
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+}
+
+.scaleHintTop {
+    top: 2px;
+}
+
+.scaleHintBottom {
+    bottom: 2px;
+}
+
+.emptyState {
+    height: 96px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--md-sys-color-on-surface-variant, #5b6470);
+    font-size: 12px;
+}
+
+.skeleton {
+    height: 96px;
+    background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.04), transparent);
+    background-size: 200% 100%;
+    animation: trend-shimmer 1.4s linear infinite;
+    border-radius: 12px;
+}
+
+@keyframes trend-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.errorBox {
+    padding: 10px 12px;
+    background: rgba(220, 53, 69, 0.08);
+    border: 1px solid rgba(220, 53, 69, 0.3);
+    border-radius: 10px;
+    color: #b22d39;
+    font-size: 12px;
+}

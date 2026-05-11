@@ -24,6 +24,7 @@ import {
     recordPaymentAllocation,
     reverseCanonicalSale,
 } from "../services/AccountingCommandService";
+import { getPartnersSummary } from "../services/PartnersSummaryService";
 import {
     buildDefaultInvoiceSettings,
     buildInvoiceSourceSummarySnapshot,
@@ -3978,6 +3979,78 @@ router.post("/void/:id", async (req: AuthenticatedRequest, res: Response) => {
 // PL（月次損益）
 // ============================================================
 
+// PL 月次推移 (直近 N ヶ月の sales / expenses / profit, legacy basis, PR #8)
+router.get("/pl/trend", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const endParam = typeof req.query.end === "string" ? req.query.end : "";
+        const monthsParam = Number(req.query.months);
+        const months = Number.isFinite(monthsParam) && monthsParam > 0 && monthsParam <= 24
+            ? Math.floor(monthsParam)
+            : 6;
+        const endMonth = /^\d{4}-\d{2}$/.test(endParam)
+            ? endParam
+            : new Date().toISOString().slice(0, 7);
+
+        const [endYearStr, endMonStr] = endMonth.split("-");
+        const endYear = Number(endYearStr);
+        const endMon = Number(endMonStr);
+
+        // 範囲先頭月の 1 日
+        const startDate = new Date(endYear, endMon - 1 - (months - 1), 1);
+        const startIso = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, "0")}-01`;
+        // 範囲末尾月の末日
+        const endDay = new Date(endYear, endMon, 0).getDate();
+        const endIso = `${endMonth}-${String(endDay).padStart(2, "0")}`;
+
+        const { data, error } = await supabaseAdmin
+            .from("accounting_transactions")
+            .select("kind, amount_total, recorded_date")
+            .eq("org_id", req.orgId!)
+            .in("status", [...LEDGER_AGGREGATION_STATUSES])
+            .gte("recorded_date", startIso)
+            .lte("recorded_date", endIso);
+
+        if (error) throw error;
+
+        // 月別バケット初期化 (古い→新しい順)
+        const buckets: Record<string, { sales: number; expenses: number }> = {};
+        const monthKeys: string[] = [];
+        for (let i = 0; i < months; i++) {
+            const d = new Date(endYear, endMon - 1 - (months - 1) + i, 1);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+            monthKeys.push(key);
+            buckets[key] = { sales: 0, expenses: 0 };
+        }
+
+        for (const row of (data ?? []) as Array<{ kind: string; amount_total: number | string; recorded_date: string }>) {
+            const monthKey = row.recorded_date.slice(0, 7);
+            const bucket = buckets[monthKey];
+            if (!bucket) continue;
+            const amt = Number(row.amount_total) || 0;
+            if (row.kind === "sale" || row.kind === "invoice") {
+                bucket.sales += amt;
+            } else if (row.kind === "expense") {
+                bucket.expenses += amt;
+            }
+        }
+
+        const trend = monthKeys.map((key) => {
+            const { sales, expenses } = buckets[key];
+            return {
+                month: key,
+                sales,
+                expenses,
+                profit: sales - expenses,
+            };
+        });
+
+        res.json({ months: trend, basis: "legacy" });
+    } catch (err: any) {
+        console.error("[accounting] pl trend error:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
 router.get("/pl", async (req: AuthenticatedRequest, res: Response) => {
     try {
         const { month, site_id, cost_center, source } = req.query;
@@ -4208,6 +4281,161 @@ router.get("/transactions", async (req: AuthenticatedRequest, res: Response) => 
         res.json(data);
     } catch (err: any) {
         console.error("Transactions error:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+// 取引先 月次サマリ (Money 取引先タブ 3 section, PR #6)
+router.get("/partners/summary", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const monthParam = typeof req.query.month === "string" ? req.query.month : "";
+        const month = /^\d{4}-\d{2}$/.test(monthParam)
+            ? monthParam
+            : new Date().toISOString().slice(0, 7);
+        const today = new Date().toISOString().slice(0, 10);
+        const result = await getPartnersSummary(req.orgId!, month, today);
+        res.json(result);
+    } catch (err: any) {
+        if (err instanceof Error && err.message === "ERR_INVALID_MONTH") {
+            res.status(400).json({ error: "month must be YYYY-MM" });
+            return;
+        }
+        console.error("[accounting] partners summary error:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+// キャッシュフロー 4 バー (v3.3 mock の bucket-strip, PR #10):
+//  - unbilled: 当月 sale 取引で invoice 未発行 (請求漏れ candidates)
+//  - awaiting_payment: 未完済の invoice 残高 (期間に関わらず累積)
+//  - pay_pending: 当月 expense 取引
+//  - done: 当月 accounting_payments の合計
+router.get("/cashflow-summary", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const orgId = req.orgId!;
+        const monthParam = typeof req.query.month === "string" ? req.query.month : "";
+        const month = /^\d{4}-\d{2}$/.test(monthParam)
+            ? monthParam
+            : new Date().toISOString().slice(0, 7);
+        const [yStr, mStr] = month.split("-");
+        const lastDay = new Date(Number(yStr), Number(mStr), 0).getDate();
+        const start = `${month}-01`;
+        const end = `${month}-${String(lastDay).padStart(2, "0")}`;
+
+        const activeStatuses = ["posted", "approved"] as const;
+
+        // 当月 sale 取引 (id 付きで取り、invoice link 突合に使う)
+        const { data: salesRows, error: salesErr } = await supabaseAdmin
+            .from("accounting_transactions")
+            .select("id, amount_total")
+            .eq("org_id", orgId)
+            .eq("kind", "sale")
+            .in("status", [...activeStatuses])
+            .gte("recorded_date", start)
+            .lte("recorded_date", end);
+        if (salesErr) throw salesErr;
+        const monthSaleIds = (salesRows ?? []).map((r) => r.id as string);
+        const saleTotalById = new Map<string, number>();
+        for (const r of (salesRows ?? []) as Array<{ id: string; amount_total: number | string }>) {
+            saleTotalById.set(r.id, Number(r.amount_total) || 0);
+        }
+
+        // 当月 sale を source とする invoice を抽出
+        let invoicedSaleIds = new Set<string>();
+        if (monthSaleIds.length > 0) {
+            const { data: invRows, error: invErr } = await supabaseAdmin
+                .from("accounting_invoices")
+                .select("source_transaction_id")
+                .eq("org_id", orgId)
+                .in("source_transaction_id", monthSaleIds);
+            if (invErr) throw invErr;
+            invoicedSaleIds = new Set(
+                (invRows ?? [])
+                    .map((r) => r.source_transaction_id as string)
+                    .filter((id): id is string => !!id),
+            );
+        }
+
+        const unbilled = monthSaleIds.reduce((sum, id) => {
+            return invoicedSaleIds.has(id) ? sum : sum + (saleTotalById.get(id) ?? 0);
+        }, 0);
+
+        // 未完済 invoice (期間制限なし)
+        const { data: invoiceAllRows, error: invoiceAllErr } = await supabaseAdmin
+            .from("accounting_invoices")
+            .select(
+                `id,
+                 source:accounting_transactions!accounting_invoices_source_transaction_id_fkey(amount_total)`,
+            )
+            .eq("org_id", orgId);
+        if (invoiceAllErr) throw invoiceAllErr;
+        const invoiceList = (invoiceAllRows ?? []) as Array<{
+            id: string;
+            source: { amount_total: number | string } | { amount_total: number | string }[] | null;
+        }>;
+        const invoiceIdList = invoiceList.map((r) => r.id);
+        const allocatedByInvoice = new Map<string, number>();
+        if (invoiceIdList.length > 0) {
+            const { data: allocRows, error: allocErr } = await supabaseAdmin
+                .from("payment_allocations")
+                .select("invoice_id, allocated_amount")
+                .eq("org_id", orgId)
+                .in("invoice_id", invoiceIdList);
+            if (allocErr) throw allocErr;
+            for (const a of (allocRows ?? []) as Array<{ invoice_id: string; allocated_amount: number | string }>) {
+                allocatedByInvoice.set(
+                    a.invoice_id,
+                    (allocatedByInvoice.get(a.invoice_id) ?? 0) + (Number(a.allocated_amount) || 0),
+                );
+            }
+        }
+        let awaitingPayment = 0;
+        for (const inv of invoiceList) {
+            const src = Array.isArray(inv.source) ? inv.source[0] : inv.source;
+            const total = Number(src?.amount_total ?? 0);
+            const allocated = allocatedByInvoice.get(inv.id) ?? 0;
+            const outstanding = total - allocated;
+            if (outstanding > 0) awaitingPayment += outstanding;
+        }
+
+        // 当月 expense
+        const { data: expRows, error: expErr } = await supabaseAdmin
+            .from("accounting_transactions")
+            .select("amount_total")
+            .eq("org_id", orgId)
+            .eq("kind", "expense")
+            .in("status", [...activeStatuses])
+            .gte("recorded_date", start)
+            .lte("recorded_date", end);
+        if (expErr) throw expErr;
+        const payPending = (expRows ?? []).reduce(
+            (s, r) => s + (Number((r as { amount_total: number | string }).amount_total) || 0),
+            0,
+        );
+
+        // 当月 入金
+        const { data: payRows, error: payErr } = await supabaseAdmin
+            .from("accounting_payments")
+            .select("amount")
+            .eq("org_id", orgId)
+            .gte("received_on", start)
+            .lte("received_on", end)
+            .neq("status", "voided");
+        if (payErr) throw payErr;
+        const done = (payRows ?? []).reduce(
+            (s, r) => s + (Number((r as { amount: number | string }).amount) || 0),
+            0,
+        );
+
+        res.json({
+            month,
+            unbilled,
+            awaiting_payment: awaitingPayment,
+            pay_pending: payPending,
+            done,
+        });
+    } catch (err: any) {
+        console.error("[accounting] cashflow-summary error:", err);
         res.status(500).json({ error: "Internal server error" });
     }
 });

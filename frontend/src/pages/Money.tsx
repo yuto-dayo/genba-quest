@@ -15,7 +15,6 @@ import {
     ChevronRight,
     Search,
     SlidersHorizontal,
-    Users,
     FilterX,
 } from "lucide-react";
 import {
@@ -26,6 +25,7 @@ import {
     fetchTransactions,
     fetchPendingApprovals,
     fetchClients,
+    fetchPartnersSummary,
     instructProposal,
     rejectProposal,
     searchTransactions,
@@ -34,6 +34,7 @@ import {
     type AccountingTransaction,
     type ProposalRecord,
     type Client,
+    type PartnersSummary,
 } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
 import { ExpenseModal } from "../components/ExpenseModal";
@@ -44,17 +45,29 @@ import { ProposalDetailModal } from "../components/ProposalDetailModal";
 import { TransactionDetailModal } from "../components/TransactionDetailModal";
 import { ApprovalCard } from "../components/ApprovalCard";
 import { FloatingActionButton } from "../components/FloatingActionButton";
-import { MoneyBucketDashboard } from "../components/MoneyBucketDashboard";
+import { CashflowBucketStrip } from "../components/CashflowBucketStrip";
+import { MonthlyTrendChart } from "../components/MonthlyTrendChart";
 import { MoneyHero } from "../components/MoneyHero";
 import { MoneyTabs, type MoneyTab } from "../components/MoneyTabs";
 import { MoneyFilterSheet, type ExpenseCategory } from "../components/MoneyFilterSheet";
-import { VendorCard } from "../components/VendorCard";
+import { PartnerSection } from "../components/PartnerSection";
+import { ReceivePartnerCard, PayPartnerCard, DonePartnerCard } from "../components/PartnerCard";
 import styles from "./Money.module.css";
 
 // 日付フォーマットヘルパー (YYYY/MM/DD)
 const formatDate = (dateStr?: string | null) => {
     if (!dateStr) return "";
     return dateStr.replace(/-/g, "/");
+};
+
+// PR #12: day-head 用フォーマット (例: "5月10日 (土)")
+const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
+const formatDayHead = (iso: string) => {
+    if (!iso) return "—";
+    const [, m, d] = iso.split("-").map(Number);
+    const dt = new Date(iso);
+    const weekday = Number.isNaN(dt.getDay()) ? "" : WEEKDAY_LABELS[dt.getDay()];
+    return weekday ? `${m}月${d}日 (${weekday})` : `${m}月${d}日`;
 };
 
 const getAccountingImpactSign = (tx: Pick<AccountingTransaction, "kind" | "amount_total">) => {
@@ -190,31 +203,50 @@ export function Money() {
     const [activeTab, setActiveTab] = useState<MoneyTab>("transactions");
     const [showFilterSheet, setShowFilterSheet] = useState(false);
 
-    // 取引先一覧 — フィルタシート (取引先 chips) でも使うのでマウント時にロード
+    // 取引先タブ — 3 section サマリ (PR #6)
+    const [partnersSummary, setPartnersSummary] = useState<PartnersSummary | null>(null);
+    const [partnersLoading, setPartnersLoading] = useState(false);
+    const [partnersError, setPartnersError] = useState<string | null>(null);
+
+    // 取引先一覧 — フィルタシート (取引先 chips) でマウント時にロード
     const [clients, setClients] = useState<Client[] | null>(null);
-    const [clientsLoading, setClientsLoading] = useState(false);
-    const [clientsError, setClientsError] = useState<string | null>(null);
 
     useEffect(() => {
         let cancelled = false;
-        setClientsLoading(true);
-        setClientsError(null);
         fetchClients({ status: "active" })
             .then((data) => {
                 if (!cancelled) setClients(data);
             })
             .catch((err: unknown) => {
-                if (!cancelled) setClientsError(getErrorMessage(err));
-            })
-            .finally(() => {
-                if (!cancelled) setClientsLoading(false);
+                console.error("[Money] failed to load clients:", err);
             });
         return () => {
             cancelled = true;
         };
     }, []);
 
-    // 承認モーダル
+    // 取引先タブを開いた / 月切替時に partners summary をロード
+    useEffect(() => {
+        if (activeTab !== "vendors") return;
+        let cancelled = false;
+        setPartnersLoading(true);
+        setPartnersError(null);
+        fetchPartnersSummary(selectedMonth)
+            .then((data) => {
+                if (!cancelled) setPartnersSummary(data);
+            })
+            .catch((err: unknown) => {
+                if (!cancelled) setPartnersError(getErrorMessage(err));
+            })
+            .finally(() => {
+                if (!cancelled) setPartnersLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [activeTab, selectedMonth]);
+
+    // 承認モーダル (バッチ操作用、ベルから個別カードと別に開ける)
     const [showApprovalsModal, setShowApprovalsModal] = useState(false);
 
     // 登録モーダル
@@ -488,6 +520,26 @@ export function Money() {
         ? filteredTransactions
         : filteredTransactions.slice(0, 10);
 
+    // PR #12: 日付グルーピング + 日次サマリ + stagger 用 index
+    // mock v3.3 の day-head に従い、日付ごとの net (sale/invoice - expense) を計算する。
+    const groupedTransactions = (() => {
+        const map = new Map<string, { date: string; sum: number; items: AccountingTransaction[] }>();
+        for (const tx of displayedTransactions) {
+            const date = tx.recorded_date || "";
+            const sign = getAccountingImpactSign(tx) === "+" ? 1 : -1;
+            const contribution = sign * Math.abs(tx.amount_total);
+            const existing = map.get(date);
+            if (existing) {
+                existing.sum += contribution;
+                existing.items.push(tx);
+            } else {
+                map.set(date, { date, sum: contribution, items: [tx] });
+            }
+        }
+        // recorded_date DESC (新しい日付から)
+        return Array.from(map.values()).sort((a, b) => b.date.localeCompare(a.date));
+    })();
+
     const handleApprovalComplete = () => {
         window.dispatchEvent(new CustomEvent("pending-approvals-updated"));
         loadData();
@@ -623,22 +675,14 @@ export function Money() {
                 />
             )}
 
-            {/* 親方チェック待ちアクセス (PR #5 でベルドロワーに移行予定) */}
-            {pendingApprovals.length > 0 && (
-                <button
-                    type="button"
-                    className={styles.pendingApprovalsBanner}
-                    onClick={() => setShowApprovalsModal(true)}
-                    aria-label={`親方チェック待ち ${pendingApprovals.length}件を開く`}
-                >
-                    <AlertTriangle size={14} />
-                    親方チェック待ち {pendingApprovals.length}件
-                    <ChevronRight size={14} />
-                </button>
-            )}
+            {/* キャッシュフロー 4 バー (PR #10) — 請求漏れゼロ MVP の核 */}
+            <CashflowBucketStrip month={selectedMonth} />
 
-            {/* バケット一望 (F-1) — 番頭レス可視性の核 */}
-            <MoneyBucketDashboard month={selectedMonth} />
+            {/* 月次推移 (PR #8) — 黒字可視化 MVP の核 */}
+            <MonthlyTrendChart
+                endMonth={selectedMonth}
+                onSelectMonth={setSelectedMonth}
+            />
 
             {/* クイックアクション */}
             {!isMobile && (
@@ -958,13 +1002,34 @@ export function Money() {
                         ) : (
                             <>
                                 <div className={styles.txList}>
-                                    {displayedTransactions.map((tx) => (
-                                        <TransactionRow
-                                            key={tx.id}
-                                            tx={tx}
-                                            onOpenDetail={() => setSelectedTransaction(tx)}
-                                        />
-                                    ))}
+                                    {(() => {
+                                        let runningIdx = 0;
+                                        return groupedTransactions.map((group) => (
+                                            <div key={group.date} className={styles.txDayGroup}>
+                                                <div className={styles.dayHead}>
+                                                    <span className={styles.dayHeadDate}>
+                                                        {formatDayHead(group.date)}
+                                                    </span>
+                                                    <span
+                                                        className={`${styles.dayHeadSum} ${group.sum >= 0 ? styles.daySumPos : styles.daySumNeg}`}
+                                                    >
+                                                        {group.sum >= 0 ? "+" : "−"}¥{Math.abs(group.sum).toLocaleString()}
+                                                    </span>
+                                                </div>
+                                                {group.items.map((tx) => {
+                                                    const idx = runningIdx++;
+                                                    return (
+                                                        <TransactionRow
+                                                            key={tx.id}
+                                                            tx={tx}
+                                                            staggerIndex={idx}
+                                                            onOpenDetail={() => setSelectedTransaction(tx)}
+                                                        />
+                                                    );
+                                                })}
+                                            </div>
+                                        ));
+                                    })()}
                                 </div>
 
                                 {/* もっと見る / 閉じる */}
@@ -993,46 +1058,79 @@ export function Money() {
                         >
                             <div className={styles.sectionHeader}>
                                 <div>
-                                    <p className={styles.sectionKicker}>取引先と締めルール</p>
+                                    <p className={styles.sectionKicker}>もらう / 払う / 完了</p>
                                     <h2 className={styles.sectionTitle}>取引先</h2>
                                 </div>
-                                {clients && (
-                                    <span className={styles.txCountBadge}>{clients.length}件</span>
+                                {partnersSummary && (
+                                    <span className={styles.txCountBadge}>
+                                        {partnersSummary.receive.partners.length +
+                                            partnersSummary.pay.partners.length +
+                                            partnersSummary.done.partners.length}
+                                        件
+                                    </span>
                                 )}
                             </div>
 
-                            {clientsLoading && (
+                            {partnersLoading && (
                                 <div className={styles.vendorsLoading}>
                                     <RefreshCw size={16} className={styles.spinIcon} />
-                                    <span>取引先を読み込み中</span>
+                                    <span>取引先サマリを読み込み中</span>
                                 </div>
                             )}
 
-                            {clientsError && (
+                            {partnersError && (
                                 <div className={styles.vendorsError}>
-                                    取引先の取得に失敗: {clientsError}
+                                    取引先サマリの取得に失敗: {partnersError}
                                 </div>
                             )}
 
-                            {!clientsLoading && !clientsError && clients && clients.length === 0 && (
-                                <div className={styles.emptyState}>
-                                    <div className={styles.emptyIcon}>
-                                        <Users size={40} />
-                                    </div>
-                                    <p className={styles.emptyTitle}>取引先がまだありません</p>
-                                    <p className={styles.emptyDescription}>
-                                        現場登録や見積もり受領のタイミングで自動的に追加されます
-                                    </p>
+                            {!partnersLoading && !partnersError && partnersSummary && (
+                                <div className={styles.partnerSections}>
+                                    <PartnerSection
+                                        title="もらう (請求/入金)"
+                                        warn
+                                        total={partnersSummary.receive.total}
+                                        count={partnersSummary.receive.partners.length}
+                                        emptyLabel="今月の売上はまだ記録されていません"
+                                    >
+                                        {partnersSummary.receive.partners.map((p) => (
+                                            <ReceivePartnerCard
+                                                key={p.client_id}
+                                                partner={p}
+                                                onClick={() =>
+                                                    setFilters((prev) => ({ ...prev, clientId: p.client_id }))
+                                                }
+                                            />
+                                        ))}
+                                    </PartnerSection>
+
+                                    <PartnerSection
+                                        title="払う (仕入/外注)"
+                                        total={partnersSummary.pay.total}
+                                        count={partnersSummary.pay.partners.length}
+                                        emptyLabel="今月の経費はまだ記録されていません"
+                                    >
+                                        {partnersSummary.pay.partners.map((p) => (
+                                            <PayPartnerCard key={p.vendor_name} partner={p} />
+                                        ))}
+                                    </PartnerSection>
+
+                                    <PartnerSection
+                                        title="完了 (入金済)"
+                                        total={partnersSummary.done.total}
+                                        count={partnersSummary.done.partners.length}
+                                        emptyLabel="今月の入金はまだありません"
+                                    >
+                                        {partnersSummary.done.partners.map((p, idx) => (
+                                            <DonePartnerCard
+                                                key={`${p.client_id ?? "anon"}-${p.paid_at}-${idx}`}
+                                                partner={p}
+                                            />
+                                        ))}
+                                    </PartnerSection>
                                 </div>
                             )}
 
-                            {!clientsLoading && !clientsError && clients && clients.length > 0 && (
-                                <div className={styles.vendorGrid}>
-                                    {clients.map((client) => (
-                                        <VendorCard key={client.id} client={client} />
-                                    ))}
-                                </div>
-                            )}
                         </motion.section>
                     )}
                 </div>
@@ -1048,24 +1146,23 @@ export function Money() {
             {/* モーダル群 */}
             <AnimatePresence>
                 {/* <MoneyActionSheet /> は mobileFabDock 内の Expanding FAB メニューに変更したため削除 */}
-                {showExpenseModal && (
-                    <ExpenseModal
-                        onClose={closeExpenseModal}
-                        onSuccess={handleExpenseCreated}
-                        initialSiteId={expenseDraft?.siteId}
-                        initialCategory={expenseDraft?.category}
-                        initialTaxCategory={expenseDraft?.taxCategory}
-                        initialVendorName={expenseDraft?.vendorName}
-                        initialRecordedDate={expenseDraft?.recordedDate}
-                        initialAmountSubtotal={expenseDraft?.amountSubtotal}
-                        initialTaxAmount={expenseDraft?.taxAmount}
-                        initialAmountTotal={expenseDraft?.amountTotal}
-                        initialDescription={expenseDraft?.description}
-                        initialCostCenter={expenseDraft?.costCenter}
-                        initialExpenseItemCode={expenseDraft?.expenseItemCode}
-                        initialExpenseItemOther={expenseDraft?.expenseItemOther}
-                    />
-                )}
+                <ExpenseModal
+                    open={showExpenseModal}
+                    onClose={closeExpenseModal}
+                    onSuccess={handleExpenseCreated}
+                    initialSiteId={expenseDraft?.siteId}
+                    initialCategory={expenseDraft?.category}
+                    initialTaxCategory={expenseDraft?.taxCategory}
+                    initialVendorName={expenseDraft?.vendorName}
+                    initialRecordedDate={expenseDraft?.recordedDate}
+                    initialAmountSubtotal={expenseDraft?.amountSubtotal}
+                    initialTaxAmount={expenseDraft?.taxAmount}
+                    initialAmountTotal={expenseDraft?.amountTotal}
+                    initialDescription={expenseDraft?.description}
+                    initialCostCenter={expenseDraft?.costCenter}
+                    initialExpenseItemCode={expenseDraft?.expenseItemCode}
+                    initialExpenseItemOther={expenseDraft?.expenseItemOther}
+                />
                 {showSalesModal && (
                     <SalesModal
                         onClose={closeSalesModal}
@@ -1147,9 +1244,11 @@ export function Money() {
 function TransactionRow({
     tx,
     onOpenDetail,
+    staggerIndex = 0,
 }: {
     tx: AccountingTransaction;
     onOpenDetail: () => void;
+    staggerIndex?: number;
 }) {
     const getStatusMeta = () => {
         if (tx.voids_transaction_id) {
@@ -1216,8 +1315,9 @@ function TransactionRow({
         <motion.button
             type="button"
             className={`${styles.txRow} ${kindToneClass} ${isHighRisk ? styles.highRiskRow : ""} ${isPending ? styles.pendingRow : ""}`}
-            initial={{ opacity: 0, y: 5 }}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, delay: Math.min(staggerIndex, 12) * 0.06, ease: [0.2, 0.8, 0.2, 1] }}
             onClick={onOpenDetail}
         >
             <div className={styles.colDate}>

@@ -1167,6 +1167,49 @@ export const createBillingRule = (clientId: string, input: CreateBillingRuleInpu
         method: "POST",
         body: JSON.stringify(input),
     });
+
+// ============================================================
+// 取引先 月次サマリ (PR #6 Money 取引先タブ 3 section)
+// ============================================================
+
+export type ReceiveStatus = "unbilled" | "billed" | "awaiting_payment";
+
+export interface ReceivePartnerSummary {
+    client_id: string;
+    client_name: string;
+    amount: number;
+    rule: BillingRuleRecord | null;
+    next_period: BillingPeriodPreview | null;
+    status: ReceiveStatus;
+    target_date: string | null;
+    days_overdue: number | null;
+    billed_at: string | null;
+}
+
+export interface PayPartnerSummary {
+    vendor_name: string;
+    amount: number;
+    transaction_count: number;
+    due_date: string | null;
+}
+
+export interface DonePartnerSummary {
+    client_id: string | null;
+    client_name: string;
+    amount: number;
+    paid_at: string;
+}
+
+export interface PartnersSummary {
+    month: string;
+    receive: { total: number; partners: ReceivePartnerSummary[] };
+    pay: { total: number; partners: PayPartnerSummary[] };
+    done: { total: number; partners: DonePartnerSummary[] };
+}
+
+export const fetchPartnersSummary = (month: string) =>
+    api<PartnersSummary>(`/api/v1/accounting/partners/summary?month=${encodeURIComponent(month)}`);
+
 export const scanBusinessCard = (data: {
     file_base64: string;
     mime_type: string;
@@ -1996,6 +2039,39 @@ export function fetchPL(params?: FetchPLParams & { source?: PLSource }) {
     const query = searchParams.toString();
     return api<PLReport | PLJournalReport | PLCompareReport>(`/api/v1/accounting/pl${query ? `?${query}` : ""}`);
 }
+
+// キャッシュフローサマリ (PR #10)
+export interface CashflowSummary {
+    month: string;
+    unbilled: number;
+    awaiting_payment: number;
+    pay_pending: number;
+    done: number;
+}
+
+export const fetchCashflowSummary = (month: string) =>
+    api<CashflowSummary>(`/api/v1/accounting/cashflow-summary?month=${encodeURIComponent(month)}`);
+
+// 月次推移 (PR #8)
+export interface PLTrendMonth {
+    month: string; // "YYYY-MM"
+    sales: number;
+    expenses: number;
+    profit: number;
+}
+
+export interface PLTrendReport {
+    months: PLTrendMonth[];
+    basis: "legacy";
+}
+
+export const fetchPLTrend = (params?: { end?: string; months?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.end) q.append("end", params.end);
+    if (params?.months) q.append("months", String(params.months));
+    const query = q.toString();
+    return api<PLTrendReport>(`/api/v1/accounting/pl/trend${query ? `?${query}` : ""}`);
+};
 
 // 取引一覧
 export const fetchTransactions = (params?: {
