@@ -6,6 +6,7 @@ import { OrgBootstrapService } from "../services/OrgBootstrapService";
 import { OrgInviteAcceptanceService } from "../services/OrgInviteAcceptanceService";
 import { OrgInviteCreationService, type OrgInviteStatus } from "../services/OrgInviteCreationService";
 import { listOrgMembers } from "../services/OrgMemberDirectoryService";
+import { OrgMembershipManagementService } from "../services/OrgMembershipManagementService";
 
 const router = Router();
 
@@ -42,8 +43,18 @@ function handleOrgAccessError(res: Response, error: unknown): void {
         return;
     }
 
-    if (code === "ORG_INVITE_ROLE_INVALID") {
+    if (code === "ORG_INVITE_ROLE_INVALID" || code === "ORG_MEMBER_ROLE_INVALID") {
         res.status(400).json({ error: code });
+        return;
+    }
+
+    if (code === "ORG_MEMBER_NOT_FOUND") {
+        res.status(404).json({ error: code });
+        return;
+    }
+
+    if (code === "ORG_MEMBER_LAST_ADMIN" || code === "ORG_MEMBER_REMOVE_SELF") {
+        res.status(409).json({ error: code });
         return;
     }
 
@@ -236,6 +247,67 @@ router.delete("/invites/:inviteId", async (req: AuthenticatedRequest, res: Respo
         });
 
         res.json({ invite });
+    } catch (error) {
+        handleOrgAccessError(res, error);
+    }
+});
+
+router.patch("/members/:userId", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        if (!req.userId) {
+            res.status(401).json({ error: "Unauthorized" });
+            return;
+        }
+
+        const membership = await resolveActiveOrgMembership(req, "admin");
+        const targetUserId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
+        if (!targetUserId) {
+            res.status(404).json({ error: "ORG_MEMBER_NOT_FOUND" });
+            return;
+        }
+
+        const role = req.body?.role;
+        if (role !== "admin" && role !== "member") {
+            res.status(400).json({ error: "ORG_MEMBER_ROLE_INVALID" });
+            return;
+        }
+
+        const service = new OrgMembershipManagementService();
+        const updated = await service.updateRole({
+            orgId: membership.org_id,
+            actorUserId: req.userId,
+            targetUserId,
+            newRole: role,
+        });
+
+        res.json({ membership: updated });
+    } catch (error) {
+        handleOrgAccessError(res, error);
+    }
+});
+
+router.delete("/members/:userId", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        if (!req.userId) {
+            res.status(401).json({ error: "Unauthorized" });
+            return;
+        }
+
+        const membership = await resolveActiveOrgMembership(req, "admin");
+        const targetUserId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
+        if (!targetUserId) {
+            res.status(404).json({ error: "ORG_MEMBER_NOT_FOUND" });
+            return;
+        }
+
+        const service = new OrgMembershipManagementService();
+        const removed = await service.remove({
+            orgId: membership.org_id,
+            actorUserId: req.userId,
+            targetUserId,
+        });
+
+        res.json({ membership: removed });
     } catch (error) {
         handleOrgAccessError(res, error);
     }
