@@ -203,6 +203,103 @@ function formatSkillKeyLabel(value: string) {
 
 type SettingPanel = "profile" | "organization" | "members" | "invoice" | "clients";
 
+type ProfileFormState = {
+    full_name: string;
+    username: string;
+    phone: string;
+    job_type: string;
+    employment_kind: MyProfileRecord["employment_kind"];
+    trade_name: string;
+    invoice_registration_number: string;
+    bank_name: string;
+    branch_name: string;
+    account_type: "" | NonNullable<MyProfileRecord["account_type"]>;
+    account_number: string;
+    account_holder_kana: string;
+    postal_code: string;
+    prefecture: string;
+    city: string;
+    address_line1: string;
+    address_line2: string;
+    emergency_contact_name: string;
+    emergency_phone: string;
+};
+
+const emptyProfileForm: ProfileFormState = {
+    full_name: "",
+    username: "",
+    phone: "",
+    job_type: "",
+    employment_kind: "employee",
+    trade_name: "",
+    invoice_registration_number: "",
+    bank_name: "",
+    branch_name: "",
+    account_type: "",
+    account_number: "",
+    account_holder_kana: "",
+    postal_code: "",
+    prefecture: "",
+    city: "",
+    address_line1: "",
+    address_line2: "",
+    emergency_contact_name: "",
+    emergency_phone: "",
+};
+
+function profileToFormState(profile: MyProfileRecord): ProfileFormState {
+    return {
+        full_name: profile.full_name ?? "",
+        username: profile.username ?? "",
+        phone: profile.phone ?? "",
+        job_type: profile.job_type ?? "",
+        employment_kind: profile.employment_kind,
+        trade_name: profile.trade_name ?? "",
+        invoice_registration_number: profile.invoice_registration_number ?? "",
+        bank_name: profile.bank_name ?? "",
+        branch_name: profile.branch_name ?? "",
+        account_type: profile.account_type ?? "",
+        account_number: profile.account_number ?? "",
+        account_holder_kana: profile.account_holder_kana ?? "",
+        postal_code: profile.postal_code ?? "",
+        prefecture: profile.prefecture ?? "",
+        city: profile.city ?? "",
+        address_line1: profile.address_line1 ?? "",
+        address_line2: profile.address_line2 ?? "",
+        emergency_contact_name: profile.emergency_contact_name ?? "",
+        emergency_phone: profile.emergency_phone ?? "",
+    };
+}
+
+const EMPLOYMENT_KIND_LABEL: Record<MyProfileRecord["employment_kind"], string> = {
+    employee: "社員",
+    sole_proprietor: "一人親方",
+    helper: "応援（日雇い）",
+};
+
+const ACCOUNT_TYPE_LABEL: Record<NonNullable<MyProfileRecord["account_type"]>, string> = {
+    ordinary: "普通",
+    checking: "当座",
+};
+
+function isProfileFormDirty(form: ProfileFormState, base: MyProfileRecord | null): boolean {
+    if (!base) {
+        return false;
+    }
+    const reference = profileToFormState(base);
+    return (Object.keys(form) as Array<keyof ProfileFormState>).some((key) => form[key] !== reference[key]);
+}
+
+function formatProfileError(code: string): string {
+    if (code === "PROFILE_USERNAME_TOO_SHORT") return "ユーザー名は3文字以上で入力してください。";
+    if (code === "PROFILE_USERNAME_TAKEN") return "そのユーザー名は使われています。";
+    if (code === "PROFILE_EMPLOYMENT_KIND_INVALID") return "雇用区分の指定が不正です。";
+    if (code === "PROFILE_INVOICE_NUMBER_INVALID") return "インボイス番号は T で始まる14文字（T + 13桁）で入力してください。";
+    if (code === "PROFILE_POSTAL_CODE_INVALID") return "郵便番号は 1234567 もしくは 123-4567 の形式で入力してください。";
+    if (code === "PROFILE_ACCOUNT_TYPE_INVALID") return "口座種別の指定が不正です。";
+    return code;
+}
+
 function buildInviteLink(inviteId: string) {
     if (typeof window === "undefined") {
         return `?invite=${inviteId}`;
@@ -282,8 +379,7 @@ export function Settings() {
     const [copiedInviteId, setCopiedInviteId] = useState<string | null>(null);
     const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null);
     const [myProfile, setMyProfile] = useState<MyProfileRecord | null>(null);
-    const [profileFullName, setProfileFullName] = useState("");
-    const [profileUsername, setProfileUsername] = useState("");
+    const [profileForm, setProfileForm] = useState<ProfileFormState>(emptyProfileForm);
     const [profileSaveBusy, setProfileSaveBusy] = useState(false);
     const [profileError, setProfileError] = useState<string | null>(null);
     const [profileMessage, setProfileMessage] = useState<string | null>(null);
@@ -351,8 +447,7 @@ export function Settings() {
             try {
                 const profileData = await fetchMyProfile();
                 setMyProfile(profileData.profile);
-                setProfileFullName(profileData.profile.full_name ?? "");
-                setProfileUsername(profileData.profile.username ?? "");
+                setProfileForm(profileToFormState(profileData.profile));
             } catch {
                 setMyProfile(null);
             }
@@ -466,19 +561,44 @@ export function Settings() {
         }
     };
 
+    const setProfileField = <K extends keyof ProfileFormState>(key: K, value: ProfileFormState[K]) => {
+        setProfileForm((prev) => ({ ...prev, [key]: value }));
+        setProfileError(null);
+        setProfileMessage(null);
+    };
+
     const handleSaveProfile = async () => {
         try {
             setProfileSaveBusy(true);
             setProfileError(null);
             setProfileMessage(null);
 
-            const result = await updateMyProfile({
-                full_name: profileFullName.trim() || null,
-                username: profileUsername.trim() || null,
-            });
+            const text = (value: string) => value.trim() || null;
+            const payload = {
+                full_name: text(profileForm.full_name),
+                username: text(profileForm.username),
+                phone: text(profileForm.phone),
+                job_type: text(profileForm.job_type),
+                employment_kind: profileForm.employment_kind,
+                trade_name: text(profileForm.trade_name),
+                invoice_registration_number: text(profileForm.invoice_registration_number),
+                bank_name: text(profileForm.bank_name),
+                branch_name: text(profileForm.branch_name),
+                account_type: profileForm.account_type === "" ? null : profileForm.account_type,
+                account_number: text(profileForm.account_number),
+                account_holder_kana: text(profileForm.account_holder_kana),
+                postal_code: text(profileForm.postal_code),
+                prefecture: text(profileForm.prefecture),
+                city: text(profileForm.city),
+                address_line1: text(profileForm.address_line1),
+                address_line2: text(profileForm.address_line2),
+                emergency_contact_name: text(profileForm.emergency_contact_name),
+                emergency_phone: text(profileForm.emergency_phone),
+            };
+
+            const result = await updateMyProfile(payload);
             setMyProfile(result.profile);
-            setProfileFullName(result.profile.full_name ?? "");
-            setProfileUsername(result.profile.username ?? "");
+            setProfileForm(profileToFormState(result.profile));
             setProfileMessage("プロフィールを保存しました。");
 
             const currentMembers = await fetchMembers();
@@ -489,14 +609,7 @@ export function Settings() {
             const uid = session?.user?.id || null;
             setCurrentMember(uid ? currentMembers.find((member) => member.id === uid) || null : null);
         } catch (error: unknown) {
-            const message = getErrorMessage(error);
-            if (message === "PROFILE_USERNAME_TOO_SHORT") {
-                setProfileError("ユーザー名は3文字以上で入力してください。");
-            } else if (message === "PROFILE_USERNAME_TAKEN") {
-                setProfileError("そのユーザー名は使われています。");
-            } else {
-                setProfileError(message);
-            }
+            setProfileError(formatProfileError(getErrorMessage(error)));
         } finally {
             setProfileSaveBusy(false);
         }
@@ -750,9 +863,9 @@ export function Settings() {
                                 <div className={styles.infoCard}>
                                     <div className={styles.infoCardHeader}>
                                         <div>
-                                            <h3 className={styles.infoCardTitle}>氏名・表示名</h3>
+                                            <h3 className={styles.infoCardTitle}>基本情報</h3>
                                             <p className={styles.infoCardDescription}>
-                                                チームに表示される名前です。空欄にするとメールアドレスが代わりに表示されます。
+                                                チームで表示・連絡に使う情報です。
                                             </p>
                                         </div>
                                         <Users size={18} className={styles.infoCardIcon} />
@@ -762,12 +875,8 @@ export function Settings() {
                                         <label className={styles.inputField}>
                                             <span>氏名（フルネーム）</span>
                                             <input
-                                                value={profileFullName}
-                                                onChange={(event) => {
-                                                    setProfileFullName(event.target.value);
-                                                    setProfileError(null);
-                                                    setProfileMessage(null);
-                                                }}
+                                                value={profileForm.full_name}
+                                                onChange={(event) => setProfileField("full_name", event.target.value)}
                                                 placeholder="例: 山田 太郎"
                                                 maxLength={80}
                                             />
@@ -775,39 +884,277 @@ export function Settings() {
                                         <label className={styles.inputField}>
                                             <span>ユーザー名（3文字以上）</span>
                                             <input
-                                                value={profileUsername}
-                                                onChange={(event) => {
-                                                    setProfileUsername(event.target.value);
-                                                    setProfileError(null);
-                                                    setProfileMessage(null);
-                                                }}
+                                                value={profileForm.username}
+                                                onChange={(event) => setProfileField("username", event.target.value)}
                                                 placeholder="例: yamada"
                                                 maxLength={40}
                                             />
                                         </label>
-
-                                        {profileError && <p className={styles.formError}>{profileError}</p>}
-                                        {profileMessage && <p className={styles.successMessage}>{profileMessage}</p>}
-
-                                        <button
-                                            type="button"
-                                            className={styles.primaryButton}
-                                            onClick={() => void handleSaveProfile()}
-                                            disabled={
-                                                profileSaveBusy ||
-                                                (profileFullName === (myProfile?.full_name ?? "") &&
-                                                    profileUsername === (myProfile?.username ?? ""))
-                                            }
-                                            aria-busy={profileSaveBusy}
-                                        >
-                                            {profileSaveBusy ? (
-                                                <Loader2 size={16} className={styles.spinner} />
-                                            ) : (
-                                                <Check size={16} />
-                                            )}
-                                            保存
-                                        </button>
+                                        <label className={styles.inputField}>
+                                            <span>電話</span>
+                                            <input
+                                                type="tel"
+                                                value={profileForm.phone}
+                                                onChange={(event) => setProfileField("phone", event.target.value)}
+                                                placeholder="例: 090-1234-5678"
+                                                maxLength={32}
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>職種</span>
+                                            <input
+                                                value={profileForm.job_type}
+                                                onChange={(event) => setProfileField("job_type", event.target.value)}
+                                                placeholder="例: クロス / 大工 / 塗装"
+                                                maxLength={40}
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>雇用区分</span>
+                                            <select
+                                                value={profileForm.employment_kind}
+                                                onChange={(event) =>
+                                                    setProfileField(
+                                                        "employment_kind",
+                                                        event.target.value as ProfileFormState["employment_kind"],
+                                                    )
+                                                }
+                                            >
+                                                {(Object.keys(EMPLOYMENT_KIND_LABEL) as Array<ProfileFormState["employment_kind"]>)
+                                                    .map((value) => (
+                                                        <option key={value} value={value}>
+                                                            {EMPLOYMENT_KIND_LABEL[value]}
+                                                        </option>
+                                                    ))}
+                                            </select>
+                                        </label>
                                     </div>
+                                </div>
+
+                                <div className={styles.infoCard}>
+                                    <div className={styles.infoCardHeader}>
+                                        <div>
+                                            <h3 className={styles.infoCardTitle}>住所</h3>
+                                            <p className={styles.infoCardDescription}>
+                                                請求書・支払書類の宛先に使います。
+                                            </p>
+                                        </div>
+                                        <Building2 size={18} className={styles.infoCardIcon} />
+                                    </div>
+
+                                    <div className={styles.orgCreateForm}>
+                                        <label className={styles.inputField}>
+                                            <span>郵便番号</span>
+                                            <input
+                                                value={profileForm.postal_code}
+                                                onChange={(event) => setProfileField("postal_code", event.target.value)}
+                                                placeholder="例: 123-4567"
+                                                maxLength={8}
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>都道府県</span>
+                                            <input
+                                                value={profileForm.prefecture}
+                                                onChange={(event) => setProfileField("prefecture", event.target.value)}
+                                                placeholder="例: 東京都"
+                                                maxLength={16}
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>市区町村</span>
+                                            <input
+                                                value={profileForm.city}
+                                                onChange={(event) => setProfileField("city", event.target.value)}
+                                                placeholder="例: 渋谷区"
+                                                maxLength={64}
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>町名・番地</span>
+                                            <input
+                                                value={profileForm.address_line1}
+                                                onChange={(event) => setProfileField("address_line1", event.target.value)}
+                                                placeholder="例: 道玄坂1-2-3"
+                                                maxLength={128}
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>建物名・部屋番号（任意）</span>
+                                            <input
+                                                value={profileForm.address_line2}
+                                                onChange={(event) => setProfileField("address_line2", event.target.value)}
+                                                placeholder="例: 渋谷ビル 4F"
+                                                maxLength={128}
+                                            />
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div className={styles.infoCard}>
+                                    <div className={styles.infoCardHeader}>
+                                        <div>
+                                            <h3 className={styles.infoCardTitle}>振込先・税情報</h3>
+                                            <p className={styles.infoCardDescription}>
+                                                {profileForm.employment_kind === "sole_proprietor"
+                                                    ? "一人親方は振込先とインボイス番号の登録が必要です。"
+                                                    : profileForm.employment_kind === "helper"
+                                                      ? "応援は振込先の登録があると支払いがスムーズです。"
+                                                      : "給与振込先の登録に使います。"}
+                                            </p>
+                                        </div>
+                                        <ReceiptText size={18} className={styles.infoCardIcon} />
+                                    </div>
+
+                                    {profileForm.employment_kind === "sole_proprietor" &&
+                                        !profileForm.invoice_registration_number.trim() && (
+                                            <p className={styles.formError}>
+                                                インボイス番号が未登録です。仕入税額控除のため早めに登録してください。
+                                            </p>
+                                        )}
+
+                                    <div className={styles.orgCreateForm}>
+                                        <label className={styles.inputField}>
+                                            <span>屋号（任意）</span>
+                                            <input
+                                                value={profileForm.trade_name}
+                                                onChange={(event) => setProfileField("trade_name", event.target.value)}
+                                                placeholder="例: 山田内装"
+                                                maxLength={80}
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>インボイス登録番号</span>
+                                            <input
+                                                value={profileForm.invoice_registration_number}
+                                                onChange={(event) =>
+                                                    setProfileField(
+                                                        "invoice_registration_number",
+                                                        event.target.value.toUpperCase(),
+                                                    )
+                                                }
+                                                placeholder="T + 13桁（例: T1234567890123）"
+                                                maxLength={14}
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>銀行名</span>
+                                            <input
+                                                value={profileForm.bank_name}
+                                                onChange={(event) => setProfileField("bank_name", event.target.value)}
+                                                placeholder="例: 三菱UFJ銀行"
+                                                maxLength={40}
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>支店名</span>
+                                            <input
+                                                value={profileForm.branch_name}
+                                                onChange={(event) => setProfileField("branch_name", event.target.value)}
+                                                placeholder="例: 渋谷支店"
+                                                maxLength={40}
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>口座種別</span>
+                                            <select
+                                                value={profileForm.account_type}
+                                                onChange={(event) =>
+                                                    setProfileField(
+                                                        "account_type",
+                                                        event.target.value as ProfileFormState["account_type"],
+                                                    )
+                                                }
+                                            >
+                                                <option value="">未選択</option>
+                                                {(Object.keys(ACCOUNT_TYPE_LABEL) as Array<NonNullable<MyProfileRecord["account_type"]>>)
+                                                    .map((value) => (
+                                                        <option key={value} value={value}>
+                                                            {ACCOUNT_TYPE_LABEL[value]}
+                                                        </option>
+                                                    ))}
+                                            </select>
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>口座番号</span>
+                                            <input
+                                                inputMode="numeric"
+                                                value={profileForm.account_number}
+                                                onChange={(event) => setProfileField("account_number", event.target.value)}
+                                                placeholder="例: 1234567"
+                                                maxLength={16}
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>口座名義（カナ）</span>
+                                            <input
+                                                value={profileForm.account_holder_kana}
+                                                onChange={(event) =>
+                                                    setProfileField("account_holder_kana", event.target.value)
+                                                }
+                                                placeholder="例: ヤマダ タロウ"
+                                                maxLength={80}
+                                            />
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div className={styles.infoCard}>
+                                    <div className={styles.infoCardHeader}>
+                                        <div>
+                                            <h3 className={styles.infoCardTitle}>緊急連絡先</h3>
+                                            <p className={styles.infoCardDescription}>
+                                                現場での事故・体調不良などで本人に連絡できないときに使います。
+                                            </p>
+                                        </div>
+                                        <Users size={18} className={styles.infoCardIcon} />
+                                    </div>
+
+                                    <div className={styles.orgCreateForm}>
+                                        <label className={styles.inputField}>
+                                            <span>連絡先の氏名</span>
+                                            <input
+                                                value={profileForm.emergency_contact_name}
+                                                onChange={(event) =>
+                                                    setProfileField("emergency_contact_name", event.target.value)
+                                                }
+                                                placeholder="例: 山田 花子（妻）"
+                                                maxLength={80}
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>電話</span>
+                                            <input
+                                                type="tel"
+                                                value={profileForm.emergency_phone}
+                                                onChange={(event) =>
+                                                    setProfileField("emergency_phone", event.target.value)
+                                                }
+                                                placeholder="例: 090-1234-5678"
+                                                maxLength={32}
+                                            />
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div className={styles.infoCard}>
+                                    {profileError && <p className={styles.formError}>{profileError}</p>}
+                                    {profileMessage && <p className={styles.successMessage}>{profileMessage}</p>}
+
+                                    <button
+                                        type="button"
+                                        className={styles.primaryButton}
+                                        onClick={() => void handleSaveProfile()}
+                                        disabled={profileSaveBusy || !isProfileFormDirty(profileForm, myProfile)}
+                                        aria-busy={profileSaveBusy}
+                                    >
+                                        {profileSaveBusy ? (
+                                            <Loader2 size={16} className={styles.spinner} />
+                                        ) : (
+                                            <Check size={16} />
+                                        )}
+                                        プロフィールを保存
+                                    </button>
                                 </div>
 
                                 <div className={styles.profileHero}>

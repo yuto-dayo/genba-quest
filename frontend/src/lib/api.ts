@@ -1356,17 +1356,59 @@ export const revokeOrgInvite = (inviteId: string) =>
         method: "DELETE",
     });
 
+export type EmploymentKind = "employee" | "sole_proprietor" | "helper";
+export type BankAccountType = "ordinary" | "checking";
+
 export interface MyProfileRecord {
     id: string;
     username: string | null;
     full_name: string | null;
     avatar_url: string | null;
+    phone: string | null;
+    job_type: string | null;
+    employment_kind: EmploymentKind;
+    trade_name: string | null;
+    invoice_registration_number: string | null;
+    bank_name: string | null;
+    branch_name: string | null;
+    account_type: BankAccountType | null;
+    account_number: string | null;
+    account_holder_kana: string | null;
+    postal_code: string | null;
+    prefecture: string | null;
+    city: string | null;
+    address_line1: string | null;
+    address_line2: string | null;
+    emergency_contact_name: string | null;
+    emergency_phone: string | null;
 }
+
+export type UpdateMyProfilePayload = Partial<{
+    full_name: string | null;
+    username: string | null;
+    phone: string | null;
+    job_type: string | null;
+    employment_kind: EmploymentKind;
+    trade_name: string | null;
+    invoice_registration_number: string | null;
+    bank_name: string | null;
+    branch_name: string | null;
+    account_type: BankAccountType | null;
+    account_number: string | null;
+    account_holder_kana: string | null;
+    postal_code: string | null;
+    prefecture: string | null;
+    city: string | null;
+    address_line1: string | null;
+    address_line2: string | null;
+    emergency_contact_name: string | null;
+    emergency_phone: string | null;
+}>;
 
 export const fetchMyProfile = () =>
     api<{ profile: MyProfileRecord }>("/api/v1/profile/me");
 
-export const updateMyProfile = (payload: { full_name?: string | null; username?: string | null }) =>
+export const updateMyProfile = (payload: UpdateMyProfilePayload) =>
     api<{ profile: MyProfileRecord }>("/api/v1/profile/me", {
         method: "PATCH",
         body: JSON.stringify(payload),
