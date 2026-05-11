@@ -25,43 +25,43 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `PR #10 を PR 化 → 残り v3.3 polish: シートドラッグ + 演出`. Source: realtime
+- [focus] NEXT_CMD: `残り polish: consensus avatar bell + approval swipe`. Source: realtime
+- [H0049] Completed: PR #10 (cashflow strip) にも 60ms stagger entrance を追加 (4 バー: 60/120/180/240ms)
+- [H0049] Remaining: 残り polish: consensus avatar bell + approval swipe
 - [H0048] Completed: PR #10: GET /accounting/cashflow-summary 新設 + CashflowBucketStrip コンポーネント (未請求/入金待ち/支払予定/入金済み の 4 bar)
 - [H0048] Remaining: PR #10 を PR 化 → 残り v3.3 polish: シートドラッグ + 演出
-- [H0047] Completed: VendorCard lint 修正再適用 (cherry-pick skip で失われた分)
-- [H0047] Remaining: force-push + PR #25 merge
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0049] Auto-captured decision: PR #10 (cashflow strip) にも 60ms stagger entrance を追加 (4 バー: 60/120/180/240ms)
 - [H0048] Auto-captured decision: PR #10: GET /accounting/cashflow-summary 新設 + CashflowBucketStrip コンポーネント (未請求/入金待ち/支払予定/入金済み の 4 bar)
 - [H0047] Auto-captured decision: VendorCard lint 修正再適用 (cherry-pick skip で失われた分)
 - [H0046] Auto-captured decision: cherry-pick commit 3 (v3.3 mock 準拠) 適用中
 - [H0045] Auto-captured decision: cherry-pick 進行: HANDOFF conflict 再 resolve
-- [H0044] Auto-captured decision: PR #1-#3 rollup マージ完了 (PR #26)、PR #25 を master 起点でクリーンに再構築中
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0048] No new landmines reported in this chunk.
+- [H0049] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0049] 残り polish: consensus avatar bell + approval swipe
 - [H0048] PR #10 を PR 化 → 残り v3.3 polish: シートドラッグ + 演出
 - [H0047] force-push + PR #25 merge
 - [H0046] 残り commit 4 (lint fix)
 - [H0045] 残コミット適用
-- [H0044] PR #5 4 commit cherry-pick 続行 → push → merge
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `12`
+- current_l3_entries: `13`
 - last_compacted_at: `2026-05-11 19:32:19 +0900`
 - archived_entries: `36`
 <!-- HANDOFF_L2_STATE_END -->
@@ -277,5 +277,21 @@
   - Auto-captured decision: PR #10: GET /accounting/cashflow-summary 新設 + CashflowBucketStrip コンポーネント (未請求/入金待ち/支払予定/入金済み の 4 bar)
 - Validation:
   - `server tsc OK / frontend tsc + eslint OK / 4 バー + tone 別 fill + proportional 幅を preview で検証 (mock データで赤/amber/indigo/緑グラデ確認)`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-11 20:06:52 +0900
+
+- Entry-ID: `H0049`
+- Completed:
+  - [x] PR #10 (cashflow strip) にも 60ms stagger entrance を追加 (4 バー: 60/120/180/240ms)
+- Remaining:
+  - [ ] 残り polish: consensus avatar bell + approval swipe
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: PR #10 (cashflow strip) にも 60ms stagger entrance を追加 (4 バー: 60/120/180/240ms)
+- Validation:
+  - `preview で 4 バーの animation-delay が 0.06/0.12/0.18/0.24s と階段状になることを確認`
 - Landmines:
   - No new landmines reported in this chunk.
