@@ -37,6 +37,10 @@ import {
     type PartnersSummary,
 } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
+import { useActiveOrgStore } from "../stores/activeOrg";
+import { supabase } from "../lib/supabase";
+import { MemberInvoiceDraftBanner } from "../components/MemberInvoiceDraftBanner";
+import { OutstandingInvoicesCard } from "../components/OutstandingInvoicesCard";
 import { ExpenseModal } from "../components/ExpenseModal";
 import { SalesModal } from "../components/SalesModal";
 import { InvoiceModal } from "../components/InvoiceModal";
@@ -202,6 +206,29 @@ export function Money() {
     // タブ (PR #5) — 取引 / 取引先
     const [activeTab, setActiveTab] = useState<MoneyTab>("transactions");
     const [showFilterSheet, setShowFilterSheet] = useState(false);
+
+    // Phase 2-2a: ログイン中ユーザの id とロール (本人主導の請求書発行 / 集計表示用)
+    const [selfUserId, setSelfUserId] = useState<string | null>(null);
+    const activeOrgId = useActiveOrgStore((state) => state.activeOrgId);
+    const orgOptions = useActiveOrgStore((state) => state.options);
+    const activeMembership = orgOptions.find((option) => option.org.id === activeOrgId)
+        ?.membership;
+    const isAdmin = activeMembership?.role === "admin";
+
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            const {
+                data: { session },
+            } = await supabase.auth.getSession();
+            if (!cancelled) {
+                setSelfUserId(session?.user?.id ?? null);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     // 取引先タブ — 3 section サマリ (PR #6)
     const [partnersSummary, setPartnersSummary] = useState<PartnersSummary | null>(null);
@@ -677,6 +704,15 @@ export function Money() {
 
             {/* キャッシュフロー 4 バー (PR #10) — 請求漏れゼロ MVP の核 */}
             <CashflowBucketStrip month={selectedMonth} />
+
+            {/* Phase 2-2a: 本人主導の請求書 — 本人にはドラフト、admin には集計を出す */}
+            {selfUserId && (
+                <MemberInvoiceDraftBanner
+                    selfUserId={selfUserId}
+                    hideWhenEmpty={isAdmin}
+                />
+            )}
+            {isAdmin && <OutstandingInvoicesCard />}
 
             {/* 月次推移 (PR #8) — 黒字可視化 MVP の核 */}
             <MonthlyTrendChart
