@@ -2502,3 +2502,25 @@
         max-width: 132px;
     }
 }
+
+/* PR #4: 親方チェック待ち暫定バナー (PR #5 でベルドロワー化予定) */
+.pendingApprovalsBanner {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 12px 16px 0;
+    padding: 8px 14px;
+    background: var(--md-sys-color-warning-container);
+    color: var(--md-sys-color-on-warning-container);
+    border-radius: 999px;
+    border: 1px solid var(--md-sys-color-warning);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    transition: filter 0.18s;
+}
+
+.pendingApprovalsBanner:hover {
+    filter: brightness(0.97);
+}

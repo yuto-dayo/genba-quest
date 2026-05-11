@@ -1,0 +1,123 @@
+.hero {
+    position: relative;
+    padding: 22px 18px 24px;
+    color: #fff;
+    border-radius: 0 0 28px 28px;
+    isolation: isolate;
+    overflow: hidden;
+}
+
+.bg {
+    position: absolute;
+    inset: 0;
+    border-radius: 0 0 28px 28px;
+    z-index: -1;
+    will-change: opacity;
+}
+
+.bgProfit {
+    background: linear-gradient(170deg, #312E81 0%, #4F46E5 100%);
+}
+
+.bgLoss {
+    background: linear-gradient(170deg, #7F1D1D 0%, #DC2626 100%);
+}
+
+.row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.monthPill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 6px 6px 6px 14px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 600;
+    backdrop-filter: blur(6px);
+}
+
+.monthLabel {
+    font-variant-numeric: tabular-nums;
+}
+
+.monthBtn {
+    background: transparent;
+    border: none;
+    color: #fff;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.18s;
+}
+
+.monthBtn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.22);
+}
+
+.monthBtn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.profitNum {
+    display: block;
+    font-size: 38px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.05;
+    color: #fff;
+}
+
+.profitCap {
+    font-size: 13px;
+    opacity: 0.85;
+    margin-top: 2px;
+}
+
+.breakdown {
+    display: flex;
+    gap: 16px;
+    margin-top: 12px;
+    font-size: 14px;
+    opacity: 0.92;
+}
+
+.pair {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.pairLabel {
+    font-size: 11px;
+    opacity: 0.8;
+}
+
+.pairValue {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: #fff;
+}
+
+@media (max-width: 480px) {
+    .profitNum {
+        font-size: 34px;
+    }
+
+    .breakdown {
+        gap: 12px;
+        font-size: 13px;
+    }
+}

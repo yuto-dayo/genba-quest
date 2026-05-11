@@ -13,7 +13,6 @@ import {
     FileText,
     X,
     ChevronRight,
-    ChevronLeft,
     Search,
     FilterX,
 } from "lucide-react";
@@ -42,16 +41,13 @@ import { TransactionDetailModal } from "../components/TransactionDetailModal";
 import { ApprovalCard } from "../components/ApprovalCard";
 import { FloatingActionButton } from "../components/FloatingActionButton";
 import { MoneyBucketDashboard } from "../components/MoneyBucketDashboard";
+import { MoneyHero } from "../components/MoneyHero";
 import styles from "./Money.module.css";
 
 // 日付フォーマットヘルパー (YYYY/MM/DD)
 const formatDate = (dateStr?: string | null) => {
     if (!dateStr) return "";
     return dateStr.replace(/-/g, "/");
-};
-
-const formatCurrency = (value: number) => {
-    return `¥${Math.abs(value).toLocaleString()}`;
 };
 
 const getAccountingImpactSign = (tx: Pick<AccountingTransaction, "kind" | "amount_total">) => {
@@ -559,85 +555,31 @@ export function Money() {
                 </div>
             )}
 
-            {/* 今月の経理サマリー */}
+            {/* ヒーロー (PR #4 再設計): 利益大 + 売上/経費サブ + 赤字色フェード + spring カウントアップ */}
             {pl && (
-                <motion.section
-                    className={styles.plSection}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 }}
+                <MoneyHero
+                    profit={pl.profit}
+                    sales={pl.sales}
+                    expenses={pl.expenses}
+                    monthLabel={selectedMonth.replace("-", "年") + "月"}
+                    onPrevMonth={() => changeMonth("prev")}
+                    onNextMonth={() => changeMonth("next")}
+                    disabled={loading}
+                />
+            )}
+
+            {/* 親方チェック待ちアクセス (PR #5 でベルドロワーに移行予定) */}
+            {pendingApprovals.length > 0 && (
+                <button
+                    type="button"
+                    className={styles.pendingApprovalsBanner}
+                    onClick={() => setShowApprovalsModal(true)}
+                    aria-label={`親方チェック待ち ${pendingApprovals.length}件を開く`}
                 >
-                    <div className={styles.deckHeader}>
-                        <div className={styles.deckCopy}>
-                            <p className={styles.deckEyebrow}>今月の経理</p>
-                            <h1 className={styles.deckTitle}>お金の流れ</h1>
-                            <p className={styles.deckDescription}>
-                                利益、未処理、請求書をまとめて確認できます。
-                            </p>
-                        </div>
-                        <div className={styles.monthControl} aria-label="表示月">
-                            <button
-                                className={styles.monthNav}
-                                aria-label="前月"
-                                onClick={() => changeMonth("prev")}
-                                disabled={loading}
-                            >
-                                <ChevronLeft size={16} />
-                            </button>
-                            <div className={styles.monthDisplay}>
-                                <Calendar size={14} />
-                                <span className={styles.monthText}>
-                                    {selectedMonth.replace("-", "年")}月
-                                </span>
-                            </div>
-                            <button
-                                className={styles.monthNav}
-                                aria-label="翌月"
-                                onClick={() => changeMonth("next")}
-                                disabled={loading}
-                            >
-                                <ChevronRight size={16} />
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className={styles.deckBody}>
-                        <article className={styles.profitCard}>
-                            <span className={styles.metricLabel}>利益</span>
-                            <strong className={`${styles.profitValue} ${pl.profit < 0 ? styles.negativeProfit : ""}`}>
-                                {pl.profit < 0 && "-"}{formatCurrency(pl.profit)}
-                            </strong>
-                            <span className={styles.profitHint}>
-                                利益率 {pl.sales > 0 ? `${((pl.profit / pl.sales) * 100).toFixed(1)}%` : "0%"}
-                            </span>
-                        </article>
-
-                        <div className={styles.plSummary}>
-                            <PLMetric label="売上" value={pl.sales} color="income" />
-                            <PLMetric label="経費" value={pl.expenses} color="expense" negative />
-                            <PLMetric label="分配可能" value={pl.distributable} color="distribute" badge="70%" />
-                            <button
-                                type="button"
-                                className={`${styles.plMetric} ${styles.plMetricButton}`}
-                                onClick={() => setShowApprovalsModal(true)}
-                                disabled={pendingApprovals.length === 0}
-                                aria-label={
-                                    pendingApprovals.length === 0
-                                        ? "承認待ちはありません"
-                                        : `承認待ち ${pendingApprovals.length}件を開く`
-                                }
-                            >
-                                <span className={styles.metricLabel}>承認待ち</span>
-                                <span className={`${styles.metricValue} ${styles.pendingMetric}`}>
-                                    {pendingApprovals.length}件
-                                </span>
-                                <span className={styles.metricBadge}>
-                                    {pendingApprovals.length === 0 ? "なし" : "タップで確認"}
-                                </span>
-                            </button>
-                        </div>
-                    </div>
-                </motion.section>
+                    <AlertTriangle size={14} />
+                    親方チェック待ち {pendingApprovals.length}件
+                    <ChevronRight size={14} />
+                </button>
             )}
 
             {/* バケット一望 (F-1) — 番頭レス可視性の核 */}
@@ -1035,38 +977,6 @@ export function Money() {
     );
 }
 
-// PLメトリックコンポーネント（横一列用）
-function PLMetric({
-    label,
-    value,
-    color,
-    badge,
-    negative,
-    highlight,
-}: {
-    label: string;
-    value: number;
-    color: "income" | "expense" | "profit" | "distribute";
-    badge?: string;
-    negative?: boolean;
-    highlight?: boolean;
-}) {
-    const sign = negative && value > 0 ? "-" : value < 0 ? "-" : "";
-
-    return (
-        <div className={`${styles.plMetric} ${highlight ? styles.highlight : ""}`}>
-            <span className={styles.metricLabel}>{label}</span>
-            <span className={`${styles.metricValue} ${styles[color]}`}>
-                {sign}{formatCurrency(value)}
-            </span>
-            {badge && (
-                <span className={`${styles.metricBadge} ${styles[color]}`}>
-                    {badge}
-                </span>
-            )}
-        </div>
-    );
-}
 
 // 取引行コンポーネント
 function TransactionRow({
