@@ -217,10 +217,13 @@
     gap: 1px;
     min-width: 0;
     pointer-events: none;
-    --completed-run-header-offset: 31px;
-    --completed-run-lane-height: 19px;
-    --completed-run-bar-height: 16px;
-    --completed-run-bar-inset: 10px;
+    /* Fluid sizes interpolate between 360px and 768px viewports; outside
+       that range the clamp() bounds pin them to the original step values. */
+    --completed-run-header-offset: clamp(26px, 1.2vw + 22px, 31px);
+    --completed-run-lane-height: clamp(17px, 0.5vw + 15px, 19px);
+    --completed-run-bar-height: clamp(15px, 0.25vw + 14px, 16px);
+    --completed-run-bar-inset: clamp(7px, 0.75vw + 4px, 10px);
+    --completed-run-bar-padding-x: clamp(5px, 0.5vw + 3.2px, 7px);
 }
 
 .completedRunBar {
@@ -239,7 +242,7 @@
             + var(--completed-run-lane, 0) * var(--completed-run-lane-height)
     );
     margin-inline: var(--completed-run-bar-inset);
-    padding: 0 7px;
+    padding: 0 var(--completed-run-bar-padding-x);
     border-radius: 999px;
     background: var(--completed-site-color, #0d9488);
     color: var(--completed-site-text, white);
@@ -416,17 +419,6 @@
 
     .dayDensity {
         gap: 4px;
-    }
-
-    .completedRunLayer {
-        --completed-run-header-offset: 26px;
-        --completed-run-lane-height: 17px;
-        --completed-run-bar-height: 15px;
-        --completed-run-bar-inset: 7px;
-    }
-
-    .completedRunBar {
-        padding: 0 5px;
     }
 
 }
