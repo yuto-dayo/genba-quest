@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `#30 (bell drawer) merge → MoneyBucketDashboard 廃止 + MonthlyTrendChart 配置`
+- NEXT_CMD: `MoneyBucketDashboard 廃止 + MonthlyTrendChart 配置 + v3.4 mock commit`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/HANDOFF.md`
@@ -18,8 +18,8 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `b0c3d94`
-  - Updated: `2026-05-11T21:31:57+0900`
+  - HEAD: `2fbecd6`
+  - Updated: `2026-05-11T21:33:33+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
@@ -33,17 +33,18 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `#30 (bell drawer) merge → MoneyBucketDashboard 廃止 + MonthlyTrendChart 配置`. Source: realtime
+- [focus] NEXT_CMD: `MoneyBucketDashboard 廃止 + MonthlyTrendChart 配置 + v3.4 mock commit`. Source: realtime
+- [H0005] Completed: #30 (bell drawer + consolidation) merge — banner 撤去 + CashflowBucketStrip 残置で resolve
+- [H0005] Remaining: MoneyBucketDashboard 廃止 + MonthlyTrendChart 配置 + v3.4 mock commit
 - [H0004] Completed: #33 (tx day-head + stagger) merge
 - [H0004] Remaining: #30 (bell drawer) merge → MoneyBucketDashboard 廃止 + MonthlyTrendChart 配置
-- [H0003] Completed: #32 (BottomSheet drag) merge — HANDOFF auto-merge conflict resolved by --ours
-- [H0003] Remaining: #33 (tx day-head) #30 (bell drawer) を merge
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0005] Auto-captured decision: #30 (bell drawer + consolidation) merge — banner 撤去 + CashflowBucketStrip 残置で resolve
 - [H0004] Auto-captured decision: #33 (tx day-head + stagger) merge
 - [H0003] Auto-captured decision: #32 (BottomSheet drag) merge — HANDOFF auto-merge conflict resolved by --ours
 - [H0002] Auto-captured decision: rollup branch #27 merge (partners 3 section) + #31 merge (cashflow strip) + conflict resolve
@@ -52,11 +53,12 @@
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0004] No new landmines reported in this chunk.
+- [H0005] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0005] MoneyBucketDashboard 廃止 + MonthlyTrendChart 配置 + v3.4 mock commit
 - [H0004] #30 (bell drawer) merge → MoneyBucketDashboard 廃止 + MonthlyTrendChart 配置
 - [H0003] #33 (tx day-head) #30 (bell drawer) を merge
 - [H0002] #32 (BottomSheet drag) #33 (tx day-head) #30 (bell drawer) を順次 merge
@@ -67,7 +69,7 @@
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `4`
+- current_l3_entries: `5`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -98,6 +100,7 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] #30 (bell drawer + consolidation) merge — banner 撤去 + CashflowBucketStrip 残置で resolve
 - [x] #33 (tx day-head + stagger) merge
 - [x] #32 (BottomSheet drag) merge — HANDOFF auto-merge conflict resolved by --ours
 - [x] rollup branch #27 merge (partners 3 section) + #31 merge (cashflow strip) + conflict resolve
@@ -106,7 +109,8 @@ Phase: A-0/A-1
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: #30 (bell drawer) merge → MoneyBucketDashboard 廃止 + MonthlyTrendChart 配置
+- [ ] **P0**: MoneyBucketDashboard 廃止 + MonthlyTrendChart 配置 + v3.4 mock commit
+- [ ] **P1**: #30 (bell drawer) merge → MoneyBucketDashboard 廃止 + MonthlyTrendChart 配置
 - [ ] **P1**: #33 (tx day-head) #30 (bell drawer) を merge
 - [ ] **P1**: #32 (BottomSheet drag) #33 (tx day-head) #30 (bell drawer) を順次 merge
 - [ ] **P1**: PR を作成して PR #6 をレビュー依頼
@@ -224,5 +228,21 @@ cd frontend && npx eslint src/
   - Auto-captured decision: #33 (tx day-head + stagger) merge
 - Validation:
   - `frontend tsc pass`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-11 21:33:33 +0900
+
+- Entry-ID: `H0005`
+- Completed:
+  - [x] #30 (bell drawer + consolidation) merge — banner 撤去 + CashflowBucketStrip 残置で resolve
+- Remaining:
+  - [ ] MoneyBucketDashboard 廃止 + MonthlyTrendChart 配置 + v3.4 mock commit
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: #30 (bell drawer + consolidation) merge — banner 撤去 + CashflowBucketStrip 残置で resolve
+- Validation:
+  - `frontend tsc pass / conflict マーカー 0`
 - Landmines:
   - No new landmines reported in this chunk.

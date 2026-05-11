@@ -246,7 +246,7 @@ export function Money() {
         };
     }, [activeTab, selectedMonth]);
 
-    // 承認モーダル
+    // 承認モーダル (バッチ操作用、ベルから個別カードと別に開ける)
     const [showApprovalsModal, setShowApprovalsModal] = useState(false);
 
     // 登録モーダル
@@ -673,20 +673,6 @@ export function Money() {
                     onNextMonth={() => changeMonth("next")}
                     disabled={loading}
                 />
-            )}
-
-            {/* 親方チェック待ちアクセス (PR #5 でベルドロワーに移行予定) */}
-            {pendingApprovals.length > 0 && (
-                <button
-                    type="button"
-                    className={styles.pendingApprovalsBanner}
-                    onClick={() => setShowApprovalsModal(true)}
-                    aria-label={`親方チェック待ち ${pendingApprovals.length}件を開く`}
-                >
-                    <AlertTriangle size={14} />
-                    親方チェック待ち {pendingApprovals.length}件
-                    <ChevronRight size={14} />
-                </button>
             )}
 
             {/* キャッシュフロー 4 バー (PR #10) — 請求漏れゼロ MVP の核 */}

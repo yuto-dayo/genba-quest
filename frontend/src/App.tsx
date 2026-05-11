@@ -35,6 +35,7 @@ import { Sites } from "./pages/Sites";
 import { Today } from "./pages/Today";
 import { FloatingActionButton } from "./components/FloatingActionButton";
 import { FloatingBellButton } from "./components/FloatingBellButton";
+import { BellDrawer } from "./components/BellDrawer";
 import {
   acceptOrgInvite,
   bootstrapFirstOrg,
@@ -1363,6 +1364,7 @@ function AppContent() {
   const [pendingApprovals, setPendingApprovals] = useState<AccountingTransaction[]>([]);
   const [pendingProposals, setPendingProposals] = useState<ProposalRecord[]>([]);
   const [inboxOpen, setInboxOpen] = useState(false);
+  const [bellDrawerOpen, setBellDrawerOpen] = useState(false);
   const [levelDraftTarget, setLevelDraftTarget] = useState<{
     siteId: string;
     siteName: string;
@@ -1680,8 +1682,21 @@ function AppContent() {
     if (!activeOrgId) {
       return;
     }
-    setInboxOpen(true);
+    setBellDrawerOpen(true);
   }, [activeOrgId]);
+
+  const handleBellApprovalComplete = useCallback(() => {
+    window.dispatchEvent(new CustomEvent("pending-approvals-updated"));
+    window.dispatchEvent(new CustomEvent("pending-proposals-updated"));
+  }, []);
+
+  const handleBellOpenProposal = useCallback(
+    (proposal: ProposalRecord) => {
+      setBellDrawerOpen(false);
+      navigate(`/money?proposal=${proposal.id}`);
+    },
+    [navigate],
+  );
 
   const handleSelectSiteDraft = useCallback(
     (notification: NotificationRecord) => {
@@ -2119,6 +2134,14 @@ function AppContent() {
             onSelectSiteDraft={handleSelectSiteDraft}
             onSelectApproval={handleSelectApproval}
             onSelectProposal={handleSelectProposal}
+          />
+          <BellDrawer
+            open={bellDrawerOpen}
+            onClose={() => setBellDrawerOpen(false)}
+            selfApprovals={pendingApprovals}
+            consensusPending={pendingProposals}
+            onSelfApprovalComplete={handleBellApprovalComplete}
+            onOpenProposal={handleBellOpenProposal}
           />
           <LevelDraftSheet
             open={levelDraftTarget !== null}
