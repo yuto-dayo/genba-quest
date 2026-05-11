@@ -120,11 +120,38 @@
     transform-origin: left center;
     transition: width 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
     background: linear-gradient(90deg, #6366f1, #818cf8);
+    /* v3.3 mock: stagger entrance 60ms — width transition は再描画ごとに走るので
+       初回マウント時の scaleX 入場アニメは別レイヤで適用する。 */
+    animation: bucketGrow 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
 }
 
 .warn .fill { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
 .bad .fill { background: linear-gradient(90deg, #dc2626, #ef4444); }
 .good .fill { background: linear-gradient(90deg, #16a34a, #22c55e); }
+
+@keyframes bucketGrow {
+    from { transform: scaleX(0); opacity: 0.6; }
+    to   { transform: scaleX(1); opacity: 1; }
+}
+
+/* v3.3 mock: バー 6 本を 60ms 間隔で順次入場 */
+.bar:nth-of-type(1) .fill,
+.bar:nth-of-type(1) .amount { animation-delay: 60ms; }
+.bar:nth-of-type(2) .fill,
+.bar:nth-of-type(2) .amount { animation-delay: 120ms; }
+.bar:nth-of-type(3) .fill,
+.bar:nth-of-type(3) .amount { animation-delay: 180ms; }
+.bar:nth-of-type(4) .fill,
+.bar:nth-of-type(4) .amount { animation-delay: 240ms; }
+.bar:nth-of-type(5) .fill,
+.bar:nth-of-type(5) .amount { animation-delay: 300ms; }
+.bar:nth-of-type(6) .fill,
+.bar:nth-of-type(6) .amount { animation-delay: 360ms; }
+
+@keyframes bucketValueIn {
+    from { opacity: 0; transform: translateY(3px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
 
 .valueCol {
     display: flex;
@@ -139,6 +166,7 @@
     color: var(--md-sys-color-on-surface, #1a1f27);
     font-variant-numeric: tabular-nums;
     line-height: 1;
+    animation: bucketValueIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
 }
 
 .count {

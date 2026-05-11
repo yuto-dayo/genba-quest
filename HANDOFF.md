@@ -25,43 +25,43 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `PR #7 を GitHub に PR 作成 → 次は月次推移グラフ or 取引先履歴グラフ着手`. Source: realtime
+- [focus] NEXT_CMD: `PR #10 (cashflow strip) にも同じ stagger を適用する`. Source: realtime
+- [H0049] Completed: PR #7 (bucket strip) に v3.3 mock の stagger entrance (60ms 間隔, scaleX growBar + amount fadeIn) を追加
+- [H0049] Remaining: PR #10 (cashflow strip) にも同じ stagger を適用する
 - [H0048] Completed: PR #7: MoneyBucketDashboard を v3.3 mock の水平棒グラフ (bucket-strip) に刷新
 - [H0048] Remaining: PR #7 を GitHub に PR 作成 → 次は月次推移グラフ or 取引先履歴グラフ着手
-- [H0047] Completed: VendorCard lint 修正再適用 (cherry-pick skip で失われた分)
-- [H0047] Remaining: force-push + PR #25 merge
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0049] Auto-captured decision: PR #7 (bucket strip) に v3.3 mock の stagger entrance (60ms 間隔, scaleX growBar + amount fadeIn) を追加
 - [H0048] Auto-captured decision: PR #7: MoneyBucketDashboard を v3.3 mock の水平棒グラフ (bucket-strip) に刷新
 - [H0047] Auto-captured decision: VendorCard lint 修正再適用 (cherry-pick skip で失われた分)
 - [H0046] Auto-captured decision: cherry-pick commit 3 (v3.3 mock 準拠) 適用中
 - [H0045] Auto-captured decision: cherry-pick 進行: HANDOFF conflict 再 resolve
-- [H0044] Auto-captured decision: PR #1-#3 rollup マージ完了 (PR #26)、PR #25 を master 起点でクリーンに再構築中
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0048] No new landmines reported in this chunk.
+- [H0049] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0049] PR #10 (cashflow strip) にも同じ stagger を適用する
 - [H0048] PR #7 を GitHub に PR 作成 → 次は月次推移グラフ or 取引先履歴グラフ着手
 - [H0047] force-push + PR #25 merge
 - [H0046] 残り commit 4 (lint fix)
 - [H0045] 残コミット適用
-- [H0044] PR #5 4 commit cherry-pick 続行 → push → merge
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `12`
+- current_l3_entries: `13`
 - last_compacted_at: `2026-05-11 19:13:43 +0900`
 - archived_entries: `36`
 <!-- HANDOFF_L2_STATE_END -->
@@ -277,5 +277,21 @@
   - Auto-captured decision: PR #7: MoneyBucketDashboard を v3.3 mock の水平棒グラフ (bucket-strip) に刷新
 - Validation:
   - `frontend tsc OK / eslint OK / 6 バーが name|track|amount+count レイアウトで描画されることを preview で確認 (tone 別 gradient も検証)`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-11 20:05:30 +0900
+
+- Entry-ID: `H0049`
+- Completed:
+  - [x] PR #7 (bucket strip) に v3.3 mock の stagger entrance (60ms 間隔, scaleX growBar + amount fadeIn) を追加
+- Remaining:
+  - [ ] PR #10 (cashflow strip) にも同じ stagger を適用する
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: PR #7 (bucket strip) に v3.3 mock の stagger entrance (60ms 間隔, scaleX growBar + amount fadeIn) を追加
+- Validation:
+  - `preview で computed animation-delay が 0.06s/0.12s/.../0.36s と階段状になるのを確認`
 - Landmines:
   - No new landmines reported in this chunk.
