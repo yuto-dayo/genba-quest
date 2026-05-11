@@ -45,6 +45,7 @@ import { TransactionDetailModal } from "../components/TransactionDetailModal";
 import { ApprovalCard } from "../components/ApprovalCard";
 import { FloatingActionButton } from "../components/FloatingActionButton";
 import { MoneyBucketDashboard } from "../components/MoneyBucketDashboard";
+import { MonthlyTrendChart } from "../components/MonthlyTrendChart";
 import { MoneyHero } from "../components/MoneyHero";
 import { MoneyTabs, type MoneyTab } from "../components/MoneyTabs";
 import { MoneyFilterSheet, type ExpenseCategory } from "../components/MoneyFilterSheet";
@@ -636,6 +637,12 @@ export function Money() {
                     <ChevronRight size={14} />
                 </button>
             )}
+
+            {/* 月次推移 (PR #8) — 黒字可視化 MVP の核 */}
+            <MonthlyTrendChart
+                endMonth={selectedMonth}
+                onSelectMonth={setSelectedMonth}
+            />
 
             {/* バケット一望 (F-1) — 番頭レス可視性の核 */}
             <MoneyBucketDashboard month={selectedMonth} />

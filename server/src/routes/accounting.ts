@@ -3978,6 +3978,78 @@ router.post("/void/:id", async (req: AuthenticatedRequest, res: Response) => {
 // PL（月次損益）
 // ============================================================
 
+// PL 月次推移 (直近 N ヶ月の sales / expenses / profit, legacy basis, PR #8)
+router.get("/pl/trend", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const endParam = typeof req.query.end === "string" ? req.query.end : "";
+        const monthsParam = Number(req.query.months);
+        const months = Number.isFinite(monthsParam) && monthsParam > 0 && monthsParam <= 24
+            ? Math.floor(monthsParam)
+            : 6;
+        const endMonth = /^\d{4}-\d{2}$/.test(endParam)
+            ? endParam
+            : new Date().toISOString().slice(0, 7);
+
+        const [endYearStr, endMonStr] = endMonth.split("-");
+        const endYear = Number(endYearStr);
+        const endMon = Number(endMonStr);
+
+        // 範囲先頭月の 1 日
+        const startDate = new Date(endYear, endMon - 1 - (months - 1), 1);
+        const startIso = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, "0")}-01`;
+        // 範囲末尾月の末日
+        const endDay = new Date(endYear, endMon, 0).getDate();
+        const endIso = `${endMonth}-${String(endDay).padStart(2, "0")}`;
+
+        const { data, error } = await supabaseAdmin
+            .from("accounting_transactions")
+            .select("kind, amount_total, recorded_date")
+            .eq("org_id", req.orgId!)
+            .in("status", [...LEDGER_AGGREGATION_STATUSES])
+            .gte("recorded_date", startIso)
+            .lte("recorded_date", endIso);
+
+        if (error) throw error;
+
+        // 月別バケット初期化 (古い→新しい順)
+        const buckets: Record<string, { sales: number; expenses: number }> = {};
+        const monthKeys: string[] = [];
+        for (let i = 0; i < months; i++) {
+            const d = new Date(endYear, endMon - 1 - (months - 1) + i, 1);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+            monthKeys.push(key);
+            buckets[key] = { sales: 0, expenses: 0 };
+        }
+
+        for (const row of (data ?? []) as Array<{ kind: string; amount_total: number | string; recorded_date: string }>) {
+            const monthKey = row.recorded_date.slice(0, 7);
+            const bucket = buckets[monthKey];
+            if (!bucket) continue;
+            const amt = Number(row.amount_total) || 0;
+            if (row.kind === "sale" || row.kind === "invoice") {
+                bucket.sales += amt;
+            } else if (row.kind === "expense") {
+                bucket.expenses += amt;
+            }
+        }
+
+        const trend = monthKeys.map((key) => {
+            const { sales, expenses } = buckets[key];
+            return {
+                month: key,
+                sales,
+                expenses,
+                profit: sales - expenses,
+            };
+        });
+
+        res.json({ months: trend, basis: "legacy" });
+    } catch (err: any) {
+        console.error("[accounting] pl trend error:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
 router.get("/pl", async (req: AuthenticatedRequest, res: Response) => {
     try {
         const { month, site_id, cost_center, source } = req.query;

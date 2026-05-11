@@ -1997,6 +1997,27 @@ export function fetchPL(params?: FetchPLParams & { source?: PLSource }) {
     return api<PLReport | PLJournalReport | PLCompareReport>(`/api/v1/accounting/pl${query ? `?${query}` : ""}`);
 }
 
+// 月次推移 (PR #8)
+export interface PLTrendMonth {
+    month: string; // "YYYY-MM"
+    sales: number;
+    expenses: number;
+    profit: number;
+}
+
+export interface PLTrendReport {
+    months: PLTrendMonth[];
+    basis: "legacy";
+}
+
+export const fetchPLTrend = (params?: { end?: string; months?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.end) q.append("end", params.end);
+    if (params?.months) q.append("months", String(params.months));
+    const query = q.toString();
+    return api<PLTrendReport>(`/api/v1/accounting/pl/trend${query ? `?${query}` : ""}`);
+};
+
 // 取引一覧
 export const fetchTransactions = (params?: {
     kind?: "expense" | "sale" | "invoice";
