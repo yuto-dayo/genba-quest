@@ -2580,16 +2580,10 @@
     gap: 14px;
 }
 
-.vendorGrid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 12px;
-}
-
-@media (min-width: 720px) {
-    .vendorGrid {
-        grid-template-columns: repeat(2, 1fr);
-    }
+.partnerSections {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
 }
 
 .vendorsLoading {

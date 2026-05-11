@@ -15,7 +15,6 @@ import {
     ChevronRight,
     Search,
     SlidersHorizontal,
-    Users,
     FilterX,
 } from "lucide-react";
 import {
@@ -26,6 +25,7 @@ import {
     fetchTransactions,
     fetchPendingApprovals,
     fetchClients,
+    fetchPartnersSummary,
     instructProposal,
     rejectProposal,
     searchTransactions,
@@ -34,6 +34,7 @@ import {
     type AccountingTransaction,
     type ProposalRecord,
     type Client,
+    type PartnersSummary,
 } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
 import { ExpenseModal } from "../components/ExpenseModal";
@@ -48,7 +49,8 @@ import { MoneyBucketDashboard } from "../components/MoneyBucketDashboard";
 import { MoneyHero } from "../components/MoneyHero";
 import { MoneyTabs, type MoneyTab } from "../components/MoneyTabs";
 import { MoneyFilterSheet, type ExpenseCategory } from "../components/MoneyFilterSheet";
-import { VendorCard } from "../components/VendorCard";
+import { PartnerSection } from "../components/PartnerSection";
+import { ReceivePartnerCard, PayPartnerCard, DonePartnerCard } from "../components/PartnerCard";
 import styles from "./Money.module.css";
 
 // 日付フォーマットヘルパー (YYYY/MM/DD)
@@ -190,29 +192,48 @@ export function Money() {
     const [activeTab, setActiveTab] = useState<MoneyTab>("transactions");
     const [showFilterSheet, setShowFilterSheet] = useState(false);
 
-    // 取引先一覧 — フィルタシート (取引先 chips) でも使うのでマウント時にロード
+    // 取引先タブ — 3 section サマリ (PR #6)
+    const [partnersSummary, setPartnersSummary] = useState<PartnersSummary | null>(null);
+    const [partnersLoading, setPartnersLoading] = useState(false);
+    const [partnersError, setPartnersError] = useState<string | null>(null);
+
+    // 取引先一覧 — フィルタシート (取引先 chips) でマウント時にロード
     const [clients, setClients] = useState<Client[] | null>(null);
-    const [clientsLoading, setClientsLoading] = useState(false);
-    const [clientsError, setClientsError] = useState<string | null>(null);
 
     useEffect(() => {
         let cancelled = false;
-        setClientsLoading(true);
-        setClientsError(null);
         fetchClients({ status: "active" })
             .then((data) => {
                 if (!cancelled) setClients(data);
             })
             .catch((err: unknown) => {
-                if (!cancelled) setClientsError(getErrorMessage(err));
-            })
-            .finally(() => {
-                if (!cancelled) setClientsLoading(false);
+                console.error("[Money] failed to load clients:", err);
             });
         return () => {
             cancelled = true;
         };
     }, []);
+
+    // 取引先タブを開いた / 月切替時に partners summary をロード
+    useEffect(() => {
+        if (activeTab !== "vendors") return;
+        let cancelled = false;
+        setPartnersLoading(true);
+        setPartnersError(null);
+        fetchPartnersSummary(selectedMonth)
+            .then((data) => {
+                if (!cancelled) setPartnersSummary(data);
+            })
+            .catch((err: unknown) => {
+                if (!cancelled) setPartnersError(getErrorMessage(err));
+            })
+            .finally(() => {
+                if (!cancelled) setPartnersLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [activeTab, selectedMonth]);
 
     // 承認モーダル
     const [showApprovalsModal, setShowApprovalsModal] = useState(false);
@@ -993,46 +1014,79 @@ export function Money() {
                         >
                             <div className={styles.sectionHeader}>
                                 <div>
-                                    <p className={styles.sectionKicker}>取引先と締めルール</p>
+                                    <p className={styles.sectionKicker}>もらう / 払う / 完了</p>
                                     <h2 className={styles.sectionTitle}>取引先</h2>
                                 </div>
-                                {clients && (
-                                    <span className={styles.txCountBadge}>{clients.length}件</span>
+                                {partnersSummary && (
+                                    <span className={styles.txCountBadge}>
+                                        {partnersSummary.receive.partners.length +
+                                            partnersSummary.pay.partners.length +
+                                            partnersSummary.done.partners.length}
+                                        件
+                                    </span>
                                 )}
                             </div>
 
-                            {clientsLoading && (
+                            {partnersLoading && (
                                 <div className={styles.vendorsLoading}>
                                     <RefreshCw size={16} className={styles.spinIcon} />
-                                    <span>取引先を読み込み中</span>
+                                    <span>取引先サマリを読み込み中</span>
                                 </div>
                             )}
 
-                            {clientsError && (
+                            {partnersError && (
                                 <div className={styles.vendorsError}>
-                                    取引先の取得に失敗: {clientsError}
+                                    取引先サマリの取得に失敗: {partnersError}
                                 </div>
                             )}
 
-                            {!clientsLoading && !clientsError && clients && clients.length === 0 && (
-                                <div className={styles.emptyState}>
-                                    <div className={styles.emptyIcon}>
-                                        <Users size={40} />
-                                    </div>
-                                    <p className={styles.emptyTitle}>取引先がまだありません</p>
-                                    <p className={styles.emptyDescription}>
-                                        現場登録や見積もり受領のタイミングで自動的に追加されます
-                                    </p>
+                            {!partnersLoading && !partnersError && partnersSummary && (
+                                <div className={styles.partnerSections}>
+                                    <PartnerSection
+                                        title="もらう (請求/入金)"
+                                        warn
+                                        total={partnersSummary.receive.total}
+                                        count={partnersSummary.receive.partners.length}
+                                        emptyLabel="今月の売上はまだ記録されていません"
+                                    >
+                                        {partnersSummary.receive.partners.map((p) => (
+                                            <ReceivePartnerCard
+                                                key={p.client_id}
+                                                partner={p}
+                                                onClick={() =>
+                                                    setFilters((prev) => ({ ...prev, clientId: p.client_id }))
+                                                }
+                                            />
+                                        ))}
+                                    </PartnerSection>
+
+                                    <PartnerSection
+                                        title="払う (仕入/外注)"
+                                        total={partnersSummary.pay.total}
+                                        count={partnersSummary.pay.partners.length}
+                                        emptyLabel="今月の経費はまだ記録されていません"
+                                    >
+                                        {partnersSummary.pay.partners.map((p) => (
+                                            <PayPartnerCard key={p.vendor_name} partner={p} />
+                                        ))}
+                                    </PartnerSection>
+
+                                    <PartnerSection
+                                        title="完了 (入金済)"
+                                        total={partnersSummary.done.total}
+                                        count={partnersSummary.done.partners.length}
+                                        emptyLabel="今月の入金はまだありません"
+                                    >
+                                        {partnersSummary.done.partners.map((p, idx) => (
+                                            <DonePartnerCard
+                                                key={`${p.client_id ?? "anon"}-${p.paid_at}-${idx}`}
+                                                partner={p}
+                                            />
+                                        ))}
+                                    </PartnerSection>
                                 </div>
                             )}
 
-                            {!clientsLoading && !clientsError && clients && clients.length > 0 && (
-                                <div className={styles.vendorGrid}>
-                                    {clients.map((client) => (
-                                        <VendorCard key={client.id} client={client} />
-                                    ))}
-                                </div>
-                            )}
                         </motion.section>
                     )}
                 </div>

@@ -1167,6 +1167,49 @@ export const createBillingRule = (clientId: string, input: CreateBillingRuleInpu
         method: "POST",
         body: JSON.stringify(input),
     });
+
+// ============================================================
+// 取引先 月次サマリ (PR #6 Money 取引先タブ 3 section)
+// ============================================================
+
+export type ReceiveStatus = "unbilled" | "billed" | "awaiting_payment";
+
+export interface ReceivePartnerSummary {
+    client_id: string;
+    client_name: string;
+    amount: number;
+    rule: BillingRuleRecord | null;
+    next_period: BillingPeriodPreview | null;
+    status: ReceiveStatus;
+    target_date: string | null;
+    days_overdue: number | null;
+    billed_at: string | null;
+}
+
+export interface PayPartnerSummary {
+    vendor_name: string;
+    amount: number;
+    transaction_count: number;
+    due_date: string | null;
+}
+
+export interface DonePartnerSummary {
+    client_id: string | null;
+    client_name: string;
+    amount: number;
+    paid_at: string;
+}
+
+export interface PartnersSummary {
+    month: string;
+    receive: { total: number; partners: ReceivePartnerSummary[] };
+    pay: { total: number; partners: PayPartnerSummary[] };
+    done: { total: number; partners: DonePartnerSummary[] };
+}
+
+export const fetchPartnersSummary = (month: string) =>
+    api<PartnersSummary>(`/api/v1/accounting/partners/summary?month=${encodeURIComponent(month)}`);
+
 export const scanBusinessCard = (data: {
     file_base64: string;
     mime_type: string;
