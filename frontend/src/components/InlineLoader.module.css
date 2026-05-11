@@ -1,0 +1,50 @@
+.root {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--md-sys-color-primary, #4F46E5);
+  line-height: 0;
+}
+
+.root.sm { width: 16px; height: 16px; }
+.root.md { width: 24px; height: 24px; }
+.root.lg { width: 36px; height: 36px; }
+.root.xl { width: 56px; height: 56px; }
+
+.icon {
+  width: 100%;
+  height: 100%;
+  animation: gq-inline-loader-spin 1.4s linear infinite;
+}
+
+@keyframes gq-inline-loader-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon {
+    animation: gq-inline-loader-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes gq-inline-loader-pulse {
+    0%, 100% { opacity: 0.45; }
+    50%      { opacity: 1; }
+  }
+}
+
+/* Tone variants — let callers swap brand context without overriding CSS */
+.tonePrimary  { color: var(--md-sys-color-primary, #4F46E5); }
+.toneOnSurface { color: var(--md-sys-color-on-surface, #1C1917); }
+.toneOnPrimary { color: var(--md-sys-color-on-primary, #FFFFFF); }
+.toneMuted    { color: var(--md-sys-color-outline, #78716C); }
+
+.block {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 120px;
+  gap: 12px;
+  color: var(--md-sys-color-on-surface-variant, #57534E);
+  font: var(--md-sys-typescale-body-medium, 400 14px/20px sans-serif);
+}
