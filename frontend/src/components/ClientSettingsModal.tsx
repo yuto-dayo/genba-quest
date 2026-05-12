@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
     Building2,
+    Camera,
+    Image as ImageIcon,
     Loader2,
     MapPin,
     ReceiptText,
     Save,
     Trash2,
-    Upload,
     X,
 } from "lucide-react";
 import {
@@ -153,6 +154,7 @@ export function ClientSettingsModal({
     const [error, setError] = useState<string | null>(null);
     const [deleteError, setDeleteError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const cameraInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         const nextForm = toClientForm(client || null, initialClient);
@@ -332,6 +334,9 @@ export function ClientSettingsModal({
             if (fileInputRef.current) {
                 fileInputRef.current.value = "";
             }
+            if (cameraInputRef.current) {
+                cameraInputRef.current.value = "";
+            }
         }
     };
 
@@ -374,11 +379,21 @@ export function ClientSettingsModal({
                                 <span className={styles.heroChip}>
                                     {isEdit ? "編集モード" : "新規登録"}
                                 </span>
-                                <h3>名刺から取り込んで、請求先情報までその場で整える</h3>
-                                <p>
-                                    会社名、担当者、住所を分割して保持します。請求先住所が同一ならコピーだけで済みます。
-                                </p>
+                                <h3>名刺から自動入力</h3>
                                 <div className={styles.heroActions}>
+                                    <input
+                                        ref={cameraInputRef}
+                                        type="file"
+                                        accept="image/*"
+                                        capture="environment"
+                                        className={styles.fileInput}
+                                        onChange={(event) => {
+                                            const file = event.target.files?.[0];
+                                            if (file) {
+                                                void handleScanBusinessCard(file);
+                                            }
+                                        }}
+                                    />
                                     <input
                                         ref={fileInputRef}
                                         type="file"
@@ -394,15 +409,21 @@ export function ClientSettingsModal({
                                     <button
                                         type="button"
                                         className={styles.secondaryButton}
+                                        onClick={() => cameraInputRef.current?.click()}
+                                        disabled={saving || deleting || scanning}
+                                    >
+                                        {scanning ? <Loader2 size={16} className={styles.spinner} /> : <Camera size={16} />}
+                                        カメラで撮影
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={styles.secondaryButton}
                                         onClick={() => fileInputRef.current?.click()}
                                         disabled={saving || deleting || scanning}
                                     >
-                                        {scanning ? <Loader2 size={16} className={styles.spinner} /> : <Upload size={16} />}
-                                        名刺を読み取る
+                                        <ImageIcon size={16} />
+                                        画像を選ぶ
                                     </button>
-                                    <span className={styles.heroHint}>
-                                        会社名 / 担当者 / 郵便番号 / 住所を自動で補完
-                                    </span>
                                 </div>
                                 {scanSummary && <p className={styles.scanSummary}>{scanSummary}</p>}
                             </div>
