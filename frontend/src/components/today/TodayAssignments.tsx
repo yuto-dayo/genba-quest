@@ -12,6 +12,7 @@ interface TodayAssignmentsProps {
     sites: Site[];
     members: Member[];
     siteLineItemsBySiteId: Record<string, SiteLineItem[]>;
+    readOnly?: boolean;
     onViewSiteMemo: (site: Site) => void;
     onRecordRewardInput: (site: Site) => void;
     onAddConstruction: (site: Site) => void;
@@ -148,6 +149,7 @@ export function TodayAssignments({
     sites,
     members,
     siteLineItemsBySiteId,
+    readOnly = false,
     onViewSiteMemo,
     onRecordRewardInput,
     onAddConstruction,
@@ -354,14 +356,16 @@ export function TodayAssignments({
                                             )}
                                         </span>
                                     </button>
-                                    <button
-                                        type="button"
-                                        className={styles.constructionAddButton}
-                                        onClick={() => onAddConstruction(site.site!)}
-                                    >
-                                        <Plus size={14} />
-                                        工事追加
-                                    </button>
+                                    {!readOnly && (
+                                        <button
+                                            type="button"
+                                            className={styles.constructionAddButton}
+                                            onClick={() => onAddConstruction(site.site!)}
+                                        >
+                                            <Plus size={14} />
+                                            工事追加
+                                        </button>
+                                    )}
                                 </div>
                             )}
 
@@ -377,7 +381,7 @@ export function TodayAssignments({
                                         <FileText size={14} />
                                         メモ
                                     </button>
-                                    {showRewardAction && (
+                                    {!readOnly && showRewardAction && (
                                         <button
                                             type="button"
                                             className={`${styles.assignmentActionButton} ${
@@ -450,18 +454,20 @@ export function TodayAssignments({
                             </div>
                         )}
 
-                        <button
-                            type="button"
-                            className={styles.constructionModalAddButton}
-                            onClick={() => {
-                                const targetSite = constructionModal.site;
-                                setConstructionModal(null);
-                                onAddConstruction(targetSite);
-                            }}
-                        >
-                            <Plus size={16} />
-                            工事追加
-                        </button>
+                        {!readOnly && (
+                            <button
+                                type="button"
+                                className={styles.constructionModalAddButton}
+                                onClick={() => {
+                                    const targetSite = constructionModal.site;
+                                    setConstructionModal(null);
+                                    onAddConstruction(targetSite);
+                                }}
+                            >
+                                <Plus size={16} />
+                                工事追加
+                            </button>
+                        )}
                     </div>
                 </div>
             )}

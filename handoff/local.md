@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `Push feature branch, open PR, merge into master`
+- NEXT_CMD: `PR1手動確認（モバイルでスワイプ感・今日へピル・過去日表示制御）を実施し、必要なら微調整してコミット。`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/local.md`
@@ -18,8 +18,8 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `ed484c6`
-  - Updated: `2026-05-12T20:27:18+0900`
+  - HEAD: `52e3fbb`
+  - Updated: `2026-05-13T00:24:26+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
@@ -33,7 +33,9 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `Push feature branch, open PR, merge into master`. Source: realtime
+- [focus] NEXT_CMD: `PR1手動確認（モバイルでスワイプ感・今日へピル・過去日表示制御）を実施し、必要なら微調整してコミット。`. Source: realtime
+- [H0002] Completed: PR1: Today日付ナビ（矢印+スワイプ）とreadOnly表示制御を実装。TodayAssignments readOnly対応とTodayテスト追加まで完了。
+- [H0002] Remaining: PR1手動確認（モバイルでスワイプ感・今日へピル・過去日表示制御）を実施し、必要なら微調整してコミット。
 - [H0001] Completed: Implemented profile onboarding wizard (5 steps), avatar compression/upload flow, profile route and app entry integration, and tests
 - [H0001] Remaining: Push feature branch, open PR, merge into master
 <!-- HANDOFF_L1_END -->
@@ -42,16 +44,18 @@
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0002] Auto-captured decision: PR1: Today日付ナビ（矢印+スワイプ）とreadOnly表示制御を実装。TodayAssignments readOnly対応とTodayテスト追加まで完了。
 - [H0001] Auto-captured decision: Implemented profile onboarding wizard (5 steps), avatar compression/upload flow, profile route and app entry integration, and tests
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0001] No new landmines reported in this chunk.
+- [H0002] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0002] PR1手動確認（モバイルでスワイプ感・今日へピル・過去日表示制御）を実施し、必要なら微調整してコミット。
 - [H0001] Push feature branch, open PR, merge into master
 <!-- HANDOFF_L2_THREADS_END -->
 
@@ -59,7 +63,7 @@
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `1`
+- current_l3_entries: `2`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -90,18 +94,24 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] PR1: Today日付ナビ（矢印+スワイプ）とreadOnly表示制御を実装。TodayAssignments readOnly対応とTodayテスト追加まで完了。
 - [x] Implemented profile onboarding wizard (5 steps), avatar compression/upload flow, profile route and app entry integration, and tests
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: Push feature branch, open PR, merge into master
+- [ ] **P0**: PR1手動確認（モバイルでスワイプ感・今日へピル・過去日表示制御）を実施し、必要なら微調整してコミット。
+- [ ] **P1**: Push feature branch, open PR, merge into master
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
+| `frontend/src/pages/Today.test.tsx` | day navigationシナリオ追加 |
+| `frontend/src/pages/Today.module.css` | dateStrip/今日へピル/coachmarkスタイル追加 |
+| `frontend/src/components/today/TodayAssignments.tsx` | readOnly時に責任/工事追加を非表示 |
+| `frontend/src/pages/Today.tsx` | currentDayKey基点の日付ナビ・スワイプ・コーチマーク・readOnly分岐 |
 | `(not recorded)` | No file list provided (use --file "path - semantic description") |
 ---
 
@@ -162,5 +172,26 @@ cd frontend && npx eslint src/
   - Auto-captured decision: Implemented profile onboarding wizard (5 steps), avatar compression/upload flow, profile route and app entry integration, and tests
 - Validation:
   - `frontend: vitest onboarding/api/app tests passed; server: profile route unit tests passed; frontend/server build passed earlier; local Supabase migration apply blocked by Docker daemon unavailable`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-13 00:24:26 +0900
+
+- Entry-ID: `H0002`
+- Completed:
+  - [x] PR1: Today日付ナビ（矢印+スワイプ）とreadOnly表示制御を実装。TodayAssignments readOnly対応とTodayテスト追加まで完了。
+- Remaining:
+  - [ ] PR1手動確認（モバイルでスワイプ感・今日へピル・過去日表示制御）を実施し、必要なら微調整してコミット。
+- Changed Files:
+  - `frontend/src/pages/Today.tsx` - currentDayKey基点の日付ナビ・スワイプ・コーチマーク・readOnly分岐
+  - `frontend/src/components/today/TodayAssignments.tsx` - readOnly時に責任/工事追加を非表示
+  - `frontend/src/pages/Today.module.css` - dateStrip/今日へピル/coachmarkスタイル追加
+  - `frontend/src/pages/Today.test.tsx` - day navigationシナリオ追加
+- Working Context:
+  - Auto-captured decision: PR1: Today日付ナビ（矢印+スワイプ）とreadOnly表示制御を実装。TodayAssignments readOnly対応とTodayテスト追加まで完了。
+- Validation:
+  - `cd frontend && npm test -- Today.test.tsx => pass (12/12)`
+  - `cd frontend && npx tsc --noEmit => pass`
+  - `cd frontend && npx eslint src/pages/Today.tsx src/pages/Today.test.tsx src/components/today/TodayAssignments.tsx => pass`
 - Landmines:
   - No new landmines reported in this chunk.
