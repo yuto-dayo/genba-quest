@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `必要ならcommit/push or envテンプレート更新(DOC_CLASSIFIER_* / GEMINI_MODEL)`
+- NEXT_CMD: `名刺スキャンのカメラ/ギャラリー2ボタン化 PR の merge 確認`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest-level-pr2/handoff/local.md`
@@ -34,7 +34,9 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `必要ならcommit/push or envテンプレート更新(DOC_CLASSIFIER_* / GEMINI_MODEL)`. Source: realtime
+- [focus] NEXT_CMD: `名刺スキャンのカメラ/ギャラリー2ボタン化 PR の merge 確認`. Source: realtime
+- [H0003] Completed: 名刺スキャンUIをカメラ撮影(capture=environment)+画像選択の2ボタンに分割、hero copy 簡素化
+- [H0003] Remaining: PR review + merge to master
 - [H0002] Completed: AIモデルenv化(gemini/openai/anthropic)+DocumentClassifierをGemini Lite/Flashへ移行+monster機能コード削除
 - [H0002] Remaining: 必要ならcommit/push or envテンプレート更新(DOC_CLASSIFIER_* / GEMINI_MODEL)
 - [H0001] Completed: Implemented PR2 scope: removed V31 reward/role dead code across DB/server/frontend, removed Today responsibility action, and enhanced LevelDraftSheet with work type/address context.
