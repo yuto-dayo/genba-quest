@@ -1,0 +1,205 @@
+.screen {
+    min-height: 100dvh;
+    display: grid;
+    place-items: center;
+    padding: clamp(16px, 4vw, 40px);
+    background:
+        radial-gradient(circle at 10% 10%, rgba(45, 91, 227, 0.18), transparent 46%),
+        radial-gradient(circle at 90% 90%, rgba(49, 167, 84, 0.15), transparent 42%),
+        #f2f4f9;
+    position: relative;
+    overflow: hidden;
+}
+
+.panel {
+    width: 100%;
+    display: grid;
+    place-items: center;
+}
+
+.fieldBlock {
+    display: grid;
+    gap: 8px;
+}
+
+.fieldLabel {
+    font-size: 0.9rem;
+    color: var(--md-sys-color-on-surface-variant, #5f6470);
+}
+
+.textInput {
+    width: 100%;
+    border-radius: 12px;
+    border: 1px solid color-mix(in oklab, var(--md-sys-color-outline-variant, #b8bdc7) 58%, transparent);
+    background: #ffffff;
+    padding: 12px 14px;
+    font: inherit;
+}
+
+.textInput:focus {
+    outline: 2px solid color-mix(in oklab, var(--md-sys-color-primary, #2d5be3) 35%, transparent);
+    outline-offset: 1px;
+}
+
+.helperText {
+    margin: 0;
+    font-size: 0.84rem;
+    color: var(--md-sys-color-on-surface-variant, #5f6470);
+}
+
+.errorText {
+    margin: 0;
+    color: #b3261e;
+    font-size: 0.9rem;
+}
+
+.cardList {
+    display: grid;
+    gap: 10px;
+}
+
+.choiceCard,
+.choiceCardActive {
+    text-align: left;
+    display: grid;
+    gap: 4px;
+    padding: 14px;
+    border-radius: 14px;
+    border: 1px solid color-mix(in oklab, var(--md-sys-color-outline-variant, #bcc3ce) 56%, transparent);
+    background: #ffffff;
+    cursor: pointer;
+}
+
+.choiceCard strong,
+.choiceCardActive strong {
+    font-size: 1rem;
+}
+
+.choiceCard span,
+.choiceCardActive span {
+    color: var(--md-sys-color-on-surface-variant, #5f6470);
+    font-size: 0.9rem;
+}
+
+.choiceCardActive {
+    border-color: color-mix(in oklab, var(--md-sys-color-primary, #2d5be3) 45%, transparent);
+    background: color-mix(in oklab, var(--md-sys-color-primary, #2d5be3) 12%, white);
+}
+
+.jobTypeBlock {
+    display: grid;
+    gap: 16px;
+}
+
+.chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.chip,
+.chipActive {
+    border: 0;
+    border-radius: 999px;
+    padding: 8px 14px;
+    cursor: pointer;
+    font: inherit;
+    background: color-mix(in oklab, var(--md-sys-color-secondary-container, #e9edf7) 62%, white);
+    color: var(--md-sys-color-on-secondary-container, #253247);
+}
+
+.chipActive {
+    background: var(--md-sys-color-primary, #2d5be3);
+    color: var(--md-sys-color-on-primary, #fff);
+}
+
+.avatarBlock {
+    display: grid;
+    gap: 12px;
+    justify-items: center;
+}
+
+.hiddenInput {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.avatarPicker {
+    width: 136px;
+    height: 136px;
+    border-radius: 20px;
+    border: 1px dashed color-mix(in oklab, var(--md-sys-color-outline, #7f8591) 40%, transparent);
+    background: #ffffff;
+    padding: 0;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.avatarPreview {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.avatarPlaceholder {
+    width: 100%;
+    height: 100%;
+    display: grid;
+    place-items: center;
+    color: var(--md-sys-color-on-surface-variant, #5f6470);
+    font-weight: 600;
+}
+
+.skipButton {
+    border: 0;
+    background: transparent;
+    color: var(--md-sys-color-primary, #2d5be3);
+    padding: 0;
+    font: inherit;
+    cursor: pointer;
+}
+
+.confettiLayer {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+}
+
+.confetti {
+    position: absolute;
+    top: -16px;
+    width: 8px;
+    height: 16px;
+    border-radius: 2px;
+    background: #2d5be3;
+    animation: confettiDrop 1s ease-out forwards;
+}
+
+.confetti:nth-child(3n) {
+    background: #ef6c2f;
+}
+
+.confetti:nth-child(4n) {
+    background: #2ea856;
+}
+
+@keyframes confettiDrop {
+    from {
+        transform: translateY(0) rotate(0deg);
+        opacity: 1;
+    }
+    to {
+        transform: translateY(95dvh) rotate(260deg);
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .confetti {
+        animation: none;
+        opacity: 0;
+    }
+}

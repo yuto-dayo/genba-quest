@@ -1698,8 +1698,10 @@ export type BankAccountType = "ordinary" | "checking";
 export interface MyProfileRecord {
     id: string;
     username: string | null;
+    nickname: string | null;
     full_name: string | null;
     avatar_url: string | null;
+    onboarding_completed_at: string | null;
     phone: string | null;
     job_type: string | null;
     employment_kind: EmploymentKind;
@@ -1720,6 +1722,7 @@ export interface MyProfileRecord {
 }
 
 export type UpdateMyProfilePayload = Partial<{
+    nickname: string | null;
     full_name: string | null;
     username: string | null;
     phone: string | null;
@@ -1739,6 +1742,7 @@ export type UpdateMyProfilePayload = Partial<{
     address_line2: string | null;
     emergency_contact_name: string | null;
     emergency_phone: string | null;
+    complete_onboarding: boolean;
 }>;
 
 export const fetchMyProfile = () =>
@@ -1748,6 +1752,23 @@ export const updateMyProfile = (payload: UpdateMyProfilePayload) =>
     api<{ profile: MyProfileRecord }>("/api/v1/profile/me", {
         method: "PATCH",
         body: JSON.stringify(payload),
+    });
+
+export interface CompleteOnboardingPayload {
+    nickname: string;
+    full_name: string;
+    employment_kind: EmploymentKind;
+    job_type: string;
+    avatar_url?: string | null;
+}
+
+export const completeOnboarding = (payload: CompleteOnboardingPayload) =>
+    api<{ profile: MyProfileRecord }>("/api/v1/profile/me", {
+        method: "PATCH",
+        body: JSON.stringify({
+            ...payload,
+            complete_onboarding: true,
+        }),
     });
 
 export interface Client {

@@ -1,0 +1,110 @@
+.container {
+    width: min(560px, 100%);
+    display: grid;
+    gap: 24px;
+    padding: clamp(20px, 4vw, 32px);
+    border-radius: 24px;
+    border: 1px solid color-mix(in oklab, var(--md-sys-color-outline-variant, #c9c7c2) 55%, transparent);
+    background: linear-gradient(160deg, #ffffff 0%, #f7f8fb 100%);
+    box-shadow: 0 18px 48px rgba(18, 28, 45, 0.08);
+}
+
+.progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dot,
+.dotActive {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: color-mix(in oklab, var(--md-sys-color-outline, #7b7f87) 45%, white);
+}
+
+.dotActive {
+    width: 20px;
+    background: var(--md-sys-color-primary, #2d5be3);
+}
+
+.header {
+    display: grid;
+    gap: 8px;
+}
+
+.header h1 {
+    margin: 0;
+    font-size: clamp(1.36rem, 2.9vw, 1.7rem);
+    line-height: 1.35;
+}
+
+.header p {
+    margin: 0;
+    color: var(--md-sys-color-on-surface-variant, #5f6470);
+    line-height: 1.6;
+}
+
+.body {
+    display: grid;
+    gap: 14px;
+}
+
+.footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.footerLeft {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.backButton,
+.nextButton {
+    border: 0;
+    border-radius: 14px;
+    padding: 10px 16px;
+    font: inherit;
+    cursor: pointer;
+}
+
+.backButton {
+    background: color-mix(in oklab, var(--md-sys-color-secondary-container, #e8edf7) 65%, white);
+    color: var(--md-sys-color-on-secondary-container, #243042);
+}
+
+.nextButton {
+    background: var(--md-sys-color-primary, #2d5be3);
+    color: var(--md-sys-color-on-primary, #ffffff);
+    min-width: 132px;
+}
+
+.nextButton:disabled {
+    cursor: not-allowed;
+    background: color-mix(in oklab, var(--md-sys-color-outline, #6e727b) 58%, white);
+}
+
+@media (max-width: 600px) {
+    .container {
+        border-radius: 20px;
+        padding: 18px;
+    }
+
+    .footer {
+        align-items: stretch;
+        flex-direction: column-reverse;
+    }
+
+    .footerLeft {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .nextButton {
+        width: 100%;
+    }
+}
