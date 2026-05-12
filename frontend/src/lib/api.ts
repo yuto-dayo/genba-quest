@@ -1552,6 +1552,12 @@ export const revokeOrgInvite = (inviteId: string) =>
         method: "DELETE",
     });
 
+export const rotateOrgInvite = (inviteId: string, payload?: { ttl_days?: number }) =>
+    api<{ invite: OrgInviteRecord }>(`/api/v1/org/invites/${encodeURIComponent(inviteId)}/rotate`, {
+        method: "POST",
+        body: JSON.stringify(payload ?? {}),
+    });
+
 export type EmploymentKind = "employee" | "sole_proprietor" | "helper";
 export type BankAccountType = "ordinary" | "checking";
 
