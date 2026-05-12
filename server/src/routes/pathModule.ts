@@ -545,50 +545,6 @@ router.post("/day-logs", async (req: AuthenticatedRequest, res: Response) => {
   }
 });
 
-router.get("/site-member-role-plans", async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const plans = await getPathV31Service(req).listSiteMemberRolePlans({
-      site_id: typeof req.query.site_id === "string" ? req.query.site_id : undefined,
-      member_id: typeof req.query.member_id === "string" ? req.query.member_id : undefined,
-      limit: normalizeLimit(req.query.limit),
-    });
-    res.json({ plans });
-  } catch (error) {
-    handleError(res, error);
-  }
-});
-
-router.post("/site-member-role-plans", async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const plan = await getPathV31Service(req).upsertSiteMemberRolePlan(req.body, buildHumanActor(req));
-    res.status(200).json({ plan });
-  } catch (error) {
-    handleError(res, error);
-  }
-});
-
-router.get("/site-member-reward-inputs", async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const inputs = await getPathV31Service(req).listSiteMemberRewardInputs({
-      site_id: typeof req.query.site_id === "string" ? req.query.site_id : undefined,
-      member_id: typeof req.query.member_id === "string" ? req.query.member_id : undefined,
-      limit: normalizeLimit(req.query.limit),
-    });
-    res.json({ inputs });
-  } catch (error) {
-    handleError(res, error);
-  }
-});
-
-router.post("/site-member-reward-inputs", async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const input = await getPathV31Service(req).upsertSiteMemberRewardInput(req.body, buildHumanActor(req));
-    res.status(200).json({ input });
-  } catch (error) {
-    handleError(res, error);
-  }
-});
-
 router.get("/site-closes", async (req: AuthenticatedRequest, res: Response) => {
   try {
     const site_closes = await getPathV31Service(req).listSiteCloses({

@@ -1,12 +1,14 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowRight, HardHat, X } from "lucide-react";
+import { ArrowRight, HardHat, MapPin, X } from "lucide-react";
 import {
+    fetchSite,
     fetchPathV33MonthlyPreview,
     submitPathV33LevelDraft,
     type PathV33Level,
     type PathV33MonthlyPreview,
     type PathV33Tier,
+    type Site,
 } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
 import styles from "./LevelDraftSheet.module.css";
@@ -59,6 +61,30 @@ export function LevelDraftSheet({
     const [preview, setPreview] = useState<PathV33MonthlyPreview | null>(null);
     const [forecast, setForecast] = useState<PathV33MonthlyPreview | null>(null);
     const [postSubmitBanner, setPostSubmitBanner] = useState<string | null>(null);
+    const [siteInfo, setSiteInfo] = useState<Pick<Site, "work_types" | "address"> | null>(null);
+
+    useEffect(() => {
+        if (!open || !siteId) {
+            setSiteInfo(null);
+            return;
+        }
+        let cancelled = false;
+        setSiteInfo(null);
+        fetchSite(siteId)
+            .then((site) => {
+                if (!cancelled) {
+                    setSiteInfo({ work_types: site.work_types, address: site.address });
+                }
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setSiteInfo(null);
+                }
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [open, siteId]);
 
     useEffect(() => {
         if (!open || !memberId) {
@@ -170,6 +196,8 @@ export function LevelDraftSheet({
     const forecastLevel = forecast?.current.level ?? null;
     const existingDraft = preview?.drafts.find((d) => d.site_id === siteId);
     const workDaysHint = existingDraft?.work_days ?? null;
+    const headerWorkTypes = (siteInfo?.work_types ?? []).map((entry) => String(entry).trim()).filter(Boolean);
+    const headerAddress = siteInfo?.address?.trim() || "";
 
     return (
         <AnimatePresence>
@@ -198,6 +226,25 @@ export function LevelDraftSheet({
                                     <HardHat size={14} aria-hidden /> 現場レベル申告
                                 </span>
                                 <h2 id="level-draft-sheet-title">{siteName || "完了現場"}</h2>
+                                {(headerWorkTypes.length > 0 || headerAddress) && (
+                                    <div className={styles.siteContext}>
+                                        {headerWorkTypes.length > 0 && (
+                                            <div className={styles.workTypeChips}>
+                                                {headerWorkTypes.map((workType) => (
+                                                    <span key={workType} className={styles.workTypeChip}>
+                                                        {workType}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {headerAddress && (
+                                            <p className={styles.siteAddress}>
+                                                <MapPin size={12} aria-hidden="true" />
+                                                <span>{headerAddress}</span>
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
                                 <p>この現場での自分の働き方を 3 段階で残してください。月末に加重平均で評価レベルが決まります。</p>
                             </div>
                             <button

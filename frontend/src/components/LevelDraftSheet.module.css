@@ -51,6 +51,38 @@
     font: var(--md-sys-typescale-headline-small);
 }
 
+.siteContext {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 2px;
+}
+
+.workTypeChips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.workTypeChip {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(20, 184, 166, 0.14);
+    color: #0f766e;
+    font: var(--md-sys-typescale-label-small);
+}
+
+.siteAddress {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0;
+    color: #56716b;
+    font: var(--md-sys-typescale-body-small);
+}
+
 .heading p {
     margin: 4px 0 0;
     color: #56716b;

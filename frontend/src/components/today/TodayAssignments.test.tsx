@@ -39,7 +39,6 @@ function renderAssignments(
     lineItems: SiteLineItem[] = []
 ) {
     const onViewSiteMemo = vi.fn();
-    const onRecordRewardInput = vi.fn();
     const onAddConstruction = vi.fn();
 
     render(
@@ -66,7 +65,6 @@ function renderAssignments(
             ]}
             siteLineItemsBySiteId={{ [baseSite.id]: lineItems }}
             onViewSiteMemo={onViewSiteMemo}
-            onRecordRewardInput={onRecordRewardInput}
             onAddConstruction={onAddConstruction}
             getDayLogStatus={() => dayLogStatus}
             getSiteInputStatus={() => "role_missing"}
@@ -75,7 +73,6 @@ function renderAssignments(
 
     return {
         onViewSiteMemo,
-        onRecordRewardInput,
         onAddConstruction,
     };
 }
@@ -128,6 +125,7 @@ describe("TodayAssignments", () => {
         expect(screen.getByText("佐藤さん")).toBeInTheDocument();
         expect(screen.getByLabelText("チーム担当: 山田 太郎")).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "役割" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "責任" })).not.toBeInTheDocument();
     });
 
     it("shows construction chips, opens the detail modal, and opens the add flow", () => {
