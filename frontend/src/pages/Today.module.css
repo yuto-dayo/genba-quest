@@ -63,6 +63,84 @@
     line-height: 1.2;
 }
 
+.dateStrip {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 8px 16px;
+    margin-bottom: 12px;
+}
+
+.dateArrowButton {
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-full);
+    background: var(--md-sys-color-surface-container-lowest);
+    color: var(--md-sys-color-on-surface);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.dateStripLabel {
+    min-width: 148px;
+    text-align: center;
+    font: var(--md-sys-typescale-title-small);
+    color: var(--md-sys-color-on-surface);
+}
+
+.returnTodayPill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: var(--md-sys-shape-corner-full, 999px);
+    border: none;
+    background: var(--md-sys-color-secondary-container);
+    color: var(--md-sys-color-on-secondary-container);
+    font: var(--md-sys-typescale-label-medium);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.coachmark {
+    position: fixed;
+    left: 50%;
+    bottom: 96px;
+    transform: translateX(-50%);
+    z-index: 1010;
+    display: grid;
+    gap: 6px;
+    justify-items: center;
+    padding: 10px 14px;
+    border-radius: 14px;
+    color: var(--md-sys-color-on-inverse-surface);
+    background: color-mix(in srgb, var(--md-sys-color-inverse-surface) 90%, black);
+    font: var(--md-sys-typescale-label-medium);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+}
+
+.coachmark p {
+    margin: 0;
+}
+
+.coachmarkFinger {
+    font-size: 18px;
+    line-height: 1;
+}
+
+.dayGestureLayer {
+    touch-action: pan-y;
+}
+
+.dayContent {
+    will-change: transform, opacity;
+}
+
 /* ---- Sections ---- */
 
 .section {

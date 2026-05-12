@@ -1,9 +1,87 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProposalRecord } from "../lib/api";
 import { Today } from "./Today";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function formatDateKey(date: Date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+
+function buildCalendarDays() {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today.getTime() - DAY_MS);
+    const tomorrow = new Date(today.getTime() + DAY_MS);
+
+    return [
+        {
+            date: formatDateKey(yesterday),
+            day: yesterday.getDate(),
+            assignments: [
+                {
+                    id: "assignment-yesterday",
+                    user_id: "user-1",
+                    site_id: "site-1",
+                    site_name: "渋谷マンション",
+                    date: formatDateKey(yesterday),
+                    status: "scheduled",
+                    source: "proposal",
+                },
+            ],
+            personal_schedules: [],
+            isToday: false,
+            isCurrentMonth: yesterday.getMonth() === today.getMonth(),
+            isWeekend: yesterday.getDay() === 0 || yesterday.getDay() === 6,
+        },
+        {
+            date: formatDateKey(today),
+            day: today.getDate(),
+            assignments: [
+                {
+                    id: "assignment-today",
+                    user_id: "user-1",
+                    site_id: "site-1",
+                    site_name: "渋谷マンション",
+                    date: formatDateKey(today),
+                    status: "scheduled",
+                    source: "proposal",
+                },
+            ],
+            personal_schedules: [],
+            isToday: true,
+            isCurrentMonth: true,
+            isWeekend: today.getDay() === 0 || today.getDay() === 6,
+        },
+        {
+            date: formatDateKey(tomorrow),
+            day: tomorrow.getDate(),
+            assignments: [
+                {
+                    id: "assignment-tomorrow",
+                    user_id: "user-1",
+                    site_id: "site-1",
+                    site_name: "渋谷マンション",
+                    date: formatDateKey(tomorrow),
+                    status: "scheduled",
+                    source: "proposal",
+                },
+            ],
+            personal_schedules: [],
+            isToday: false,
+            isCurrentMonth: tomorrow.getMonth() === today.getMonth(),
+            isWeekend: tomorrow.getDay() === 0 || tomorrow.getDay() === 6,
+        },
+    ];
+}
+
+let mockCalendarDays = buildCalendarDays();
 
 const fetchFocusItems = vi.fn();
 const fetchSites = vi.fn();
@@ -31,6 +109,7 @@ vi.mock("framer-motion", () => ({
             ),
         },
     ),
+    AnimatePresence: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
 vi.mock("../lib/api", () => ({
@@ -77,27 +156,7 @@ vi.mock("../lib/supabase", () => ({
 
 vi.mock("../hooks/useCalendar", () => ({
     useCalendar: () => ({
-        calendarDays: [
-            {
-                date: "2026-04-23",
-                day: 23,
-                assignments: [
-                    {
-                        id: "assignment-1",
-                        user_id: "user-1",
-                        site_id: "site-1",
-                        site_name: "渋谷マンション",
-                        date: "2026-04-23",
-                        status: "scheduled",
-                        source: "proposal",
-                    },
-                ],
-                personal_schedules: [],
-                isToday: true,
-                isCurrentMonth: true,
-                isWeekend: false,
-            },
-        ],
+        calendarDays: mockCalendarDays,
     }),
 }));
 
@@ -184,59 +243,44 @@ const pendingProposal: ProposalRecord = {
     updated_at: "2026-05-05T00:00:00.000Z",
 };
 
-describe("Today page", () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-        fetchFocusItems.mockResolvedValue([]);
-        fetchSites.mockResolvedValue([
+function primeTodayPageMocks() {
+    vi.clearAllMocks();
+    localStorage.clear();
+    mockCalendarDays = buildCalendarDays();
+    fetchFocusItems.mockResolvedValue([]);
+    fetchSites.mockResolvedValue([
+        {
+            id: "site-1",
+            name: "渋谷マンション",
+            status: "active",
+            assigned_users: ["user-1"],
+            created_at: "2026-04-22T00:00:00.000Z",
+        },
+    ]);
+    fetchMembers.mockResolvedValue([
+        {
+            id: "user-1",
+            full_name: "山田 太郎",
+            username: "yamada",
+            avatar_url: null,
+        },
+    ]);
+    fetchSiteDocuments.mockResolvedValue([
+        {
+            id: "doc-1",
+            doc_type: "other",
+            original_filename: "工程写真.pdf",
+            mime_type: "application/pdf",
+            drive_file_url: "https://example.com/doc",
+            created_at: "2026-04-22T09:30:00.000Z",
+        },
+    ]);
+    fetchSiteLineItems.mockResolvedValue([]);
+    fetchPendingProposals.mockResolvedValue([]);
+    fetchPathV31DayLogs.mockResolvedValue({ logs: [] });
+    fetchPathV31SiteMemberRolePlans.mockResolvedValue({
+        plans: [
             {
-                id: "site-1",
-                name: "渋谷マンション",
-                status: "active",
-                created_at: "2026-04-22T00:00:00.000Z",
-            },
-        ]);
-        fetchMembers.mockResolvedValue([
-            {
-                id: "user-1",
-                full_name: "山田 太郎",
-                username: "yamada",
-                avatar_url: null,
-            },
-        ]);
-        fetchSiteDocuments.mockResolvedValue([
-            {
-                id: "doc-1",
-                doc_type: "other",
-                original_filename: "工程写真.pdf",
-                mime_type: "application/pdf",
-                drive_file_url: "https://example.com/doc",
-                created_at: "2026-04-22T09:30:00.000Z",
-            },
-        ]);
-        fetchSiteLineItems.mockResolvedValue([]);
-        fetchPendingProposals.mockResolvedValue([]);
-        fetchPathV31DayLogs.mockResolvedValue({ logs: [] });
-        fetchPathV31SiteMemberRolePlans.mockResolvedValue({ plans: [] });
-        fetchPathV31SiteMemberRewardInputs.mockResolvedValue({ inputs: [] });
-        savePathV31DayLog.mockResolvedValue({
-            log: {
-                id: "log-1",
-                org_id: "org-1",
-                date: "2026-04-22",
-                site_id: "site-1",
-                member_id: "user-1",
-                trade_families: ["wall_finish"],
-                role_type: "assist",
-                credited_unit: 1,
-                memo: "",
-                locked_by_site_close_id: null,
-                created_at: "2026-04-22T09:00:00.000Z",
-                updated_at: "2026-04-22T09:00:00.000Z",
-            },
-        });
-        savePathV31SiteMemberRolePlan.mockResolvedValue({
-            plan: {
                 id: "role-plan-1",
                 org_id: "org-1",
                 site_id: "site-1",
@@ -246,21 +290,56 @@ describe("Today page", () => {
                 created_at: "2026-04-22T09:00:00.000Z",
                 updated_at: "2026-04-22T09:00:00.000Z",
             },
-        });
-        savePathV31SiteMemberRewardInput.mockResolvedValue({
-            input: {
-                id: "reward-input-1",
-                org_id: "org-1",
-                site_id: "site-1",
-                member_id: "user-1",
-                participation_units: 1,
-                responsibility_level: "member",
-                role_shares: { planning: 1, quality: 0, admin: 0, client: 0 },
-                note: "",
-                created_at: "2026-04-22T09:00:00.000Z",
-                updated_at: "2026-04-22T09:00:00.000Z",
-            },
-        });
+        ],
+    });
+    fetchPathV31SiteMemberRewardInputs.mockResolvedValue({ inputs: [] });
+    savePathV31DayLog.mockResolvedValue({
+        log: {
+            id: "log-1",
+            org_id: "org-1",
+            date: "2026-04-22",
+            site_id: "site-1",
+            member_id: "user-1",
+            trade_families: ["wall_finish"],
+            role_type: "assist",
+            credited_unit: 1,
+            memo: "",
+            locked_by_site_close_id: null,
+            created_at: "2026-04-22T09:00:00.000Z",
+            updated_at: "2026-04-22T09:00:00.000Z",
+        },
+    });
+    savePathV31SiteMemberRolePlan.mockResolvedValue({
+        plan: {
+            id: "role-plan-1",
+            org_id: "org-1",
+            site_id: "site-1",
+            member_id: "user-1",
+            role_shares: { planning: 1, quality: 0, admin: 0, client: 0 },
+            note: "",
+            created_at: "2026-04-22T09:00:00.000Z",
+            updated_at: "2026-04-22T09:00:00.000Z",
+        },
+    });
+    savePathV31SiteMemberRewardInput.mockResolvedValue({
+        input: {
+            id: "reward-input-1",
+            org_id: "org-1",
+            site_id: "site-1",
+            member_id: "user-1",
+            participation_units: 1,
+            responsibility_level: "member",
+            role_shares: { planning: 1, quality: 0, admin: 0, client: 0 },
+            note: "",
+            created_at: "2026-04-22T09:00:00.000Z",
+            updated_at: "2026-04-22T09:00:00.000Z",
+        },
+    });
+}
+
+describe("Today page", () => {
+    beforeEach(() => {
+        primeTodayPageMocks();
     });
 
     it("preloads today's logs for the current user and updates the card state after save", async () => {
@@ -412,5 +491,132 @@ describe("Today page", () => {
 
         await waitFor(() => expect(approveProposal).toHaveBeenCalledWith("proposal-1", "確認しました"));
         expect(await screen.findByText("承認し、実行まで完了しました。")).toBeInTheDocument();
+    });
+});
+
+describe("Today day navigation", () => {
+    beforeEach(() => {
+        primeTodayPageMocks();
+    });
+
+    it("shows date-strip label by default", async () => {
+        render(
+            <MemoryRouter initialEntries={["/today"]}>
+                <Routes>
+                    <Route path="/today" element={<Today />} />
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        expect(await screen.findByText(/^今日 \d{1,2}\/\d{1,2}\(.+\)$/)).toBeInTheDocument();
+    });
+
+    it("navigates with next-day / previous-day buttons", async () => {
+        render(
+            <MemoryRouter initialEntries={["/today"]}>
+                <Routes>
+                    <Route path="/today" element={<Today />} />
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        const nextButton = await screen.findByRole("button", { name: "次の日へ" });
+        fireEvent.click(nextButton);
+        expect(await screen.findByRole("button", { name: "前の日へ" })).toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "前の日へ" }));
+        expect(await screen.findByRole("button", { name: "次の日へ" })).toBeInTheDocument();
+    });
+
+    it("shows return-to-today only off today and hides it again after returning", async () => {
+        render(
+            <MemoryRouter initialEntries={["/today"]}>
+                <Routes>
+                    <Route path="/today" element={<Today />} />
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        expect(screen.queryByLabelText("今日に戻る")).not.toBeInTheDocument();
+        fireEvent.click(await screen.findByRole("button", { name: "次の日へ" }));
+        expect(await screen.findByLabelText("今日に戻る")).toBeInTheDocument();
+        fireEvent.click(screen.getByLabelText("今日に戻る"));
+        await waitFor(() => {
+            expect(screen.queryByLabelText("今日に戻る")).not.toBeInTheDocument();
+        });
+    });
+
+    it("hides the 責任 button on past and future dates", async () => {
+        render(
+            <MemoryRouter initialEntries={["/today"]}>
+                <Routes>
+                    <Route path="/today" element={<Today />} />
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        fireEvent.click(await screen.findByRole("button", { name: "前の日へ" }));
+        await waitFor(() => {
+            expect(screen.queryByRole("button", { name: "責任" })).not.toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByLabelText("今日に戻る"));
+        fireEvent.click(await screen.findByRole("button", { name: "次の日へ" }));
+        await waitFor(() => {
+            expect(screen.queryByRole("button", { name: "責任" })).not.toBeInTheDocument();
+        });
+    });
+
+    it("hides やること section on non-today pages", async () => {
+        render(
+            <MemoryRouter initialEntries={["/today"]}>
+                <Routes>
+                    <Route path="/today" element={<Today />} />
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        fireEvent.click(await screen.findByRole("button", { name: "前の日へ" }));
+        await waitFor(() => {
+            expect(screen.queryByText("やること")).not.toBeInTheDocument();
+            expect(screen.queryByText("今日やること")).not.toBeInTheDocument();
+        });
+    });
+
+    it("keeps assignee display visible even on past dates", async () => {
+        render(
+            <MemoryRouter initialEntries={["/today"]}>
+                <Routes>
+                    <Route path="/today" element={<Today />} />
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        fireEvent.click(await screen.findByRole("button", { name: "前の日へ" }));
+        expect(await screen.findByTitle("山田 太郎")).toBeInTheDocument();
+    });
+
+    it("shows coachmark only once via localStorage gate", async () => {
+        const { unmount } = render(
+            <MemoryRouter initialEntries={["/today"]}>
+                <Routes>
+                    <Route path="/today" element={<Today />} />
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        expect(await screen.findByText(/横にスワイプ/)).toBeInTheDocument();
+        unmount();
+
+        render(
+            <MemoryRouter initialEntries={["/today"]}>
+                <Routes>
+                    <Route path="/today" element={<Today />} />
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        await waitFor(() => {
+            expect(screen.queryByText(/横にスワイプ/)).not.toBeInTheDocument();
+        });
     });
 });
