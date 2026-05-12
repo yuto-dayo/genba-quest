@@ -56,6 +56,20 @@ function handleError(res: Response, err: unknown): void {
         MEMBER_PROFILE_NOT_FOUND: 404,
         ADMIN_ROLE_REQUIRED: 403,
         NOT_MEMBER_OF_ORG: 403,
+        // Phase 2-2b
+        MEMBER_INVOICE_NOT_FOUND: 404,
+        MEMBER_INVOICE_NOT_IN_ISSUED_STATE: 409,
+        MEMBER_INVOICE_MARK_PAID_OWNER_CANNOT_SELF_APPROVE: 403,
+        MEMBER_INVOICE_MARK_PAID_APPROVER_MUST_BE_HUMAN: 403,
+        MEMBER_INVOICE_MARK_PAID_APPROVER_MUST_BE_ADMIN: 403,
+        MEMBER_INVOICE_MARK_PAID_INVOICE_MISSING: 400,
+        MEMBER_INVOICE_VOID_APPROVER_MUST_BE_HUMAN: 403,
+        MEMBER_INVOICE_VOID_APPROVER_MUST_BE_OWNER: 403,
+        MEMBER_INVOICE_VOID_CREATOR_MUST_BE_OWNER: 403,
+        MEMBER_INVOICE_VOID_INVOICE_MISSING: 400,
+        MEMBER_INVOICE_VOID_REASON_REQUIRED: 400,
+        MEMBER_INVOICE_VOID_REASON_TOO_LONG: 400,
+        INVALID_STATUS_FILTER: 400,
     };
     const status = map[code] ?? 500;
     if (status === 500) {
@@ -142,6 +156,12 @@ router.post("/member-invoices/issue", async (req: AuthenticatedRequest, res: Res
                     bank: snapshot.bank,
                     address: snapshot.address,
                 },
+                // Phase 2-2b: accrual 仕訳 (Dr 外注費 / Cr 未払金) を立てるため
+                // execute_proposal_atomic RPC が読む内部 transfer 用フィールドを埋める。
+                amount: draft.amount_total,
+                debit_account_code: "5600", // 外注費
+                credit_account_code: "2110", // 未払金
+                description: `${draft.label} 請求書発行 (member-led)`,
             },
             description: `${draft.label} の請求書発行 (¥${draft.amount_total.toLocaleString()})`,
             created_by: actor,
@@ -210,6 +230,173 @@ router.get(
                 },
             );
             res.json({ summary, totals });
+        } catch (err) {
+            handleError(res, err);
+        }
+    },
+);
+
+// ============================================================
+// Phase 2-2b
+// ============================================================
+
+// GET /org/invoices/admin-actionable
+// admin が支払い対象 (status=issued) を選ぶための最小情報リスト。PII 含まない。
+router.get(
+    "/org/invoices/admin-actionable",
+    async (req: AuthenticatedRequest, res: Response) => {
+        try {
+            const membership = await resolveActiveOrgMembership(req, "admin");
+            const statusRaw = typeof req.query.status === "string" ? req.query.status : "issued";
+            if (!["issued", "paid", "void"].includes(statusRaw)) {
+                throw new Error("INVALID_STATUS_FILTER");
+            }
+            const invoices = await getService().listAdminActionableInvoices({
+                orgId: membership.org_id,
+                status: statusRaw as "issued" | "paid" | "void",
+            });
+            res.json({ invoices });
+        } catch (err) {
+            handleError(res, err);
+        }
+    },
+);
+
+// POST /member-invoices/:invoiceId/mark-paid
+// admin が「振込が完了した」事実を Proposal として記録する。
+// 申請者 = 承認者 = admin (発行者本人=member は禁止)。
+router.post(
+    "/member-invoices/:invoiceId/mark-paid",
+    async (req: AuthenticatedRequest, res: Response) => {
+        try {
+            const membership = await resolveActiveOrgMembership(req, "admin");
+            const invoiceId = req.params.invoiceId;
+            if (!isUuid(invoiceId)) {
+                throw new Error("MEMBER_INVOICE_NOT_FOUND");
+            }
+
+            const body = (req.body && typeof req.body === "object" ? req.body : {}) as Record<
+                string,
+                unknown
+            >;
+            const paidAt = typeof body.paid_at === "string" ? body.paid_at : new Date().toISOString();
+            const paidMethod = typeof body.paid_method === "string" ? body.paid_method : null;
+
+            const service = getService();
+            const invoice = await service.findById(invoiceId);
+            if (!invoice || invoice.org_id !== membership.org_id) {
+                throw new Error("MEMBER_INVOICE_NOT_FOUND");
+            }
+            if (invoice.member_id === req.userId) {
+                // assertCanApprove でも弾けるが route 入口でも早期に止める
+                throw new Error("MEMBER_INVOICE_MARK_PAID_OWNER_CANNOT_SELF_APPROVE");
+            }
+            if (invoice.status !== "issued") {
+                throw new Error("MEMBER_INVOICE_NOT_IN_ISSUED_STATE");
+            }
+
+            const proposalService = new ProposalService(membership.org_id);
+            const actor = buildActor(req);
+
+            const created = await proposalService.create({
+                type: "invoice.member_mark_paid",
+                payload: {
+                    invoice_id: invoice.id,
+                    invoice_no: invoice.invoice_no,
+                    paid_at: paidAt,
+                    paid_method: paidMethod,
+                    // 仕訳: Dr 未払金 / Cr 現金 (execute RPC が自動生成)
+                    amount: invoice.amount_total,
+                    debit_account_code: "2110",
+                    credit_account_code: "1100",
+                    description: `${invoice.invoice_no} 支払い`,
+                },
+                description: `${invoice.invoice_no} を支払い済みに記録 (¥${invoice.amount_total.toLocaleString()})`,
+                created_by: actor,
+                org_id: membership.org_id,
+            });
+
+            await proposalService.submit(created.id, actor);
+            const approved = await proposalService.approve(created.id, actor);
+
+            const updated = await service.findById(invoice.id);
+
+            res.status(201).json({
+                proposal: approved.proposal,
+                invoice: updated,
+            });
+        } catch (err) {
+            handleError(res, err);
+        }
+    },
+);
+
+// POST /member-invoices/:invoiceId/void
+// 発行者本人が自分の請求書を取り消す。issued 状態のみ対象。
+router.post(
+    "/member-invoices/:invoiceId/void",
+    async (req: AuthenticatedRequest, res: Response) => {
+        try {
+            const membership = await resolveActiveOrgMembership(req, "member");
+            const invoiceId = req.params.invoiceId;
+            if (!isUuid(invoiceId)) {
+                throw new Error("MEMBER_INVOICE_NOT_FOUND");
+            }
+
+            const body = (req.body && typeof req.body === "object" ? req.body : {}) as Record<
+                string,
+                unknown
+            >;
+            const reasonRaw = typeof body.reason === "string" ? body.reason.trim() : "";
+            if (reasonRaw.length < 2) {
+                throw new Error("MEMBER_INVOICE_VOID_REASON_REQUIRED");
+            }
+            if (reasonRaw.length > 500) {
+                throw new Error("MEMBER_INVOICE_VOID_REASON_TOO_LONG");
+            }
+
+            const service = getService();
+            const invoice = await service.findById(invoiceId);
+            if (!invoice || invoice.org_id !== membership.org_id) {
+                throw new Error("MEMBER_INVOICE_NOT_FOUND");
+            }
+            if (invoice.member_id !== req.userId) {
+                throw new Error("MEMBER_INVOICE_VOID_CREATOR_MUST_BE_OWNER");
+            }
+            if (invoice.status !== "issued") {
+                throw new Error("MEMBER_INVOICE_NOT_IN_ISSUED_STATE");
+            }
+
+            const proposalService = new ProposalService(membership.org_id);
+            const actor = buildActor(req);
+
+            const created = await proposalService.create({
+                type: "invoice.member_void",
+                payload: {
+                    invoice_id: invoice.id,
+                    invoice_no: invoice.invoice_no,
+                    reason: reasonRaw,
+                    void_at: new Date().toISOString(),
+                    // 逆仕訳: Dr 未払金 / Cr 外注費 (発行時 entry を打ち消す)
+                    amount: invoice.amount_total,
+                    debit_account_code: "2110",
+                    credit_account_code: "5600",
+                    description: `${invoice.invoice_no} 取り消し`,
+                },
+                description: `${invoice.invoice_no} を本人取り消し (理由: ${reasonRaw.slice(0, 60)})`,
+                created_by: actor,
+                org_id: membership.org_id,
+            });
+
+            await proposalService.submit(created.id, actor);
+            const approved = await proposalService.approve(created.id, actor);
+
+            const updated = await service.findById(invoice.id);
+
+            res.status(201).json({
+                proposal: approved.proposal,
+                invoice: updated,
+            });
         } catch (err) {
             handleError(res, err);
         }

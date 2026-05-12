@@ -428,4 +428,256 @@ describe("MemberInvoiceService", () => {
             );
         });
     });
+
+    // ============================================================
+    // Phase 2-2b
+    // ============================================================
+
+    function makePaidProposal(overrides: Partial<Proposal> = {}): Proposal {
+        return {
+            id: "77777777-7777-4777-8777-777777777777",
+            org_id: ORG_ID,
+            type: "invoice.member_mark_paid",
+            status: "executed",
+            document_id: null,
+            site_id: null,
+            // 重要: mark_paid の created_by は admin (member_id とは別人)
+            created_by: { type: "human", id: "ADMIN-ID", name: "Admin" },
+            payload: {
+                invoice_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+                paid_at: "2026-05-20T00:00:00.000Z",
+                paid_method: "bank_transfer",
+                amount: 180000,
+                debit_account_code: "2110",
+                credit_account_code: "1100",
+            },
+            description: "mark paid",
+            approvals: [],
+            required_approvals: 1,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            ...overrides,
+        } as Proposal;
+    }
+
+    function makeVoidProposal(overrides: Partial<Proposal> = {}): Proposal {
+        return {
+            id: "88888888-8888-4888-8888-888888888888",
+            org_id: ORG_ID,
+            type: "invoice.member_void",
+            status: "executed",
+            document_id: null,
+            site_id: null,
+            created_by: { type: "human", id: MEMBER_ID, name: "Yamada" },
+            payload: {
+                invoice_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+                reason: "金額を間違えた",
+                void_at: "2026-05-20T00:00:00.000Z",
+                amount: 180000,
+                debit_account_code: "2110",
+                credit_account_code: "5600",
+            },
+            description: "void",
+            approvals: [],
+            required_approvals: 1,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            ...overrides,
+        } as Proposal;
+    }
+
+    describe("markPaidFromExecutedProposal", () => {
+        it("transitions issued → paid and stores paid_at / paid_proposal_id", async () => {
+            const findChain = createChain({
+                data: invoiceRow({ status: "issued" }),
+                error: null,
+            });
+            const updateChain = createChain({
+                data: invoiceRow({
+                    status: "paid",
+                    paid_at: "2026-05-20T00:00:00.000Z",
+                    paid_proposal_id: "77777777-7777-4777-8777-777777777777",
+                }),
+                error: null,
+            });
+            const client = buildMockClient([findChain, updateChain]);
+            const service = new MemberInvoiceService(client as never);
+            const result = await service.markPaidFromExecutedProposal(makePaidProposal());
+            expect(result.alreadyApplied).toBe(false);
+            expect(result.invoice.status).toBe("paid");
+            expect(updateChain.update).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    status: "paid",
+                    paid_proposal_id: "77777777-7777-4777-8777-777777777777",
+                    paid_method: "bank_transfer",
+                }),
+            );
+        });
+
+        it("is idempotent when the same proposal has already been applied", async () => {
+            const findChain = createChain({
+                data: invoiceRow({
+                    status: "paid",
+                    paid_proposal_id: "77777777-7777-4777-8777-777777777777",
+                    paid_at: "2026-05-20T00:00:00.000Z",
+                }),
+                error: null,
+            });
+            const client = buildMockClient([findChain]);
+            const service = new MemberInvoiceService(client as never);
+            const result = await service.markPaidFromExecutedProposal(makePaidProposal());
+            expect(result.alreadyApplied).toBe(true);
+        });
+
+        it("refuses if the invoice is not in issued state (e.g. already paid by another proposal)", async () => {
+            const findChain = createChain({
+                data: invoiceRow({
+                    status: "paid",
+                    paid_proposal_id: "different-proposal",
+                    paid_at: "2026-05-19T00:00:00.000Z",
+                }),
+                error: null,
+            });
+            const client = buildMockClient([findChain]);
+            const service = new MemberInvoiceService(client as never);
+            await expect(
+                service.markPaidFromExecutedProposal(makePaidProposal()),
+            ).rejects.toThrow("MEMBER_INVOICE_NOT_IN_ISSUED_STATE");
+        });
+
+        it("404s when the invoice does not exist", async () => {
+            const findChain = createChain({ data: null, error: null });
+            const client = buildMockClient([findChain]);
+            const service = new MemberInvoiceService(client as never);
+            await expect(
+                service.markPaidFromExecutedProposal(makePaidProposal()),
+            ).rejects.toThrow("MEMBER_INVOICE_NOT_FOUND");
+        });
+
+        it("rejects proposals of the wrong type", async () => {
+            const service = new MemberInvoiceService({ from: jest.fn() } as never);
+            const bad = makePaidProposal({ type: "expense.create" });
+            await expect(service.markPaidFromExecutedProposal(bad)).rejects.toThrow(
+                "MEMBER_INVOICE_INVALID_PROPOSAL_TYPE",
+            );
+        });
+    });
+
+    describe("voidFromExecutedProposal", () => {
+        it("transitions issued → void with reason and void_proposal_id", async () => {
+            const findChain = createChain({
+                data: invoiceRow({ status: "issued", member_id: MEMBER_ID }),
+                error: null,
+            });
+            const updateChain = createChain({
+                data: invoiceRow({
+                    status: "void",
+                    void_at: "2026-05-20T00:00:00.000Z",
+                    void_proposal_id: "88888888-8888-4888-8888-888888888888",
+                    void_reason: "金額を間違えた",
+                }),
+                error: null,
+            });
+            const client = buildMockClient([findChain, updateChain]);
+            const service = new MemberInvoiceService(client as never);
+            const result = await service.voidFromExecutedProposal(makeVoidProposal());
+            expect(result.alreadyApplied).toBe(false);
+            expect(result.invoice.status).toBe("void");
+            expect(updateChain.update).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    status: "void",
+                    void_proposal_id: "88888888-8888-4888-8888-888888888888",
+                    void_reason: "金額を間違えた",
+                }),
+            );
+        });
+
+        it("refuses void when the proposal creator is not the invoice owner", async () => {
+            const findChain = createChain({
+                data: invoiceRow({ status: "issued", member_id: MEMBER_ID }),
+                error: null,
+            });
+            const client = buildMockClient([findChain]);
+            const service = new MemberInvoiceService(client as never);
+            const bad = makeVoidProposal({
+                created_by: { type: "human", id: "stranger-id", name: "Stranger" },
+            });
+            await expect(service.voidFromExecutedProposal(bad)).rejects.toThrow(
+                "MEMBER_INVOICE_VOID_CREATOR_MUST_BE_OWNER",
+            );
+        });
+
+        it("refuses void if invoice is not in issued state", async () => {
+            const findChain = createChain({
+                data: invoiceRow({ status: "paid", member_id: MEMBER_ID }),
+                error: null,
+            });
+            const client = buildMockClient([findChain]);
+            const service = new MemberInvoiceService(client as never);
+            await expect(
+                service.voidFromExecutedProposal(makeVoidProposal()),
+            ).rejects.toThrow("MEMBER_INVOICE_NOT_IN_ISSUED_STATE");
+        });
+
+        it("is idempotent when the same proposal has already voided", async () => {
+            const findChain = createChain({
+                data: invoiceRow({
+                    status: "void",
+                    member_id: MEMBER_ID,
+                    void_proposal_id: "88888888-8888-4888-8888-888888888888",
+                    void_at: "2026-05-20T00:00:00.000Z",
+                }),
+                error: null,
+            });
+            const client = buildMockClient([findChain]);
+            const service = new MemberInvoiceService(client as never);
+            const result = await service.voidFromExecutedProposal(makeVoidProposal());
+            expect(result.alreadyApplied).toBe(true);
+        });
+    });
+
+    describe("listAdminActionableInvoices", () => {
+        it("forwards to rpc with given status and returns minimal fields (no PII)", async () => {
+            const rpc = jest.fn().mockResolvedValue({
+                data: [
+                    {
+                        invoice_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+                        invoice_no: "MI-202604-22222222-33333333",
+                        period_month: "2026-04",
+                        amount_total: 180000,
+                        status: "issued",
+                        source: "path_reward",
+                        issued_at: "2026-05-12T00:00:00.000Z",
+                    },
+                ],
+                error: null,
+            });
+            const client = { from: jest.fn(), rpc };
+            const service = new MemberInvoiceService(client as never);
+            const list = await service.listAdminActionableInvoices({
+                orgId: ORG_ID,
+                status: "issued",
+            });
+            expect(rpc).toHaveBeenCalledWith(
+                "rpc_org_invoices_admin_actionable_list",
+                { p_org_id: ORG_ID, p_status: "issued", p_limit: 50 },
+            );
+            expect(list).toHaveLength(1);
+            // PII (member_id / snapshot_*) は含まれない
+            expect(list[0]).not.toHaveProperty("member_id");
+            expect(list[0]).not.toHaveProperty("snapshot_bank");
+        });
+
+        it("re-throws ADMIN_ROLE_REQUIRED when RPC enforces admin role", async () => {
+            const rpc = jest.fn().mockResolvedValue({
+                data: null,
+                error: { message: "ADMIN_ROLE_REQUIRED" },
+            });
+            const client = { from: jest.fn(), rpc };
+            const service = new MemberInvoiceService(client as never);
+            await expect(
+                service.listAdminActionableInvoices({ orgId: ORG_ID }),
+            ).rejects.toThrow("ADMIN_ROLE_REQUIRED");
+        });
+    });
 });

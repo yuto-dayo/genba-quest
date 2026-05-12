@@ -41,6 +41,8 @@ import { useActiveOrgStore } from "../stores/activeOrg";
 import { supabase } from "../lib/supabase";
 import { MemberInvoiceDraftBanner } from "../components/MemberInvoiceDraftBanner";
 import { OutstandingInvoicesCard } from "../components/OutstandingInvoicesCard";
+import { AdminInvoiceActionableList } from "../components/AdminInvoiceActionableList";
+import { MyMemberInvoicesList } from "../components/MyMemberInvoicesList";
 import { ExpenseModal } from "../components/ExpenseModal";
 import { SalesModal } from "../components/SalesModal";
 import { InvoiceModal } from "../components/InvoiceModal";
@@ -712,7 +714,14 @@ export function Money() {
                     hideWhenEmpty={isAdmin}
                 />
             )}
-            {isAdmin && <OutstandingInvoicesCard />}
+            {/* Phase 2-2b: 本人は自分の請求書履歴 (取消し可)、admin は支払い対象リスト + 集計 */}
+            {selfUserId && !isAdmin && <MyMemberInvoicesList />}
+            {isAdmin && (
+                <>
+                    <OutstandingInvoicesCard />
+                    <AdminInvoiceActionableList />
+                </>
+            )}
 
             {/* 月次推移 (PR #8) — 黒字可視化 MVP の核 */}
             <MonthlyTrendChart
