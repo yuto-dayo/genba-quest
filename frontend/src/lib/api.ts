@@ -1174,6 +1174,100 @@ export const fetchProfileViewGrantsOutgoing = () =>
 export const fetchExtendedProfile = (userId: string) =>
     api<ProfileViewExtendedResult>(`/api/v1/profile-view-extended/${userId}`);
 
+// ============================================================
+// Member-led invoices (Phase 2-2a)
+// 本人主導の請求書発行: 個人事業主が自分の意思で組織に対して請求書を発行する
+// ============================================================
+
+export type MemberInvoiceSource = "path_reward" | "monthly_distribution" | "manual";
+export type MemberInvoiceStatus = "issued" | "paid" | "void";
+
+export interface MemberInvoiceLineItem {
+    description: string;
+    quantity: number;
+    unit_amount: number;
+    amount: number;
+}
+
+export interface MemberInvoiceDraft {
+    source: MemberInvoiceSource;
+    source_ref_id: string;
+    period_month: string;
+    amount_total: number;
+    line_items: MemberInvoiceLineItem[];
+    label: string;
+}
+
+export interface MemberInvoice {
+    id: string;
+    org_id: string;
+    proposal_id: string;
+    member_id: string;
+    source: MemberInvoiceSource;
+    source_ref_id: string | null;
+    period_month: string;
+    amount_total: number;
+    line_items: MemberInvoiceLineItem[];
+    snapshot_trade_name: string | null;
+    snapshot_invoice_registration_no: string | null;
+    snapshot_bank: {
+        bank_name: string | null;
+        branch_name: string | null;
+        account_type: string | null;
+        account_number: string | null;
+        account_holder_kana: string | null;
+    };
+    snapshot_address: {
+        postal_code: string | null;
+        prefecture: string | null;
+        city: string | null;
+        address_line1: string | null;
+        address_line2: string | null;
+    };
+    status: MemberInvoiceStatus;
+    invoice_no: string;
+    issued_at: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface OutstandingInvoicesSummaryRow {
+    status: MemberInvoiceStatus;
+    period_month: string;
+    invoice_count: number;
+    total_amount: number;
+}
+
+export interface OutstandingInvoicesSummary {
+    summary: OutstandingInvoicesSummaryRow[];
+    totals: {
+        issued: { count: number; amount: number };
+        paid: { count: number; amount: number };
+    };
+}
+
+export const fetchMemberInvoiceDrafts = () =>
+    api<{ drafts: MemberInvoiceDraft[] }>("/api/v1/member-invoices/drafts");
+
+export const issueMemberInvoice = (input: {
+    source: MemberInvoiceSource;
+    source_ref_id: string;
+    period_month: string;
+}) =>
+    api<{ proposal: ProposalRecord; invoice: MemberInvoice | null }>(
+        "/api/v1/member-invoices/issue",
+        {
+            method: "POST",
+            body: JSON.stringify(input),
+        },
+    );
+
+export const fetchMyMemberInvoices = () =>
+    api<{ invoices: MemberInvoice[] }>("/api/v1/member-invoices/mine");
+
+export const fetchOutstandingInvoicesSummary = () =>
+    api<OutstandingInvoicesSummary>("/api/v1/org/invoices/outstanding-summary");
+
 export const fetchClients = (params?: { status?: "active" | "deleted" | "all" }) => {
     const searchParams = new URLSearchParams();
     if (params?.status) searchParams.append("status", params.status);

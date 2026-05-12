@@ -1,0 +1,93 @@
+.banner {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px 18px;
+    border-radius: 22px;
+    background: var(--md-sys-color-tertiary-container);
+    color: var(--md-sys-color-on-tertiary-container);
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-tertiary) 30%, transparent);
+}
+
+.headerRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.titleRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font: var(--md-sys-typescale-title-medium);
+}
+
+.titleCount {
+    font-weight: 700;
+}
+
+.description {
+    margin: 0;
+    font: var(--md-sys-typescale-body-medium);
+    opacity: 0.9;
+}
+
+.draftList {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.draftItem {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--md-sys-color-surface) 90%, transparent);
+    color: var(--md-sys-color-on-surface);
+    border: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.draftLabel {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.draftPrimary {
+    font: var(--md-sys-typescale-title-small);
+}
+
+.draftSecondary {
+    font: var(--md-sys-typescale-body-small);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.draftAmount {
+    font: var(--md-sys-typescale-title-medium);
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.issueButton {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 16px;
+    border-radius: 999px;
+    border: none;
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+    font: var(--md-sys-typescale-label-large);
+    cursor: pointer;
+}
+
+.empty {
+    margin: 0;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+}

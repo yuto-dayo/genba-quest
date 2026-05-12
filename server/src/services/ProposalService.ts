@@ -25,6 +25,7 @@ import { PathV32SimpleRewardService } from "./PathV32SimpleRewardService";
 import { LUQOService } from "./LUQOService";
 import { assignOnSubmit } from "./ProposalAssignmentService";
 import { ProfileViewConsentService, profileViewConsentService } from "./ProfileViewConsentService";
+import { MemberInvoiceService, memberInvoiceService } from "./MemberInvoiceService";
 
 // ============================================================
 // Types
@@ -151,6 +152,7 @@ export class ProposalService {
   private pathV31Service: PathV31Service;
   private pathV32SimpleRewardService: PathV32SimpleRewardService;
   private profileViewConsentService: ProfileViewConsentService;
+  private memberInvoiceService: MemberInvoiceService;
 
   constructor(orgId: string = '00000000-0000-0000-0000-000000000001') {
     this.orgId = orgId;
@@ -159,6 +161,7 @@ export class ProposalService {
     this.pathV31Service = new PathV31Service(orgId);
     this.pathV32SimpleRewardService = new PathV32SimpleRewardService(orgId);
     this.profileViewConsentService = profileViewConsentService;
+    this.memberInvoiceService = memberInvoiceService;
     const fallbackMode = (process.env.PROPOSAL_RPC_FALLBACK_MODE || 'allow').toLowerCase();
     this.disableRpcFallback = ['disabled', 'deny', 'off'].includes(fallbackMode);
   }
@@ -367,6 +370,28 @@ export class ProposalService {
       }
       if (approver.id !== targetId) {
         throw new Error('PROFILE_VIEW_REQUEST_APPROVER_MUST_BE_TARGET_USER');
+      }
+    }
+
+    // ドメインゲート: invoice.member_issue は「申請者本人 (= 請求書を発行する member)」
+    // のみが承認できる。admin や AI が代理発行することを構造的に禁止する。
+    // 「申請者=承認者」を許容するが、それ以外の者が承認できないようにこの位置で強制する。
+    if (proposal.type === 'invoice.member_issue') {
+      const memberId =
+        typeof proposal.payload?.member_id === 'string'
+          ? proposal.payload.member_id
+          : null;
+      if (!memberId) {
+        throw new Error('MEMBER_INVOICE_MEMBER_MISSING');
+      }
+      if (approver.type !== 'human') {
+        throw new Error('MEMBER_INVOICE_APPROVER_MUST_BE_HUMAN');
+      }
+      if (approver.id !== memberId) {
+        throw new Error('MEMBER_INVOICE_APPROVER_MUST_BE_SELF');
+      }
+      if (proposal.created_by.type !== 'human' || proposal.created_by.id !== memberId) {
+        throw new Error('MEMBER_INVOICE_CREATOR_MUST_BE_SELF');
       }
     }
 
@@ -1941,6 +1966,13 @@ export class ProposalService {
     if (proposal.type === 'profile.view_request') {
       await this.profileViewConsentService.createGrantFromExecutedProposal(proposal);
     }
+
+    // invoice.member_issue: 本人主導の請求書 row を発行する。
+    // 振込先 / インボイス番号 / 住所 は payload の snapshot_profile から転記済み。
+    // 仕訳は Phase 2-2b の mark_paid 連動で立てるため、ここでは accounting ledger は発火させない。
+    if (proposal.type === 'invoice.member_issue') {
+      await this.memberInvoiceService.issueFromExecutedProposal(proposal);
+    }
   }
 
   private mapExecutedProposalToGovernanceEvent(proposal: Proposal): string {
@@ -1998,6 +2030,10 @@ export class ProposalService {
 
     if (proposal.type === 'profile.view_request') {
       return 'governance.profile_view.granted';
+    }
+
+    if (proposal.type === 'invoice.member_issue') {
+      return 'governance.member_invoice.issued';
     }
 
     return 'governance.proposal.executed';
@@ -2090,6 +2126,12 @@ export class ProposalService {
     // 監査対象として記録する。admin が「いつ・誰に対して・なぜ拡張情報を覗いたか」を
     // 後から第三者がトレース可能であることが本 Proposal の存在意義。
     if (proposal.type === 'profile.view_request') {
+      return true;
+    }
+
+    // invoice.member_issue: 本人主導の請求書発行も lifecycle 全体を記録する。
+    // 「誰が・いつ・どの締めから・幾らの請求書を発行したか」が監査トレイル。
+    if (proposal.type === 'invoice.member_issue') {
       return true;
     }
 
