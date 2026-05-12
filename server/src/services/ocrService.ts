@@ -136,6 +136,7 @@ export async function analyzeDocument(
     }
 
     // Google Vision APIを試行
+    let visionError: Error | null = null;
     try {
         console.log('[OCR] Google Vision API使用中...');
         const visionResult = await extractTextFromImage(imageBase64, mimeType);
@@ -148,8 +149,26 @@ export async function analyzeDocument(
         return convertVisionToOcrResult(visionResult);
 
     } catch (error: any) {
+        visionError = error;
         console.warn('[OCR] Vision API失敗、LLMにフォールバック:', error.message);
-        return analyzeWithLlm(imageBase64, mimeType, options);
+    }
+
+    try {
+        return await analyzeWithLlm(imageBase64, mimeType, options);
+    } catch (llmError: any) {
+        // Vision/LLM両方とも失敗した場合は、設定不備として明示
+        const visionMsg = visionError?.message || "";
+        const llmMsg = llmError?.message || "";
+        if (
+            llmMsg.includes("API_KEY") ||
+            llmMsg.includes("API key") ||
+            visionMsg.includes("認証情報")
+        ) {
+            throw new Error(
+                `OCRサービスの認証情報が未設定です (Vision: ${visionMsg || "OK"} / LLM: ${llmMsg || "OK"})`
+            );
+        }
+        throw llmError;
     }
 }
 
