@@ -1268,6 +1268,46 @@ export const fetchMyMemberInvoices = () =>
 export const fetchOutstandingInvoicesSummary = () =>
     api<OutstandingInvoicesSummary>("/api/v1/org/invoices/outstanding-summary");
 
+// ============================================================
+// Phase 2-2b: 支払い記録 / 取り消し / admin 行アクション可能リスト
+// ============================================================
+
+export interface AdminActionableInvoice {
+    invoice_id: string;
+    invoice_no: string;
+    period_month: string;
+    amount_total: number;
+    status: MemberInvoiceStatus;
+    source: MemberInvoiceSource;
+    issued_at: string;
+}
+
+export const fetchAdminActionableInvoices = (status: MemberInvoiceStatus = "issued") =>
+    api<{ invoices: AdminActionableInvoice[] }>(
+        `/api/v1/org/invoices/admin-actionable?status=${encodeURIComponent(status)}`,
+    );
+
+export const markMemberInvoicePaid = (
+    invoiceId: string,
+    input?: { paid_at?: string; paid_method?: string },
+) =>
+    api<{ proposal: ProposalRecord; invoice: MemberInvoice | null }>(
+        `/api/v1/member-invoices/${invoiceId}/mark-paid`,
+        {
+            method: "POST",
+            body: JSON.stringify(input ?? {}),
+        },
+    );
+
+export const voidMemberInvoice = (invoiceId: string, reason: string) =>
+    api<{ proposal: ProposalRecord; invoice: MemberInvoice | null }>(
+        `/api/v1/member-invoices/${invoiceId}/void`,
+        {
+            method: "POST",
+            body: JSON.stringify({ reason }),
+        },
+    );
+
 export const fetchClients = (params?: { status?: "active" | "deleted" | "all" }) => {
     const searchParams = new URLSearchParams();
     if (params?.status) searchParams.append("status", params.status);

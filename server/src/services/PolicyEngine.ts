@@ -52,6 +52,9 @@ export type ProposalType =
   | 'profile.view_request'
   // 本人主導の請求書発行 (Phase 2-2a)
   | 'invoice.member_issue'
+  // Phase 2-2b: 本人主導の請求書 — admin 支払い記録 / 本人取り消し
+  | 'invoice.member_mark_paid'
+  | 'invoice.member_void'
   // LUQO評価システム
   | 'luqo.catalog.add'
   | 'luqo.star.achieve'

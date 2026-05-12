@@ -67,8 +67,30 @@ export interface MemberInvoiceRecord {
     status: MemberInvoiceStatus;
     invoice_no: string;
     issued_at: string;
+    /** Phase 2-2b: 支払い完了時に Proposal id とタイムスタンプが入る */
+    paid_at?: string | null;
+    paid_proposal_id?: string | null;
+    paid_method?: string | null;
+    /** Phase 2-2b: 本人取り消し時に Proposal id と理由が入る */
+    void_at?: string | null;
+    void_proposal_id?: string | null;
+    void_reason?: string | null;
     created_at: string;
     updated_at: string;
+}
+
+/**
+ * Phase 2-2b: admin が支払い対象を選ぶための最小情報リスト。
+ * member_id / snapshot_bank / snapshot_address 等 PII は意図的に含めない。
+ */
+export interface AdminActionableInvoice {
+    invoice_id: string;
+    invoice_no: string;
+    period_month: string;
+    amount_total: number;
+    status: MemberInvoiceStatus;
+    source: MemberInvoiceSource;
+    issued_at: string;
 }
 
 export interface DraftCandidate {
@@ -539,6 +561,186 @@ export class MemberInvoiceService {
         const memberPart = memberId.slice(0, 8);
         const proposalPart = proposalId.slice(0, 8);
         return `MI-${ym}-${memberPart}-${proposalPart}`;
+    }
+
+    // ============================================================
+    // Phase 2-2b: 取得 (id 経由) / admin 行アクション可能リスト
+    // ============================================================
+
+    async findById(invoiceId: string): Promise<MemberInvoiceRecord | null> {
+        const { data, error } = await this.client
+            .from("member_invoices")
+            .select("*")
+            .eq("id", invoiceId)
+            .maybeSingle();
+        if (error) {
+            throw new Error(`Failed to load member invoice: ${error.message}`);
+        }
+        return (data || null) as MemberInvoiceRecord | null;
+    }
+
+    /**
+     * admin が支払い対象を選ぶために最小情報のみ返す。
+     * member_id / snapshot 情報は意図的に返さない (PII を覗かれないため)。
+     * security_definer RPC 経由で admin 権限を強制する。
+     */
+    async listAdminActionableInvoices(input: {
+        orgId: string;
+        status?: MemberInvoiceStatus;
+        limit?: number;
+    }): Promise<AdminActionableInvoice[]> {
+        if (!this.client.rpc) {
+            throw new Error("MEMBER_INVOICE_RPC_NOT_AVAILABLE");
+        }
+        const { data, error } = await this.client.rpc(
+            "rpc_org_invoices_admin_actionable_list",
+            {
+                p_org_id: input.orgId,
+                p_status: input.status ?? "issued",
+                p_limit: input.limit ?? 50,
+            },
+        );
+        if (error) {
+            const code = error.message || "MEMBER_INVOICE_ACTIONABLE_LIST_FAILED";
+            if (code.includes("ADMIN_ROLE_REQUIRED")) {
+                throw new Error("ADMIN_ROLE_REQUIRED");
+            }
+            if (code.includes("NOT_MEMBER_OF_ORG")) {
+                throw new Error("NOT_MEMBER_OF_ORG");
+            }
+            if (code.includes("INVALID_STATUS_FILTER")) {
+                throw new Error("INVALID_STATUS_FILTER");
+            }
+            throw new Error(`Failed to list actionable invoices: ${code}`);
+        }
+        const rows = Array.isArray(data) ? data : [];
+        return rows.map((raw) => {
+            const row = raw as Record<string, unknown>;
+            return {
+                invoice_id: String(row.invoice_id ?? ""),
+                invoice_no: String(row.invoice_no ?? ""),
+                period_month: String(row.period_month ?? ""),
+                amount_total: Number(row.amount_total ?? 0),
+                status: (row.status as MemberInvoiceStatus) ?? "issued",
+                source: (row.source as MemberInvoiceSource) ?? "manual",
+                issued_at: String(row.issued_at ?? ""),
+            };
+        });
+    }
+
+    // ============================================================
+    // Phase 2-2b: invoice.member_mark_paid (admin)
+    // ============================================================
+
+    /**
+     * mark_paid Proposal が executed になった瞬間に呼ばれる。
+     * `status='issued'` の行を `paid` に遷移させる。冪等。
+     * 同じ proposal を二回処理してもエラーにならない。
+     */
+    async markPaidFromExecutedProposal(
+        proposal: Proposal,
+    ): Promise<{ invoice: MemberInvoiceRecord; alreadyApplied: boolean }> {
+        if (proposal.type !== "invoice.member_mark_paid") {
+            throw new Error("MEMBER_INVOICE_INVALID_PROPOSAL_TYPE");
+        }
+
+        const payload = proposal.payload as Record<string, unknown>;
+        const invoiceId = stringField(payload, "invoice_id");
+        const paidAt = stringField(payload, "paid_at") ?? new Date().toISOString();
+        const paidMethod = stringField(payload, "paid_method");
+
+        if (!invoiceId) {
+            throw new Error("MEMBER_INVOICE_INVALID_PAYLOAD");
+        }
+
+        // 冪等チェック: 同じ proposal が既に paid_proposal_id として記録済みなら何もしない
+        const existing = await this.findById(invoiceId);
+        if (!existing) {
+            throw new Error("MEMBER_INVOICE_NOT_FOUND");
+        }
+        if (existing.paid_proposal_id === proposal.id) {
+            return { invoice: existing, alreadyApplied: true };
+        }
+
+        // 既に別経路で paid になっている (= ガード違反) のは拒否する
+        if (existing.status !== "issued") {
+            throw new Error("MEMBER_INVOICE_NOT_IN_ISSUED_STATE");
+        }
+
+        const { data, error } = await this.client
+            .from("member_invoices")
+            .update({
+                status: "paid",
+                paid_at: paidAt,
+                paid_proposal_id: proposal.id,
+                paid_method: paidMethod,
+            })
+            .eq("id", invoiceId)
+            .eq("status", "issued")
+            .select("*")
+            .single();
+
+        if (error) {
+            throw new Error(`Failed to mark invoice as paid: ${error.message}`);
+        }
+
+        return { invoice: data as MemberInvoiceRecord, alreadyApplied: false };
+    }
+
+    // ============================================================
+    // Phase 2-2b: invoice.member_void (member self)
+    // ============================================================
+
+    async voidFromExecutedProposal(
+        proposal: Proposal,
+    ): Promise<{ invoice: MemberInvoiceRecord; alreadyApplied: boolean }> {
+        if (proposal.type !== "invoice.member_void") {
+            throw new Error("MEMBER_INVOICE_INVALID_PROPOSAL_TYPE");
+        }
+
+        const payload = proposal.payload as Record<string, unknown>;
+        const invoiceId = stringField(payload, "invoice_id");
+        const reason = stringField(payload, "reason");
+        const voidAt = stringField(payload, "void_at") ?? new Date().toISOString();
+
+        if (!invoiceId || !reason) {
+            throw new Error("MEMBER_INVOICE_INVALID_PAYLOAD");
+        }
+
+        const existing = await this.findById(invoiceId);
+        if (!existing) {
+            throw new Error("MEMBER_INVOICE_NOT_FOUND");
+        }
+        // 申請者本人 (member_id) 以外による void は構造的に許さない
+        if (proposal.created_by.type !== "human" || proposal.created_by.id !== existing.member_id) {
+            throw new Error("MEMBER_INVOICE_VOID_CREATOR_MUST_BE_OWNER");
+        }
+        if (existing.void_proposal_id === proposal.id) {
+            return { invoice: existing, alreadyApplied: true };
+        }
+        // 既に支払い済み / void 済みは取り消し不可 (Phase 2-2c で再発行は別途検討)
+        if (existing.status !== "issued") {
+            throw new Error("MEMBER_INVOICE_NOT_IN_ISSUED_STATE");
+        }
+
+        const { data, error } = await this.client
+            .from("member_invoices")
+            .update({
+                status: "void",
+                void_at: voidAt,
+                void_proposal_id: proposal.id,
+                void_reason: reason,
+            })
+            .eq("id", invoiceId)
+            .eq("status", "issued")
+            .select("*")
+            .single();
+
+        if (error) {
+            throw new Error(`Failed to void invoice: ${error.message}`);
+        }
+
+        return { invoice: data as MemberInvoiceRecord, alreadyApplied: false };
     }
 }
 

@@ -395,6 +395,92 @@ export class ProposalService {
       }
     }
 
+    // Phase 2-2b: invoice.member_mark_paid は admin (= org の active admin) のみが承認できる。
+    // 発行者本人が自分の請求書を「払った」と記録できると振込なしに paid 化できてしまうため、
+    // 発行者本人による mark_paid 承認は禁止する。AI 不可。
+    if (proposal.type === 'invoice.member_mark_paid') {
+      if (approver.type !== 'human') {
+        throw new Error('MEMBER_INVOICE_MARK_PAID_APPROVER_MUST_BE_HUMAN');
+      }
+      const invoiceId =
+        typeof proposal.payload?.invoice_id === 'string'
+          ? proposal.payload.invoice_id
+          : null;
+      if (!invoiceId) {
+        throw new Error('MEMBER_INVOICE_MARK_PAID_INVOICE_MISSING');
+      }
+      const { data: membership, error: memErr } = await supabaseAdmin
+        .from('org_memberships')
+        .select('role,status')
+        .eq('org_id', proposal.org_id)
+        .eq('user_id', approver.id)
+        .eq('status', 'active')
+        .maybeSingle();
+      if (memErr) {
+        throw memErr;
+      }
+      if (!membership || membership.role !== 'admin') {
+        throw new Error('MEMBER_INVOICE_MARK_PAID_APPROVER_MUST_BE_ADMIN');
+      }
+      const { data: invoiceRow, error: invErr } = await supabaseAdmin
+        .from('member_invoices')
+        .select('member_id, status')
+        .eq('id', invoiceId)
+        .eq('org_id', proposal.org_id)
+        .maybeSingle();
+      if (invErr) {
+        throw invErr;
+      }
+      if (!invoiceRow) {
+        throw new Error('MEMBER_INVOICE_NOT_FOUND');
+      }
+      if (invoiceRow.member_id === approver.id) {
+        throw new Error('MEMBER_INVOICE_MARK_PAID_OWNER_CANNOT_SELF_APPROVE');
+      }
+      if (invoiceRow.status !== 'issued') {
+        throw new Error('MEMBER_INVOICE_NOT_IN_ISSUED_STATE');
+      }
+    }
+
+    // Phase 2-2b: invoice.member_void は「発行者本人のみ」承認できる。
+    // admin / AI が代理で取り消すことを構造的に禁止する。issued → void のみ許容。
+    if (proposal.type === 'invoice.member_void') {
+      if (approver.type !== 'human') {
+        throw new Error('MEMBER_INVOICE_VOID_APPROVER_MUST_BE_HUMAN');
+      }
+      const invoiceId =
+        typeof proposal.payload?.invoice_id === 'string'
+          ? proposal.payload.invoice_id
+          : null;
+      if (!invoiceId) {
+        throw new Error('MEMBER_INVOICE_VOID_INVOICE_MISSING');
+      }
+      const { data: invoiceRow, error: invErr } = await supabaseAdmin
+        .from('member_invoices')
+        .select('member_id, status')
+        .eq('id', invoiceId)
+        .eq('org_id', proposal.org_id)
+        .maybeSingle();
+      if (invErr) {
+        throw invErr;
+      }
+      if (!invoiceRow) {
+        throw new Error('MEMBER_INVOICE_NOT_FOUND');
+      }
+      if (approver.id !== invoiceRow.member_id) {
+        throw new Error('MEMBER_INVOICE_VOID_APPROVER_MUST_BE_OWNER');
+      }
+      if (
+        proposal.created_by.type !== 'human' ||
+        proposal.created_by.id !== invoiceRow.member_id
+      ) {
+        throw new Error('MEMBER_INVOICE_VOID_CREATOR_MUST_BE_OWNER');
+      }
+      if (invoiceRow.status !== 'issued') {
+        throw new Error('MEMBER_INVOICE_NOT_IN_ISSUED_STATE');
+      }
+    }
+
     const canApproveResult = await this.engine.canApprove(proposal, approver);
     if (!canApproveResult.allowed) {
       throw new Error(canApproveResult.reason || 'APPROVAL_NOT_ALLOWED');
@@ -1969,9 +2055,23 @@ export class ProposalService {
 
     // invoice.member_issue: 本人主導の請求書 row を発行する。
     // 振込先 / インボイス番号 / 住所 は payload の snapshot_profile から転記済み。
-    // 仕訳は Phase 2-2b の mark_paid 連動で立てるため、ここでは accounting ledger は発火させない。
+    // Phase 2-2b: accrual の仕訳 (Dr 外注費 / Cr 未払金) は execute_proposal_atomic RPC が
+    // payload.debit_account_code / credit_account_code / amount を見て自動で立てる。
+    // routes/memberInvoices.ts の発行リクエスト側で当該フィールドを埋める。
     if (proposal.type === 'invoice.member_issue') {
       await this.memberInvoiceService.issueFromExecutedProposal(proposal);
+    }
+
+    // Phase 2-2b: invoice.member_mark_paid — member_invoices.status を paid に進める。
+    // 仕訳 (Dr 未払金 / Cr 現金) は execute RPC が payload から自動で立てる。
+    if (proposal.type === 'invoice.member_mark_paid') {
+      await this.memberInvoiceService.markPaidFromExecutedProposal(proposal);
+    }
+
+    // Phase 2-2b: invoice.member_void — member_invoices.status を void に進める。
+    // 逆仕訳 (Dr 未払金 / Cr 外注費) は execute RPC が payload から自動で立てる。
+    if (proposal.type === 'invoice.member_void') {
+      await this.memberInvoiceService.voidFromExecutedProposal(proposal);
     }
   }
 
@@ -2034,6 +2134,14 @@ export class ProposalService {
 
     if (proposal.type === 'invoice.member_issue') {
       return 'governance.member_invoice.issued';
+    }
+
+    if (proposal.type === 'invoice.member_mark_paid') {
+      return 'governance.member_invoice.paid';
+    }
+
+    if (proposal.type === 'invoice.member_void') {
+      return 'governance.member_invoice.voided';
     }
 
     return 'governance.proposal.executed';
@@ -2132,6 +2240,14 @@ export class ProposalService {
     // invoice.member_issue: 本人主導の請求書発行も lifecycle 全体を記録する。
     // 「誰が・いつ・どの締めから・幾らの請求書を発行したか」が監査トレイル。
     if (proposal.type === 'invoice.member_issue') {
+      return true;
+    }
+
+    // Phase 2-2b: 支払い / 取り消しも監査対象 (誰が・いつ・どの請求書に対して)。
+    if (
+      proposal.type === 'invoice.member_mark_paid' ||
+      proposal.type === 'invoice.member_void'
+    ) {
       return true;
     }
 
