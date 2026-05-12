@@ -223,6 +223,38 @@ router.post("/invites", async (req: AuthenticatedRequest, res: Response) => {
     }
 });
 
+router.post("/invites/:inviteId/rotate", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        if (!req.userId) {
+            res.status(401).json({ error: "Unauthorized" });
+            return;
+        }
+
+        const membership = await resolveActiveOrgMembership(req, "admin");
+        const inviteId = Array.isArray(req.params.inviteId)
+            ? req.params.inviteId[0]
+            : req.params.inviteId;
+        if (!inviteId) {
+            res.status(400).json({ error: "ORG_INVITE_NOT_FOUND" });
+            return;
+        }
+
+        const ttlDays = typeof req.body?.ttl_days === "number" ? req.body.ttl_days : undefined;
+
+        const service = new OrgInviteCreationService();
+        const invite = await service.rotate({
+            orgId: membership.org_id,
+            inviteId,
+            invitedBy: req.userId,
+            ttlDays,
+        });
+
+        res.status(201).json({ invite });
+    } catch (error) {
+        handleOrgAccessError(res, error);
+    }
+});
+
 router.delete("/invites/:inviteId", async (req: AuthenticatedRequest, res: Response) => {
     try {
         if (!req.userId) {

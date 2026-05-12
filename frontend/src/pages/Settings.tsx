@@ -11,6 +11,7 @@ import {
     Loader2,
     Plus,
     ReceiptText,
+    RefreshCw,
     Search,
     Shield,
     ShieldOff,
@@ -31,6 +32,7 @@ import {
     restoreClient,
     revokeOrgInvite,
     revokeProfileViewGrant,
+    rotateOrgInvite,
     updateMemberRole,
     updateMyProfile,
     type Client,
@@ -268,6 +270,7 @@ export function Settings() {
     const [inviteMessage, setInviteMessage] = useState<string | null>(null);
     const [copiedInviteId, setCopiedInviteId] = useState<string | null>(null);
     const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null);
+    const [rotatingInviteId, setRotatingInviteId] = useState<string | null>(null);
     const [memberBusyId, setMemberBusyId] = useState<string | null>(null);
     const [memberError, setMemberError] = useState<string | null>(null);
     const [memberMessage, setMemberMessage] = useState<string | null>(null);
@@ -439,6 +442,41 @@ export function Settings() {
             setInviteError(null);
         } catch (error: unknown) {
             setInviteError(getErrorMessage(error));
+        }
+    };
+
+    const handleRotateInvite = async (invite: OrgInviteRecord) => {
+        if (typeof window !== "undefined") {
+            const confirmed = window.confirm(
+                `${invite.email_normalized} へのリンクを作り直しますか？\n古いリンクは無効になります。LINE などで誤って共有した場合に使ってください。`,
+            );
+            if (!confirmed) {
+                return;
+            }
+        }
+
+        try {
+            setRotatingInviteId(invite.id);
+            setInviteError(null);
+            setInviteMessage(null);
+            const result = await rotateOrgInvite(invite.id);
+            await refreshInvites();
+            try {
+                const link = buildInviteLink(result.invite.id);
+                await navigator.clipboard.writeText(link);
+                setCopiedInviteId(result.invite.id);
+                setInviteMessage(
+                    `${invite.email_normalized} 宛の新しいリンクをコピーしました。古いリンクは無効です。`,
+                );
+            } catch {
+                setInviteMessage(
+                    `${invite.email_normalized} 宛の新しいリンクを作成しました。古いリンクは無効です。`,
+                );
+            }
+        } catch (error: unknown) {
+            setInviteError(formatInviteError(error));
+        } finally {
+            setRotatingInviteId(null);
         }
     };
 
@@ -1284,7 +1322,7 @@ export function Settings() {
                                             <div>
                                                 <h3 className={styles.infoCardTitle}>未受諾の招待</h3>
                                                 <p className={styles.infoCardDescription}>
-                                                    リンクをコピーして本人に再送できます。期限切れ前に受諾してもらってください。
+                                                    リンクをコピーして本人に再送できます。誤って違う相手に送ってしまった時は「作り直す」で古いリンクを無効化できます。
                                                 </p>
                                             </div>
                                         </div>
@@ -1313,6 +1351,21 @@ export function Settings() {
                                                                     <Copy size={16} />
                                                                 )}
                                                                 {copiedInviteId === invite.id ? "コピー済" : "リンク"}
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                className={styles.secondaryButton}
+                                                                onClick={() => void handleRotateInvite(invite)}
+                                                                disabled={rotatingInviteId === invite.id}
+                                                                aria-label="リンクを作り直す"
+                                                                title="古いリンクを無効にして新しいリンクを発行します"
+                                                            >
+                                                                {rotatingInviteId === invite.id ? (
+                                                                    <Loader2 size={14} className={styles.spinner} />
+                                                                ) : (
+                                                                    <RefreshCw size={14} />
+                                                                )}
+                                                                {rotatingInviteId === invite.id ? "作成中" : "作り直す"}
                                                             </button>
                                                             <button
                                                                 type="button"

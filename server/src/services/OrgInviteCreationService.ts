@@ -26,6 +26,13 @@ export interface OrgInviteRevokeInput {
     revokedBy: string;
 }
 
+export interface OrgInviteRotateInput {
+    orgId: string;
+    inviteId: string;
+    invitedBy: string;
+    ttlDays?: number;
+}
+
 export interface OrgInviteRecord {
     id: string;
     org_id: string;
@@ -109,6 +116,47 @@ export class OrgInviteCreationService {
         }
 
         return (data as OrgInviteRecord[]) || [];
+    }
+
+    async rotate(input: OrgInviteRotateInput): Promise<OrgInviteRecord> {
+        const { data: existing, error: readError } = await supabaseAdmin
+            .from("org_invites")
+            .select("id,status,org_id,email_normalized,role")
+            .eq("id", input.inviteId)
+            .maybeSingle();
+
+        if (readError) {
+            throw readError;
+        }
+
+        if (!existing || existing.org_id !== input.orgId) {
+            throw new Error("ORG_INVITE_NOT_FOUND");
+        }
+
+        if (existing.status !== "pending") {
+            throw new Error("ORG_INVITE_NOT_PENDING");
+        }
+
+        const { error: revokeError } = await supabaseAdmin
+            .from("org_invites")
+            .update({
+                status: "revoked",
+                revoked_at: new Date().toISOString(),
+            })
+            .eq("id", input.inviteId)
+            .eq("status", "pending");
+
+        if (revokeError) {
+            throw revokeError;
+        }
+
+        return this.create({
+            orgId: input.orgId,
+            invitedBy: input.invitedBy,
+            email: existing.email_normalized,
+            role: existing.role as OrgInviteRole,
+            ttlDays: input.ttlDays,
+        });
     }
 
     async revoke(input: OrgInviteRevokeInput): Promise<OrgInviteRecord> {
