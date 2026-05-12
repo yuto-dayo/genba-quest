@@ -40,11 +40,13 @@ import { Today } from "./pages/Today";
 import { FloatingActionButton } from "./components/FloatingActionButton";
 import { FloatingBellButton } from "./components/FloatingBellButton";
 import { BellDrawer } from "./components/BellDrawer";
+import { OnboardingWizard } from "./components/onboarding/OnboardingWizard";
 import {
   acceptOrgInvite,
   bootstrapFirstOrg,
   bootstrapOrgWithCode,
   fetchAppEntryState,
+  fetchMyProfile,
   fetchNotifications,
   fetchPendingApprovals,
   fetchPendingProposals,
@@ -52,6 +54,7 @@ import {
   type AppEntryMembershipRecord,
   type AppEntryPendingInvite,
   type AppEntryStateRecord,
+  type MyProfileRecord,
   type NotificationRecord,
   type ProposalRecord,
 } from "./lib/api";
@@ -88,6 +91,7 @@ const NAV_ITEMS: ReadonlyArray<{ path: string; label: string; icon: LucideIcon }
 type ClientEntryState =
   | { state: "loading" }
   | { state: "error"; message: string }
+  | { state: "needs_profile_onboarding"; profile: MyProfileRecord }
   | { state: "ready_client" }
   | AppEntryStateRecord;
 
@@ -1518,6 +1522,11 @@ function AppContent() {
         const options = buildActiveOrgOptions(nextState.memberships);
         setOrgOptions(options);
         setActiveOrgId(nextState.active_org.org_id);
+        const profileData = await fetchMyProfile();
+        if (!profileData.profile.onboarding_completed_at) {
+          setEntryState({ state: "needs_profile_onboarding", profile: profileData.profile });
+          return;
+        }
         setEntryState({ state: "ready_client" });
         return;
       }
@@ -2123,6 +2132,15 @@ function AppContent() {
       <PasswordRecoveryGate
         viewerEmail={viewerEmail}
         onPasswordUpdated={handlePasswordUpdated}
+      />
+    );
+  }
+
+  if (entryState.state === "needs_profile_onboarding") {
+    return (
+      <OnboardingWizard
+        initialProfile={entryState.profile}
+        onComplete={() => resolveEntryState()}
       />
     );
   }

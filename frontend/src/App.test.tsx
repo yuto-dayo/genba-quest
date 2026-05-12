@@ -12,6 +12,7 @@ const bootstrapOrg = vi.fn();
 const fetchNotifications = vi.fn();
 const fetchPendingApprovals = vi.fn();
 const fetchPendingProposals = vi.fn();
+const fetchMyProfile = vi.fn();
 const acceptOrgInvite = vi.fn();
 const getSession = vi.fn();
 const onAuthStateChange = vi.fn();
@@ -113,6 +114,17 @@ vi.mock("./components/LevelDraftSheet", () => ({
         open ? <div data-testid="level-draft-sheet">{siteName}</div> : null,
 }));
 
+vi.mock("./components/onboarding/OnboardingWizard", () => ({
+    OnboardingWizard: ({ onComplete }: { onComplete: () => Promise<void> | void }) => (
+        <div>
+            <p>profile-onboarding</p>
+            <button type="button" onClick={() => void onComplete()}>
+                complete-profile
+            </button>
+        </div>
+    ),
+}));
+
 vi.mock("./lib/api", async () => {
     const actual = await vi.importActual<typeof import("./lib/api")>("./lib/api");
     return {
@@ -123,6 +135,7 @@ vi.mock("./lib/api", async () => {
         fetchNotifications: (...args: unknown[]) => fetchNotifications(...args),
         fetchPendingApprovals: (...args: unknown[]) => fetchPendingApprovals(...args),
         fetchPendingProposals: (...args: unknown[]) => fetchPendingProposals(...args),
+        fetchMyProfile: (...args: unknown[]) => fetchMyProfile(...args),
         acceptOrgInvite: (...args: unknown[]) => acceptOrgInvite(...args),
     };
 });
@@ -154,6 +167,33 @@ describe("App entry gate", () => {
         fetchNotifications.mockResolvedValue([]);
         fetchPendingApprovals.mockResolvedValue([]);
         fetchPendingProposals.mockResolvedValue([]);
+        fetchMyProfile.mockResolvedValue({
+            profile: {
+                id: "user-1",
+                username: null,
+                nickname: "ユト",
+                full_name: "山田 太郎",
+                avatar_url: null,
+                onboarding_completed_at: "2026-05-01T00:00:00.000Z",
+                phone: null,
+                job_type: "内装",
+                employment_kind: "employee",
+                trade_name: null,
+                invoice_registration_number: null,
+                bank_name: null,
+                branch_name: null,
+                account_type: null,
+                account_number: null,
+                account_holder_kana: null,
+                postal_code: null,
+                prefecture: null,
+                city: null,
+                address_line1: null,
+                address_line2: null,
+                emergency_contact_name: null,
+                emergency_phone: null,
+            },
+        });
         acceptOrgInvite.mockResolvedValue({
             active_org: {
                 id: "org-1",
@@ -211,6 +251,78 @@ describe("App entry gate", () => {
         expect(await screen.findByText("最初の組織を作成")).toBeInTheDocument();
         expect(screen.queryByText("today-page")).not.toBeInTheDocument();
         expect(screen.getByRole("button", { name: "組織を作成" })).toBeInTheDocument();
+    });
+
+    it("shows profile onboarding for users without onboarding_completed_at and continues after completion", async () => {
+        fetchAppEntryState.mockResolvedValue({
+            state: "ready",
+            active_org: { org_id: "org-1", org_name: "GENBA 本部", role: "admin" },
+            memberships: [{ org_id: "org-1", org_name: "GENBA 本部", role: "admin" }],
+        });
+        fetchMyProfile
+            .mockResolvedValueOnce({
+                profile: {
+                    id: "user-1",
+                    username: null,
+                    nickname: "ユト",
+                    full_name: "山田 太郎",
+                    avatar_url: null,
+                    onboarding_completed_at: null,
+                    phone: null,
+                    job_type: "内装",
+                    employment_kind: "employee",
+                    trade_name: null,
+                    invoice_registration_number: null,
+                    bank_name: null,
+                    branch_name: null,
+                    account_type: null,
+                    account_number: null,
+                    account_holder_kana: null,
+                    postal_code: null,
+                    prefecture: null,
+                    city: null,
+                    address_line1: null,
+                    address_line2: null,
+                    emergency_contact_name: null,
+                    emergency_phone: null,
+                },
+            })
+            .mockResolvedValueOnce({
+                profile: {
+                    id: "user-1",
+                    username: null,
+                    nickname: "ユト",
+                    full_name: "山田 太郎",
+                    avatar_url: null,
+                    onboarding_completed_at: "2026-05-12T00:00:00.000Z",
+                    phone: null,
+                    job_type: "内装",
+                    employment_kind: "employee",
+                    trade_name: null,
+                    invoice_registration_number: null,
+                    bank_name: null,
+                    branch_name: null,
+                    account_type: null,
+                    account_number: null,
+                    account_holder_kana: null,
+                    postal_code: null,
+                    prefecture: null,
+                    city: null,
+                    address_line1: null,
+                    address_line2: null,
+                    emergency_contact_name: null,
+                    emergency_phone: null,
+                },
+            });
+
+        render(<App />);
+
+        expect(await screen.findByText("profile-onboarding")).toBeInTheDocument();
+        expect(screen.queryByText("today-page")).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: "complete-profile" }));
+
+        expect(await screen.findByText("today-page")).toBeInTheDocument();
     });
 
     it("renders invite-only onboarding when entry state is needs_onboarding", async () => {

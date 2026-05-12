@@ -10,8 +10,10 @@ type AccountType = "ordinary" | "checking";
 const PROFILE_COLUMNS = [
     "id",
     "username",
+    "nickname",
     "full_name",
     "avatar_url",
+    "onboarding_completed_at",
     "phone",
     "job_type",
     "employment_kind",
@@ -34,8 +36,10 @@ const PROFILE_COLUMNS = [
 interface ProfileRecord {
     id: string;
     username: string | null;
+    nickname: string | null;
     full_name: string | null;
     avatar_url: string | null;
+    onboarding_completed_at: string | null;
     phone: string | null;
     job_type: string | null;
     employment_kind: EmploymentKind;
@@ -59,6 +63,7 @@ const EMPLOYMENT_KINDS: readonly EmploymentKind[] = ["employee", "sole_proprieto
 const ACCOUNT_TYPES: readonly AccountType[] = ["ordinary", "checking"];
 const INVOICE_NUMBER_PATTERN = /^T[0-9]{13}$/;
 const POSTAL_CODE_PATTERN = /^[0-9]{3}-?[0-9]{4}$/;
+const NICKNAME_MAX_LENGTH = 5;
 
 function normalizeText(value: unknown, maxLength: number): string | null {
     if (typeof value !== "string") {
@@ -85,6 +90,24 @@ interface ValidationError {
 
 function buildUpdates(body: Record<string, unknown>): Record<string, string | null> | ValidationError {
     const updates: Record<string, string | null> = {};
+
+    if ("onboarding_completed_at" in body) {
+        return { code: "PROFILE_ONBOARDING_COMPLETED_AT_FORBIDDEN" };
+    }
+
+    if ("nickname" in body) {
+        if (typeof body.nickname !== "string") {
+            return { code: "PROFILE_NICKNAME_REQUIRED" };
+        }
+        const nickname = body.nickname.trim();
+        if (!nickname) {
+            return { code: "PROFILE_NICKNAME_REQUIRED" };
+        }
+        if (nickname.length > NICKNAME_MAX_LENGTH) {
+            return { code: "PROFILE_NICKNAME_TOO_LONG" };
+        }
+        updates.nickname = nickname;
+    }
 
     if ("full_name" in body) {
         updates.full_name = normalizeText(body.full_name, 80);
@@ -175,6 +198,15 @@ function buildUpdates(body: Record<string, unknown>): Record<string, string | nu
         updates.emergency_phone = normalizeText(body.emergency_phone, 32);
     }
 
+    if ("complete_onboarding" in body) {
+        if (typeof body.complete_onboarding !== "boolean") {
+            return { code: "PROFILE_COMPLETE_ONBOARDING_INVALID" };
+        }
+        if (body.complete_onboarding) {
+            updates.onboarding_completed_at = new Date().toISOString();
+        }
+    }
+
     return updates;
 }
 
@@ -196,7 +228,17 @@ router.get("/me", async (req: AuthenticatedRequest, res: Response) => {
         }
 
         if (!data) {
-            res.status(404).json({ error: "PROFILE_NOT_FOUND" });
+            const { data: inserted, error: upsertError } = await supabaseAdmin
+                .from("profiles")
+                .upsert({ id: req.userId }, { onConflict: "id" })
+                .select(PROFILE_COLUMNS)
+                .single();
+
+            if (upsertError) {
+                throw upsertError;
+            }
+
+            res.json({ profile: inserted as unknown as ProfileRecord });
             return;
         }
 
