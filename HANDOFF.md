@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `実機で表示確認（必要ならキャッシュクリア）`
+- NEXT_CMD: `必要ならmasterへコミット/マージ`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/HANDOFF.md`
@@ -12,8 +12,8 @@
 - VERIFY_FIRST:
   - `sed -n '1,120p' docs/DESIGN_PHILOSOPHY.md`
 - STATE:
-  - Branch: `codex/spscreen`
-  - Uncommitted: `4 files`
+  - Branch: `master`
+  - Uncommitted: `9 files`
   - DB migrations: `latest local: none found`
   - Tests: `not run yet`
   - Lint: `not run yet`
@@ -23,7 +23,7 @@
 ## Session Events (audit log)
 
 <!-- HANDOFF_SESSION_EVENTS_START -->
-- 2026-05-12 19:12:09 +0900 — started by codex
+- 2026-05-12 19:55:23 +0900 — started by codex
 <!-- HANDOFF_SESSION_EVENTS_END -->
 
 ---
@@ -67,11 +67,11 @@
 
 ```text
 Agent: 未定（Claude Code / Codex）
-Branch: codex/spscreen
+Branch: master
 Phase: A-0/A-1
 ```
 
-> [carryover] Working tree was dirty at session start (4 files). Prior session may have unfinished work — verify NEXT_CMD before executing.
+> [carryover] Working tree was dirty at session start (9 files). Prior session may have unfinished work — verify NEXT_CMD before executing.
 
 1. `docs/DESIGN_PHILOSOPHY.md` の冒頭を確認
 2. このファイルを更新しながら実装を進める
@@ -93,7 +93,7 @@ Phase: A-0/A-1
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: 実機で表示確認（必要ならキャッシュクリア）
+- [ ] **P0**: 必要ならmasterへコミット/マージ
 - [ ] **P1**: 次の優先タスクを記載
 
 ---
@@ -103,9 +103,14 @@ Phase: A-0/A-1
 | File | What Changed |
 | ---- | ------------ |
 | `HANDOFF.md` | [dirty: M] |
-| `frontend/index.html` | [dirty: M] |
+| `frontend/public/appicon-genba-quest.png` | [dirty: M] |
+| `frontend/public/loading.png` | [dirty: D] |
+| `frontend/public/loading.webp` | [dirty: D] |
+| `frontend/src/components/LoadingScreen.module.css` | [dirty: M] |
+| `frontend/src/components/LoadingScreen.tsx` | [dirty: M] |
 | `.claude/scheduled_tasks.lock` | [dirty: ??] |
-| `frontend/public/appicon-genba-quest.png` | [dirty: ??] |
+| `docs/PROFILE_ONBOARDING_CODEX_PROMPT.md` | [dirty: ??] |
+| `docs/PROFILE_ONBOARDING_PLAN.md` | [dirty: ??] |
 
 ---
 
