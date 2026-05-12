@@ -2,30 +2,30 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `Phase 2-2c: 部分支払い / 銀行API連携 / 取り消し後の再発行 (再オープン UI)`
+- NEXT_CMD: `コミット・push・PR作成後にsession-end`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
-  - `/Users/yutoyoshino/Documents/genba-quest-phase2-2b/HANDOFF.md`
-  - `/Users/yutoyoshino/Documents/genba-quest-phase2-2b/docs/DESIGN_PHILOSOPHY.md`
+  - `/Users/yutoyoshino/Documents/genba-quest/HANDOFF.md`
+  - `/Users/yutoyoshino/Documents/genba-quest/docs/DESIGN_PHILOSOPHY.md`
 - DO_NOT_READ:
   - `docs/DESIGN_PHILOSOPHY.md` (full)
 - VERIFY_FIRST:
   - `sed -n '1,120p' docs/DESIGN_PHILOSOPHY.md`
 - STATE:
-  - Branch: `feat/member-led-invoice-paid`
-  - Uncommitted: `12 files`
+  - Branch: `codex/#1`
+  - Uncommitted: `1 files`
   - DB migrations: `latest local: none found`
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `053bc3f`
-  - Updated: `2026-05-12T17:20:47+0900`
+  - HEAD: `77b3604`
+  - Updated: `2026-05-12T17:38:11+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
 
 <!-- HANDOFF_SESSION_EVENTS_START -->
-- 2026-05-12 17:20:47 +0900 — started by claude
+- 2026-05-12 17:34:34 +0900 — started by codex
 <!-- HANDOFF_SESSION_EVENTS_END -->
 
 ---
@@ -33,16 +33,16 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `Phase 2-2c: 部分支払い / 銀行API連携 / 取り消し後の再発行 (再オープン UI)`. Source: realtime
-- [H0001] Completed: Phase 2-2b: invoice.member_mark_paid (admin) と invoice.member_void (member self) を実装。発行時の accrual 仕訳 (Dr 外注費 / Cr 未払金) も内部 transfer payload で接続。admin 用 actionable list + 本人用 mine list with void UI を追加。
-- [H0001] Remaining: Phase 2-2c: 部分支払い / 銀行API連携 / 取り消し後の再発行 (再オープン UI)
+- [focus] NEXT_CMD: `コミット・push・PR作成後にsession-end`. Source: realtime
+- [H0001] Completed: Calendar FABに新規現場導線を追加（A-1の日付プレフィル + B-aのカレンダー留まり）
+- [H0001] Remaining: コミット・push・PR作成後にsession-end
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
-- [H0001] Auto-captured decision: Phase 2-2b: invoice.member_mark_paid (admin) と invoice.member_void (member self) を実装。発行時の accrual 仕訳 (Dr 外注費 / Cr 未払金) も内部 transfer paylo...
+- [H0001] Auto-captured decision: Calendar FABに新規現場導線を追加（A-1の日付プレフィル + B-aのカレンダー留まり）
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
@@ -52,7 +52,7 @@
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
-- [H0001] Phase 2-2c: 部分支払い / 銀行API連携 / 取り消し後の再発行 (再オープン UI)
+- [H0001] コミット・push・PR作成後にsession-end
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
@@ -70,11 +70,11 @@
 
 ```text
 Agent: 未定（Claude Code / Codex）
-Branch: feat/member-led-invoice-paid
+Branch: codex/#1
 Phase: A-0/A-1
 ```
 
-> [carryover] Working tree was dirty at session start (13 files). Prior session may have unfinished work — verify NEXT_CMD before executing.
+> [carryover] Working tree was dirty at session start (2 files). Prior session may have unfinished work — verify NEXT_CMD before executing.
 
 1. `docs/DESIGN_PHILOSOPHY.md` の冒頭を確認
 2. このファイルを更新しながら実装を進める
@@ -90,19 +90,21 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
-- [x] Phase 2-2b: invoice.member_mark_paid (admin) と invoice.member_void (member self) を実装。発行時の accrual 仕訳 (Dr 外注費 / Cr 未払金) も内部 transfer payload で接続。admin 用 actionable list + 本人用 mine list with void UI を追加。
+- [x] Calendar FABに新規現場導線を追加（A-1の日付プレフィル + B-aのカレンダー留まり）
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: Phase 2-2c: 部分支払い / 銀行API連携 / 取り消し後の再発行 (再オープン UI)
+- [ ] **P0**: コミット・push・PR作成後にsession-end
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
-| `(not recorded)` | No file list provided (use --file "path - semantic description") |
+| `frontend/src/pages/Calendar.test.tsx` | FABに新規現場が表示されるスモーク追加とラベル更新 |
+| `frontend/src/components/SiteFormModal.tsx` | initialStartedAt prop追加で着工日プレフィル対応 |
+| `frontend/src/pages/Calendar.tsx` | FABに新規現場追加とSiteFormModal表示、作成後reloadAssignments実行 |
 ---
 
 ## 6. Locked Files（編集中 - 他エージェント触らない）
@@ -149,18 +151,23 @@ cd frontend && npx eslint src/
 
 ## 11. Incremental Updates
 
-### 2026-05-12 17:20:47 +0900
+### 2026-05-12 17:38:11 +0900
 
 - Entry-ID: `H0001`
 - Completed:
-  - [x] Phase 2-2b: invoice.member_mark_paid (admin) と invoice.member_void (member self) を実装。発行時の accrual 仕訳 (Dr 外注費 / Cr 未払金) も内部 transfer payload で接続。admin 用 actionable list + 本人用 mine list with void UI を追加。
+  - [x] Calendar FABに新規現場導線を追加（A-1の日付プレフィル + B-aのカレンダー留まり）
 - Remaining:
-  - [ ] Phase 2-2c: 部分支払い / 銀行API連携 / 取り消し後の再発行 (再オープン UI)
+  - [ ] コミット・push・PR作成後にsession-end
 - Changed Files:
-  - No file list provided (use --file "path - semantic description")
+  - `frontend/src/pages/Calendar.tsx` - FABに新規現場追加とSiteFormModal表示、作成後reloadAssignments実行
+  - `frontend/src/components/SiteFormModal.tsx` - initialStartedAt prop追加で着工日プレフィル対応
+  - `frontend/src/pages/Calendar.test.tsx` - FABに新規現場が表示されるスモーク追加とラベル更新
 - Working Context:
-  - Auto-captured decision: Phase 2-2b: invoice.member_mark_paid (admin) と invoice.member_void (member self) を実装。発行時の accrual 仕訳 (Dr 外注費 / Cr 未払金) も内部 transfer paylo...
+  - Auto-captured decision: Calendar FABに新規現場導線を追加（A-1の日付プレフィル + B-aのカレンダー留まり）
 - Validation:
-  - `server tsc clean / server jest 25/25 pass / frontend tsc -b clean / frontend eslint 0 errors / frontend vite build clean`
+  - `cd frontend && npm run typecheck => Missing script`
+  - `cd frontend && npx tsc --noEmit => PASS`
+  - `cd frontend && npm test -- Calendar => PASS`
+  - `cd frontend && npm run lint => PASS`
 - Landmines:
   - No new landmines reported in this chunk.

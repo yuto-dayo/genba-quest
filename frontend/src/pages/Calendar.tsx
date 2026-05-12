@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
     ChevronDown,
+    Map as MapIcon,
     Plus,
     UserRound,
     Users,
@@ -11,6 +12,7 @@ import { useCalendar } from '../hooks/useCalendar';
 import { MonthCalendar } from '../components/calendar/MonthCalendar';
 import { DayScheduleBoard } from '../components/calendar/DayScheduleBoard';
 import { CalendarScheduleModal } from '../components/calendar/CalendarScheduleModal';
+import { SiteFormModal } from '../components/SiteFormModal';
 import {
     deletePersonalSchedule,
     fetchMembers,
@@ -305,6 +307,7 @@ export function Calendar() {
     const [viewMode, setViewMode] = useState<CalendarViewMode>('month');
     const [monthPickerOpen, setMonthPickerOpen] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
+    const [showSiteCreateModal, setShowSiteCreateModal] = useState(false);
     const [addModalMode, setAddModalMode] = useState<CalendarAddMode>('menu');
     const [lineItemsBySiteId, setLineItemsBySiteId] = useState<Record<string, SiteLineItem[] | undefined>>({});
     const [lineItemLoadStateBySiteId, setLineItemLoadStateBySiteId] = useState<Record<string, 'loading' | 'loaded' | 'error'>>({});
@@ -996,14 +999,20 @@ export function Calendar() {
 
             <FloatingActionButton
                 behavior="draggable"
-                openLabel="予定の追加メニューを開く"
-                closeLabel="予定の追加メニューを閉じる"
+                openLabel="追加メニューを開く"
+                closeLabel="追加メニューを閉じる"
                 items={[
                     {
                         id: 'personal-schedule',
                         label: '予定を入れる',
                         icon: <Plus size={18} />,
                         onClick: () => handleOpenAddMenu(undefined, 'personal'),
+                    },
+                    {
+                        id: 'site',
+                        label: '新規現場',
+                        icon: <MapIcon size={18} />,
+                        onClick: () => setShowSiteCreateModal(true),
                     },
                 ]}
             />
@@ -1017,6 +1026,19 @@ export function Calendar() {
                         defaultMemberId={scope === 'personal' ? currentUserId : null}
                         onClose={() => setShowAddModal(false)}
                         onCreated={handleCommitted}
+                    />
+                )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+                {showSiteCreateModal && (
+                    <SiteFormModal
+                        initialStartedAt={visibleSelectedDate?.date ?? new Date().toISOString().slice(0, 10)}
+                        onClose={() => setShowSiteCreateModal(false)}
+                        onSuccess={async () => {
+                            setShowSiteCreateModal(false);
+                            await reloadAssignments();
+                        }}
                     />
                 )}
             </AnimatePresence>

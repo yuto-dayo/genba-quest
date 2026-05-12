@@ -285,8 +285,9 @@ describe("Calendar page", () => {
     it("opens the personal schedule form from the calendar FAB", () => {
         render(<Calendar />);
 
-        fireEvent.click(screen.getByRole("button", { name: "予定の追加メニューを開く" }));
+        fireEvent.click(screen.getByRole("button", { name: "追加メニューを開く" }));
         expect(screen.getByRole("button", { name: "予定を入れる" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "新規現場" })).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "現場に入れる" })).not.toBeInTheDocument();
 
         fireEvent.click(screen.getByRole("button", { name: "予定を入れる" }));
@@ -294,6 +295,14 @@ describe("Calendar page", () => {
         expect(screen.getByRole("dialog")).toHaveTextContent("予定を入れる 2026-04-25");
         expect(screen.getByRole("button", { name: "予定を入れる" })).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "現場に入れる" })).not.toBeInTheDocument();
+    });
+
+    it("shows a new-site action when opening the calendar FAB menu", () => {
+        render(<Calendar />);
+
+        fireEvent.click(screen.getByRole("button", { name: "追加メニューを開く" }));
+
+        expect(screen.getByRole("button", { name: "新規現場" })).toBeInTheDocument();
     });
 
     it("selects and inspects the date from a date long-press shortcut", () => {
@@ -525,9 +534,10 @@ describe("Calendar page", () => {
         render(<Calendar />);
 
         fireEvent.click(screen.getByRole("button", { name: "自分" }));
-        fireEvent.click(screen.getByRole("button", { name: "予定の追加メニューを開く" }));
+        fireEvent.click(screen.getByRole("button", { name: "追加メニューを開く" }));
 
         expect(screen.getByRole("button", { name: "予定を入れる" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "新規現場" })).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "現場に入れる" })).not.toBeInTheDocument();
 
         fireEvent.click(screen.getByRole("button", { name: "予定を入れる" }));

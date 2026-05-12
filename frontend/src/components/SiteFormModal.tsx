@@ -176,11 +176,18 @@ async function uploadSiteAttachments(siteId: string, files: File[]) {
 interface SiteFormModalProps {
     site?: Site;
     initialAction?: "lineItem";
+    initialStartedAt?: string;
     onClose: () => void;
     onSuccess: (created?: Site) => void | Promise<void>;
 }
 
-export function SiteFormModal({ site, initialAction, onClose, onSuccess }: SiteFormModalProps) {
+export function SiteFormModal({
+    site,
+    initialAction,
+    initialStartedAt,
+    onClose,
+    onSuccess,
+}: SiteFormModalProps) {
     const isEdit = !!site;
 
     const [name, setName] = useState(site?.name || "");
@@ -194,7 +201,7 @@ export function SiteFormModal({ site, initialAction, onClose, onSuccess }: SiteF
     const [requiredWorkerCount, setRequiredWorkerCount] = useState(
         site?.required_worker_count == null ? "" : String(site.required_worker_count)
     );
-    const [startedAt, setStartedAt] = useState(site?.started_at || "");
+    const [startedAt, setStartedAt] = useState(site?.started_at || initialStartedAt || "");
     const [expectedCompletionAt, setExpectedCompletionAt] = useState(site?.expected_completion_at || "");
     const [scheduleMode, setScheduleMode] = useState(normalizeSiteScheduleMode(site?.schedule_mode));
     const [workingWeekdays, setWorkingWeekdays] = useState<number[]>(
