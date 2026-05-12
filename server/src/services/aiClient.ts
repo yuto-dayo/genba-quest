@@ -22,7 +22,12 @@ export interface GenerateOptions {
     maxTokens?: number;
     temperature?: number;
     systemPrompt?: string;
+    model?: string;
 }
+
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+const OPENAI_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o";
+const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-20250514";
 
 export interface AIProvider {
     name: AIProviderName;
@@ -62,7 +67,7 @@ class GeminiProvider implements AIProvider {
 
     async generateText(prompt: string, options?: GenerateOptions): Promise<string> {
         const model = this.client.getGenerativeModel({
-            model: "gemini-3-flash-preview",
+            model: options?.model ?? GEMINI_MODEL,
             generationConfig: {
                 maxOutputTokens: options?.maxTokens,
                 temperature: options?.temperature,
@@ -86,7 +91,7 @@ class GeminiProvider implements AIProvider {
         options?: GenerateOptions
     ): Promise<string> {
         const model = this.client.getGenerativeModel({
-            model: "gemini-3-flash-preview",
+            model: options?.model ?? GEMINI_MODEL,
             generationConfig: {
                 maxOutputTokens: options?.maxTokens,
                 temperature: options?.temperature,
@@ -111,7 +116,7 @@ class GeminiProvider implements AIProvider {
 
     async chat(messages: ChatMessage[], options?: GenerateOptions): Promise<string> {
         const model = this.client.getGenerativeModel({
-            model: "gemini-3-flash-preview",
+            model: options?.model ?? GEMINI_MODEL,
             generationConfig: {
                 maxOutputTokens: options?.maxTokens,
                 temperature: options?.temperature,
@@ -160,7 +165,7 @@ class OpenAIProvider implements AIProvider {
         messages.push({ role: "user", content: prompt });
 
         const response = await this.client.chat.completions.create({
-            model: "gpt-4o",
+            model: options?.model ?? OPENAI_MODEL,
             messages,
             max_tokens: options?.maxTokens,
             temperature: options?.temperature,
@@ -195,7 +200,7 @@ class OpenAIProvider implements AIProvider {
         });
 
         const response = await this.client.chat.completions.create({
-            model: "gpt-4o",
+            model: options?.model ?? OPENAI_MODEL,
             messages,
             max_tokens: options?.maxTokens || 4096,
             temperature: options?.temperature,
@@ -215,7 +220,7 @@ class OpenAIProvider implements AIProvider {
         }
 
         const response = await this.client.chat.completions.create({
-            model: "gpt-4o",
+            model: options?.model ?? OPENAI_MODEL,
             messages: openaiMessages,
             max_tokens: options?.maxTokens,
             temperature: options?.temperature,
@@ -239,7 +244,7 @@ class AnthropicProvider implements AIProvider {
 
     async generateText(prompt: string, options?: GenerateOptions): Promise<string> {
         const response = await this.client.messages.create({
-            model: "claude-sonnet-4-20250514",
+            model: options?.model ?? ANTHROPIC_MODEL,
             max_tokens: options?.maxTokens || 4096,
             system: options?.systemPrompt,
             messages: [{ role: "user", content: prompt }],
@@ -259,7 +264,7 @@ class AnthropicProvider implements AIProvider {
         const mediaType = mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
 
         const response = await this.client.messages.create({
-            model: "claude-sonnet-4-20250514",
+            model: options?.model ?? ANTHROPIC_MODEL,
             max_tokens: options?.maxTokens || 4096,
             system: options?.systemPrompt,
             messages: [
@@ -294,7 +299,7 @@ class AnthropicProvider implements AIProvider {
             }));
 
         const response = await this.client.messages.create({
-            model: "claude-sonnet-4-20250514",
+            model: options?.model ?? ANTHROPIC_MODEL,
             max_tokens: options?.maxTokens || 4096,
             system: systemMessage?.content || options?.systemPrompt,
             messages: anthropicMessages,
