@@ -25,11 +25,6 @@ type DifficultyBand = "S1" | "S2" | "S3";
 type RiskBand = "low" | "medium" | "high";
 type SpeedClass = "slow" | "normal" | "fast";
 type OutcomeStatus = "ok" | "rework" | "unknown";
-type PathV31ResponsibilityLevel = "owner" | "lead" | "member" | "support";
-type PathV31RewardRoleKey = "planning" | "quality" | "admin" | "client";
-
-const PATH_V31_REWARD_ROLE_KEYS: PathV31RewardRoleKey[] = ["planning", "quality", "admin", "client"];
-const PATH_V31_RESPONSIBILITY_LEVELS: PathV31ResponsibilityLevel[] = ["owner", "lead", "member", "support"];
 
 interface PathRuleVersionRow {
   id: string;
@@ -50,24 +45,6 @@ interface DayLogInput {
   role_type: PathV31RoleType;
   credited_unit: number;
   memo?: string;
-}
-
-interface SiteMemberRolePlanInput {
-  id?: string;
-  site_id: string;
-  member_id: string;
-  role_shares: Record<string, unknown>;
-  note?: string;
-}
-
-interface SiteMemberRewardInput {
-  id?: string;
-  site_id: string;
-  member_id: string;
-  participation_units: number;
-  responsibility_level: PathV31ResponsibilityLevel;
-  role_shares: Record<string, unknown>;
-  note?: string;
 }
 
 interface SiteCloseInput {
@@ -236,35 +213,6 @@ function normalizeTradeFamilies(value: unknown): PathTradeFamily[] {
   return Array.from(new Set(families));
 }
 
-function normalizeRoleShares(value: unknown): Record<PathV31RewardRoleKey, number> {
-  if (!isRecord(value)) {
-    throw new Error("INVALID_ROLE_SHARES");
-  }
-  const roleShares = {} as Record<PathV31RewardRoleKey, number>;
-
-  for (const key of Object.keys(value)) {
-    assert(PATH_V31_REWARD_ROLE_KEYS.includes(key as PathV31RewardRoleKey), "INVALID_ROLE_SHARES");
-  }
-
-  for (const key of PATH_V31_REWARD_ROLE_KEYS) {
-    const raw = value[key];
-    const amount = raw === undefined ? 0 : Number(raw);
-    assert(Number.isFinite(amount) && amount >= 0, "INVALID_ROLE_SHARES");
-    roleShares[key] = amount;
-  }
-
-  return roleShares;
-}
-
-function normalizeResponsibilityLevel(value: unknown): PathV31ResponsibilityLevel {
-  const normalized = String(value ?? "");
-  assert(
-    PATH_V31_RESPONSIBILITY_LEVELS.includes(normalized as PathV31ResponsibilityLevel),
-    "INVALID_RESPONSIBILITY_LEVEL",
-  );
-  return normalized as PathV31ResponsibilityLevel;
-}
-
 function nextMonth(month: string): string {
   const normalized = ensureMonth(month);
   const [year, monthPart] = normalized.split("-").map(Number);
@@ -412,129 +360,6 @@ export class PathV31Service {
     }
 
     return (data ?? []) as Record<string, unknown>[];
-  }
-
-  async listSiteMemberRolePlans(params?: {
-    site_id?: string;
-    member_id?: string;
-    limit?: number;
-  }): Promise<Record<string, unknown>[]> {
-    let query = supabaseAdmin
-      .from("site_member_role_plans")
-      .select("*")
-      .eq("org_id", this.orgId)
-      .order("updated_at", { ascending: false });
-
-    if (params?.site_id) {
-      query = query.eq("site_id", ensureUuid(params.site_id, "INVALID_SITE_ID"));
-    }
-    if (params?.member_id) {
-      query = query.eq("member_id", ensureUuid(params.member_id, "INVALID_MEMBER_ID"));
-    }
-    if (typeof params?.limit === "number") {
-      query = query.limit(Math.max(1, Math.min(200, Math.floor(params.limit))));
-    }
-
-    const { data, error } = await query;
-    if (error) {
-      throw new Error(`Failed to fetch site member role plans: ${error.message}`);
-    }
-
-    return (data ?? []) as Record<string, unknown>[];
-  }
-
-  async upsertSiteMemberRolePlan(input: SiteMemberRolePlanInput, actor: ActorRef): Promise<Record<string, unknown>> {
-    const siteId = ensureUuid(input.site_id, "INVALID_SITE_ID");
-    const memberId = ensureUuid(input.member_id, "INVALID_MEMBER_ID");
-    assert(memberId === actor.id, "DAY_LOG_MEMBER_FORBIDDEN");
-    await this.assertSiteAllowsPathMutation(siteId);
-
-    const payload = {
-      org_id: this.orgId,
-      site_id: siteId,
-      member_id: memberId,
-      role_shares: normalizeRoleShares(input.role_shares),
-      note: input.note ?? "",
-    };
-
-    const query = supabaseAdmin
-      .from("site_member_role_plans")
-      .upsert(input.id ? { id: ensureUuid(input.id, "INVALID_ROLE_PLAN_ID"), ...payload } : payload, {
-        onConflict: "org_id,site_id,member_id",
-      })
-      .select("*")
-      .single();
-
-    const { data, error } = await query;
-    if (error) {
-      throw new Error(`Failed to save site member role plan: ${error.message}`);
-    }
-
-    return data as Record<string, unknown>;
-  }
-
-  async listSiteMemberRewardInputs(params?: {
-    site_id?: string;
-    member_id?: string;
-    limit?: number;
-  }): Promise<Record<string, unknown>[]> {
-    let query = supabaseAdmin
-      .from("site_member_reward_inputs")
-      .select("*")
-      .eq("org_id", this.orgId)
-      .order("updated_at", { ascending: false });
-
-    if (params?.site_id) {
-      query = query.eq("site_id", ensureUuid(params.site_id, "INVALID_SITE_ID"));
-    }
-    if (params?.member_id) {
-      query = query.eq("member_id", ensureUuid(params.member_id, "INVALID_MEMBER_ID"));
-    }
-    if (typeof params?.limit === "number") {
-      query = query.limit(Math.max(1, Math.min(200, Math.floor(params.limit))));
-    }
-
-    const { data, error } = await query;
-    if (error) {
-      throw new Error(`Failed to fetch site member reward inputs: ${error.message}`);
-    }
-
-    return (data ?? []) as Record<string, unknown>[];
-  }
-
-  async upsertSiteMemberRewardInput(input: SiteMemberRewardInput, actor: ActorRef): Promise<Record<string, unknown>> {
-    const siteId = ensureUuid(input.site_id, "INVALID_SITE_ID");
-    const memberId = ensureUuid(input.member_id, "INVALID_MEMBER_ID");
-    assert(memberId === actor.id, "DAY_LOG_MEMBER_FORBIDDEN");
-    await this.assertSiteAllowsPathMutation(siteId);
-
-    const participationUnits = Number(input.participation_units);
-    assert(Number.isFinite(participationUnits) && participationUnits >= 0, "INVALID_PARTICIPATION_UNITS");
-
-    const payload = {
-      org_id: this.orgId,
-      site_id: siteId,
-      member_id: memberId,
-      participation_units: participationUnits,
-      responsibility_level: normalizeResponsibilityLevel(input.responsibility_level),
-      role_shares: normalizeRoleShares(input.role_shares),
-      note: input.note ?? "",
-    };
-
-    const query = supabaseAdmin
-      .from("site_member_reward_inputs")
-      .upsert(input.id ? { id: ensureUuid(input.id, "INVALID_REWARD_INPUT_ID"), ...payload } : payload, {
-        onConflict: "org_id,site_id,member_id",
-      })
-      .select("*")
-      .single();
-
-    const { data, error } = await query;
-    if (error) {
-      throw new Error(`Failed to save site member reward input: ${error.message}`);
-    }
-
-    return data as Record<string, unknown>;
   }
 
   async upsertDayLog(input: DayLogInput, actor: ActorRef): Promise<Record<string, unknown>> {

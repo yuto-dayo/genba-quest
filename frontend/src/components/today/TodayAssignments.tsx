@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { AlertTriangle, Check, Clock3, FileText, Hammer, MapPin, Plus, UserRound, X } from 'lucide-react';
+import { AlertTriangle, Clock3, FileText, Hammer, MapPin, Plus, UserRound, X } from 'lucide-react';
 import type { Assignment } from '../../types/calendar';
 import type { Member, Site, SiteLineItem } from '../../lib/api';
 import styles from './TodayComponents.module.css';
 
 type DayLogStatus = 'none' | 'saved' | 'locked';
-export type SiteInputStatus = 'role_missing' | 'role_saved' | 'reward_missing' | 'reward_saved' | 'locked';
+export type SiteInputStatus = 'role_missing' | 'role_saved' | 'locked';
 
 interface TodayAssignmentsProps {
     assignments: Assignment[];
@@ -13,7 +13,6 @@ interface TodayAssignmentsProps {
     members: Member[];
     siteLineItemsBySiteId: Record<string, SiteLineItem[]>;
     onViewSiteMemo: (site: Site) => void;
-    onRecordRewardInput: (site: Site) => void;
     onAddConstruction: (site: Site) => void;
     getDayLogStatus: (siteId: string) => DayLogStatus;
     getSiteInputStatus: (siteId: string) => SiteInputStatus;
@@ -149,7 +148,6 @@ export function TodayAssignments({
     members,
     siteLineItemsBySiteId,
     onViewSiteMemo,
-    onRecordRewardInput,
     onAddConstruction,
     getDayLogStatus,
     getSiteInputStatus,
@@ -198,10 +196,7 @@ export function TodayAssignments({
                 siteSummaries.map((site) => {
                     const dayLogStatus = site.site ? getDayLogStatus(site.site.id) : 'none';
                     const siteInputStatus = site.site ? getSiteInputStatus(site.site.id) : 'role_missing';
-                    const showRewardAction =
-                        siteInputStatus === 'role_saved' ||
-                        siteInputStatus === 'reward_missing' ||
-                        siteInputStatus === 'reward_saved';
+                    const isMemoPrimary = dayLogStatus === 'none' || siteInputStatus === 'role_missing';
                     const constructionItems = site.site ? siteLineItemsBySiteId[site.site.id] || [] : [];
                     const constructionLabels = constructionItems.map(formatConstructionChip);
                     const shouldMarqueeConstruction = constructionLabels.length > 3;
@@ -370,25 +365,13 @@ export function TodayAssignments({
                                     <button
                                         type="button"
                                         className={`${styles.assignmentActionButton} ${
-                                            dayLogStatus === 'none' ? styles.assignmentActionPrimary : ''
+                                            isMemoPrimary ? styles.assignmentActionPrimary : ''
                                         }`}
                                         onClick={() => onViewSiteMemo(site.site!)}
                                     >
                                         <FileText size={14} />
                                         メモ
                                     </button>
-                                    {showRewardAction && (
-                                        <button
-                                            type="button"
-                                            className={`${styles.assignmentActionButton} ${
-                                                siteInputStatus === 'reward_missing' ? styles.assignmentActionPrimary : ''
-                                            }`}
-                                            onClick={() => onRecordRewardInput(site.site!)}
-                                        >
-                                            <Check size={14} />
-                                            責任
-                                        </button>
-                                    )}
                                 </div>
                             )}
 

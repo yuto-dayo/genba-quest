@@ -3468,8 +3468,6 @@ export type PathV31RoleType = "assist" | "lead" | "solo" | "support";
 export type PathV31ShareMode = "auto_points" | "fixed_template";
 export type PathV31OutcomeStatus = "ok" | "rework" | "unknown";
 export type PathV31SpeedClass = "slow" | "normal" | "fast";
-export type PathV31ResponsibilityLevel = "owner" | "lead" | "member" | "support";
-export type PathV31RewardRoleKey = "planning" | "quality" | "admin" | "client";
 
 export interface PathV31DayLog {
     id: string;
@@ -3623,30 +3621,6 @@ export interface PathV31MonthlyWorkUnits {
         source_schedule_count: number;
     }>;
     total_work_units: number;
-}
-
-export interface PathV31SiteMemberRewardInput {
-    id?: string;
-    org_id?: string;
-    site_id: string;
-    member_id: string;
-    participation_units: number;
-    responsibility_level: PathV31ResponsibilityLevel;
-    role_shares: Record<PathV31RewardRoleKey, number>;
-    note?: string;
-    created_at?: string;
-    updated_at?: string;
-}
-
-export interface PathV31SiteMemberRolePlan {
-    id?: string;
-    org_id?: string;
-    site_id: string;
-    member_id: string;
-    role_shares: Record<PathV31RewardRoleKey, number>;
-    note?: string;
-    created_at?: string;
-    updated_at?: string;
 }
 
 export interface PathV31Experience {
@@ -4008,48 +3982,6 @@ export const fetchPathV31MonthlyWorkUnits = (month: string) =>
     api<PathV31MonthlyWorkUnits>(
         `/api/v1/path/module/monthly-work-units?month=${encodeURIComponent(month)}`
     );
-
-export const fetchPathV31SiteMemberRewardInputs = (params?: {
-    site_id?: string;
-    member_id?: string;
-    limit?: number;
-}) => {
-    const searchParams = new URLSearchParams();
-    if (params?.site_id) searchParams.append("site_id", params.site_id);
-    if (params?.member_id) searchParams.append("member_id", params.member_id);
-    if (params?.limit !== undefined) searchParams.append("limit", String(params.limit));
-    const query = searchParams.toString();
-    return api<{ inputs: PathV31SiteMemberRewardInput[] }>(
-        `/api/v1/path/module/site-member-reward-inputs${query ? `?${query}` : ""}`
-    );
-};
-
-export const savePathV31SiteMemberRewardInput = (data: Omit<PathV31SiteMemberRewardInput, "id" | "org_id" | "created_at" | "updated_at">) =>
-    api<{ input: PathV31SiteMemberRewardInput }>("/api/v1/path/module/site-member-reward-inputs", {
-        method: "POST",
-        body: JSON.stringify(data),
-    });
-
-export const fetchPathV31SiteMemberRolePlans = (params?: {
-    site_id?: string;
-    member_id?: string;
-    limit?: number;
-}) => {
-    const searchParams = new URLSearchParams();
-    if (params?.site_id) searchParams.append("site_id", params.site_id);
-    if (params?.member_id) searchParams.append("member_id", params.member_id);
-    if (params?.limit !== undefined) searchParams.append("limit", String(params.limit));
-    const query = searchParams.toString();
-    return api<{ plans: PathV31SiteMemberRolePlan[] }>(
-        `/api/v1/path/module/site-member-role-plans${query ? `?${query}` : ""}`
-    );
-};
-
-export const savePathV31SiteMemberRolePlan = (data: Omit<PathV31SiteMemberRolePlan, "id" | "org_id" | "created_at" | "updated_at">) =>
-    api<{ plan: PathV31SiteMemberRolePlan }>("/api/v1/path/module/site-member-role-plans", {
-        method: "POST",
-        body: JSON.stringify(data),
-    });
 
 export const createPathV31SiteCloseProposal = (data: PathV31SiteCloseRequest) =>
     api<{

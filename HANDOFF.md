@@ -1,19 +1,19 @@
-# Session Handoff - 2026-05-12
+# Session Handoff - 2026-05-13
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `必要ならmasterへコミット/マージ`
+- NEXT_CMD: `P0: 現セッションの最優先タスクを記載`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
-  - `/Users/yutoyoshino/Documents/genba-quest/HANDOFF.md`
-  - `/Users/yutoyoshino/Documents/genba-quest/docs/DESIGN_PHILOSOPHY.md`
+  - `/Users/yutoyoshino/Documents/genba-quest-level-pr2/HANDOFF.md`
+  - `/Users/yutoyoshino/Documents/genba-quest-level-pr2/docs/DESIGN_PHILOSOPHY.md`
 - DO_NOT_READ:
   - `docs/DESIGN_PHILOSOPHY.md` (full)
 - VERIFY_FIRST:
   - `sed -n '1,120p' docs/DESIGN_PHILOSOPHY.md`
 - STATE:
-  - Branch: `master`
-  - Uncommitted: `9 files`
+  - Branch: `feature/level-draft-modal-enhance`
+  - Uncommitted: `14 files`
   - DB migrations: `latest local: none found`
   - Tests: `not run yet`
   - Lint: `not run yet`
@@ -23,9 +23,7 @@
 ## Session Events (audit log)
 
 <!-- HANDOFF_SESSION_EVENTS_START -->
-- 2026-05-12 19:55:23 +0900 — started by codex
-- 2026-05-12 20:24:20 +0900 — started by claude
-- 2026-05-12 22:08:13 +0900 — started by claude
+- 2026-05-13 01:12:48 +0900 — started by claude
 <!-- HANDOFF_SESSION_EVENTS_END -->
 
 ---
@@ -69,11 +67,11 @@
 
 ```text
 Agent: 未定（Claude Code / Codex）
-Branch: master
+Branch: feature/level-draft-modal-enhance
 Phase: A-0/A-1
 ```
 
-> [carryover] Working tree was dirty at session start (9 files). Prior session may have unfinished work — verify NEXT_CMD before executing.
+> [carryover] Working tree was dirty at session start (14 files). Prior session may have unfinished work — verify NEXT_CMD before executing.
 
 1. `docs/DESIGN_PHILOSOPHY.md` の冒頭を確認
 2. このファイルを更新しながら実装を進める
@@ -95,7 +93,7 @@ Phase: A-0/A-1
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: 必要ならmasterへコミット/マージ
+- [ ] **P0**: P0: 現セッションの最優先タスクを記載
 - [ ] **P1**: 次の優先タスクを記載
 
 ---
@@ -104,15 +102,20 @@ Phase: A-0/A-1
 
 | File | What Changed |
 | ---- | ------------ |
-| `HANDOFF.md` | [dirty: M] |
-| `frontend/public/appicon-genba-quest.png` | [dirty: M] |
-| `frontend/public/loading.png` | [dirty: D] |
-| `frontend/public/loading.webp` | [dirty: D] |
-| `frontend/src/components/LoadingScreen.module.css` | [dirty: M] |
-| `frontend/src/components/LoadingScreen.tsx` | [dirty: M] |
-| `.claude/scheduled_tasks.lock` | [dirty: ??] |
-| `docs/PROFILE_ONBOARDING_CODEX_PROMPT.md` | [dirty: ??] |
-| `docs/PROFILE_ONBOARDING_PLAN.md` | [dirty: ??] |
+| `HANDOFF.md` | [dirty: MM] |
+| `frontend/src/components/LevelDraftSheet.module.css` | [dirty: M] |
+| `frontend/src/components/LevelDraftSheet.test.tsx` | [dirty: A] |
+| `frontend/src/components/LevelDraftSheet.tsx` | [dirty: M] |
+| `frontend/src/components/today/TodayAssignments.test.tsx` | [dirty: M] |
+| `frontend/src/components/today/TodayAssignments.tsx` | [dirty: M] |
+| `frontend/src/lib/api.ts` | [dirty: M] |
+| `frontend/src/pages/Today.test.tsx` | [dirty: M] |
+| `frontend/src/pages/Today.tsx` | [dirty: M] |
+| `handoff/local.md` | [dirty: M] |
+| `server/src/__tests__/unit/pathModuleRoute.test.ts` | [dirty: M] |
+| `server/src/routes/pathModule.ts` | [dirty: M] |
+| `server/src/services/PathV31Service.ts` | [dirty: M] |
+| `supabase/migrations/20260516020000_drop_v31_reward_inputs_and_role_plans.sql` | [dirty: A] |
 
 ---
 

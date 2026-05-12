@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProposalRecord } from "../lib/api";
@@ -12,17 +12,17 @@ const fetchSiteDocuments = vi.fn();
 const fetchSiteLineItems = vi.fn();
 const fetchPendingProposals = vi.fn();
 const fetchPathV31DayLogs = vi.fn();
-const fetchPathV31SiteMemberRolePlans = vi.fn();
-const fetchPathV31SiteMemberRewardInputs = vi.fn();
 const savePathV31DayLog = vi.fn();
-const savePathV31SiteMemberRolePlan = vi.fn();
-const savePathV31SiteMemberRewardInput = vi.fn();
+const fetchSite = vi.fn();
+const fetchPathV33MonthlyPreview = vi.fn();
+const submitPathV33LevelDraft = vi.fn();
 const approveProposal = vi.fn();
 const executeProposal = vi.fn();
 const instructProposal = vi.fn();
 const rejectProposal = vi.fn();
 
 vi.mock("framer-motion", () => ({
+    AnimatePresence: ({ children }: { children: ReactNode }) => <>{children}</>,
     motion: new Proxy(
         {},
         {
@@ -39,13 +39,12 @@ vi.mock("../lib/api", () => ({
     fetchMembers: (...args: unknown[]) => fetchMembers(...args),
     fetchSiteDocuments: (...args: unknown[]) => fetchSiteDocuments(...args),
     fetchSiteLineItems: (...args: unknown[]) => fetchSiteLineItems(...args),
+    fetchSite: (...args: unknown[]) => fetchSite(...args),
     fetchPendingProposals: (...args: unknown[]) => fetchPendingProposals(...args),
     fetchPathV31DayLogs: (...args: unknown[]) => fetchPathV31DayLogs(...args),
-    fetchPathV31SiteMemberRolePlans: (...args: unknown[]) => fetchPathV31SiteMemberRolePlans(...args),
-    fetchPathV31SiteMemberRewardInputs: (...args: unknown[]) => fetchPathV31SiteMemberRewardInputs(...args),
+    fetchPathV33MonthlyPreview: (...args: unknown[]) => fetchPathV33MonthlyPreview(...args),
+    submitPathV33LevelDraft: (...args: unknown[]) => submitPathV33LevelDraft(...args),
     savePathV31DayLog: (...args: unknown[]) => savePathV31DayLog(...args),
-    savePathV31SiteMemberRolePlan: (...args: unknown[]) => savePathV31SiteMemberRolePlan(...args),
-    savePathV31SiteMemberRewardInput: (...args: unknown[]) => savePathV31SiteMemberRewardInput(...args),
     approveProposal: (...args: unknown[]) => approveProposal(...args),
     completeFocusItem: vi.fn(),
     createFocusItem: vi.fn(),
@@ -215,10 +214,47 @@ describe("Today page", () => {
             },
         ]);
         fetchSiteLineItems.mockResolvedValue([]);
+        fetchSite.mockResolvedValue({
+            id: "site-1",
+            name: "渋谷マンション",
+            status: "active",
+            created_at: "2026-04-22T00:00:00.000Z",
+            work_types: [],
+            address: "",
+        });
         fetchPendingProposals.mockResolvedValue([]);
         fetchPathV31DayLogs.mockResolvedValue({ logs: [] });
-        fetchPathV31SiteMemberRolePlans.mockResolvedValue({ plans: [] });
-        fetchPathV31SiteMemberRewardInputs.mockResolvedValue({ inputs: [] });
+        fetchPathV33MonthlyPreview.mockResolvedValue({
+            month: "2026-04",
+            member_id: "user-1",
+            current: {
+                level: "L3",
+                weight_milli: 640,
+                score: 1.8,
+                total_work_days: 1,
+                draft_count: 1,
+                drafts: [{ site_id: "site-1", tier: 2, work_days: 1 }],
+            },
+            prior_level: null,
+            drafts: [],
+        });
+        submitPathV33LevelDraft.mockResolvedValue({
+            draft: null,
+            preview: {
+                month: "2026-04",
+                member_id: "user-1",
+                current: {
+                    level: "L3",
+                    weight_milli: 640,
+                    score: 1.8,
+                    total_work_days: 1,
+                    draft_count: 1,
+                    drafts: [{ site_id: "site-1", tier: 2, work_days: 1 }],
+                },
+                prior_level: null,
+                drafts: [],
+            },
+        });
         savePathV31DayLog.mockResolvedValue({
             log: {
                 id: "log-1",
@@ -231,32 +267,6 @@ describe("Today page", () => {
                 credited_unit: 1,
                 memo: "",
                 locked_by_site_close_id: null,
-                created_at: "2026-04-22T09:00:00.000Z",
-                updated_at: "2026-04-22T09:00:00.000Z",
-            },
-        });
-        savePathV31SiteMemberRolePlan.mockResolvedValue({
-            plan: {
-                id: "role-plan-1",
-                org_id: "org-1",
-                site_id: "site-1",
-                member_id: "user-1",
-                role_shares: { planning: 1, quality: 0, admin: 0, client: 0 },
-                note: "",
-                created_at: "2026-04-22T09:00:00.000Z",
-                updated_at: "2026-04-22T09:00:00.000Z",
-            },
-        });
-        savePathV31SiteMemberRewardInput.mockResolvedValue({
-            input: {
-                id: "reward-input-1",
-                org_id: "org-1",
-                site_id: "site-1",
-                member_id: "user-1",
-                participation_units: 1,
-                responsibility_level: "member",
-                role_shares: { planning: 1, quality: 0, admin: 0, client: 0 },
-                note: "",
                 created_at: "2026-04-22T09:00:00.000Z",
                 updated_at: "2026-04-22T09:00:00.000Z",
             },
@@ -362,7 +372,7 @@ describe("Today page", () => {
         });
     });
 
-    it("no longer exposes the per-card 役割 button (V3.3 routes through the bell)", async () => {
+    it("no longer exposes the per-card 役割 / 責任 buttons (V3.3 routes through the bell)", async () => {
         render(
             <MemoryRouter initialEntries={["/today"]}>
                 <Routes>
@@ -373,6 +383,7 @@ describe("Today page", () => {
 
         await screen.findByRole("button", { name: "メモ" });
         expect(screen.queryByRole("button", { name: "役割" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "責任" })).not.toBeInTheDocument();
     });
 
     it("opens the pending proposal sheet from the proposal query param", async () => {
