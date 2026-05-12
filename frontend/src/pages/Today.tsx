@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
     AlertCircle,
     Building2,
     Check,
     CheckCircle2,
+    ChevronLeft,
+    ChevronRight,
     ClipboardCheck,
     FileText,
     Paperclip,
     Plus,
     RefreshCw,
+    RotateCcw,
     X,
 } from "lucide-react";
 import {
@@ -51,10 +54,12 @@ import { MonthlySummary } from "../components/today/MonthlySummary";
 import { getDevAuthUserOption, isDevAuthSessionActive } from "../lib/devAuth";
 import { getErrorMessage } from "../lib/error";
 import { buildPathProposalHref, getPathProposalContext, isPathModuleProposal } from "../lib/pathProposal";
+import { motion as motionTokens } from "../lib/motion/tokens";
 import { supabase } from "../lib/supabase";
 import styles from "./Today.module.css";
 
 const TODAY_FOCUS_EVENT = "today:open-focus-item-composer";
+const SWIPE_COACHMARK_KEY = "gq_today_swipe_coachmark_v1";
 
 const HORIZON_LABELS: Record<FocusItemHorizon, string> = {
     today: "今日",
@@ -149,6 +154,45 @@ function buildTodayKey(date: Date): string {
     ).padStart(2, "0")}`;
 }
 
+function parseDateKey(value: string): Date {
+    const [year, month, day] = value.split("-").map((token) => Number(token));
+    return new Date(year, month - 1, day);
+}
+
+function addDays(value: string, offset: number): string {
+    const next = parseDateKey(value);
+    next.setDate(next.getDate() + offset);
+    return buildTodayKey(next);
+}
+
+function buildDayLabel(currentKey: string, todayKey: string): string {
+    const current = parseDateKey(currentKey);
+    const today = parseDateKey(todayKey);
+    const diffDays = Math.round((current.getTime() - today.getTime()) / 86400000);
+
+    const prefix =
+        diffDays === 0
+            ? "今日 "
+            : diffDays === 1
+              ? "明日 "
+              : diffDays === 2
+                ? "明後日 "
+                : diffDays === -1
+                  ? "昨日 "
+                  : diffDays === -2
+                    ? "おととい "
+                    : "";
+
+    return (
+        prefix +
+        current.toLocaleDateString("ja-JP", {
+            month: "numeric",
+            day: "numeric",
+            weekday: "short",
+        })
+    );
+}
+
 function buildDayLogForm(log: PathV31DayLog): DayLogFormState {
     const tradeFamily = log.trade_families[0] || "";
     return {
@@ -163,9 +207,11 @@ function buildDayLogForm(log: PathV31DayLog): DayLogFormState {
     };
 }
 
-function buildTodayDayLogMap(logs: PathV31DayLog[]): Record<string, PathV31DayLog> {
+function buildDayLogMapForDate(logs: PathV31DayLog[], targetDate: string): Record<string, PathV31DayLog> {
     return logs.reduce<Record<string, PathV31DayLog>>((acc, log) => {
-        acc[log.site_id] = log;
+        if (log.date === targetDate) {
+            acc[log.site_id] = log;
+        }
         return acc;
     }, {});
 }
@@ -227,11 +273,12 @@ export function Today() {
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const [todayDate] = useState(() => new Date());
+    const [showSwipeCoachmark, setShowSwipeCoachmark] = useState(false);
     const [focusItems, setFocusItems] = useState<FocusItemRecord[]>([]);
     const [sites, setSites] = useState<Site[]>([]);
     const [members, setMembers] = useState<Member[]>([]);
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-    const [todayDayLogsBySiteId, setTodayDayLogsBySiteId] = useState<Record<string, PathV31DayLog>>({});
+    const [dayLogs, setDayLogs] = useState<PathV31DayLog[]>([]);
     const [siteMemoLogs, setSiteMemoLogs] = useState<PathV31DayLog[]>([]);
     const [siteMemoDocuments, setSiteMemoDocuments] = useState<SiteDocument[]>([]);
     const [siteMemoLoading, setSiteMemoLoading] = useState(false);
@@ -262,13 +309,26 @@ export function Today() {
     const { calendarDays } = useCalendar();
     const targetProposalId = searchParams.get("proposal");
     const todayKey = useMemo(() => buildTodayKey(todayDate), [todayDate]);
-    const todayAssignments = useMemo(
-        () => calendarDays.find((day) => day.isToday)?.assignments || [],
-        [calendarDays]
+    const [currentDayKey, setCurrentDayKey] = useState(todayKey);
+    const currentAssignments = useMemo(
+        () => calendarDays.find((day) => day.date === currentDayKey)?.assignments || [],
+        [calendarDays, currentDayKey]
     );
-    const todaySiteIds = useMemo(() => {
+    const isPast = currentDayKey < todayKey;
+    const isToday = currentDayKey === todayKey;
+    const isFuture = currentDayKey > todayKey;
+    const readOnly = isPast || isFuture;
+    const currentDayLabel = useMemo(
+        () => buildDayLabel(currentDayKey, todayKey),
+        [currentDayKey, todayKey]
+    );
+    const currentDayLogsBySiteId = useMemo(
+        () => buildDayLogMapForDate(dayLogs, currentDayKey),
+        [dayLogs, currentDayKey]
+    );
+    const currentSiteIds = useMemo(() => {
         const ids = new Set<string>();
-        todayAssignments.forEach((assignment) => {
+        currentAssignments.forEach((assignment) => {
             if (assignment.site_id) {
                 ids.add(assignment.site_id);
                 return;
@@ -282,18 +342,18 @@ export function Today() {
             }
         });
         return Array.from(ids).sort();
-    }, [sites, todayAssignments]);
-    const todaySiteIdsKey = todaySiteIds.join("|");
-    const todayNumberSites = useMemo(
-        () => todaySiteIds.map((siteId) => {
+    }, [sites, currentAssignments]);
+    const currentSiteIdsKey = currentSiteIds.join("|");
+    const currentNumberSites = useMemo(
+        () => currentSiteIds.map((siteId) => {
             const site = sites.find((item) => item.id === siteId);
-            const assignment = todayAssignments.find((item) => item.site_id === siteId);
+            const assignment = currentAssignments.find((item) => item.site_id === siteId);
             return {
                 id: siteId,
                 name: site?.name || assignment?.site_name || "現場未設定",
             };
         }),
-        [sites, todayAssignments, todaySiteIds]
+        [sites, currentAssignments, currentSiteIds]
     );
     const selectedComposerSite = useMemo(
         () => sites.find((site) => site.id === composerForm.site_id) || null,
@@ -353,11 +413,11 @@ export function Today() {
     const syncTodayDayLogs = useCallback(async (memberId: string) => {
         const response = await fetchPathV31DayLogs({
             member_id: memberId,
-            from: todayKey,
-            to: todayKey,
+            from: addDays(todayKey, -30),
+            to: addDays(todayKey, 30),
             limit: 50,
         });
-        setTodayDayLogsBySiteId(buildTodayDayLogMap(response.logs));
+        setDayLogs(response.logs);
         return response.logs;
     }, [todayKey]);
 
@@ -380,7 +440,7 @@ export function Today() {
     }, []);
 
     useEffect(() => {
-        const siteIds = todaySiteIdsKey ? todaySiteIdsKey.split("|") : [];
+        const siteIds = currentSiteIdsKey ? currentSiteIdsKey.split("|") : [];
         let cancelled = false;
 
         if (siteIds.length === 0) {
@@ -402,7 +462,7 @@ export function Today() {
         return () => {
             cancelled = true;
         };
-    }, [todaySiteIdsKey]);
+    }, [currentSiteIdsKey]);
 
     const loadData = useCallback(async () => {
         try {
@@ -430,7 +490,7 @@ export function Today() {
             if (nextCurrentUserId) {
                 await syncTodayDayLogs(nextCurrentUserId);
             } else {
-                setTodayDayLogsBySiteId({});
+                setDayLogs([]);
             }
         } catch (err: unknown) {
             setError(getErrorMessage(err));
@@ -462,6 +522,17 @@ export function Today() {
         return () => window.removeEventListener(TODAY_FOCUS_EVENT, handleOpenComposer);
     }, [openTodayFocusComposer]);
 
+    useEffect(() => {
+        if (window.localStorage.getItem(SWIPE_COACHMARK_KEY)) {
+            return;
+        }
+
+        setShowSwipeCoachmark(true);
+        window.localStorage.setItem(SWIPE_COACHMARK_KEY, "shown");
+        const timeoutId = window.setTimeout(() => setShowSwipeCoachmark(false), 2000);
+        return () => window.clearTimeout(timeoutId);
+    }, []);
+
     const openComposerForEdit = (item: FocusItemRecord) => {
         setComposerMode("general");
         setComposerPreset(null);
@@ -472,17 +543,17 @@ export function Today() {
     };
 
     const getDayLogStatus = useCallback((siteId: string): PathDayLogStatus => {
-        const log = todayDayLogsBySiteId[siteId];
+        const log = currentDayLogsBySiteId[siteId];
         if (!log) {
             return "none";
         }
         return log.locked_by_site_close_id ? "locked" : "saved";
-    }, [todayDayLogsBySiteId]);
+    }, [currentDayLogsBySiteId]);
 
     const getSiteInputStatus = useCallback((siteId: string): SiteInputStatus => {
         // V3.1 reward/role tracking was removed. Level drafts now route from bell notifications.
-        return todayDayLogsBySiteId[siteId] ? "role_saved" : "role_missing";
-    }, [todayDayLogsBySiteId]);
+        return currentDayLogsBySiteId[siteId] ? "role_saved" : "role_missing";
+    }, [currentDayLogsBySiteId]);
 
     const loadSiteMemoContext = useCallback(async (siteId: string) => {
         try {
@@ -502,13 +573,13 @@ export function Today() {
     }, []);
 
     const prepareDayLogSheet = (site: Site, mode: DayLogSheetMode) => {
-        const existingLog = todayDayLogsBySiteId[site.id];
+        const existingLog = currentDayLogsBySiteId[site.id];
         setDayLogForm(
             existingLog
                 ? buildDayLogForm(existingLog)
                 : {
                       ...EMPTY_DAY_LOG_FORM,
-                      date: todayKey,
+                      date: currentDayKey,
                       site_id: site.id,
                       member_id: currentUserId || "",
                   }
@@ -533,7 +604,7 @@ export function Today() {
                 return;
             }
 
-            const existingLog = dayLogForm.site_id ? todayDayLogsBySiteId[dayLogForm.site_id] : null;
+            const existingLog = dayLogForm.site_id ? currentDayLogsBySiteId[dayLogForm.site_id] : null;
             if (existingLog?.locked_by_site_close_id) {
                 setActionError("この記録は現場締め後のため編集できません");
                 return;
@@ -580,6 +651,12 @@ export function Today() {
         () => pendingProposals.filter((proposal) => isPathModuleProposal(proposal)).length,
         [pendingProposals]
     );
+    const goPrevDay = useCallback(() => {
+        setCurrentDayKey((current) => addDays(current, -1));
+    }, []);
+    const goNextDay = useCallback(() => {
+        setCurrentDayKey((current) => addDays(current, 1));
+    }, []);
 
     useEffect(() => {
         if (!targetProposalId) {
@@ -700,10 +777,10 @@ export function Today() {
                 memo: dayLogForm.memo.trim() || undefined,
             });
 
-            setTodayDayLogsBySiteId((current) => ({
-                ...current,
-                [log.site_id]: log,
-            }));
+            setDayLogs((current) => {
+                const next = current.filter((item) => item.id !== log.id);
+                return [log, ...next].sort((a, b) => b.created_at.localeCompare(a.created_at));
+            });
             setSiteMemoLogs((current) => {
                 const next = current.filter((item) => item.id !== log.id);
                 return [log, ...next].sort((a, b) => b.created_at.localeCompare(a.created_at));
@@ -818,106 +895,189 @@ export function Today() {
                 </div>
             )}
 
-            <motion.section
-                className={styles.section}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.04 }}
-            >
-                <TodayAssignments
-                    assignments={todayAssignments}
-                    sites={sites}
-                    members={members}
-                    siteLineItemsBySiteId={siteLineItemsBySiteId}
-                    onViewSiteMemo={openDayLogReviewSheet}
-                    onAddConstruction={setConstructionEditSite}
-                    getDayLogStatus={getDayLogStatus}
-                    getSiteInputStatus={getSiteInputStatus}
-                />
-            </motion.section>
+            <div className={styles.dateStrip} aria-live="polite">
+                <button type="button" className={styles.dateArrowButton} aria-label="前の日へ" onClick={goPrevDay}>
+                    <ChevronLeft size={20} />
+                </button>
+                <span className={styles.dateStripLabel}>{currentDayLabel}</span>
+                <button type="button" className={styles.dateArrowButton} aria-label="次の日へ" onClick={goNextDay}>
+                    <ChevronRight size={20} />
+                </button>
+                <AnimatePresence>
+                    {!isToday && (
+                        <motion.button
+                            key="return-today"
+                            type="button"
+                            className={styles.returnTodayPill}
+                            onClick={() => setCurrentDayKey(todayKey)}
+                            initial={{ opacity: 0, scale: 0.85, x: -6 }}
+                            animate={{ opacity: 1, scale: 1, x: 0 }}
+                            exit={{ opacity: 0, scale: 0.85, x: -6 }}
+                            transition={{ type: "spring", stiffness: 460, damping: 22 }}
+                            aria-label="今日に戻る"
+                        >
+                            <RotateCcw size={14} />
+                            <span>今日へ</span>
+                        </motion.button>
+                    )}
+                </AnimatePresence>
+            </div>
 
-            <motion.section
-                className={styles.section}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.08 }}
-            >
-                <div className={styles.sectionHeader}>
-                    <h2 className={styles.sectionTitle}>今日やること</h2>
-                    <button
-                        type="button"
-                        className={styles.sectionAddButton}
-                        onClick={openTodayFocusComposer}
-                        aria-label="今日やることを追加"
+            <AnimatePresence>
+                {showSwipeCoachmark && (
+                    <motion.div
+                        className={styles.coachmark}
+                        onClick={() => setShowSwipeCoachmark(false)}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
                     >
-                        <Plus size={16} />
-                        追加
-                    </button>
-                </div>
-
-                {todayFocusItems.length === 0 ? (
-                    <div className={styles.emptyState}>
-                        <p>今日やることはありません</p>
-                        <span>追加から今日の作業を残せます</span>
-                    </div>
-                ) : (
-                    <div className={styles.focusList}>
-                        {todayFocusItems.map((item) => (
-                            <article key={item.id} className={styles.focusItem}>
-                                <button
-                                    type="button"
-                                    className={styles.completeCircle}
-                                    disabled={completingId === item.id}
-                                    onClick={() => void handleCompleteFocusItem(item)}
-                                    aria-label="完了にする"
-                                >
-                                    {completingId === item.id ? (
-                                        <div className={styles.miniSpinner} />
-                                    ) : (
-                                        <Check size={14} className={styles.checkIcon} />
-                                    )}
-                                </button>
-                                <div
-                                    className={styles.focusContent}
-                                    onClick={() => openComposerForEdit(item)}
-                                >
-                                    <div className={styles.focusTitleRow}>
-                                        <span className={styles.focusTitle}>{item.title}</span>
-                                        <span
-                                            className={`${styles.scopeTag} ${item.scope === "org" ? styles.scopeTagOrg : ""}`}
-                                        >
-                                            {SCOPE_LABELS[item.scope]}
-                                        </span>
-                                    </div>
-                                    {item.note && (
-                                        <p className={styles.focusNote}>{item.note}</p>
-                                    )}
-                                    {item.site_name_snapshot && (
-                                        <div className={styles.focusMeta}>
-                                            <span className={styles.metaItem}>
-                                                <Building2 size={12} />
-                                                {item.site_name_snapshot}
-                                            </span>
-                                        </div>
-                                    )}
-                                </div>
-                            </article>
-                        ))}
-                    </div>
+                        <motion.div
+                            className={styles.coachmarkFinger}
+                            animate={{ x: [-20, 20, -20] }}
+                            transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+                        >
+                            👉
+                        </motion.div>
+                        <p>横にスワイプで他の日</p>
+                    </motion.div>
                 )}
-            </motion.section>
+            </AnimatePresence>
 
-            <motion.section
-                className={styles.section}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.12 }}
+            <motion.div
+                className={styles.dayGestureLayer}
+                drag="x"
+                dragDirectionLock
+                dragConstraints={{ left: 0, right: 0 }}
+                dragElastic={0.2}
+                onDragEnd={(_, info) => {
+                    const swipeThresholdPx = 80;
+                    const swipeVelocity = 500;
+                    if (info.offset.x < -swipeThresholdPx || info.velocity.x < -swipeVelocity) {
+                        goNextDay();
+                    } else if (info.offset.x > swipeThresholdPx || info.velocity.x > swipeVelocity) {
+                        goPrevDay();
+                    }
+                }}
+                transition={motionTokens.spatialDefault}
             >
-                <div className={styles.sectionHeader}>
-                    <h2 className={styles.sectionTitle}>現場の数字</h2>
-                </div>
-                <MonthlySummary sites={todayNumberSites} />
-            </motion.section>
+                <AnimatePresence mode="wait">
+                    <motion.div
+                        key={currentDayKey}
+                        className={styles.dayContent}
+                        initial={{ opacity: 0, x: 12 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -12 }}
+                        transition={motionTokens.spatialDefault}
+                    >
+                        <motion.section
+                            className={styles.section}
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.04 }}
+                        >
+                            <TodayAssignments
+                                assignments={currentAssignments}
+                                sites={sites}
+                                members={members}
+                                siteLineItemsBySiteId={siteLineItemsBySiteId}
+                                onViewSiteMemo={openDayLogReviewSheet}
+                                onAddConstruction={setConstructionEditSite}
+                                getDayLogStatus={getDayLogStatus}
+                                getSiteInputStatus={getSiteInputStatus}
+                                readOnly={readOnly}
+                            />
+                        </motion.section>
+
+                        {isToday && (
+                            <motion.section
+                                className={styles.section}
+                                initial={{ opacity: 0, y: 8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.08 }}
+                            >
+                                <div className={styles.sectionHeader}>
+                                    <h2 className={styles.sectionTitle}>やること</h2>
+                                    <button
+                                        type="button"
+                                        className={styles.sectionAddButton}
+                                        onClick={openTodayFocusComposer}
+                                        aria-label="やることを追加"
+                                    >
+                                        <Plus size={16} />
+                                        追加
+                                    </button>
+                                </div>
+
+                                {todayFocusItems.length === 0 ? (
+                                    <div className={styles.emptyState}>
+                                        <p>やることはありません</p>
+                                        <span>追加から今日の作業を残せます</span>
+                                    </div>
+                                ) : (
+                                    <div className={styles.focusList}>
+                                        {todayFocusItems.map((item) => (
+                                            <article key={item.id} className={styles.focusItem}>
+                                                <button
+                                                    type="button"
+                                                    className={styles.completeCircle}
+                                                    disabled={completingId === item.id}
+                                                    onClick={() => void handleCompleteFocusItem(item)}
+                                                    aria-label="完了にする"
+                                                >
+                                                    {completingId === item.id ? (
+                                                        <div className={styles.miniSpinner} />
+                                                    ) : (
+                                                        <Check size={14} className={styles.checkIcon} />
+                                                    )}
+                                                </button>
+                                                <div
+                                                    className={styles.focusContent}
+                                                    onClick={() => openComposerForEdit(item)}
+                                                >
+                                                    <div className={styles.focusTitleRow}>
+                                                        <span className={styles.focusTitle}>{item.title}</span>
+                                                        <span
+                                                            className={`${styles.scopeTag} ${item.scope === "org" ? styles.scopeTagOrg : ""}`}
+                                                        >
+                                                            {SCOPE_LABELS[item.scope]}
+                                                        </span>
+                                                    </div>
+                                                    {item.note && (
+                                                        <p className={styles.focusNote}>{item.note}</p>
+                                                    )}
+                                                    {item.site_name_snapshot && (
+                                                        <div className={styles.focusMeta}>
+                                                            <span className={styles.metaItem}>
+                                                                <Building2 size={12} />
+                                                                {item.site_name_snapshot}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </article>
+                                        ))}
+                                    </div>
+                                )}
+                            </motion.section>
+                        )}
+
+                        {isToday && (
+                            <motion.section
+                                className={styles.section}
+                                initial={{ opacity: 0, y: 8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.12 }}
+                            >
+                                <div className={styles.sectionHeader}>
+                                    <h2 className={styles.sectionTitle}>現場の数字</h2>
+                                </div>
+                                <MonthlySummary sites={currentNumberSites} />
+                            </motion.section>
+                        )}
+                    </motion.div>
+                </AnimatePresence>
+            </motion.div>
 
             {pendingSheetOpen && (
                 <div className={styles.sheetOverlay} onClick={closePendingSheet}>
