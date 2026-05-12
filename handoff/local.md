@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `Review diff, decide whether to commit HANDOFF updates with feature files, then commit/push and open PR.`
+- NEXT_CMD: `必要ならcommit/push or envテンプレート更新(DOC_CLASSIFIER_* / GEMINI_MODEL)`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest-level-pr2/handoff/local.md`
@@ -18,8 +18,8 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `f87f969`
-  - Updated: `2026-05-13T01:05:50+0900`
+  - HEAD: `88cbee5`
+  - Updated: `2026-05-13T02:41:43+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
@@ -34,7 +34,9 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `Review diff, decide whether to commit HANDOFF updates with feature files, then commit/push and open PR.`. Source: realtime
+- [focus] NEXT_CMD: `必要ならcommit/push or envテンプレート更新(DOC_CLASSIFIER_* / GEMINI_MODEL)`. Source: realtime
+- [H0002] Completed: AIモデルenv化(gemini/openai/anthropic)+DocumentClassifierをGemini Lite/Flashへ移行+monster機能コード削除
+- [H0002] Remaining: 必要ならcommit/push or envテンプレート更新(DOC_CLASSIFIER_* / GEMINI_MODEL)
 - [H0001] Completed: Implemented PR2 scope: removed V31 reward/role dead code across DB/server/frontend, removed Today responsibility action, and enhanced LevelDraftSheet with work type/address context.
 - [H0001] Remaining: Review diff, decide whether to commit HANDOFF updates with feature files, then commit/push and open PR.
 <!-- HANDOFF_L1_END -->
@@ -43,16 +45,18 @@
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0002] Auto-captured decision: AIモデルenv化(gemini/openai/anthropic)+DocumentClassifierをGemini Lite/Flashへ移行+monster機能コード削除
 - [H0001] Auto-captured decision: Implemented PR2 scope: removed V31 reward/role dead code across DB/server/frontend, removed Today responsibility action, and enhanced LevelDraftSheet with work type/address cont...
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0001] No new landmines reported in this chunk.
+- [H0002] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0002] 必要ならcommit/push or envテンプレート更新(DOC_CLASSIFIER_* / GEMINI_MODEL)
 - [H0001] Review diff, decide whether to commit HANDOFF updates with feature files, then commit/push and open PR.
 <!-- HANDOFF_L2_THREADS_END -->
 
@@ -60,7 +64,7 @@
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `1`
+- current_l3_entries: `2`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -91,12 +95,14 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] AIモデルenv化(gemini/openai/anthropic)+DocumentClassifierをGemini Lite/Flashへ移行+monster機能コード削除
 - [x] Implemented PR2 scope: removed V31 reward/role dead code across DB/server/frontend, removed Today responsibility action, and enhanced LevelDraftSheet with work type/address context.
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: Review diff, decide whether to commit HANDOFF updates with feature files, then commit/push and open PR.
+- [ ] **P0**: 必要ならcommit/push or envテンプレート更新(DOC_CLASSIFIER_* / GEMINI_MODEL)
+- [ ] **P1**: Review diff, decide whether to commit HANDOFF updates with feature files, then commit/push and open PR.
 ---
 
 ## 5. Changed Files
@@ -163,5 +169,21 @@ cd frontend && npx eslint src/
   - Auto-captured decision: Implemented PR2 scope: removed V31 reward/role dead code across DB/server/frontend, removed Today responsibility action, and enhanced LevelDraftSheet with work type/address cont...
 - Validation:
   - `frontend: vitest TodayAssignments+Today+LevelDraftSheet = pass; server: jest pathModuleRoute = pass; build: server tsc + frontend tsc/vite = pass; lint: frontend targeted eslint = pass; server targeted eslint = skipped(no eslint.config)`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-13 02:41:43 +0900
+
+- Entry-ID: `H0002`
+- Completed:
+  - [x] AIモデルenv化(gemini/openai/anthropic)+DocumentClassifierをGemini Lite/Flashへ移行+monster機能コード削除
+- Remaining:
+  - [ ] 必要ならcommit/push or envテンプレート更新(DOC_CLASSIFIER_* / GEMINI_MODEL)
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: AIモデルenv化(gemini/openai/anthropic)+DocumentClassifierをGemini Lite/Flashへ移行+monster機能コード削除
+- Validation:
+  - `server unit tests 46 suites passed (SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY dummy); npm run build passed`
 - Landmines:
   - No new landmines reported in this chunk.

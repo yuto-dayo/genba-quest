@@ -2,12 +2,12 @@
  * 書類分類サービス (Document Classifier)
  *
  * OCRテキストから建設業書類のタイプを判定し、適切なハンドラーにルーティング。
- * Claude Haiku 3 で低コスト処理、confidence < 70 で Sonnet へエスカレーション。
+ * 軽量モデルで低コスト処理し、confidence < 70 で重量モデルへエスカレーション。
  *
  * @see .claude/skills/document-classifier/SKILL.md
  */
 
-import Anthropic from "@anthropic-ai/sdk";
+import { getAIProvider, type AIProvider } from "./aiClient";
 
 // ============================================================
 // Types
@@ -249,17 +249,13 @@ ${ocrText}
 // ============================================================
 
 export class DocumentClassifier {
-  private client: Anthropic;
-  private haikuModel = "claude-3-haiku-20240307";
-  private sonnetModel = "claude-sonnet-4-20250514";
+  private provider: AIProvider;
+  private haikuModel = process.env.DOC_CLASSIFIER_LIGHT_MODEL ?? process.env.GEMINI_CLASSIFIER_LIGHT_MODEL ?? "gemini-2.5-flash-lite";
+  private sonnetModel = process.env.DOC_CLASSIFIER_HEAVY_MODEL ?? process.env.GEMINI_CLASSIFIER_HEAVY_MODEL ?? process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
   private confidenceThreshold = 70;
 
   constructor() {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new Error("ANTHROPIC_API_KEY is not set");
-    }
-    this.client = new Anthropic({ apiKey });
+    this.provider = getAIProvider("gemini");
   }
 
   /**
@@ -301,23 +297,15 @@ export class DocumentClassifier {
     model: string
   ): Promise<Omit<ClassificationResult, "model_used">> {
     try {
-      const response = await this.client.messages.create({
+      const responseText = await this.provider.generateText(buildUserPrompt(ocrText), {
         model,
-        max_tokens: 2048,
-        system: SYSTEM_PROMPT,
-        messages: [
-          { role: "user", content: buildUserPrompt(ocrText) }
-        ],
+        maxTokens: 2048,
+        systemPrompt: SYSTEM_PROMPT,
       });
 
-      const content = response.content[0];
-      if (content.type !== "text") {
-        throw new Error("Unexpected response type");
-      }
-
       // JSONブロックを抽出
-      let jsonStr = content.text;
-      const jsonMatch = content.text.match(/```json\s*([\s\S]*?)\s*```/);
+      let jsonStr = responseText;
+      const jsonMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/);
       if (jsonMatch) {
         jsonStr = jsonMatch[1];
       }
