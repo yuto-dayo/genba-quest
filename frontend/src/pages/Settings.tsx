@@ -164,12 +164,17 @@ function formatProfileError(code: string): string {
 }
 
 function buildInviteLink(inviteId: string) {
+    // openExternalBrowser=1: LINE固有のクエリ。LINEトーク内で踏まれた時に
+    // アプリ内WebViewではなくOS既定ブラウザ (Safari/Chrome) で開かせる。
+    // これがないとGoogle OAuthが Error 403: disallowed_useragent でブロックされる。
+    // 他のブラウザでは単なる無視されるクエリなので無害。
     if (typeof window === "undefined") {
-        return `?invite=${inviteId}`;
+        return `?invite=${inviteId}&openExternalBrowser=1`;
     }
     const url = new URL(window.location.origin);
     url.pathname = "/";
     url.searchParams.set("invite", inviteId);
+    url.searchParams.set("openExternalBrowser", "1");
     return url.toString();
 }
 
