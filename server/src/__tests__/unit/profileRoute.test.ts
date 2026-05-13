@@ -114,6 +114,85 @@ describe("profile router", () => {
     expect(res.json).toHaveBeenCalledWith({ error: "PROFILE_NICKNAME_TOO_LONG" });
   });
 
+  it("PATCH /me saves a valid avatar_url scoped to the caller", async () => {
+    const validUrl =
+      "https://example.supabase.co/storage/v1/object/public/avatars/user-1/avatar.jpg";
+    const updateChain = createChain({
+      data: {
+        id: "user-1",
+        avatar_url: validUrl,
+        employment_kind: "employee",
+      },
+      error: null,
+    });
+    mockFrom.mockReturnValue(updateChain);
+
+    const req = {
+      userId: "user-1",
+      body: { avatar_url: validUrl },
+    } as any;
+    const res = createMockRes();
+
+    await patchMeHandler(req, res);
+
+    expect(updateChain.update).toHaveBeenCalledTimes(1);
+    const payload = updateChain.update.mock.calls[0][0] as Record<string, string | null>;
+    expect(payload.avatar_url).toBe(validUrl);
+    expect(res.json).toHaveBeenCalledWith({
+      profile: expect.objectContaining({ avatar_url: validUrl }),
+    });
+  });
+
+  it("PATCH /me clears avatar_url when given null", async () => {
+    const updateChain = createChain({
+      data: { id: "user-1", avatar_url: null, employment_kind: "employee" },
+      error: null,
+    });
+    mockFrom.mockReturnValue(updateChain);
+
+    const req = {
+      userId: "user-1",
+      body: { avatar_url: null },
+    } as any;
+    const res = createMockRes();
+
+    await patchMeHandler(req, res);
+
+    expect(updateChain.update).toHaveBeenCalledTimes(1);
+    const payload = updateChain.update.mock.calls[0][0] as Record<string, string | null>;
+    expect(payload.avatar_url).toBeNull();
+  });
+
+  it("PATCH /me rejects avatar_url scoped to a different user", async () => {
+    const otherUserUrl =
+      "https://example.supabase.co/storage/v1/object/public/avatars/other-user/avatar.jpg";
+
+    const req = {
+      userId: "user-1",
+      body: { avatar_url: otherUserUrl },
+    } as any;
+    const res = createMockRes();
+
+    await patchMeHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: "PROFILE_AVATAR_URL_INVALID" });
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("PATCH /me rejects non-Supabase avatar_url", async () => {
+    const req = {
+      userId: "user-1",
+      body: { avatar_url: "https://evil.example.com/pwn.jpg" },
+    } as any;
+    const res = createMockRes();
+
+    await patchMeHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: "PROFILE_AVATAR_URL_INVALID" });
+  });
+
   it("PATCH /me sets onboarding_completed_at on complete_onboarding", async () => {
     const updateChain = createChain({
       data: {

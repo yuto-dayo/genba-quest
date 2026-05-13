@@ -64,6 +64,7 @@ const ACCOUNT_TYPES: readonly AccountType[] = ["ordinary", "checking"];
 const INVOICE_NUMBER_PATTERN = /^T[0-9]{13}$/;
 const POSTAL_CODE_PATTERN = /^[0-9]{3}-?[0-9]{4}$/;
 const NICKNAME_MAX_LENGTH = 5;
+const AVATAR_URL_MAX_LENGTH = 512;
 
 function normalizeText(value: unknown, maxLength: number): string | null {
     if (typeof value !== "string") {
@@ -88,7 +89,10 @@ interface ValidationError {
     code: string;
 }
 
-function buildUpdates(body: Record<string, unknown>): Record<string, string | null> | ValidationError {
+function buildUpdates(
+    body: Record<string, unknown>,
+    userId: string,
+): Record<string, string | null> | ValidationError {
     const updates: Record<string, string | null> = {};
 
     if ("onboarding_completed_at" in body) {
@@ -111,6 +115,29 @@ function buildUpdates(body: Record<string, unknown>): Record<string, string | nu
 
     if ("full_name" in body) {
         updates.full_name = normalizeText(body.full_name, 80);
+    }
+
+    if ("avatar_url" in body) {
+        const raw = body.avatar_url;
+        if (raw === null || raw === "") {
+            updates.avatar_url = null;
+        } else if (typeof raw !== "string") {
+            return { code: "PROFILE_AVATAR_URL_INVALID" };
+        } else {
+            const trimmed = raw.trim();
+            if (!trimmed) {
+                updates.avatar_url = null;
+            } else if (trimmed.length > AVATAR_URL_MAX_LENGTH) {
+                return { code: "PROFILE_AVATAR_URL_INVALID" };
+            } else if (
+                !trimmed.startsWith("https://") ||
+                !trimmed.includes(`/storage/v1/object/public/avatars/${userId}/`)
+            ) {
+                return { code: "PROFILE_AVATAR_URL_INVALID" };
+            } else {
+                updates.avatar_url = trimmed;
+            }
+        }
     }
 
     if ("username" in body) {
@@ -257,7 +284,7 @@ router.patch("/me", async (req: AuthenticatedRequest, res: Response) => {
         }
 
         const body = (req.body && typeof req.body === "object" ? req.body : {}) as Record<string, unknown>;
-        const updatesOrError = buildUpdates(body);
+        const updatesOrError = buildUpdates(body, req.userId);
         if ("code" in updatesOrError) {
             res.status(400).json({ error: updatesOrError.code });
             return;
