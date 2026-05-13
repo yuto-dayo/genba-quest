@@ -5,10 +5,13 @@ jest.mock("../../lib/supabaseAdmin", () => ({
 import {
   aggregateMonthlyLevel,
   bucketScoreToLevel,
+  PathV33RewardService,
   requiredCoSigns,
   PATH_V33_LEVEL_WEIGHT_MILLI,
   PathV33Draft,
 } from "../../services/PathV33RewardService";
+import { supabaseAdmin } from "../../lib/supabaseAdmin";
+import { createChain, setupMockFromSequence } from "../helpers/mockSupabase";
 
 describe("PathV33RewardService.bucketScoreToLevel", () => {
   it("maps below-1.3 to L1", () => {
@@ -135,5 +138,124 @@ describe("PathV33RewardService.requiredCoSigns", () => {
   it("rejects invalid team sizes", () => {
     expect(() => requiredCoSigns(0, false)).toThrow("PATH_V33_INVALID_TEAM_SIZE");
     expect(() => requiredCoSigns(-1, false)).toThrow("PATH_V33_INVALID_TEAM_SIZE");
+  });
+});
+
+describe("PathV33RewardService.submitLevelDraft deadline guard", () => {
+  const ORG_ID = "00000000-0000-4000-8000-000000000001";
+  const MEMBER_ID = "11111111-1111-4111-8111-111111111111";
+  const SITE_ID = "22222222-2222-4222-8222-222222222222";
+  const ACTOR = {
+    type: "human" as const,
+    id: MEMBER_ID,
+    name: "Worker",
+  };
+  const DRAFT_ROW = {
+    id: "33333333-3333-4333-8333-333333333333",
+    org_id: ORG_ID,
+    site_id: SITE_ID,
+    member_id: MEMBER_ID,
+    tier: 2,
+    work_days: 2,
+    self_comment: "",
+    evidence: {},
+    submitted_at: "2026-05-10T00:00:00.000Z",
+    locked_at: null,
+  };
+
+  beforeAll(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2026-05-10T00:00:00.000Z"));
+  });
+
+  afterAll(() => {
+    jest.useRealTimers();
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  function mockSubmitLevelDraftFlow(options: {
+    completedAt: string | null;
+    existingLockedAt?: string | null;
+  }) {
+    const existingDraft =
+      typeof options.existingLockedAt === "string" ? { locked_at: options.existingLockedAt } : null;
+    const siteRow = {
+      id: SITE_ID,
+      org_id: ORG_ID,
+      completed_at: options.completedAt,
+      created_at: "2026-05-01T00:00:00.000Z",
+    };
+    setupMockFromSequence(supabaseAdmin.from as jest.Mock, [
+      createChain({ data: siteRow, error: null }),
+      createChain({ data: [{ date: "2026-05-03" }, { date: "2026-05-04" }], error: null }),
+      createChain({ data: existingDraft, error: null }),
+      createChain({ data: DRAFT_ROW, error: null }),
+      createChain({ data: [siteRow], error: null }),
+      createChain({ data: [DRAFT_ROW], error: null }),
+      createChain({ data: null, error: null }),
+    ]);
+  }
+
+  it("allows submit when completed_at is null", async () => {
+    mockSubmitLevelDraftFlow({ completedAt: null });
+    const service = new PathV33RewardService(ORG_ID);
+
+    const result = await service.submitLevelDraft({ site_id: SITE_ID, tier: 2 }, ACTOR);
+
+    expect(result.draft.site_id).toBe(SITE_ID);
+    expect(result.preview.month).toBe("2026-05");
+  });
+
+  it("allows submit within 7 days from completed_at", async () => {
+    mockSubmitLevelDraftFlow({ completedAt: "2026-05-05T00:00:00.000Z" });
+    const service = new PathV33RewardService(ORG_ID);
+
+    const result = await service.submitLevelDraft({ site_id: SITE_ID, tier: 2 }, ACTOR);
+
+    expect(result.draft.site_id).toBe(SITE_ID);
+    expect(result.preview.month).toBe("2026-05");
+  });
+
+  it("throws deadline error when completed_at + 7 days has passed", async () => {
+    setupMockFromSequence(supabaseAdmin.from as jest.Mock, [
+      createChain({
+        data: {
+          id: SITE_ID,
+          org_id: ORG_ID,
+          completed_at: "2026-05-01T00:00:00.000Z",
+          created_at: "2026-05-01T00:00:00.000Z",
+        },
+        error: null,
+      }),
+    ]);
+    const service = new PathV33RewardService(ORG_ID);
+
+    await expect(service.submitLevelDraft({ site_id: SITE_ID, tier: 2 }, ACTOR)).rejects.toThrow(
+      "PATH_V33_DRAFT_DEADLINE_PASSED",
+    );
+  });
+
+  it("keeps existing locked behavior unchanged", async () => {
+    setupMockFromSequence(supabaseAdmin.from as jest.Mock, [
+      createChain({
+        data: {
+          id: SITE_ID,
+          org_id: ORG_ID,
+          completed_at: null,
+          created_at: "2026-05-01T00:00:00.000Z",
+        },
+        error: null,
+      }),
+      createChain({ data: [{ date: "2026-05-03" }], error: null }),
+      createChain({ data: { locked_at: "2026-05-08T00:00:00.000Z" }, error: null }),
+    ]);
+    const service = new PathV33RewardService(ORG_ID);
+
+    await expect(service.submitLevelDraft({ site_id: SITE_ID, tier: 2 }, ACTOR)).rejects.toThrow(
+      "PATH_V33_DRAFT_LOCKED",
+    );
   });
 });

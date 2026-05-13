@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import type { ComponentProps, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LevelDraftSheet } from "./LevelDraftSheet";
+import { mapLevelDraftSubmitErrorMessage } from "./levelDraftErrors";
 
 const fetchPathV33MonthlyPreview = vi.fn();
 const submitPathV33LevelDraft = vi.fn();
@@ -80,9 +81,11 @@ describe("LevelDraftSheet", () => {
             expect(fetchSite).toHaveBeenCalledWith("site-1");
         });
 
-        expect(await screen.findByText("内装")).toBeInTheDocument();
-        expect(screen.getByText("塗装")).toBeInTheDocument();
-        expect(screen.getByText("東京都渋谷区1-2-3")).toBeInTheDocument();
+        await waitFor(() => {
+            expect(screen.getByText("内装")).toBeInTheDocument();
+            expect(screen.getByText("塗装")).toBeInTheDocument();
+            expect(screen.getByText("東京都渋谷区1-2-3")).toBeInTheDocument();
+        });
     });
 
     it("keeps fallback header and hides site meta when fetchSite fails", async () => {
@@ -118,5 +121,64 @@ describe("LevelDraftSheet", () => {
 
         expect(fetchSite).not.toHaveBeenCalled();
         expect(fetchPathV33MonthlyPreview).not.toHaveBeenCalled();
+    });
+
+    it("shows remaining pending drafts count when pendingCount is greater than 1", async () => {
+        fetchSite.mockResolvedValue({
+            id: "site-1",
+            name: "渋谷マンション",
+            address: "東京都渋谷区1-2-3",
+            work_types: ["内装"],
+        });
+
+        render(
+            <LevelDraftSheet
+                open
+                onClose={() => {}}
+                siteId="site-1"
+                siteName="初期名"
+                memberId="member-1"
+                pendingCount={3}
+            />,
+        );
+
+        await waitFor(() => {
+            expect(screen.getByText(/あと\s*2\s*件/)).toBeInTheDocument();
+        });
+    });
+
+    it("hides remaining pending drafts count when pendingCount is 1", async () => {
+        fetchSite.mockResolvedValue({
+            id: "site-1",
+            name: "渋谷マンション",
+            address: "東京都渋谷区1-2-3",
+            work_types: ["内装"],
+        });
+
+        render(
+            <LevelDraftSheet
+                open
+                onClose={() => {}}
+                siteId="site-1"
+                siteName="初期名"
+                memberId="member-1"
+                pendingCount={1}
+            />,
+        );
+
+        await waitFor(() => {
+            expect(fetchSite).toHaveBeenCalledWith("site-1");
+        });
+        expect(screen.queryByText(/あと\s*\d+\s*件/)).not.toBeInTheDocument();
+    });
+
+    it("maps deadline error to a user-friendly message", () => {
+        expect(
+            mapLevelDraftSubmitErrorMessage("PATH_V33_DRAFT_DEADLINE_PASSED: blocked by deadline"),
+        ).toBe("入力期限（現場完了から7日）を過ぎました。PATH 画面から修正申請してください。");
+    });
+
+    it("passes non-deadline errors through unchanged", () => {
+        expect(mapLevelDraftSubmitErrorMessage("API Error: 500")).toBe("API Error: 500");
     });
 });
