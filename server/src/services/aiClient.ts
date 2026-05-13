@@ -316,6 +316,32 @@ class AnthropicProvider implements AIProvider {
 
 const providers: Map<AIProviderName, AIProvider> = new Map();
 
+const ENV_PLACEHOLDER_PATTERN = /^your_.*_here$/i;
+
+function readConfiguredApiKey(envName: "GEMINI_API_KEY" | "OPENAI_API_KEY" | "ANTHROPIC_API_KEY"): string {
+    const raw = process.env[envName];
+    const value = typeof raw === "string" ? raw.trim() : "";
+
+    if (!value) {
+        throw new Error(`${envName} is not set`);
+    }
+
+    if (ENV_PLACEHOLDER_PATTERN.test(value)) {
+        throw new Error(`${envName} is still a placeholder from .env.example`);
+    }
+
+    return value;
+}
+
+function hasConfiguredApiKey(envName: "GEMINI_API_KEY" | "OPENAI_API_KEY" | "ANTHROPIC_API_KEY"): boolean {
+    const raw = process.env[envName];
+    if (typeof raw !== "string") {
+        return false;
+    }
+    const value = raw.trim();
+    return value.length > 0 && !ENV_PLACEHOLDER_PATTERN.test(value);
+}
+
 /**
  * AIプロバイダーを取得（シングルトン）
  * @param name プロバイダー名（省略時は環境変数 AI_PROVIDER のデフォルト値）
@@ -333,21 +359,15 @@ export function getAIProvider(name?: AIProviderName): AIProvider {
 
     switch (providerName) {
         case "gemini":
-            const geminiKey = process.env.GEMINI_API_KEY;
-            if (!geminiKey) throw new Error("GEMINI_API_KEY is not set");
-            provider = new GeminiProvider(geminiKey);
+            provider = new GeminiProvider(readConfiguredApiKey("GEMINI_API_KEY"));
             break;
 
         case "openai":
-            const openaiKey = process.env.OPENAI_API_KEY;
-            if (!openaiKey) throw new Error("OPENAI_API_KEY is not set");
-            provider = new OpenAIProvider(openaiKey);
+            provider = new OpenAIProvider(readConfiguredApiKey("OPENAI_API_KEY"));
             break;
 
         case "anthropic":
-            const anthropicKey = process.env.ANTHROPIC_API_KEY;
-            if (!anthropicKey) throw new Error("ANTHROPIC_API_KEY is not set");
-            provider = new AnthropicProvider(anthropicKey);
+            provider = new AnthropicProvider(readConfiguredApiKey("ANTHROPIC_API_KEY"));
             break;
 
         default:
@@ -371,9 +391,9 @@ export function getDefaultProviderName(): AIProviderName {
 export function getAvailableProviders(): AIProviderName[] {
     const available: AIProviderName[] = [];
 
-    if (process.env.GEMINI_API_KEY) available.push("gemini");
-    if (process.env.OPENAI_API_KEY) available.push("openai");
-    if (process.env.ANTHROPIC_API_KEY) available.push("anthropic");
+    if (hasConfiguredApiKey("GEMINI_API_KEY")) available.push("gemini");
+    if (hasConfiguredApiKey("OPENAI_API_KEY")) available.push("openai");
+    if (hasConfiguredApiKey("ANTHROPIC_API_KEY")) available.push("anthropic");
 
     return available;
 }

@@ -58,6 +58,22 @@ export interface OcrOptions {
     forceLlm?: boolean;     // 強制的にLLM Visionを使用
 }
 
+const AUTH_ERROR_PATTERN = /(api[_\s-]?key|認証情報|credential|is not set|placeholder)/i;
+
+function normalizeErrorMessage(error: unknown): string {
+    if (error instanceof Error && error.message) {
+        return error.message;
+    }
+    if (typeof error === "string") {
+        return error;
+    }
+    return "Unknown error";
+}
+
+function isAuthError(error: unknown): boolean {
+    return AUTH_ERROR_PATTERN.test(normalizeErrorMessage(error));
+}
+
 // ============================================================
 // OCR Prompt
 // ============================================================
@@ -149,7 +165,16 @@ export async function analyzeDocument(
 
     } catch (error: any) {
         console.warn('[OCR] Vision API失敗、LLMにフォールバック:', error.message);
-        return analyzeWithLlm(imageBase64, mimeType, options);
+        try {
+            return analyzeWithLlm(imageBase64, mimeType, options);
+        } catch (llmError: any) {
+            if (isAuthError(error) && isAuthError(llmError)) {
+                throw new Error(
+                    `OCRサービスの認証情報が未設定です (Vision: ${normalizeErrorMessage(error)} / LLM: ${normalizeErrorMessage(llmError)})`
+                );
+            }
+            throw llmError;
+        }
     }
 }
 
