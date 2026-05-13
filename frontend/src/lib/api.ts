@@ -992,6 +992,10 @@ export const markAllNotificationsRead = () =>
 export type FocusItemScope = "personal" | "org";
 export type FocusItemHorizon = "today" | "week" | "later";
 export type FocusItemStatus = "open" | "done";
+export type FocusItemResolutionKind =
+    | "completed_as_planned"
+    | "completed_with_change"
+    | "not_completed";
 
 export interface FocusItemRecord {
     id: string;
@@ -1006,6 +1010,11 @@ export interface FocusItemRecord {
     created_by: string;
     completed_by?: string | null;
     completed_at?: string | null;
+    resolution_kind?: FocusItemResolutionKind | null;
+    resolution_note?: string | null;
+    resolved_at?: string | null;
+    resolved_by?: string | null;
+    focus_date?: string | null;
     created_at: string;
     updated_at: string;
 }
@@ -1016,6 +1025,7 @@ export interface FocusItemUpsertRequest {
     horizon: FocusItemHorizon;
     note?: string;
     site_id?: string;
+    focus_date?: string;
     status?: FocusItemStatus;
 }
 
@@ -1023,11 +1033,23 @@ export const fetchFocusItems = (params?: {
     scope?: FocusItemScope;
     horizon?: FocusItemHorizon;
     status?: FocusItemStatus;
+    focus_date_from?: string;
+    focus_date_to?: string;
+    resolved_from?: string;
+    resolved_to?: string;
+    include_legacy_done?: boolean;
 }) => {
     const searchParams = new URLSearchParams();
     if (params?.scope) searchParams.append("scope", params.scope);
     if (params?.horizon) searchParams.append("horizon", params.horizon);
     if (params?.status) searchParams.append("status", params.status);
+    if (params?.focus_date_from) searchParams.append("focus_date_from", params.focus_date_from);
+    if (params?.focus_date_to) searchParams.append("focus_date_to", params.focus_date_to);
+    if (params?.resolved_from) searchParams.append("resolved_from", params.resolved_from);
+    if (params?.resolved_to) searchParams.append("resolved_to", params.resolved_to);
+    if (params?.include_legacy_done !== undefined) {
+        searchParams.append("include_legacy_done", String(params.include_legacy_done));
+    }
     const query = searchParams.toString();
     return api<FocusItemRecord[]>(`/api/v1/focus-items${query ? `?${query}` : ""}`);
 };
@@ -1052,6 +1074,18 @@ export const completeFocusItem = (focusItemId: string) =>
 export const reopenFocusItem = (focusItemId: string) =>
     api<FocusItemRecord>(`/api/v1/focus-items/${focusItemId}/reopen`, {
         method: "POST",
+    });
+
+export const resolveFocusItem = (
+    focusItemId: string,
+    payload: {
+        resolution_kind: FocusItemResolutionKind;
+        resolution_note?: string | null;
+    },
+) =>
+    api<FocusItemRecord>(`/api/v1/focus-items/${focusItemId}/resolve`, {
+        method: "POST",
+        body: JSON.stringify(payload),
     });
 
 // 現場
