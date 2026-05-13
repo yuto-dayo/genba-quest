@@ -1,5 +1,5 @@
 import { type CSSProperties, useMemo, useRef } from 'react';
-import { AlertCircle, CheckCircle2, Sparkles } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Lock, Sparkles } from 'lucide-react';
 import type { AvailabilityTokenKind, CalendarDay } from '../../types/calendar';
 import styles from './CalendarComponents.module.css';
 
@@ -49,6 +49,21 @@ interface CompletedRunSegment {
 
 const DEFAULT_SCHEDULE_COLOR = '#0D9488';
 const MAX_VISIBLE_COMPLETED_RUN_LANES = 2;
+const JST_TIME_ZONE = 'Asia/Tokyo';
+
+function getJstTodayDateValue(baseDate: Date = new Date()): string {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: JST_TIME_ZONE,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    });
+    const parts = formatter.formatToParts(baseDate);
+    const year = parts.find((part) => part.type === 'year')?.value ?? '';
+    const month = parts.find((part) => part.type === 'month')?.value ?? '';
+    const day = parts.find((part) => part.type === 'day')?.value ?? '';
+    return `${year}-${month}-${day}`;
+}
 
 function resolveDayStatus(day: CalendarDay): DayStatus {
     if (day.shift?.available === false && day.assignments.length === 0) {
@@ -356,6 +371,7 @@ export function MonthCalendar({
     shortageSiteCountByDate,
 }: MonthCalendarProps) {
     const weekDays = ['月', '火', '水', '木', '金', '土', '日'];
+    const todayJstDate = getJstTodayDateValue();
     const longPressTimerRef = useRef<number | null>(null);
     const longPressTriggeredRef = useRef(false);
     const rowCount = Math.max(1, Math.ceil(days.length / 7));
@@ -426,6 +442,7 @@ export function MonthCalendar({
                     const completedSiteNames = getCompletedSiteNames(day);
                     const completedOverflowCount = completedOverflowCountByDate[day.date] ?? 0;
                     const shortageSiteCount = shortageSiteCountByDate?.[day.date] ?? 0;
+                    const isPastDay = day.date < todayJstDate;
 
                     return (
                         <button
@@ -469,6 +486,15 @@ export function MonthCalendar({
                                     {density.pendingCount > 0 && (
                                         <span className={styles.dayWarn} aria-hidden="true">
                                             <AlertCircle size={12} />
+                                        </span>
+                                    )}
+                                    {isPastDay && (
+                                        <span
+                                            className={styles.dayLockBadge}
+                                            data-testid={`calendar-lock-${day.date}`}
+                                            aria-hidden="true"
+                                        >
+                                            <Lock size={11} />
                                         </span>
                                     )}
                                     {density.tentativeCount > 0 && (

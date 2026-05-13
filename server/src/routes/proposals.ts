@@ -21,6 +21,7 @@ type ProposalErrorMap = Record<string, { status: number; message: string }>;
 
 const HUMAN_PROPOSAL_ERROR_MAP: ProposalErrorMap = {
   ORG_CONTEXT_REQUIRED: { status: 403, message: "ORG_CONTEXT_REQUIRED" },
+  ASSIGNMENT_PAST_DATE_LOCKED: { status: 422, message: "ASSIGNMENT_PAST_DATE_LOCKED" },
   INVALID_MEMBER_ID: { status: 400, message: "INVALID_MEMBER_ID" },
   INVALID_MEMBER_NAME: { status: 400, message: "INVALID_MEMBER_NAME" },
   MEMBERS_REQUIRED: { status: 400, message: "MEMBERS_REQUIRED" },

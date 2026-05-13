@@ -17,6 +17,7 @@ const getSession = vi.fn();
 const reloadAssignments = vi.fn();
 const selectDate = vi.fn();
 const goToMonth = vi.fn();
+const alertMock = vi.spyOn(window, "alert").mockImplementation(() => {});
 
 const baseCalendarDay: CalendarDay = {
     date: "2026-04-25",
@@ -158,6 +159,16 @@ describe("Calendar page", () => {
         expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
 
+    it("does not open add modal for past dates and shows an alert", () => {
+        render(<Calendar />);
+
+        fireEvent.click(screen.getByRole("button", { name: "追加メニューを開く" }));
+        fireEvent.click(screen.getByRole("button", { name: "予定を入れる" }));
+
+        expect(alertMock).toHaveBeenCalledWith("過去日の予定は編集できません");
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
     it("starts in month view and shows this month's rest counts", async () => {
         const dayWithLeave: CalendarDay = {
             ...baseCalendarDay,
@@ -283,6 +294,15 @@ describe("Calendar page", () => {
     });
 
     it("opens the personal schedule form from the calendar FAB", () => {
+        const futureDay: CalendarDay = {
+            ...baseCalendarDay,
+            date: "2999-04-25",
+            day: 25,
+            isWeekend: false,
+        };
+        mockCalendarDays = [futureDay];
+        mockSelectedDate = futureDay;
+
         render(<Calendar />);
 
         fireEvent.click(screen.getByRole("button", { name: "追加メニューを開く" }));
@@ -292,7 +312,7 @@ describe("Calendar page", () => {
 
         fireEvent.click(screen.getByRole("button", { name: "予定を入れる" }));
 
-        expect(screen.getByRole("dialog")).toHaveTextContent("予定を入れる 2026-04-25");
+        expect(screen.getByRole("dialog")).toHaveTextContent("予定を入れる 2999-04-25");
         expect(screen.getByRole("button", { name: "予定を入れる" })).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "現場に入れる" })).not.toBeInTheDocument();
     });
@@ -531,6 +551,15 @@ describe("Calendar page", () => {
     });
 
     it("opens only the personal schedule form entry in personal scope", () => {
+        const futureDay: CalendarDay = {
+            ...baseCalendarDay,
+            date: "2999-04-25",
+            day: 25,
+            isWeekend: false,
+        };
+        mockCalendarDays = [futureDay];
+        mockSelectedDate = futureDay;
+
         render(<Calendar />);
 
         fireEvent.click(screen.getByRole("button", { name: "自分" }));
@@ -542,7 +571,12 @@ describe("Calendar page", () => {
 
         fireEvent.click(screen.getByRole("button", { name: "予定を入れる" }));
 
-        expect(screen.getByRole("dialog")).toHaveTextContent("予定を入れる 2026-04-25");
+        expect(screen.getByRole("dialog")).toHaveTextContent("予定を入れる 2999-04-25");
+    });
+
+    it("renders a lock icon for past day cells", () => {
+        render(<Calendar />);
+        expect(screen.getByTestId("calendar-lock-2026-04-25")).toBeInTheDocument();
     });
 
     it("clears a persisted leave schedule from the personal availability panel", async () => {

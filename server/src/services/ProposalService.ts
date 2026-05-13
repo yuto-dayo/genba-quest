@@ -117,6 +117,44 @@ const ACCOUNT_CODES = {
 
 const PERSONAL_SCHEDULE_TYPES = ['vacation', 'sick_leave', 'business_trip', 'training'] as const;
 type PersonalScheduleType = typeof PERSONAL_SCHEDULE_TYPES[number];
+const ASSIGNMENT_PAST_DATE_GUARD_TYPES: ReadonlySet<ProposalType> = new Set([
+  'assignment.create',
+  'assignment.update',
+  'assignment.cancel',
+]);
+
+function getJstTodayKey(now: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+  const year = parts.find((part) => part.type === 'year')?.value ?? '';
+  const month = parts.find((part) => part.type === 'month')?.value ?? '';
+  const day = parts.find((part) => part.type === 'day')?.value ?? '';
+
+  return `${year}-${month}-${day}`;
+}
+
+function shouldLockAssignmentPastDate(type: ProposalType, payload: Record<string, unknown>): boolean {
+  if (!ASSIGNMENT_PAST_DATE_GUARD_TYPES.has(type)) {
+    return false;
+  }
+
+  const rawDate = payload.date;
+  if (typeof rawDate !== 'string') {
+    return false;
+  }
+
+  const date = rawDate.trim();
+  if (!date) {
+    return false;
+  }
+
+  const todayJst = getJstTodayKey();
+  return date < todayJst;
+}
 
 function readUuidLike(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
@@ -177,6 +215,10 @@ export class ProposalService {
    * Proposal作成（draft状態）
    */
   async create(input: CreateProposalInput): Promise<Proposal> {
+    if (shouldLockAssignmentPastDate(input.type, input.payload)) {
+      throw new Error('ASSIGNMENT_PAST_DATE_LOCKED');
+    }
+
     if (input.type === 'luqo.reward.calculate') {
       const breakdown = Array.isArray(input.payload.breakdown)
         ? input.payload.breakdown
