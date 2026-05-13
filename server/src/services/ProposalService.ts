@@ -257,6 +257,13 @@ export class ProposalService {
       autoApproved = true;
     }
 
+    // 未来日の休み申請は本人独断で確定する（承認フロー・確認通知を省略）。
+    // 過去日の休み（事後修正）は通常通り承認フローに乗せて確認を残す。
+    if (!autoApproved && this.isFutureDatedLeaveRequest(proposal)) {
+      newStatus = 'approved';
+      autoApproved = true;
+    }
+
     // 更新
     const { data, error } = await supabaseAdmin
       .from('proposals')
@@ -1717,6 +1724,20 @@ export class ProposalService {
       return null;
     }
     return normalized;
+  }
+
+  private isFutureDatedLeaveRequest(proposal: Proposal): boolean {
+    if (proposal.type !== 'leave.request') {
+      return false;
+    }
+    const startDate = this.normalizeDateString(
+      this.getPayloadString(proposal.payload, ['start_date', 'startDate', 'date']),
+    );
+    if (!startDate) {
+      return false;
+    }
+    const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo' }).format(new Date());
+    return startDate >= today;
   }
 
   private extractWorkerIds(payload: Record<string, unknown>): string[] {
