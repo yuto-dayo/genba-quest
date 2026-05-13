@@ -335,13 +335,17 @@ export class MemberInvoiceService {
      */
     async getOutstandingSummary(input: {
         orgId: string;
+        userId?: string;
     }): Promise<OutstandingSummaryRow[]> {
         if (!this.client.rpc) {
             throw new Error("MEMBER_INVOICE_RPC_NOT_AVAILABLE");
         }
         const { data, error } = await this.client.rpc(
             "rpc_org_invoices_outstanding_summary",
-            { p_org_id: input.orgId },
+            {
+                p_org_id: input.orgId,
+                p_user_id: input.userId ?? null,
+            },
         );
         if (error) {
             const code = error.message || "MEMBER_INVOICE_SUMMARY_FAILED";
@@ -588,6 +592,7 @@ export class MemberInvoiceService {
         orgId: string;
         status?: MemberInvoiceStatus;
         limit?: number;
+        userId?: string;
     }): Promise<AdminActionableInvoice[]> {
         if (!this.client.rpc) {
             throw new Error("MEMBER_INVOICE_RPC_NOT_AVAILABLE");
@@ -598,6 +603,7 @@ export class MemberInvoiceService {
                 p_org_id: input.orgId,
                 p_status: input.status ?? "issued",
                 p_limit: input.limit ?? 50,
+                p_user_id: input.userId ?? null,
             },
         );
         if (error) {

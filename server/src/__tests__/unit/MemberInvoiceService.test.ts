@@ -403,7 +403,7 @@ describe("MemberInvoiceService", () => {
             const summary = await service.getOutstandingSummary({ orgId: ORG_ID });
             expect(rpc).toHaveBeenCalledWith(
                 "rpc_org_invoices_outstanding_summary",
-                { p_org_id: ORG_ID },
+                { p_org_id: ORG_ID, p_user_id: null },
             );
             expect(summary).toEqual([
                 {
@@ -660,7 +660,7 @@ describe("MemberInvoiceService", () => {
             });
             expect(rpc).toHaveBeenCalledWith(
                 "rpc_org_invoices_admin_actionable_list",
-                { p_org_id: ORG_ID, p_status: "issued", p_limit: 50 },
+                { p_org_id: ORG_ID, p_status: "issued", p_limit: 50, p_user_id: null },
             );
             expect(list).toHaveLength(1);
             // PII (member_id / snapshot_*) は含まれない
