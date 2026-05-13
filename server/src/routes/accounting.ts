@@ -1327,7 +1327,17 @@ router.post("/ocr/analyze", async (req: AuthenticatedRequest, res: Response) => 
         res.json(updated);
     } catch (err: any) {
         console.error("OCR analyze error:", err);
-        res.status(500).json({ error: "Internal server error" });
+        const message = err instanceof Error ? err.message : typeof err === "string" ? err : "Unknown error";
+        const isConfigError = /(api[_\s-]?key|認証情報|credential|is not set|placeholder)/i.test(message);
+
+        if (isConfigError) {
+            res.status(503).json({
+                error: "OCRサービスが未設定です（管理者に連絡してください）",
+            });
+            return;
+        }
+
+        res.status(500).json({ error: `OCR解析に失敗しました: ${message}` });
     }
 });
 

@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `名刺スキャンのカメラ/ギャラリー2ボタン化 PR の merge 確認`
+- NEXT_CMD: `Commit OCR fix and merge codex/APIkeyerror into master`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest-level-pr2/handoff/local.md`
@@ -18,8 +18,8 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `88cbee5`
-  - Updated: `2026-05-13T02:41:43+0900`
+  - HEAD: `89eaf18`
+  - Updated: `2026-05-13T18:34:52+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
@@ -34,30 +34,30 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `名刺スキャンのカメラ/ギャラリー2ボタン化 PR の merge 確認`. Source: realtime
-- [H0003] Completed: 名刺スキャンUIをカメラ撮影(capture=environment)+画像選択の2ボタンに分割、hero copy 簡素化
-- [H0003] Remaining: PR review + merge to master
+- [focus] NEXT_CMD: `Commit OCR fix and merge codex/APIkeyerror into master`. Source: realtime
+- [H0003] Completed: OCR env loading fixed to avoid cwd-dependent .env misses; OCR config errors now surfaced as 503
+- [H0003] Remaining: Commit OCR fix and merge codex/APIkeyerror into master
 - [H0002] Completed: AIモデルenv化(gemini/openai/anthropic)+DocumentClassifierをGemini Lite/Flashへ移行+monster機能コード削除
 - [H0002] Remaining: 必要ならcommit/push or envテンプレート更新(DOC_CLASSIFIER_* / GEMINI_MODEL)
-- [H0001] Completed: Implemented PR2 scope: removed V31 reward/role dead code across DB/server/frontend, removed Today responsibility action, and enhanced LevelDraftSheet with work type/address context.
-- [H0001] Remaining: Review diff, decide whether to commit HANDOFF updates with feature files, then commit/push and open PR.
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0003] Auto-captured decision: OCR env loading fixed to avoid cwd-dependent .env misses; OCR config errors now surfaced as 503
 - [H0002] Auto-captured decision: AIモデルenv化(gemini/openai/anthropic)+DocumentClassifierをGemini Lite/Flashへ移行+monster機能コード削除
 - [H0001] Auto-captured decision: Implemented PR2 scope: removed V31 reward/role dead code across DB/server/frontend, removed Today responsibility action, and enhanced LevelDraftSheet with work type/address cont...
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0002] No new landmines reported in this chunk.
+- [H0003] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0003] Commit OCR fix and merge codex/APIkeyerror into master
 - [H0002] 必要ならcommit/push or envテンプレート更新(DOC_CLASSIFIER_* / GEMINI_MODEL)
 - [H0001] Review diff, decide whether to commit HANDOFF updates with feature files, then commit/push and open PR.
 <!-- HANDOFF_L2_THREADS_END -->
@@ -66,7 +66,7 @@
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `2`
+- current_l3_entries: `3`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -97,13 +97,15 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] OCR env loading fixed to avoid cwd-dependent .env misses; OCR config errors now surfaced as 503
 - [x] AIモデルenv化(gemini/openai/anthropic)+DocumentClassifierをGemini Lite/Flashへ移行+monster機能コード削除
 - [x] Implemented PR2 scope: removed V31 reward/role dead code across DB/server/frontend, removed Today responsibility action, and enhanced LevelDraftSheet with work type/address context.
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: 必要ならcommit/push or envテンプレート更新(DOC_CLASSIFIER_* / GEMINI_MODEL)
+- [ ] **P0**: Commit OCR fix and merge codex/APIkeyerror into master
+- [ ] **P1**: 必要ならcommit/push or envテンプレート更新(DOC_CLASSIFIER_* / GEMINI_MODEL)
 - [ ] **P1**: Review diff, decide whether to commit HANDOFF updates with feature files, then commit/push and open PR.
 ---
 
@@ -111,6 +113,11 @@ Phase: A-0/A-1
 
 | File | What Changed |
 | ---- | ------------ |
+| `server/src/routes/accounting.ts` | return 503 for OCR service misconfiguration |
+| `server/src/services/ocrService.ts` | aggregate dual auth failures into explicit config error |
+| `server/src/services/aiClient.ts` | reject placeholder keys and trim empty keys |
+| `server/src/index.ts` | load env bootstrap module instead of dotenv/config |
+| `server/src/loadEnv.ts` | add robust .env discovery and placeholder warnings |
 | `(not recorded)` | No file list provided (use --file "path - semantic description") |
 ---
 
@@ -187,5 +194,25 @@ cd frontend && npx eslint src/
   - Auto-captured decision: AIモデルenv化(gemini/openai/anthropic)+DocumentClassifierをGemini Lite/Flashへ移行+monster機能コード削除
 - Validation:
   - `server unit tests 46 suites passed (SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY dummy); npm run build passed`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-13 18:34:52 +0900
+
+- Entry-ID: `H0003`
+- Completed:
+  - [x] OCR env loading fixed to avoid cwd-dependent .env misses; OCR config errors now surfaced as 503
+- Remaining:
+  - [ ] Commit OCR fix and merge codex/APIkeyerror into master
+- Changed Files:
+  - `server/src/loadEnv.ts` - add robust .env discovery and placeholder warnings
+  - `server/src/index.ts` - load env bootstrap module instead of dotenv/config
+  - `server/src/services/aiClient.ts` - reject placeholder keys and trim empty keys
+  - `server/src/services/ocrService.ts` - aggregate dual auth failures into explicit config error
+  - `server/src/routes/accounting.ts` - return 503 for OCR service misconfiguration
+- Working Context:
+  - Auto-captured decision: OCR env loading fixed to avoid cwd-dependent .env misses; OCR config errors now surfaced as 503
+- Validation:
+  - `cd server && npx tsc --noEmit => pass; cd server && npm test -- --runInBand src/__tests__/unit/accountingRoute.test.ts => pass`
 - Landmines:
   - No new landmines reported in this chunk.
