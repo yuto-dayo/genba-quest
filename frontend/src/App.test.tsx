@@ -10,6 +10,7 @@ const fetchAppEntryState = vi.fn();
 const bootstrapFirstOrg = vi.fn();
 const bootstrapOrg = vi.fn();
 const fetchNotifications = vi.fn();
+const markNotificationRead = vi.fn();
 const fetchPendingApprovals = vi.fn();
 const fetchPendingProposals = vi.fn();
 const fetchMyProfile = vi.fn();
@@ -110,8 +111,28 @@ vi.mock("./components/CommunicationRecordSheet", () => ({
 }));
 
 vi.mock("./components/LevelDraftSheet", () => ({
-    LevelDraftSheet: ({ open, siteName }: { open: boolean; siteName: string }) =>
-        open ? <div data-testid="level-draft-sheet">{siteName}</div> : null,
+    LevelDraftSheet: ({
+        open,
+        siteName,
+        pendingCount,
+        onSubmitted,
+    }: {
+        open: boolean;
+        siteName: string;
+        pendingCount?: number;
+        onSubmitted?: () => Promise<void> | void;
+    }) =>
+        open ? (
+            <div data-testid="level-draft-sheet">
+                <span>{siteName}</span>
+                {typeof pendingCount === "number" ? (
+                    <span data-testid="level-draft-pending-count">{pendingCount}</span>
+                ) : null}
+                <button type="button" onClick={() => void onSubmitted?.()}>
+                    mock-submit-level-draft
+                </button>
+            </div>
+        ) : null,
 }));
 
 vi.mock("./components/onboarding/OnboardingWizard", () => ({
@@ -133,6 +154,7 @@ vi.mock("./lib/api", async () => {
         bootstrapFirstOrg: (...args: unknown[]) => bootstrapFirstOrg(...args),
         bootstrapOrg: (...args: unknown[]) => bootstrapOrg(...args),
         fetchNotifications: (...args: unknown[]) => fetchNotifications(...args),
+        markNotificationRead: (...args: unknown[]) => markNotificationRead(...args),
         fetchPendingApprovals: (...args: unknown[]) => fetchPendingApprovals(...args),
         fetchPendingProposals: (...args: unknown[]) => fetchPendingProposals(...args),
         fetchMyProfile: (...args: unknown[]) => fetchMyProfile(...args),
@@ -165,6 +187,16 @@ describe("App entry gate", () => {
         useActiveOrgStore.setState({ activeOrgId: null, options: [] });
 
         fetchNotifications.mockResolvedValue([]);
+        markNotificationRead.mockResolvedValue({
+            id: "notification-1",
+            user_id: "user-1",
+            type: "system_alert",
+            title: "read",
+            message: "read",
+            data: {},
+            read: true,
+            created_at: "2026-05-08T00:00:00.000Z",
+        });
         fetchPendingApprovals.mockResolvedValue([]);
         fetchPendingProposals.mockResolvedValue([]);
         fetchMyProfile.mockResolvedValue({
@@ -508,7 +540,158 @@ describe("App entry gate", () => {
         // V3.3: bell → inbox → LevelDraftSheet (no navigation to /sites)
         const sheet = await screen.findByTestId("level-draft-sheet");
         expect(sheet).toHaveTextContent("A棟クロス");
+        expect(screen.getByTestId("level-draft-pending-count")).toHaveTextContent("1");
         expect(fetchNotifications).toHaveBeenCalledWith({ unread_only: true, limit: 50 });
+    });
+
+    it("marks submitted notification as read and auto-advances to the next site draft", async () => {
+        fetchNotifications
+            .mockResolvedValueOnce([
+                {
+                    id: "notification-1",
+                    user_id: "user-1",
+                    type: "system_alert",
+                    title: "現場完了: A棟クロス",
+                    message: "現場内容を見ながら入力してください",
+                    read: false,
+                    created_at: "2026-05-08T00:00:00.000Z",
+                    data: {
+                        task_type: "site_level_draft",
+                        site_id: "site-1",
+                        site_name: "A棟クロス",
+                        member_id: "user-1",
+                    },
+                },
+                {
+                    id: "notification-2",
+                    user_id: "user-1",
+                    type: "system_alert",
+                    title: "現場完了: B棟塗装",
+                    message: "現場内容を見ながら入力してください",
+                    read: false,
+                    created_at: "2026-05-08T01:00:00.000Z",
+                    data: {
+                        task_type: "site_level_draft",
+                        site_id: "site-2",
+                        site_name: "B棟塗装",
+                        member_id: "user-1",
+                    },
+                },
+            ])
+            .mockResolvedValueOnce([
+                {
+                    id: "notification-2",
+                    user_id: "user-1",
+                    type: "system_alert",
+                    title: "現場完了: B棟塗装",
+                    message: "現場内容を見ながら入力してください",
+                    read: false,
+                    created_at: "2026-05-08T01:00:00.000Z",
+                    data: {
+                        task_type: "site_level_draft",
+                        site_id: "site-2",
+                        site_name: "B棟塗装",
+                        member_id: "user-1",
+                    },
+                },
+            ]);
+        fetchAppEntryState.mockResolvedValue({
+            state: "ready",
+            active_org: { org_id: "org-1", org_name: "GENBA 本部", role: "admin" },
+            memberships: [{ org_id: "org-1", org_name: "GENBA 本部", role: "admin" }],
+        });
+
+        render(<App />);
+
+        const bell = await screen.findByRole("button", { name: "未処理が2件あります" });
+        fireEvent.click(bell);
+        const draftItems = await screen.findAllByRole("button", { name: /A棟クロス/ });
+        fireEvent.click(draftItems[0]);
+        expect(await screen.findByTestId("level-draft-sheet")).toHaveTextContent("A棟クロス");
+
+        fireEvent.click(screen.getByRole("button", { name: "mock-submit-level-draft" }));
+
+        await waitFor(() => {
+            expect(markNotificationRead).toHaveBeenCalledWith("notification-1");
+        });
+        await waitFor(() => {
+            expect(screen.getByTestId("level-draft-sheet")).toHaveTextContent("B棟塗装");
+        });
+    });
+
+    it("closes the sheet after submit when only same-site notifications remain", async () => {
+        fetchNotifications
+            .mockResolvedValueOnce([
+                {
+                    id: "notification-1",
+                    user_id: "user-1",
+                    type: "system_alert",
+                    title: "現場完了: A棟クロス",
+                    message: "現場内容を見ながら入力してください",
+                    read: false,
+                    created_at: "2026-05-08T00:00:00.000Z",
+                    data: {
+                        task_type: "site_level_draft",
+                        site_id: "site-1",
+                        site_name: "A棟クロス",
+                        member_id: "user-1",
+                    },
+                },
+                {
+                    id: "notification-1b",
+                    user_id: "user-1",
+                    type: "system_alert",
+                    title: "現場完了: A棟クロス(再通知)",
+                    message: "現場内容を見ながら入力してください",
+                    read: false,
+                    created_at: "2026-05-08T01:00:00.000Z",
+                    data: {
+                        task_type: "site_level_draft",
+                        site_id: "site-1",
+                        site_name: "A棟クロス",
+                        member_id: "user-1",
+                    },
+                },
+            ])
+            .mockResolvedValueOnce([
+                {
+                    id: "notification-1b",
+                    user_id: "user-1",
+                    type: "system_alert",
+                    title: "現場完了: A棟クロス(再通知)",
+                    message: "現場内容を見ながら入力してください",
+                    read: false,
+                    created_at: "2026-05-08T01:00:00.000Z",
+                    data: {
+                        task_type: "site_level_draft",
+                        site_id: "site-1",
+                        site_name: "A棟クロス",
+                        member_id: "user-1",
+                    },
+                },
+            ]);
+        fetchAppEntryState.mockResolvedValue({
+            state: "ready",
+            active_org: { org_id: "org-1", org_name: "GENBA 本部", role: "admin" },
+            memberships: [{ org_id: "org-1", org_name: "GENBA 本部", role: "admin" }],
+        });
+
+        render(<App />);
+
+        const bell = await screen.findByRole("button", { name: "未処理が2件あります" });
+        fireEvent.click(bell);
+        const draftItems = await screen.findAllByRole("button", { name: /A棟クロス/ });
+        fireEvent.click(draftItems[0]);
+        expect(await screen.findByTestId("level-draft-sheet")).toHaveTextContent("A棟クロス");
+
+        fireEvent.click(screen.getByRole("button", { name: "mock-submit-level-draft" }));
+
+        await waitFor(() => {
+            expect(markNotificationRead).toHaveBeenCalledWith("notification-1");
+        });
+        await waitFor(() => {
+            expect(screen.queryByTestId("level-draft-sheet")).not.toBeInTheDocument();
+        });
     });
 
     it("does not expose org bootstrap from onboarding state", async () => {

@@ -85,10 +85,10 @@ export class PathV33MonthService {
     }
   }
 
-  // 月末 +3日: lock all drafts whose site has a finalized site_close in the
-  // month. Work-days are re-snapshotted from the actually-locked day_logs
-  // (audit #3: filter by site_closes.status='finalized'). After lock,
-  // submitLevelDraft rejects re-submission (audit #2).
+  // Month-end sweep: lock any drafts that are still unlocked at finalize time.
+  // V3.3 also enforces a per-site 7-day deadline at submit time
+  // (PathV33RewardService.submitLevelDraft), so this stays as governance
+  // audit trail plus finalized day_log re-snapshotting.
   async lockDrafts(month: string): Promise<LockResult> {
     ensureMonth(month);
     const finalizedSiteIds = await this.listFinalizedSiteIdsInMonth(month);

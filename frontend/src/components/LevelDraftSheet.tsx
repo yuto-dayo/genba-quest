@@ -11,6 +11,7 @@ import {
     type Site,
 } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
+import { mapLevelDraftSubmitErrorMessage } from "./levelDraftErrors";
 import styles from "./LevelDraftSheet.module.css";
 
 const TIER_OPTIONS: Array<{ value: PathV33Tier; label: string; helper: string }> = [
@@ -41,7 +42,8 @@ export interface LevelDraftSheetProps {
     siteId: string;
     siteName: string;
     memberId: string;
-    onSubmitted?: () => void;
+    pendingCount?: number;
+    onSubmitted?: () => Promise<void> | void;
 }
 
 export function LevelDraftSheet({
@@ -50,6 +52,7 @@ export function LevelDraftSheet({
     siteId,
     siteName,
     memberId,
+    pendingCount,
     onSubmitted,
 }: LevelDraftSheetProps) {
     const [tier, setTier] = useState<PathV33Tier>(2);
@@ -173,7 +176,7 @@ export function LevelDraftSheet({
             const actualLevel = result.preview.current.level;
             const forecastLevel = forecast?.current.level ?? null;
             setPreview(result.preview);
-            onSubmitted?.();
+            await onSubmitted?.();
             if (forecastLevel && actualLevel !== forecastLevel) {
                 setPostSubmitBanner(
                     `申告を保存しました。実際の月見込みは ${actualLevel} (出勤日数の差で予想 ${forecastLevel} とズレ)。`,
@@ -181,12 +184,8 @@ export function LevelDraftSheet({
             } else {
                 setPostSubmitBanner(`申告を保存しました。今月の見込み: ${actualLevel}`);
             }
-            // Auto-close after 1.5s so the user sees the confirmation.
-            window.setTimeout(() => {
-                onClose();
-            }, 1500);
         } catch (err) {
-            setSubmitError(getErrorMessage(err));
+            setSubmitError(mapLevelDraftSubmitErrorMessage(getErrorMessage(err)));
         } finally {
             setSubmitting(false);
         }
@@ -226,6 +225,9 @@ export function LevelDraftSheet({
                                     <HardHat size={14} aria-hidden /> 現場レベル申告
                                 </span>
                                 <h2 id="level-draft-sheet-title">{siteName || "完了現場"}</h2>
+                                {typeof pendingCount === "number" && pendingCount > 1 && (
+                                    <p className={styles.previewMeta}>あと {pendingCount - 1} 件</p>
+                                )}
                                 {(headerWorkTypes.length > 0 || headerAddress) && (
                                     <div className={styles.siteContext}>
                                         {headerWorkTypes.length > 0 && (
