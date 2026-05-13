@@ -128,6 +128,8 @@ export function requiredCoSigns(teamSize: number, targetSelfAgreed: boolean): nu
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MONTH_PATTERN = /^\d{4}-\d{2}$/;
+const DRAFT_DEADLINE_DAYS = 7;
+const DRAFT_DEADLINE_MS = DRAFT_DEADLINE_DAYS * 24 * 60 * 60 * 1000;
 
 function ensureUuid(value: unknown, code: string): string {
   if (typeof value !== "string" || !UUID_PATTERN.test(value)) {
@@ -267,9 +269,11 @@ export class PathV33RewardService {
     return dates.size;
   }
 
-  // Resolve the month bucket a site belongs to. V3.3 attributes the draft to
-  // the month containing the site's completed_at (falls back to created_at).
-  private async resolveSiteMonth(siteId: string): Promise<string> {
+  // Resolve the month bucket a site belongs to and return completed_at for
+  // PR3 deadline checks. Month attribution keeps completed_at-first behavior.
+  private async resolveSiteDraftContext(
+    siteId: string,
+  ): Promise<{ month: string; completed_at: string | null }> {
     const { data, error } = await supabaseAdmin
       .from("sites")
       .select("id, org_id, completed_at, created_at")
@@ -285,11 +289,22 @@ export class PathV33RewardService {
       throw new Error("SITE_NOT_FOUND");
     }
 
+    const completedAt = typeof data.completed_at === "string" ? data.completed_at : null;
     const anchor =
-      (typeof data.completed_at === "string" && data.completed_at) ||
+      completedAt ||
       (typeof data.created_at === "string" && data.created_at) ||
       new Date().toISOString();
-    return anchor.slice(0, 7);
+    return { month: anchor.slice(0, 7), completed_at: completedAt };
+  }
+
+  private ensureDraftDeadline(completedAt: string | null): void {
+    if (!completedAt) return;
+    const completedAtMs = Date.parse(completedAt);
+    if (!Number.isFinite(completedAtMs)) return;
+    const deadlineMs = completedAtMs + DRAFT_DEADLINE_MS;
+    if (Date.now() > deadlineMs) {
+      throw new Error("PATH_V33_DRAFT_DEADLINE_PASSED");
+    }
   }
 
   async submitLevelDraft(input: SubmitLevelDraftInput, actor: ActorRef): Promise<{
@@ -304,7 +319,9 @@ export class PathV33RewardService {
     const tier = ensureTier(input.tier);
     const comment = (input.self_comment ?? "").toString().slice(0, 500);
 
-    const month = await this.resolveSiteMonth(siteId);
+    const siteContext = await this.resolveSiteDraftContext(siteId);
+    this.ensureDraftDeadline(siteContext.completed_at);
+    const month = siteContext.month;
     const workDays = await this.countWorkDays(memberId, siteId, month);
 
     // V3.3 governance: once a draft is locked (by month-end +3 freeze or by

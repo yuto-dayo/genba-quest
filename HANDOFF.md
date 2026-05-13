@@ -2,30 +2,30 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `Push branch and open PR2`
+- NEXT_CMD: `Push and create PR`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
-  - `/Users/yutoyoshino/Documents/genba-quest-level-pr2/HANDOFF.md`
-  - `/Users/yutoyoshino/Documents/genba-quest-level-pr2/docs/DESIGN_PHILOSOPHY.md`
+  - `/Users/yutoyoshino/Documents/genba-quest-level-draft-7day-lock/HANDOFF.md`
+  - `/Users/yutoyoshino/Documents/genba-quest-level-draft-7day-lock/docs/DESIGN_PHILOSOPHY.md`
 - DO_NOT_READ:
   - `docs/DESIGN_PHILOSOPHY.md` (full)
 - VERIFY_FIRST:
   - `sed -n '1,120p' docs/DESIGN_PHILOSOPHY.md`
 - STATE:
-  - Branch: `feature/level-draft-modal-enhance`
-  - Uncommitted: `14 files`
+  - Branch: `feature/level-draft-7day-lock`
+  - Uncommitted: `11 files`
   - DB migrations: `latest local: none found`
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `79d24d2`
-  - Updated: `2026-05-13T01:18:35+0900`
+  - HEAD: `29f02e7`
+  - Updated: `2026-05-13T19:55:32+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
 
 <!-- HANDOFF_SESSION_EVENTS_START -->
-- 2026-05-13 01:12:48 +0900 — started by claude
+- 2026-05-13 19:55:21 +0900 — started by claude
 <!-- HANDOFF_SESSION_EVENTS_END -->
 
 ---
@@ -33,16 +33,16 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `Push branch and open PR2`. Source: realtime
-- [H0001] Completed: PR2 implementation merged with master (PR1) — resolved Today.tsx / TodayAssignments / Today.test.tsx / handoff conflicts
-- [H0001] Remaining: Push branch and open PR2
+- [focus] NEXT_CMD: `Push and create PR`. Source: realtime
+- [H0001] Completed: PR3 implementation: 7-day deadline + auto-advance wizard
+- [H0001] Remaining: Push and create PR
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
-- [H0001] Auto-captured decision: PR2 implementation merged with master (PR1) — resolved Today.tsx / TodayAssignments / Today.test.tsx / handoff conflicts
+- [H0001] Auto-captured decision: PR3 implementation: 7-day deadline + auto-advance wizard
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
@@ -52,7 +52,7 @@
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
-- [H0001] Push branch and open PR2
+- [H0001] Push and create PR
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
@@ -70,11 +70,11 @@
 
 ```text
 Agent: 未定（Claude Code / Codex）
-Branch: feature/level-draft-modal-enhance
+Branch: feature/level-draft-7day-lock
 Phase: A-0/A-1
 ```
 
-> [carryover] Working tree was dirty at session start (14 files). Prior session may have unfinished work — verify NEXT_CMD before executing.
+> [carryover] Working tree was dirty at session start (11 files). Prior session may have unfinished work — verify NEXT_CMD before executing.
 
 1. `docs/DESIGN_PHILOSOPHY.md` の冒頭を確認
 2. このファイルを更新しながら実装を進める
@@ -90,12 +90,12 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
-- [x] PR2 implementation merged with master (PR1) — resolved Today.tsx / TodayAssignments / Today.test.tsx / handoff conflicts
+- [x] PR3 implementation: 7-day deadline + auto-advance wizard
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: Push branch and open PR2
+- [ ] **P0**: Push and create PR
 ---
 
 ## 5. Changed Files
@@ -149,18 +149,18 @@ cd frontend && npx eslint src/
 
 ## 11. Incremental Updates
 
-### 2026-05-13 01:18:35 +0900
+### 2026-05-13 19:55:32 +0900
 
 - Entry-ID: `H0001`
 - Completed:
-  - [x] PR2 implementation merged with master (PR1) — resolved Today.tsx / TodayAssignments / Today.test.tsx / handoff conflicts
+  - [x] PR3 implementation: 7-day deadline + auto-advance wizard
 - Remaining:
-  - [ ] Push branch and open PR2
+  - [ ] Push and create PR
 - Changed Files:
   - No file list provided (use --file "path - semantic description")
 - Working Context:
-  - Auto-captured decision: PR2 implementation merged with master (PR1) — resolved Today.tsx / TodayAssignments / Today.test.tsx / handoff conflicts
+  - Auto-captured decision: PR3 implementation: 7-day deadline + auto-advance wizard
 - Validation:
-  - `frontend tsc 0; frontend vitest 20/20; server tsc 0; eslint clean`
+  - `frontend tsc 0; vitest 35/35; server tsc 0`
 - Landmines:
   - No new landmines reported in this chunk.

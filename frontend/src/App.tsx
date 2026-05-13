@@ -48,6 +48,7 @@ import {
   fetchAppEntryState,
   fetchMyProfile,
   fetchNotifications,
+  markNotificationRead,
   fetchPendingApprovals,
   fetchPendingProposals,
   type AccountingTransaction,
@@ -1434,6 +1435,7 @@ function AppContent() {
   const [inboxOpen, setInboxOpen] = useState(false);
   const [bellDrawerOpen, setBellDrawerOpen] = useState(false);
   const [levelDraftTarget, setLevelDraftTarget] = useState<{
+    notificationId: string;
     siteId: string;
     siteName: string;
     memberId: string;
@@ -1659,18 +1661,21 @@ function AppContent() {
     };
   }, [handleSignedOut, resolveEntryState]);
 
-  const loadSiteLevelDraftNotifications = useCallback(async () => {
+  const loadSiteLevelDraftNotifications = useCallback(async (): Promise<NotificationRecord[]> => {
     if (!appReady || !activeOrgId) {
       setSiteLevelDraftNotifications([]);
-      return;
+      return [];
     }
 
     try {
       const notifications = await fetchNotifications({ unread_only: true, limit: 50 });
-      setSiteLevelDraftNotifications(notifications.filter(isSiteLevelDraftNotification));
+      const siteDraftNotifications = notifications.filter(isSiteLevelDraftNotification);
+      setSiteLevelDraftNotifications(siteDraftNotifications);
+      return siteDraftNotifications;
     } catch (error) {
       console.error("Failed to load site level draft notifications:", error);
       setSiteLevelDraftNotifications([]);
+      return [];
     }
   }, [activeOrgId, appReady]);
 
@@ -1790,7 +1795,12 @@ function AppContent() {
         return;
       }
       setInboxOpen(false);
-      setLevelDraftTarget({ siteId, siteName, memberId });
+      setLevelDraftTarget({
+        notificationId: notification.id,
+        siteId,
+        siteName,
+        memberId,
+      });
     },
     [authSession],
   );
@@ -2225,8 +2235,46 @@ function AppContent() {
             siteId={levelDraftTarget?.siteId ?? ""}
             siteName={levelDraftTarget?.siteName ?? ""}
             memberId={levelDraftTarget?.memberId ?? ""}
-            onSubmitted={() => {
-              void loadSiteLevelDraftNotifications();
+            pendingCount={siteLevelDraftNotifications.length}
+            onSubmitted={async () => {
+              const submittedTarget = levelDraftTarget;
+              if (!submittedTarget) {
+                setLevelDraftTarget(null);
+                return;
+              }
+
+              if (submittedTarget.notificationId) {
+                try {
+                  await markNotificationRead(submittedTarget.notificationId);
+                } catch (error) {
+                  console.error("Failed to mark site level draft notification as read:", error);
+                }
+              }
+
+              const notifications = await loadSiteLevelDraftNotifications();
+              const nextNotification = notifications.find((notification) => {
+                const nextSiteId = getNotificationDataString(notification, "site_id");
+                return Boolean(nextSiteId && nextSiteId !== submittedTarget.siteId);
+              });
+
+              if (!nextNotification) {
+                setLevelDraftTarget(null);
+              } else {
+                const nextSiteId = getNotificationDataString(nextNotification, "site_id");
+                const nextMemberId =
+                  getNotificationDataString(nextNotification, "member_id") ?? authSession?.user.id ?? "";
+                if (!nextSiteId || !nextMemberId) {
+                  setLevelDraftTarget(null);
+                } else {
+                  const nextSiteName = getNotificationDataString(nextNotification, "site_name") ?? "完了現場";
+                  setLevelDraftTarget({
+                    notificationId: nextNotification.id,
+                    siteId: nextSiteId,
+                    siteName: nextSiteName,
+                    memberId: nextMemberId,
+                  });
+                }
+              }
               window.dispatchEvent(new Event("site-level-draft-updated"));
             }}
           />
