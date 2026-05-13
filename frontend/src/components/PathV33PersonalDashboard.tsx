@@ -1,11 +1,13 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ArrowRight, HardHat } from "lucide-react";
 import {
     fetchPathV33MonthlyPreview,
+    type PathV33LevelDraft,
     type PathV33Level,
     type PathV33MonthlyPreview,
 } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
+import { LevelRevisionSheet } from "./LevelRevisionSheet";
 import styles from "./PathV33PersonalDashboard.module.css";
 
 const LEVEL_LABELS: Record<PathV33Level, string> = {
@@ -31,6 +33,23 @@ export function PathV33PersonalDashboard({ memberId, month }: PathV33PersonalDas
     const [preview, setPreview] = useState<PathV33MonthlyPreview | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [revisionTarget, setRevisionTarget] = useState<PathV33LevelDraft | null>(null);
+
+    const reloadPreview = useCallback(async () => {
+        if (!memberId || !month) {
+            return;
+        }
+        setLoading(true);
+        setError(null);
+        try {
+            const result = await fetchPathV33MonthlyPreview(memberId, month);
+            setPreview(result);
+        } catch (err) {
+            setError(getErrorMessage(err));
+        } finally {
+            setLoading(false);
+        }
+    }, [memberId, month]);
 
     useEffect(() => {
         if (!memberId || !month) {
@@ -125,6 +144,17 @@ export function PathV33PersonalDashboard({ memberId, month }: PathV33PersonalDas
                                     <span className={styles.timelineDate}>
                                         {formatTimelineDate(draft.submitted_at)}
                                     </span>
+                                    {!draft.locked_at ? (
+                                        <button
+                                            type="button"
+                                            className={styles.reviseButton}
+                                            onClick={() => setRevisionTarget(draft)}
+                                        >
+                                            修正
+                                        </button>
+                                    ) : (
+                                        <span className={styles.lockedBadge}>確定済</span>
+                                    )}
                                 </div>
                                 {draft.self_comment && (
                                     <p className={styles.comment}>{draft.self_comment}</p>
@@ -134,6 +164,14 @@ export function PathV33PersonalDashboard({ memberId, month }: PathV33PersonalDas
                     </ul>
                 )}
             </section>
+
+            <LevelRevisionSheet
+                open={revisionTarget !== null}
+                onClose={() => setRevisionTarget(null)}
+                draft={revisionTarget}
+                memberId={memberId}
+                onRevised={reloadPreview}
+            />
         </div>
     );
 }

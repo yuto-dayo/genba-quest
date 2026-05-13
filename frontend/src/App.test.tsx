@@ -13,6 +13,7 @@ const fetchNotifications = vi.fn();
 const markNotificationRead = vi.fn();
 const fetchPendingApprovals = vi.fn();
 const fetchPendingProposals = vi.fn();
+const fetchResponsibilityLockTargets = vi.fn();
 const fetchMyProfile = vi.fn();
 const acceptOrgInvite = vi.fn();
 const getSession = vi.fn();
@@ -115,12 +116,18 @@ vi.mock("./components/LevelDraftSheet", () => ({
         open,
         siteName,
         pendingCount,
+        dismissible,
+        noticeMessage,
         onSubmitted,
+        onSubmitError,
     }: {
         open: boolean;
         siteName: string;
         pendingCount?: number;
+        dismissible?: boolean;
+        noticeMessage?: string | null;
         onSubmitted?: () => Promise<void> | void;
+        onSubmitError?: (message: string) => Promise<void> | void;
     }) =>
         open ? (
             <div data-testid="level-draft-sheet">
@@ -128,8 +135,16 @@ vi.mock("./components/LevelDraftSheet", () => ({
                 {typeof pendingCount === "number" ? (
                     <span data-testid="level-draft-pending-count">{pendingCount}</span>
                 ) : null}
+                <span data-testid="level-draft-dismissible">{String(Boolean(dismissible))}</span>
+                {noticeMessage ? <span data-testid="level-draft-notice">{noticeMessage}</span> : null}
                 <button type="button" onClick={() => void onSubmitted?.()}>
                     mock-submit-level-draft
+                </button>
+                <button
+                    type="button"
+                    onClick={() => void onSubmitError?.("PATH_V33_DRAFT_DEADLINE_PASSED")}
+                >
+                    mock-deadline-error
                 </button>
             </div>
         ) : null,
@@ -157,6 +172,8 @@ vi.mock("./lib/api", async () => {
         markNotificationRead: (...args: unknown[]) => markNotificationRead(...args),
         fetchPendingApprovals: (...args: unknown[]) => fetchPendingApprovals(...args),
         fetchPendingProposals: (...args: unknown[]) => fetchPendingProposals(...args),
+        fetchResponsibilityLockTargets: (...args: unknown[]) =>
+            fetchResponsibilityLockTargets(...args),
         fetchMyProfile: (...args: unknown[]) => fetchMyProfile(...args),
         acceptOrgInvite: (...args: unknown[]) => acceptOrgInvite(...args),
     };
@@ -199,6 +216,7 @@ describe("App entry gate", () => {
         });
         fetchPendingApprovals.mockResolvedValue([]);
         fetchPendingProposals.mockResolvedValue([]);
+        fetchResponsibilityLockTargets.mockResolvedValue([]);
         fetchMyProfile.mockResolvedValue({
             profile: {
                 id: "user-1",
@@ -542,6 +560,62 @@ describe("App entry gate", () => {
         expect(sheet).toHaveTextContent("A棟クロス");
         expect(screen.getByTestId("level-draft-pending-count")).toHaveTextContent("1");
         expect(fetchNotifications).toHaveBeenCalledWith({ unread_only: true, limit: 50 });
+    });
+
+    it("opens forced responsibility lock draft as non-dismissible when targets exist", async () => {
+        fetchResponsibilityLockTargets.mockResolvedValue([
+            {
+                site_id: "site-lock-1",
+                site_name: "期限直前現場",
+                completed_at: "2026-05-03T00:00:00.000Z",
+                deadline_at: "2026-05-10T00:00:00.000Z",
+            },
+        ]);
+        fetchAppEntryState.mockResolvedValue({
+            state: "ready",
+            active_org: { org_id: "org-1", org_name: "GENBA 本部", role: "admin" },
+            memberships: [{ org_id: "org-1", org_name: "GENBA 本部", role: "admin" }],
+        });
+
+        render(<App />);
+
+        const sheet = await screen.findByTestId("level-draft-sheet");
+        expect(sheet).toHaveTextContent("期限直前現場");
+        expect(screen.getByTestId("level-draft-dismissible")).toHaveTextContent("false");
+    });
+
+    it("skips deadline-passed forced target and advances to next with notice", async () => {
+        fetchResponsibilityLockTargets.mockResolvedValue([
+            {
+                site_id: "site-lock-1",
+                site_name: "期限超過現場",
+                completed_at: "2026-05-03T00:00:00.000Z",
+                deadline_at: "2026-05-10T00:00:00.000Z",
+            },
+            {
+                site_id: "site-lock-2",
+                site_name: "次の現場",
+                completed_at: "2026-05-03T01:00:00.000Z",
+                deadline_at: "2026-05-10T01:00:00.000Z",
+            },
+        ]);
+        fetchAppEntryState.mockResolvedValue({
+            state: "ready",
+            active_org: { org_id: "org-1", org_name: "GENBA 本部", role: "admin" },
+            memberships: [{ org_id: "org-1", org_name: "GENBA 本部", role: "admin" }],
+        });
+
+        render(<App />);
+
+        expect(await screen.findByTestId("level-draft-sheet")).toHaveTextContent("期限超過現場");
+        fireEvent.click(screen.getByRole("button", { name: "mock-deadline-error" }));
+
+        await waitFor(() => {
+            expect(screen.getByTestId("level-draft-sheet")).toHaveTextContent("次の現場");
+        });
+        expect(screen.getByTestId("level-draft-notice")).toHaveTextContent(
+            "期限を過ぎた現場はスキップしました。必要なら PATH 画面から修正申請してください。",
+        );
     });
 
     it("marks submitted notification as read and auto-advances to the next site draft", async () => {

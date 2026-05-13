@@ -4089,6 +4089,29 @@ export const submitPathV33LevelDraft = (data: {
         { method: "POST", body: JSON.stringify(data) },
     );
 
+export const revisePathV33LevelDraft = (data: {
+    draft_id: string;
+    tier: PathV33Tier;
+    self_comment?: string;
+    reason: string;
+}) =>
+    api<{ draft: PathV33LevelDraft; preview: PathV33MonthlyPreview }>(
+        "/api/v1/path/module/v33/level-drafts/revise",
+        { method: "POST", body: JSON.stringify(data) },
+    );
+
+export interface ResponsibilityLockTarget {
+    site_id: string;
+    site_name: string;
+    completed_at: string;
+    deadline_at: string;
+}
+
+export const fetchResponsibilityLockTargets = () =>
+    api<{ targets: ResponsibilityLockTarget[] }>("/api/v1/path/module/v33/me/responsibility-lock").then(
+        (response) => response.targets,
+    );
+
 export const fetchPathV33MonthlyPreview = (memberId: string, month: string) =>
     api<{ preview: PathV33MonthlyPreview }>(
         `/api/v1/path/module/v33/level-drafts/preview?member_id=${encodeURIComponent(memberId)}&month=${encodeURIComponent(month)}`,

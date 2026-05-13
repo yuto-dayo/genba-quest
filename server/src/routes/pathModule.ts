@@ -77,7 +77,11 @@ const PATH_MODULE_ERROR_STATUS_MAP: Record<string, number> = {
   PATH_V33_DRAFT_NOT_FOUND: 404,
   PATH_V33_DRAFT_LOCKED: 409,
   PATH_V33_DRAFT_DEADLINE_PASSED: 409,
+  PATH_V33_REVISION_REASON_REQUIRED: 400,
+  PATH_V33_REVISION_REASON_TOO_LONG: 400,
+  PATH_V33_DRAFT_OWNER_MISMATCH: 403,
   PATH_V33_CANNOT_OBJECT_OWN_DRAFT: 403,
+  INVALID_DRAFT_ID: 400,
   INVALID_OBJECTION_ID: 400,
   INVALID_OBJECTOR_ID: 400,
   INVALID_SIGNER_ID: 400,
@@ -876,6 +880,37 @@ router.post("/v33/level-drafts", async (req: AuthenticatedRequest, res: Response
       actor,
     );
     res.status(201).json(result);
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+router.post("/v33/level-drafts/revise", async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const actor = buildHumanActor(req);
+    const rawTier = Number(req.body?.tier);
+    const tier = rawTier === 1 || rawTier === 2 || rawTier === 3 ? rawTier : 0;
+    const result = await getPathV33RewardService(req).reviseLevelDraft(
+      {
+        draft_id: typeof req.body?.draft_id === "string" ? req.body.draft_id : "",
+        tier: tier as 1 | 2 | 3,
+        self_comment:
+          typeof req.body?.self_comment === "string" ? req.body.self_comment : "",
+        reason: typeof req.body?.reason === "string" ? req.body.reason : "",
+      },
+      actor,
+    );
+    res.status(200).json(result);
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+router.get("/v33/me/responsibility-lock", async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const memberId = req.userId ?? "";
+    const targets = await getPathV33RewardService(req).fetchResponsibilityLockTargets(memberId);
+    res.json({ targets });
   } catch (error) {
     handleError(res, error);
   }

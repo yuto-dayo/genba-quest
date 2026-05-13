@@ -130,6 +130,8 @@ const UUID_PATTERN =
 const MONTH_PATTERN = /^\d{4}-\d{2}$/;
 const DRAFT_DEADLINE_DAYS = 7;
 const DRAFT_DEADLINE_MS = DRAFT_DEADLINE_DAYS * 24 * 60 * 60 * 1000;
+const RESPONSIBILITY_LOCK_TRIGGER_DAYS = 6;
+const RESPONSIBILITY_LOCK_TRIGGER_MS = RESPONSIBILITY_LOCK_TRIGGER_DAYS * 24 * 60 * 60 * 1000;
 
 function ensureUuid(value: unknown, code: string): string {
   if (typeof value !== "string" || !UUID_PATTERN.test(value)) {
@@ -166,6 +168,13 @@ export interface SubmitLevelDraftInput {
   site_id: string;
   tier: PathV33Tier;
   self_comment?: string;
+}
+
+export interface ReviseLevelDraftInput {
+  draft_id: string;
+  tier: PathV33Tier;
+  self_comment?: string;
+  reason: string;
 }
 
 export interface LevelDraftRecord {
@@ -213,6 +222,13 @@ export interface TeamFeedResult {
   month: string;
   members: TeamFeedMember[];
   timeline: TeamFeedTimelineEntry[];
+}
+
+export interface ResponsibilityLockTarget {
+  site_id: string;
+  site_name: string;
+  completed_at: string;
+  deadline_at: string;
 }
 
 export class PathV33RewardService {
@@ -357,6 +373,207 @@ export class PathV33RewardService {
     const draft = this.normalizeDraftRow(data);
     const preview = await this.getMonthlyPreview(memberId, month);
     return { draft, preview };
+  }
+
+  async reviseLevelDraft(input: ReviseLevelDraftInput, actor: ActorRef): Promise<{
+    draft: LevelDraftRecord;
+    preview: MonthlyPreviewResult;
+  }> {
+    if (actor.type !== "human") {
+      throw new Error("PATH_V33_HUMAN_ACTOR_REQUIRED");
+    }
+    const memberId = ensureUuid(actor.id, "INVALID_MEMBER_ID");
+    const draftId = ensureUuid(input.draft_id, "INVALID_DRAFT_ID");
+    const tier = ensureTier(input.tier);
+    const reason = (input.reason ?? "").toString().trim();
+    const comment = (input.self_comment ?? "").toString().slice(0, 500);
+
+    if (reason.length === 0) {
+      throw new Error("PATH_V33_REVISION_REASON_REQUIRED");
+    }
+    if (reason.length > 500) {
+      throw new Error("PATH_V33_REVISION_REASON_TOO_LONG");
+    }
+
+    const { data: existingRaw, error: fetchError } = await supabaseAdmin
+      .from("site_member_level_drafts")
+      .select("*")
+      .eq("id", draftId)
+      .eq("org_id", this.orgId)
+      .maybeSingle();
+
+    if (fetchError) {
+      throw new Error(`Failed to fetch draft: ${fetchError.message}`);
+    }
+    if (!existingRaw) {
+      throw new Error("PATH_V33_DRAFT_NOT_FOUND");
+    }
+    if (String(existingRaw.member_id ?? "") !== memberId) {
+      throw new Error("PATH_V33_DRAFT_OWNER_MISMATCH");
+    }
+    if (existingRaw.locked_at) {
+      throw new Error("PATH_V33_DRAFT_LOCKED");
+    }
+
+    const prevTier = ensureTier(Number(existingRaw.tier));
+    const prevComment = typeof existingRaw.self_comment === "string" ? existingRaw.self_comment : "";
+    const prevSubmittedAt =
+      typeof existingRaw.submitted_at === "string" ? existingRaw.submitted_at : new Date().toISOString();
+
+    if (prevTier === tier && prevComment === comment) {
+      const draft = this.normalizeDraftRow(existingRaw);
+      const siteContext = await this.resolveSiteDraftContext(draft.site_id);
+      const preview = await this.getMonthlyPreview(memberId, siteContext.month);
+      return { draft, preview };
+    }
+
+    const now = new Date().toISOString();
+    const { data: updatedRaw, error: updateError } = await supabaseAdmin
+      .from("site_member_level_drafts")
+      .update({
+        tier,
+        self_comment: comment,
+        submitted_at: now,
+      })
+      .eq("id", draftId)
+      .eq("org_id", this.orgId)
+      .is("locked_at", null)
+      .select("*")
+      .maybeSingle();
+
+    if (updateError || !updatedRaw) {
+      throw new Error(`Failed to update draft: ${updateError?.message ?? "no row"}`);
+    }
+
+    const { error: revisionError } = await supabaseAdmin
+      .from("site_member_level_draft_revisions")
+      .insert({
+        org_id: this.orgId,
+        draft_id: draftId,
+        revised_by: memberId,
+        revised_at: now,
+        prev_tier: prevTier,
+        new_tier: tier,
+        prev_self_comment: prevComment,
+        new_self_comment: comment,
+        reason,
+      });
+
+    if (revisionError) {
+      await supabaseAdmin
+        .from("site_member_level_drafts")
+        .update({
+          tier: prevTier,
+          self_comment: prevComment,
+          submitted_at: prevSubmittedAt,
+        })
+        .eq("id", draftId)
+        .eq("org_id", this.orgId);
+      throw new Error(`Failed to record revision: ${revisionError.message}`);
+    }
+
+    const draft = this.normalizeDraftRow(updatedRaw as Record<string, unknown>);
+    const siteContext = await this.resolveSiteDraftContext(draft.site_id);
+    const preview = await this.getMonthlyPreview(memberId, siteContext.month);
+    return { draft, preview };
+  }
+
+  async fetchResponsibilityLockTargets(memberId: string): Promise<ResponsibilityLockTarget[]> {
+    const resolvedMemberId = ensureUuid(memberId, "INVALID_MEMBER_ID");
+    const now = Date.now();
+    const triggerIso = new Date(now - RESPONSIBILITY_LOCK_TRIGGER_MS).toISOString();
+    const deadlineIso = new Date(now - DRAFT_DEADLINE_MS).toISOString();
+
+    const { data: completedSitesRaw, error: sitesError } = await supabaseAdmin
+      .from("sites")
+      .select("id, name, completed_at")
+      .eq("org_id", this.orgId)
+      .eq("status", "completed")
+      .is("deleted_at", null)
+      .not("completed_at", "is", null)
+      .lte("completed_at", triggerIso)
+      .gt("completed_at", deadlineIso)
+      .order("completed_at", { ascending: true })
+      .limit(200);
+
+    if (sitesError) {
+      throw new Error(`Failed to fetch completed sites: ${sitesError.message}`);
+    }
+
+    const completedSites = ((completedSitesRaw ?? []) as Array<Record<string, unknown>>)
+      .map((row) => ({
+        site_id: String(row.id ?? ""),
+        site_name: String(row.name ?? "完了現場"),
+        completed_at: String(row.completed_at ?? ""),
+      }))
+      .filter((row) => UUID_PATTERN.test(row.site_id) && row.completed_at.length > 0);
+
+    if (completedSites.length === 0) {
+      return [];
+    }
+
+    const siteIds = completedSites.map((row) => row.site_id);
+    const { data: participationRaw, error: participationError } = await supabaseAdmin
+      .from("site_day_logs")
+      .select("site_id")
+      .eq("org_id", this.orgId)
+      .eq("member_id", resolvedMemberId)
+      .in("site_id", siteIds);
+
+    if (participationError) {
+      throw new Error(`Failed to fetch site participation: ${participationError.message}`);
+    }
+
+    const participatedSiteIds = new Set(
+      ((participationRaw ?? []) as Array<Record<string, unknown>>)
+        .map((row) => String(row.site_id ?? ""))
+        .filter((value) => UUID_PATTERN.test(value)),
+    );
+
+    if (participatedSiteIds.size === 0) {
+      return [];
+    }
+
+    const relevantSites = completedSites.filter((site) => participatedSiteIds.has(site.site_id));
+    if (relevantSites.length === 0) {
+      return [];
+    }
+
+    const { data: draftRowsRaw, error: draftRowsError } = await supabaseAdmin
+      .from("site_member_level_drafts")
+      .select("site_id")
+      .eq("org_id", this.orgId)
+      .eq("member_id", resolvedMemberId)
+      .in(
+        "site_id",
+        relevantSites.map((site) => site.site_id),
+      );
+
+    if (draftRowsError) {
+      throw new Error(`Failed to fetch existing drafts: ${draftRowsError.message}`);
+    }
+
+    const submittedSiteIds = new Set(
+      ((draftRowsRaw ?? []) as Array<Record<string, unknown>>)
+        .map((row) => String(row.site_id ?? ""))
+        .filter((value) => UUID_PATTERN.test(value)),
+    );
+
+    return relevantSites
+      .filter((site) => !submittedSiteIds.has(site.site_id))
+      .map((site) => {
+        const completedAtMs = Date.parse(site.completed_at);
+        const deadlineAt = Number.isFinite(completedAtMs)
+          ? new Date(completedAtMs + DRAFT_DEADLINE_MS).toISOString()
+          : site.completed_at;
+        return {
+          site_id: site.site_id,
+          site_name: site.site_name,
+          completed_at: site.completed_at,
+          deadline_at: deadlineAt,
+        };
+      })
+      .slice(0, 50);
   }
 
   async getMonthlyPreview(memberId: string, month: string): Promise<MonthlyPreviewResult> {
