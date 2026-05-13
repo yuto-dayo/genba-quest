@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     ArrowLeft,
@@ -44,12 +44,32 @@ import {
     type ProfileViewGrant,
 } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
+import {
+    ImageCompressionError,
+    compressImageForAvatar,
+} from "../lib/imageCompression";
 import { supabase } from "../lib/supabase";
 import { useActiveOrgStore, type ActiveOrgOption } from "../stores/activeOrg";
 import { InvoiceSettingsModal } from "../components/InvoiceSettingsModal";
 import { ClientSettingsModal } from "../components/ClientSettingsModal";
 import { ProfileViewConsentModal } from "../components/ProfileViewConsentModal";
 import styles from "./Settings.module.css";
+
+function getAvatarErrorMessage(error: unknown): string {
+    if (error instanceof ImageCompressionError) {
+        if (error.code === "TOO_LARGE") {
+            return "画像が大きすぎます。10MB以下の画像を選んでください。";
+        }
+        if (error.code === "MIME_REJECTED") {
+            return "JPEG / PNG / WebP の画像を選んでください。";
+        }
+        return "画像の読み込みに失敗しました。別の画像でお試しください。";
+    }
+    if (error instanceof Error) {
+        return error.message;
+    }
+    return "アバターの保存に失敗しました。";
+}
 
 const statusMeta = {
     unregistered: {
@@ -279,6 +299,9 @@ export function Settings() {
     const [profileSaveBusy, setProfileSaveBusy] = useState(false);
     const [profileError, setProfileError] = useState<string | null>(null);
     const [profileMessage, setProfileMessage] = useState<string | null>(null);
+    const [avatarBusy, setAvatarBusy] = useState(false);
+    const [avatarError, setAvatarError] = useState<string | null>(null);
+    const avatarFileInputRef = useRef<HTMLInputElement | null>(null);
     const [settingsQuery, setSettingsQuery] = useState("");
     const [selectedSetting, setSelectedSetting] = useState<SettingPanel | null>(null);
     const [extendedViewTarget, setExtendedViewTarget] = useState<Member | null>(null);
@@ -561,6 +584,66 @@ export function Settings() {
         setProfileMessage(null);
     };
 
+    const handleAvatarSelect = async (file: File) => {
+        if (!myProfile) {
+            return;
+        }
+        if (file.type === "image/heic" || file.type === "image/heif") {
+            setAvatarError("HEIC画像は未対応です。写真アプリでJPEGに変換して選んでください。");
+            return;
+        }
+
+        setAvatarBusy(true);
+        setAvatarError(null);
+        setProfileError(null);
+        setProfileMessage(null);
+
+        try {
+            const compressed = await compressImageForAvatar(file);
+            const objectPath = `${myProfile.id}/avatar.jpg`;
+            const { error: uploadError } = await supabase.storage
+                .from("avatars")
+                .upload(objectPath, compressed, {
+                    upsert: true,
+                    contentType: "image/jpeg",
+                });
+            if (uploadError) {
+                throw uploadError;
+            }
+            const {
+                data: { publicUrl },
+            } = supabase.storage.from("avatars").getPublicUrl(objectPath);
+            const versionedUrl = `${publicUrl}?v=${Date.now()}`;
+
+            const result = await updateMyProfile({ avatar_url: versionedUrl });
+            setMyProfile(result.profile);
+            setProfileMessage("プロフィール写真を更新しました。");
+        } catch (error: unknown) {
+            setAvatarError(getAvatarErrorMessage(error));
+        } finally {
+            setAvatarBusy(false);
+        }
+    };
+
+    const handleAvatarRemove = async () => {
+        if (!myProfile) {
+            return;
+        }
+        setAvatarBusy(true);
+        setAvatarError(null);
+        setProfileError(null);
+        setProfileMessage(null);
+        try {
+            const result = await updateMyProfile({ avatar_url: null });
+            setMyProfile(result.profile);
+            setProfileMessage("プロフィール写真を削除しました。");
+        } catch (error: unknown) {
+            setAvatarError(getAvatarErrorMessage(error));
+        } finally {
+            setAvatarBusy(false);
+        }
+    };
+
     const handleSaveProfile = async () => {
         try {
             setProfileSaveBusy(true);
@@ -818,6 +901,77 @@ export function Settings() {
 
                         {selectedSetting === "profile" && (
                             <>
+                                <div className={styles.infoCard}>
+                                    <div className={styles.infoCardHeader}>
+                                        <div>
+                                            <h3 className={styles.infoCardTitle}>プロフィール写真</h3>
+                                            <p className={styles.infoCardDescription}>
+                                                チームの一覧やコミュニケーション画面で表示されます。
+                                            </p>
+                                        </div>
+                                        <UserPlus size={18} className={styles.infoCardIcon} />
+                                    </div>
+
+                                    <div className={styles.avatarRow}>
+                                        <div className={styles.avatarThumb}>
+                                            {myProfile?.avatar_url ? (
+                                                <img
+                                                    key={myProfile.avatar_url}
+                                                    src={myProfile.avatar_url}
+                                                    alt="プロフィール写真"
+                                                    className={styles.avatarThumbImage}
+                                                />
+                                            ) : (
+                                                <span className={styles.avatarThumbFallback}>
+                                                    {(myProfile?.nickname ?? "?").slice(0, 1)}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className={styles.avatarActions}>
+                                            <input
+                                                ref={avatarFileInputRef}
+                                                type="file"
+                                                accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                                                className={styles.hiddenFileInput}
+                                                onChange={(event) => {
+                                                    const file = event.target.files?.[0];
+                                                    if (file) {
+                                                        void handleAvatarSelect(file);
+                                                    }
+                                                    event.target.value = "";
+                                                }}
+                                            />
+                                            <button
+                                                type="button"
+                                                className={styles.primaryButton}
+                                                onClick={() => avatarFileInputRef.current?.click()}
+                                                disabled={avatarBusy || !myProfile}
+                                            >
+                                                {avatarBusy
+                                                    ? "アップロード中..."
+                                                    : myProfile?.avatar_url
+                                                        ? "写真を変更"
+                                                        : "写真を追加"}
+                                            </button>
+                                            {myProfile?.avatar_url ? (
+                                                <button
+                                                    type="button"
+                                                    className={styles.secondaryButton}
+                                                    onClick={() => void handleAvatarRemove()}
+                                                    disabled={avatarBusy}
+                                                >
+                                                    削除
+                                                </button>
+                                            ) : null}
+                                            <p className={styles.helperText}>
+                                                {avatarError
+                                                    ? avatarError
+                                                    : "JPEG / PNG / WebP・10MB以内。自動で小さくします。"}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div className={styles.infoCard}>
                                     <div className={styles.infoCardHeader}>
                                         <div>

@@ -1724,6 +1724,7 @@ export interface MyProfileRecord {
 export type UpdateMyProfilePayload = Partial<{
     nickname: string | null;
     full_name: string | null;
+    avatar_url: string | null;
     username: string | null;
     phone: string | null;
     job_type: string | null;
