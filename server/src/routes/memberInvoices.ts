@@ -211,6 +211,7 @@ router.get(
             const membership = await resolveActiveOrgMembership(req, "admin");
             const summary = await getService().getOutstandingSummary({
                 orgId: membership.org_id,
+                userId: req.userId!,
             });
             // status ごとの粗集計も同梱
             const totals = summary.reduce(
@@ -254,6 +255,7 @@ router.get(
             const invoices = await getService().listAdminActionableInvoices({
                 orgId: membership.org_id,
                 status: statusRaw as "issued" | "paid" | "void",
+                userId: req.userId!,
             });
             res.json({ invoices });
         } catch (err) {
