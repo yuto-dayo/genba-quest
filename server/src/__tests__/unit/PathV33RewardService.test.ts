@@ -259,3 +259,194 @@ describe("PathV33RewardService.submitLevelDraft deadline guard", () => {
     );
   });
 });
+
+describe("PathV33RewardService.reviseLevelDraft", () => {
+  const ORG_ID = "00000000-0000-4000-8000-000000000001";
+  const MEMBER_ID = "11111111-1111-4111-8111-111111111111";
+  const OTHER_MEMBER_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const SITE_ID = "22222222-2222-4222-8222-222222222222";
+  const DRAFT_ID = "33333333-3333-4333-8333-333333333333";
+  const ACTOR = { type: "human" as const, id: MEMBER_ID, name: "Worker" };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2026-05-10T00:00:00.000Z"));
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  function buildDraftRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: DRAFT_ID,
+      org_id: ORG_ID,
+      site_id: SITE_ID,
+      member_id: MEMBER_ID,
+      tier: 2,
+      work_days: 3,
+      self_comment: "before",
+      evidence: {},
+      submitted_at: "2026-05-02T00:00:00.000Z",
+      locked_at: null,
+      ...overrides,
+    };
+  }
+
+  it("updates draft and stores revision row", async () => {
+    setupMockFromSequence(supabaseAdmin.from as jest.Mock, [
+      createChain({ data: buildDraftRow(), error: null }),
+      createChain({ data: buildDraftRow({ tier: 3, self_comment: "after" }), error: null }),
+      createChain({ data: null, error: null }),
+      createChain({
+        data: { id: SITE_ID, org_id: ORG_ID, completed_at: "2026-05-01T00:00:00.000Z", created_at: "2026-05-01T00:00:00.000Z" },
+        error: null,
+      }),
+      createChain({
+        data: [{ id: SITE_ID, completed_at: "2026-05-01T00:00:00.000Z", created_at: "2026-05-01T00:00:00.000Z" }],
+        error: null,
+      }),
+      createChain({ data: [buildDraftRow({ tier: 3, self_comment: "after" })], error: null }),
+      createChain({ data: null, error: null }),
+    ]);
+
+    const service = new PathV33RewardService(ORG_ID);
+    const result = await service.reviseLevelDraft(
+      { draft_id: DRAFT_ID, tier: 3, self_comment: "after", reason: "記録を修正" },
+      ACTOR,
+    );
+
+    expect(result.draft.tier).toBe(3);
+    expect(result.draft.self_comment).toBe("after");
+    expect(result.preview.month).toBe("2026-05");
+  });
+
+  it("throws when reason is empty", async () => {
+    const service = new PathV33RewardService(ORG_ID);
+    await expect(
+      service.reviseLevelDraft({ draft_id: DRAFT_ID, tier: 2, self_comment: "", reason: "" }, ACTOR),
+    ).rejects.toThrow("PATH_V33_REVISION_REASON_REQUIRED");
+  });
+
+  it("throws when reason is too long", async () => {
+    const service = new PathV33RewardService(ORG_ID);
+    await expect(
+      service.reviseLevelDraft(
+        { draft_id: DRAFT_ID, tier: 2, self_comment: "", reason: "a".repeat(501) },
+        ACTOR,
+      ),
+    ).rejects.toThrow("PATH_V33_REVISION_REASON_TOO_LONG");
+  });
+
+  it("throws when draft owner mismatches", async () => {
+    setupMockFromSequence(supabaseAdmin.from as jest.Mock, [
+      createChain({ data: buildDraftRow({ member_id: OTHER_MEMBER_ID }), error: null }),
+    ]);
+
+    const service = new PathV33RewardService(ORG_ID);
+    await expect(
+      service.reviseLevelDraft(
+        { draft_id: DRAFT_ID, tier: 2, self_comment: "ok", reason: "修正理由あり" },
+        ACTOR,
+      ),
+    ).rejects.toThrow("PATH_V33_DRAFT_OWNER_MISMATCH");
+  });
+
+  it("throws when draft is locked", async () => {
+    setupMockFromSequence(supabaseAdmin.from as jest.Mock, [
+      createChain({ data: buildDraftRow({ locked_at: "2026-05-09T00:00:00.000Z" }), error: null }),
+    ]);
+
+    const service = new PathV33RewardService(ORG_ID);
+    await expect(
+      service.reviseLevelDraft(
+        { draft_id: DRAFT_ID, tier: 2, self_comment: "ok", reason: "修正理由あり" },
+        ACTOR,
+      ),
+    ).rejects.toThrow("PATH_V33_DRAFT_LOCKED");
+  });
+
+  it("returns success without revision when nothing changed", async () => {
+    setupMockFromSequence(supabaseAdmin.from as jest.Mock, [
+      createChain({ data: buildDraftRow(), error: null }),
+      createChain({
+        data: { id: SITE_ID, org_id: ORG_ID, completed_at: "2026-05-01T00:00:00.000Z", created_at: "2026-05-01T00:00:00.000Z" },
+        error: null,
+      }),
+      createChain({
+        data: [{ id: SITE_ID, completed_at: "2026-05-01T00:00:00.000Z", created_at: "2026-05-01T00:00:00.000Z" }],
+        error: null,
+      }),
+      createChain({ data: [buildDraftRow()], error: null }),
+      createChain({ data: null, error: null }),
+    ]);
+
+    const service = new PathV33RewardService(ORG_ID);
+    const result = await service.reviseLevelDraft(
+      { draft_id: DRAFT_ID, tier: 2, self_comment: "before", reason: "理由あり" },
+      ACTOR,
+    );
+
+    expect(result.draft.tier).toBe(2);
+    expect(result.draft.self_comment).toBe("before");
+  });
+
+  it("throws when draft does not exist", async () => {
+    setupMockFromSequence(supabaseAdmin.from as jest.Mock, [createChain({ data: null, error: null })]);
+    const service = new PathV33RewardService(ORG_ID);
+    await expect(
+      service.reviseLevelDraft(
+        { draft_id: DRAFT_ID, tier: 2, self_comment: "ok", reason: "修正理由あり" },
+        ACTOR,
+      ),
+    ).rejects.toThrow("PATH_V33_DRAFT_NOT_FOUND");
+  });
+});
+
+describe("PathV33RewardService.fetchResponsibilityLockTargets", () => {
+  const ORG_ID = "00000000-0000-4000-8000-000000000001";
+  const MEMBER_ID = "11111111-1111-4111-8111-111111111111";
+  const SITE_A = "22222222-2222-4222-8222-222222222222";
+  const SITE_B = "33333333-3333-4333-8333-333333333333";
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2026-05-10T00:00:00.000Z"));
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it("returns only worked-and-unsubmitted sites in 6-7 day window", async () => {
+    setupMockFromSequence(supabaseAdmin.from as jest.Mock, [
+      createChain({
+        data: [
+          { id: SITE_A, name: "A棟", completed_at: "2026-05-03T00:00:00.000Z" },
+          { id: SITE_B, name: "B棟", completed_at: "2026-05-03T05:00:00.000Z" },
+        ],
+        error: null,
+      }),
+      createChain({ data: [{ site_id: SITE_A }, { site_id: SITE_B }], error: null }),
+      createChain({ data: [{ site_id: SITE_B }], error: null }),
+    ]);
+
+    const service = new PathV33RewardService(ORG_ID);
+    const targets = await service.fetchResponsibilityLockTargets(MEMBER_ID);
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({ site_id: SITE_A, site_name: "A棟" });
+  });
+
+  it("returns empty when member has no participation", async () => {
+    setupMockFromSequence(supabaseAdmin.from as jest.Mock, [
+      createChain({ data: [{ id: SITE_A, name: "A棟", completed_at: "2026-05-03T00:00:00.000Z" }], error: null }),
+      createChain({ data: [], error: null }),
+    ]);
+
+    const service = new PathV33RewardService(ORG_ID);
+    await expect(service.fetchResponsibilityLockTargets(MEMBER_ID)).resolves.toEqual([]);
+  });
+});

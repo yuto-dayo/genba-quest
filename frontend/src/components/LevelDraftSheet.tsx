@@ -44,6 +44,9 @@ export interface LevelDraftSheetProps {
     memberId: string;
     pendingCount?: number;
     onSubmitted?: () => Promise<void> | void;
+    onSubmitError?: (message: string) => Promise<void> | void;
+    noticeMessage?: string | null;
+    dismissible?: boolean;
 }
 
 export function LevelDraftSheet({
@@ -54,6 +57,9 @@ export function LevelDraftSheet({
     memberId,
     pendingCount,
     onSubmitted,
+    onSubmitError,
+    noticeMessage,
+    dismissible = true,
 }: LevelDraftSheetProps) {
     const [tier, setTier] = useState<PathV33Tier>(2);
     const [comment, setComment] = useState("");
@@ -185,7 +191,9 @@ export function LevelDraftSheet({
                 setPostSubmitBanner(`申告を保存しました。今月の見込み: ${actualLevel}`);
             }
         } catch (err) {
-            setSubmitError(mapLevelDraftSubmitErrorMessage(getErrorMessage(err)));
+            const errorMessage = getErrorMessage(err);
+            setSubmitError(mapLevelDraftSubmitErrorMessage(errorMessage));
+            await onSubmitError?.(errorMessage);
         } finally {
             setSubmitting(false);
         }
@@ -206,7 +214,7 @@ export function LevelDraftSheet({
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    onClick={onClose}
+                    onClick={dismissible ? onClose : undefined}
                 >
                     <motion.section
                         className={styles.sheet}
@@ -249,14 +257,16 @@ export function LevelDraftSheet({
                                 )}
                                 <p>この現場での自分の働き方を 3 段階で残してください。月末に加重平均で評価レベルが決まります。</p>
                             </div>
-                            <button
-                                type="button"
-                                className={styles.closeButton}
-                                onClick={onClose}
-                                aria-label="閉じる"
-                            >
-                                <X size={18} />
-                            </button>
+                            {dismissible && (
+                                <button
+                                    type="button"
+                                    className={styles.closeButton}
+                                    onClick={onClose}
+                                    aria-label="閉じる"
+                                >
+                                    <X size={18} />
+                                </button>
+                            )}
                         </header>
 
                         <form className={styles.form} onSubmit={handleSubmit}>
@@ -339,19 +349,24 @@ export function LevelDraftSheet({
                             {submitError && (
                                 <p className={styles.submitError}>申告に失敗: {submitError}</p>
                             )}
+                            {noticeMessage && (
+                                <p className={styles.noticeMessage}>{noticeMessage}</p>
+                            )}
                             {postSubmitBanner && (
                                 <p className={styles.postSubmitBanner}>{postSubmitBanner}</p>
                             )}
 
                             <footer className={styles.footer}>
-                                <button
-                                    type="button"
-                                    className={styles.secondaryButton}
-                                    onClick={onClose}
-                                    disabled={submitting}
-                                >
-                                    あとで
-                                </button>
+                                {dismissible && (
+                                    <button
+                                        type="button"
+                                        className={styles.secondaryButton}
+                                        onClick={onClose}
+                                        disabled={submitting}
+                                    >
+                                        あとで
+                                    </button>
+                                )}
                                 <button
                                     type="submit"
                                     className={styles.primaryButton}

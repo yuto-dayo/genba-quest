@@ -146,9 +146,30 @@
 }
 
 .timelineDate {
-    margin-left: auto;
     color: #6b7c78;
     font: var(--md-sys-typescale-body-small);
+}
+
+.reviseButton {
+    margin-left: auto;
+    border: none;
+    border-radius: 999px;
+    padding: 4px 12px;
+    background: rgba(15, 118, 110, 0.14);
+    color: #0f766e;
+    font: var(--md-sys-typescale-label-small);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.lockedBadge {
+    margin-left: auto;
+    border-radius: 999px;
+    padding: 4px 12px;
+    background: rgba(20, 184, 166, 0.1);
+    color: #4d6863;
+    font: var(--md-sys-typescale-label-small);
+    font-weight: 700;
 }
 
 .comment {

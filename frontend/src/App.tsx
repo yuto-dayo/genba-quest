@@ -48,6 +48,7 @@ import {
   fetchAppEntryState,
   fetchMyProfile,
   fetchNotifications,
+  fetchResponsibilityLockTargets,
   markNotificationRead,
   fetchPendingApprovals,
   fetchPendingProposals,
@@ -58,6 +59,7 @@ import {
   type MyProfileRecord,
   type NotificationRecord,
   type ProposalRecord,
+  type ResponsibilityLockTarget,
 } from "./lib/api";
 import {
   clearDevAuthSession,
@@ -1440,6 +1442,9 @@ function AppContent() {
     siteName: string;
     memberId: string;
   } | null>(null);
+  const [forcedLockTargets, setForcedLockTargets] = useState<ResponsibilityLockTarget[]>([]);
+  const [forcedLockIndex, setForcedLockIndex] = useState(0);
+  const [forcedLockNotice, setForcedLockNotice] = useState<string | null>(null);
   const [authSession, setAuthSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [passwordRecoveryActive, setPasswordRecoveryActive] = useState(false);
@@ -1679,6 +1684,28 @@ function AppContent() {
     }
   }, [activeOrgId, appReady]);
 
+  const loadResponsibilityLockTargets = useCallback(async (): Promise<ResponsibilityLockTarget[]> => {
+    if (!appReady || !activeOrgId) {
+      setForcedLockTargets([]);
+      setForcedLockIndex(0);
+      setForcedLockNotice(null);
+      return [];
+    }
+    try {
+      const targets = await fetchResponsibilityLockTargets();
+      setForcedLockTargets(targets);
+      setForcedLockIndex(0);
+      setForcedLockNotice(null);
+      return targets;
+    } catch (error) {
+      console.error("Failed to load responsibility lock targets:", error);
+      setForcedLockTargets([]);
+      setForcedLockIndex(0);
+      setForcedLockNotice(null);
+      return [];
+    }
+  }, [activeOrgId, appReady]);
+
   const loadPendingApprovals = useCallback(async () => {
     if (!appReady || !activeOrgId) {
       setPendingApprovals([]);
@@ -1718,6 +1745,10 @@ function AppContent() {
   useEffect(() => {
     void loadPendingProposals();
   }, [loadPendingProposals]);
+
+  useEffect(() => {
+    void loadResponsibilityLockTargets();
+  }, [loadResponsibilityLockTargets]);
 
   useEffect(() => {
     window.addEventListener("site-level-draft-updated", loadSiteLevelDraftNotifications);
@@ -1787,6 +1818,9 @@ function AppContent() {
 
   const handleSelectSiteDraft = useCallback(
     (notification: NotificationRecord) => {
+      if (forcedLockTargets.length > 0) {
+        return;
+      }
       const siteId = getNotificationDataString(notification, "site_id");
       const siteName = getNotificationDataString(notification, "site_name") ?? "完了現場";
       const memberId =
@@ -1802,8 +1836,35 @@ function AppContent() {
         memberId,
       });
     },
-    [authSession],
+    [authSession, forcedLockTargets.length],
   );
+
+  const forcedLockActiveTarget = forcedLockTargets[forcedLockIndex] ?? null;
+  const activeLevelDraftTarget =
+    forcedLockActiveTarget && authSession?.user.id
+      ? {
+          notificationId: "",
+          siteId: forcedLockActiveTarget.site_id,
+          siteName: forcedLockActiveTarget.site_name,
+          memberId: authSession.user.id,
+        }
+      : levelDraftTarget;
+  const activePendingCount = forcedLockActiveTarget
+    ? forcedLockTargets.length - forcedLockIndex
+    : siteLevelDraftNotifications.length;
+  const dismissibleLevelDraft = !forcedLockActiveTarget;
+
+  const advanceForcedLockTarget = useCallback(() => {
+    setForcedLockIndex((currentIndex) => {
+      const nextIndex = currentIndex + 1;
+      if (nextIndex >= forcedLockTargets.length) {
+        setForcedLockTargets([]);
+        setForcedLockNotice(null);
+        return 0;
+      }
+      return nextIndex;
+    });
+  }, [forcedLockTargets.length]);
 
   const handleSelectApproval = useCallback(() => {
     setInboxOpen(false);
@@ -2230,16 +2291,28 @@ function AppContent() {
             onOpenProposal={handleBellOpenProposal}
           />
           <LevelDraftSheet
-            open={levelDraftTarget !== null}
-            onClose={() => setLevelDraftTarget(null)}
-            siteId={levelDraftTarget?.siteId ?? ""}
-            siteName={levelDraftTarget?.siteName ?? ""}
-            memberId={levelDraftTarget?.memberId ?? ""}
-            pendingCount={siteLevelDraftNotifications.length}
+            open={activeLevelDraftTarget !== null}
+            onClose={() => {
+              if (!forcedLockActiveTarget) {
+                setLevelDraftTarget(null);
+              }
+            }}
+            siteId={activeLevelDraftTarget?.siteId ?? ""}
+            siteName={activeLevelDraftTarget?.siteName ?? ""}
+            memberId={activeLevelDraftTarget?.memberId ?? ""}
+            pendingCount={activePendingCount}
+            dismissible={dismissibleLevelDraft}
             onSubmitted={async () => {
-              const submittedTarget = levelDraftTarget;
+              const submittedTarget = activeLevelDraftTarget;
               if (!submittedTarget) {
                 setLevelDraftTarget(null);
+                return;
+              }
+
+              if (forcedLockActiveTarget) {
+                setForcedLockNotice(null);
+                advanceForcedLockTarget();
+                window.dispatchEvent(new Event("site-level-draft-updated"));
                 return;
               }
 
@@ -2277,6 +2350,16 @@ function AppContent() {
               }
               window.dispatchEvent(new Event("site-level-draft-updated"));
             }}
+            onSubmitError={async (message) => {
+              if (!forcedLockActiveTarget) {
+                return;
+              }
+              if (message.includes("PATH_V33_DRAFT_DEADLINE_PASSED")) {
+                setForcedLockNotice("期限を過ぎた現場はスキップしました。必要なら PATH 画面から修正申請してください。");
+                advanceForcedLockTarget();
+              }
+            }}
+            noticeMessage={forcedLockActiveTarget ? forcedLockNotice : null}
           />
         </div>
       ) : (

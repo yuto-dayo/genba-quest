@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent } from "@testing-library/react";
 import type { ComponentProps, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LevelDraftSheet } from "./LevelDraftSheet";
@@ -180,5 +181,59 @@ describe("LevelDraftSheet", () => {
 
     it("passes non-deadline errors through unchanged", () => {
         expect(mapLevelDraftSubmitErrorMessage("API Error: 500")).toBe("API Error: 500");
+    });
+
+    it("does not render close affordances when dismissible is false", async () => {
+        const onClose = vi.fn();
+        fetchSite.mockResolvedValue({
+            id: "site-1",
+            name: "渋谷マンション",
+            address: "東京都渋谷区1-2-3",
+            work_types: ["内装"],
+        });
+
+        render(
+            <LevelDraftSheet
+                open
+                onClose={onClose}
+                siteId="site-1"
+                siteName="初期名"
+                memberId="member-1"
+                dismissible={false}
+            />,
+        );
+
+        await screen.findByRole("dialog");
+        expect(screen.queryByRole("button", { name: "閉じる" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "あとで" })).not.toBeInTheDocument();
+    });
+
+    it("ignores overlay click when dismissible is false", async () => {
+        const onClose = vi.fn();
+        fetchSite.mockResolvedValue({
+            id: "site-1",
+            name: "渋谷マンション",
+            address: "東京都渋谷区1-2-3",
+            work_types: ["内装"],
+        });
+
+        const { container } = render(
+            <LevelDraftSheet
+                open
+                onClose={onClose}
+                siteId="site-1"
+                siteName="初期名"
+                memberId="member-1"
+                dismissible={false}
+            />,
+        );
+
+        await screen.findByRole("dialog");
+        const overlay = container.querySelector('[class*="overlay"]');
+        if (!overlay) {
+            throw new Error("overlay not found");
+        }
+        fireEvent.click(overlay);
+        expect(onClose).not.toHaveBeenCalled();
     });
 });
