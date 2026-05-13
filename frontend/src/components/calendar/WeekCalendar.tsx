@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { CircleSlash, Clock3, Sparkles } from 'lucide-react';
+import { CircleSlash, Clock3, Lock, Sparkles } from 'lucide-react';
 import type { AvailabilityTokenKind, CalendarDay } from '../../types/calendar';
 import styles from './CalendarComponents.module.css';
 
@@ -8,6 +8,22 @@ interface WeekCalendarProps {
     onSelectDate: (date: CalendarDay) => void;
     selectedDate: CalendarDay | null;
     availabilityTokens?: Partial<Record<string, AvailabilityTokenKind>>;
+}
+
+const JST_TIME_ZONE = 'Asia/Tokyo';
+
+function getJstTodayDateValue(baseDate: Date = new Date()): string {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: JST_TIME_ZONE,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    });
+    const parts = formatter.formatToParts(baseDate);
+    const year = parts.find((part) => part.type === 'year')?.value ?? '';
+    const month = parts.find((part) => part.type === 'month')?.value ?? '';
+    const day = parts.find((part) => part.type === 'day')?.value ?? '';
+    return `${year}-${month}-${day}`;
 }
 
 function resolveAvailabilityLabel(
@@ -51,6 +67,7 @@ export function WeekCalendar({
     selectedDate,
     availabilityTokens,
 }: WeekCalendarProps) {
+    const todayJstDate = getJstTodayDateValue();
     const targetDate = selectedDate || days.find((d) => d.isToday) || days[0];
     const targetIndex = days.findIndex((d) => d.date === targetDate.date);
 
@@ -85,6 +102,7 @@ export function WeekCalendar({
                 const availabilityLabel = resolveAvailabilityLabel(day, availabilityTokens);
                 const availabilityMeta = getAvailabilityMeta(availabilityLabel);
                 const total = Math.max(totalCount, 1);
+                const isPastDay = day.date < todayJstDate;
                 const meterStyle = {
                     '--week-confirmed-angle': `${(confirmedCount / total) * 360}deg`,
                     '--week-pending-angle': `${((confirmedCount + pendingCount) / total) * 360}deg`,
@@ -105,6 +123,11 @@ export function WeekCalendar({
                         </div>
 
                         <div className={styles.weekDayMeta}>
+                            {isPastDay && (
+                                <span className={styles.weekLockBadge} aria-hidden="true">
+                                    <Lock size={11} />
+                                </span>
+                            )}
                             <span className={styles.weekCountBadge}>{totalCount}</span>
                             {availabilityMeta && (
                                 <span

@@ -70,6 +70,7 @@ const HOUR_OPTIONS = Array.from(new Set(COMMON_TIME_OPTIONS.map((time) => time.s
 const MINUTE_OPTIONS = ['00', '15', '30', '45'];
 const TIME_PART_CHIP_ACTIVATION_DELAY_MS = 80;
 const TIME_VALUE_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+const JST_TIME_ZONE = 'Asia/Tokyo';
 
 function getMemberLabel(member: Member): string {
     return member.full_name || member.display_name || member.username || member.id;
@@ -100,6 +101,27 @@ function toDateValue(date: Date): string {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+}
+
+function getJstTodayDateValue(baseDate: Date = new Date()): string {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: JST_TIME_ZONE,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    });
+    const parts = formatter.formatToParts(baseDate);
+    const year = parts.find((part) => part.type === 'year')?.value ?? '';
+    const month = parts.find((part) => part.type === 'month')?.value ?? '';
+    const day = parts.find((part) => part.type === 'day')?.value ?? '';
+    return `${year}-${month}-${day}`;
+}
+
+function isPastDateInJst(dateValue: string, baseDate: Date = new Date()): boolean {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+        return false;
+    }
+    return dateValue < getJstTodayDateValue(baseDate);
 }
 
 function shiftDateValue(value: string, dayOffset: number): string {
@@ -400,6 +422,7 @@ export function CalendarScheduleModal({
     const selectedScheduleColor =
         SCHEDULE_COLOR_OPTIONS.find((option) => option.value === scheduleColor) || SCHEDULE_COLOR_OPTIONS[0];
     const addressText = address.trim();
+    const todayJstDate = getJstTodayDateValue();
 
     const personalTitle = title.trim();
     const personalError =
@@ -739,6 +762,10 @@ export function CalendarScheduleModal({
         if (!selectedSite || !memberId || !date || isSubmitting) {
             return;
         }
+        if (isPastDateInJst(date)) {
+            setError('過去日の予定は編集できません。今日以降の日付を選択してください。');
+            return;
+        }
 
         setIsSubmitting(true);
         setError(null);
@@ -756,6 +783,10 @@ export function CalendarScheduleModal({
             onClose();
         } catch (submitError) {
             console.error('Failed to create assignment proposal:', submitError);
+            if (submitError instanceof Error && submitError.message.includes('ASSIGNMENT_PAST_DATE_LOCKED')) {
+                setError('過去日の予定は編集できません。今日以降の日付を選択してください。');
+                return;
+            }
             setError('配置案を送れませんでした。もう一度お試しください。');
         } finally {
             setIsSubmitting(false);
@@ -1298,6 +1329,7 @@ export function CalendarScheduleModal({
                                             className={styles.input}
                                             type="date"
                                             value={date}
+                                            min={todayJstDate}
                                             onChange={(event) => setDate(event.target.value)}
                                         />
                                     </label>

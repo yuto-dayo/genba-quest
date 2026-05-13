@@ -38,6 +38,28 @@ type CalendarViewMode = 'month' | 'year';
 
 const ANNUAL_REST_TARGET_DAYS = 120;
 const MONTH_OPTIONS = Array.from({ length: 12 }, (_, index) => index + 1);
+const JST_TIME_ZONE = 'Asia/Tokyo';
+
+function getJstDateKey(baseDate: Date = new Date()): string {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: JST_TIME_ZONE,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    });
+    const parts = formatter.formatToParts(baseDate);
+    const year = parts.find((part) => part.type === 'year')?.value ?? '';
+    const month = parts.find((part) => part.type === 'month')?.value ?? '';
+    const day = parts.find((part) => part.type === 'day')?.value ?? '';
+    return `${year}-${month}-${day}`;
+}
+
+function isPastDate(dateValue: string, baseDate: Date = new Date()): boolean {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+        return false;
+    }
+    return dateValue < getJstDateKey(baseDate);
+}
 
 function filterDayAssignments(day: CalendarDay, userId: string | null): CalendarDay {
     if (!userId) {
@@ -390,6 +412,11 @@ export function Calendar() {
     };
 
     const handleOpenAddMenu = (day?: CalendarDay, mode: CalendarAddMode = 'menu') => {
+        if (day && isPastDate(day.date)) {
+            window.alert('過去日の予定は編集できません');
+            return;
+        }
+
         if (day) {
             const originalDay = calendarDays.find((candidate) => candidate.date === day.date) ?? day;
             selectDate(originalDay);
@@ -1006,7 +1033,7 @@ export function Calendar() {
                         id: 'personal-schedule',
                         label: '予定を入れる',
                         icon: <Plus size={18} />,
-                        onClick: () => handleOpenAddMenu(undefined, 'personal'),
+                        onClick: () => handleOpenAddMenu(visibleSelectedDate ?? selectedDate ?? undefined, 'personal'),
                     },
                     {
                         id: 'site',

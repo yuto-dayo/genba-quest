@@ -2,7 +2,12 @@ import '@testing-library/jest-dom/vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { createElement, type ComponentProps, type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { submitPersonalScheduleProposal } from '../../lib/api';
+import {
+    fetchMembers,
+    fetchSites,
+    submitAssignmentCreateProposal,
+    submitPersonalScheduleProposal,
+} from '../../lib/api';
 import { CalendarScheduleModal } from './CalendarScheduleModal';
 
 Object.defineProperty(window, 'scrollTo', {
@@ -59,9 +64,42 @@ function renderPersonalScheduleModal() {
     );
 }
 
+function renderAssignmentScheduleModal() {
+    return render(
+        <CalendarScheduleModal
+            initialDate="2999-04-25"
+            scope="organization"
+            initialMode="assignment"
+            onClose={vi.fn()}
+            onCreated={vi.fn()}
+        />,
+    );
+}
+
 describe('CalendarScheduleModal', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        vi.mocked(fetchSites).mockResolvedValue([
+            {
+                id: 'site-1',
+                name: '第一現場',
+                status: 'active',
+                assigned_users: [],
+                required_worker_count: null,
+                created_at: '2026-04-01T00:00:00.000Z',
+            },
+        ]);
+        vi.mocked(fetchMembers).mockResolvedValue([
+            {
+                id: 'member-1',
+                user_id: 'user-1',
+                full_name: '田中 太郎',
+                display_name: null,
+                username: null,
+                avatar_url: null,
+                status: 'active',
+            },
+        ]);
     });
 
     it('normalizes a single hour value when finishing time entry', () => {
@@ -182,5 +220,43 @@ describe('CalendarScheduleModal', () => {
                 }),
             );
         });
+    });
+
+    it('shows dedicated past-date lock message when assignment proposal is locked by API', async () => {
+        vi.mocked(submitAssignmentCreateProposal).mockRejectedValueOnce(
+            new Error('ASSIGNMENT_PAST_DATE_LOCKED')
+        );
+
+        renderAssignmentScheduleModal();
+
+        await screen.findByRole('combobox', { name: '現場' });
+        fireEvent.click(screen.getByRole('button', { name: '配置案を送る' }));
+
+        await waitFor(() => {
+            expect(submitAssignmentCreateProposal).toHaveBeenCalled();
+        });
+        expect(await screen.findByText('過去日の予定は編集できません。今日以降の日付を選択してください。')).toBeInTheDocument();
+    });
+
+    it('sets assignment date input min to JST today', async () => {
+        renderAssignmentScheduleModal();
+
+        const dateInput = await screen.findByLabelText('日付');
+        const todayJst = new Intl.DateTimeFormat('en-US', {
+            timeZone: 'Asia/Tokyo',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+        })
+            .formatToParts(new Date())
+            .reduce<Record<string, string>>((acc, part) => {
+                acc[part.type] = part.value;
+                return acc;
+            }, {});
+
+        expect(dateInput).toHaveAttribute(
+            'min',
+            `${todayJst.year}-${todayJst.month}-${todayJst.day}`
+        );
     });
 });
