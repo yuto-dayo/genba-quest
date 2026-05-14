@@ -91,26 +91,6 @@ vi.mock("./pages/PathRewardConfirmation", () => ({
     default: () => <div>luqo-page</div>,
 }));
 
-vi.mock("./components/FloatingActionButton", () => ({
-    FloatingActionButton: ({
-        items,
-    }: {
-        items: Array<{ id: string; label: string; onClick: () => void }>;
-    }) => (
-        <div>
-            {items.map((item) => (
-                <button key={item.id} type="button" onClick={item.onClick}>
-                    {item.label}
-                </button>
-            ))}
-        </div>
-    ),
-}));
-
-vi.mock("./components/CommunicationRecordSheet", () => ({
-    CommunicationRecordSheet: () => null,
-}));
-
 vi.mock("./components/LevelDraftSheet", () => ({
     LevelDraftSheet: ({
         open,
@@ -472,7 +452,7 @@ describe("App entry gate", () => {
         expect(await screen.findByText("today-page")).toBeInTheDocument();
     });
 
-    it("shows the unified communication FAB on today", async () => {
+    it("does not render a FAB on today", async () => {
         fetchAppEntryState.mockResolvedValue({
             state: "ready",
             active_org: { org_id: "org-1", org_name: "GENBA 本部", role: "admin" },
@@ -482,7 +462,7 @@ describe("App entry gate", () => {
         render(<App />);
 
         expect(await screen.findByText("today-page")).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "連絡を記録" })).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "連絡を記録" })).not.toBeInTheDocument();
     });
 
     it("collapses the shared header on downward scroll and restores it on upward scroll", async () => {

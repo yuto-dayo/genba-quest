@@ -23,7 +23,6 @@ import {
 } from "lucide-react";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { type Session } from "@supabase/supabase-js";
-import { CommunicationRecordSheet } from "./components/CommunicationRecordSheet";
 import { ErrorScreen } from "./components/ErrorScreen";
 import { IdleScreen } from "./components/IdleScreen";
 import { InlineLoader } from "./components/InlineLoader";
@@ -37,7 +36,6 @@ import { Money } from "./pages/Money";
 import { Settings } from "./pages/Settings";
 import { Sites } from "./pages/Sites";
 import { Today } from "./pages/Today";
-import { FloatingActionButton } from "./components/FloatingActionButton";
 import { FloatingBellButton } from "./components/FloatingBellButton";
 import { BellDrawer } from "./components/BellDrawer";
 import { OnboardingWizard } from "./components/onboarding/OnboardingWizard";
@@ -1430,7 +1428,6 @@ function DevPreviewRoute({ children }: { children: ReactNode }) {
 function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [communicationSheetOpen, setCommunicationSheetOpen] = useState(false);
   const [siteLevelDraftNotifications, setSiteLevelDraftNotifications] = useState<NotificationRecord[]>([]);
   const [pendingApprovals, setPendingApprovals] = useState<AccountingTransaction[]>([]);
   const [pendingProposals, setPendingProposals] = useState<ProposalRecord[]>([]);
@@ -1575,7 +1572,6 @@ function AppContent() {
     setBootstrapError(null);
     setInviteError(null);
     setShowInviteHelp(false);
-    setCommunicationSheetOpen(false);
     setSiteLevelDraftNotifications([]);
     setPendingApprovals([]);
     setPendingProposals([]);
@@ -2252,27 +2248,7 @@ function AppContent() {
             label={bellLabel}
             onOpen={openBell}
           />
-          {location.pathname === "/" && (
-            <FloatingActionButton
-              behavior="draggable"
-              items={[
-                {
-                  id: "communication-record",
-                  label: "連絡を記録",
-                  icon: <Mail size={20} />,
-                  onClick: () => setCommunicationSheetOpen(true),
-                },
-              ]}
-            />
-          )}
-          {location.pathname === "/" && (
-            <CommunicationRecordSheet
-              open={communicationSheetOpen}
-              onClose={() => setCommunicationSheetOpen(false)}
-              initialTargetKind="new_topic"
-            />
-          )}
-          <NotificationInbox
+<NotificationInbox
             open={inboxOpen}
             onClose={() => setInboxOpen(false)}
             siteLevelDrafts={siteLevelDraftNotifications}
