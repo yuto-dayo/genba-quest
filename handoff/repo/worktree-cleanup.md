@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `Commit/push dev auth remote Supabase guard branch`
+- NEXT_CMD: `Push codex/dev-auth-remote-guard to origin`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/repo/worktree-cleanup.md`
@@ -18,8 +18,8 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `9385c8d`
-  - Updated: `2026-05-15T07:45:35+0900`
+  - HEAD: `d7218b8`
+  - Updated: `2026-05-15T07:45:45+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
@@ -36,43 +36,43 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `Commit/push dev auth remote Supabase guard branch`. Source: realtime
+- [focus] NEXT_CMD: `Push codex/dev-auth-remote-guard to origin`. Source: realtime
+- [H0010] Completed: Blocked dev auth when configured against hosted Supabase
+- [H0010] Remaining: Push codex/dev-auth-remote-guard to origin
 - [H0009] Completed: Today Todo status chip and snackbar feedback refined for mobile
 - [H0009] Remaining: Commit/push dev auth remote Supabase guard branch
-- [H0008] Completed: 現場編集フォームの取引先入力を復旧。取引先一覧が空でもテキスト入力でき、未登録名は保存時に取引先作成してclient_idを現場更新へ渡すようにした。
-- [H0008] Remaining: 必要なら本番反映後に現場編集で未登録取引先を入力して保存するスモーク確認。
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0010] Auto-captured decision: Blocked dev auth when configured against hosted Supabase
 - [H0009] Auto-captured decision: Today Todo status chip and snackbar feedback refined for mobile
 - [H0008] Auto-captured decision: 現場編集フォームの取引先入力を復旧。取引先一覧が空でもテキスト入力でき、未登録名は保存時に取引先作成してclient_idを現場更新へ渡すようにした。
 - [H0007] Auto-captured decision: MoneyページのUIをプレミアムなM3 Expressiveデザインに刷新（ダークモード化、Heroグラスモーフィズム、Cashflowカード化、トランザクション行のホバー効果追加）
 - [H0006] Auto-captured decision: 未使用のuseLocation()を削除しTS6133ビルドエラー解消
-- [H0005] Auto-captured decision: Today画面のsingle-item FAB（連絡を記録）を削除
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0009] No new landmines reported in this chunk.
+- [H0010] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0010] Push codex/dev-auth-remote-guard to origin
 - [H0009] Commit/push dev auth remote Supabase guard branch
 - [H0008] 必要なら本番反映後に現場編集で未登録取引先を入力して保存するスモーク確認。
 - [H0007] 開発サーバーでの目視確認および動作テスト
 - [H0006] PR作成・マージ・Render再デプロイ確認
-- [H0005] PR作成・マージ
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `9`
+- current_l3_entries: `10`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -101,6 +101,7 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] Blocked dev auth when configured against hosted Supabase
 - [x] Today Todo status chip and snackbar feedback refined for mobile
 - [x] 現場編集フォームの取引先入力を復旧。取引先一覧が空でもテキスト入力でき、未登録名は保存時に取引先作成してclient_idを現場更新へ渡すようにした。
 - [x] MoneyページのUIをプレミアムなM3 Expressiveデザインに刷新（ダークモード化、Heroグラスモーフィズム、Cashflowカード化、トランザクション行のホバー効果追加）
@@ -114,17 +115,22 @@ Phase: A-0/A-1
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: Commit/push dev auth remote Supabase guard branch
+- [ ] **P0**: Push codex/dev-auth-remote-guard to origin
+- [ ] **P1**: Commit/push dev auth remote Supabase guard branch
 - [ ] **P1**: 必要なら本番反映後に現場編集で未登録取引先を入力して保存するスモーク確認。
 - [ ] **P1**: 開発サーバーでの目視確認および動作テスト
 - [ ] **P1**: PR作成・マージ・Render再デプロイ確認
-- [ ] **P1**: PR作成・マージ
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
+| `server/src/__tests__/unit/authMiddleware.test.ts` | backend safety tests |
+| `frontend/src/lib/devAuth.test.ts` | frontend safety tests |
+| `frontend/src/lib/devAuth.ts` | hide dev auth on remote targets |
+| `server/src/middleware/authMiddleware.ts` | runtime fail-closed guard |
+| `server/src/loadEnv.ts` | startup guard for DEV_SKIP_AUTH plus hosted Supabase |
 | `frontend/src/pages/Today.module.css` | compact icon chip and snackbar positioning |
 | `frontend/src/pages/Today.tsx` | status feedback actions and Japanese undo label |
 | `(not recorded)` | No file list provided (use --file "path - semantic description") |
@@ -317,5 +323,25 @@ cd frontend && npx eslint src/
   - Auto-captured decision: Today Todo status chip and snackbar feedback refined for mobile
 - Validation:
   - `frontend targeted tests and build passed`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-15 07:45:45 +0900
+
+- Entry-ID: `H0010`
+- Completed:
+  - [x] Blocked dev auth when configured against hosted Supabase
+- Remaining:
+  - [ ] Push codex/dev-auth-remote-guard to origin
+- Changed Files:
+  - `server/src/loadEnv.ts` - startup guard for DEV_SKIP_AUTH plus hosted Supabase
+  - `server/src/middleware/authMiddleware.ts` - runtime fail-closed guard
+  - `frontend/src/lib/devAuth.ts` - hide dev auth on remote targets
+  - `frontend/src/lib/devAuth.test.ts` - frontend safety tests
+  - `server/src/__tests__/unit/authMiddleware.test.ts` - backend safety tests
+- Working Context:
+  - Auto-captured decision: Blocked dev auth when configured against hosted Supabase
+- Validation:
+  - `server authMiddleware test, frontend devAuth/App/api tests, server build, frontend build passed`
 - Landmines:
   - No new landmines reported in this chunk.

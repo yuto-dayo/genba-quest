@@ -46,6 +46,28 @@ export function isDevAuthMode(): boolean {
   return process.env.NODE_ENV !== "production" && process.env.DEV_SKIP_AUTH === "true";
 }
 
+export function isHostedSupabaseUrl(value: string | undefined | null): boolean {
+  if (!value) {
+    return false;
+  }
+
+  try {
+    return new URL(value).hostname.endsWith(".supabase.co");
+  } catch {
+    return false;
+  }
+}
+
+export function assertDevAuthRemoteSafety(): void {
+  if (!isDevAuthMode() || !isHostedSupabaseUrl(process.env.SUPABASE_URL)) {
+    return;
+  }
+
+  throw new Error(
+    "Unsafe dev auth configuration: DEV_SKIP_AUTH=true cannot be used with hosted Supabase. Use local Supabase (http://127.0.0.1:54321) for development auth."
+  );
+}
+
 export function getDevDefaultOrgId(): string {
   return process.env.DEFAULT_ORG_ID || process.env.PATH_DEV_ORG_ID || DEFAULT_PATH_DEV_ORG_ID;
 }

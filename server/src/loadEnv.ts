@@ -23,6 +23,29 @@ if (dotenvResult.error && process.env.NODE_ENV !== "test") {
     );
 }
 
+function isHostedSupabaseUrl(value: string | undefined): boolean {
+    if (!value) {
+        return false;
+    }
+
+    try {
+        return new URL(value).hostname.endsWith(".supabase.co");
+    } catch {
+        return false;
+    }
+}
+
+if (
+    process.env.NODE_ENV !== "test"
+    && process.env.NODE_ENV !== "production"
+    && process.env.DEV_SKIP_AUTH === "true"
+    && isHostedSupabaseUrl(process.env.SUPABASE_URL)
+) {
+    throw new Error(
+        "Unsafe dev auth configuration: DEV_SKIP_AUTH=true cannot be used with hosted Supabase. Use local Supabase (http://127.0.0.1:54321) for development auth."
+    );
+}
+
 for (const [key, value] of Object.entries(process.env)) {
     if (typeof value === "string" && PLACEHOLDER_PATTERN.test(value.trim())) {
         console.warn(`[ENV] ${key} is still set to the .env.example placeholder`);

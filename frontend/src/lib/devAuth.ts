@@ -43,12 +43,29 @@ export const DEV_AUTH_USER_STORAGE_KEY = "genba-quest.dev-user-key";
 export const DEV_AUTH_SESSION_STORAGE_KEY = "genba-quest.dev-auth-session";
 const DEV_AUTH_SESSION_COOKIE_NAME = "genba_quest_dev_auth_session";
 
+function isRemoteUrl(value: unknown): boolean {
+    if (typeof value !== "string" || value.trim().length === 0) {
+        return false;
+    }
+
+    try {
+        const url = new URL(value);
+        return url.hostname !== "localhost" && url.hostname !== "127.0.0.1";
+    } catch {
+        return false;
+    }
+}
+
 function isKnownDevAuthUserKey(value: string | null): value is DevAuthUserKey {
     return DEV_AUTH_USER_OPTIONS.some((option) => option.key === value);
 }
 
 export function isDevAuthUiEnabled(): boolean {
-    return import.meta.env.DEV;
+    return (
+        import.meta.env.DEV
+        && !isRemoteUrl(import.meta.env.VITE_API_URL)
+        && !isRemoteUrl(import.meta.env.VITE_SUPABASE_URL)
+    );
 }
 
 export function getDevAuthUserKey(): DevAuthUserKey | null {
