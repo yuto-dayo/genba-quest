@@ -264,3 +264,19 @@ cd frontend && npx eslint src/
   - `npx tsc -b → no errors`
 - Landmines:
   - No new landmines reported in this chunk.
+
+### 2026-05-15 02:39:25 +0900
+
+- Entry-ID: `H0008`
+- Completed:
+  - [x] 現場編集フォームの取引先入力を復旧。取引先一覧が空でもテキスト入力でき、未登録名は保存時に取引先作成してclient_idを現場更新へ渡すようにした。
+- Remaining:
+  - [ ] 必要なら本番反映後に現場編集で未登録取引先を入力して保存するスモーク確認。
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: 現場編集フォームの取引先入力を復旧。取引先一覧が空でもテキスト入力でき、未登録名は保存時に取引先作成してclient_idを現場更新へ渡すようにした。
+- Validation:
+  - `npm --prefix frontend run build; Puppeteerで/sitesの現場詳細→編集を開き、取引先入力欄がdisabled=falseで表示されること、保存時にPOST /api/v1/sites/clients→PUT /api/v1/sites/:id(client_id)の順で流れることを通信モックで確認`
+- Landmines:
+  - No new landmines reported in this chunk.

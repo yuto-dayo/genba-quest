@@ -5,6 +5,7 @@ import {
     createSite,
     updateSite,
     fetchClients,
+    createClient,
     fetchMembers,
     fetchSiteLineItems,
     parseSiteDraftFromText,
@@ -216,6 +217,7 @@ export function SiteFormModal({
     const [lineItemsLoaded, setLineItemsLoaded] = useState(!isEdit);
     const [lineItemError, setLineItemError] = useState<string | null>(null);
     const [clients, setClients] = useState<{ id: string; name: string }[]>([]);
+    const [clientNameInput, setClientNameInput] = useState("");
     const [members, setMembers] = useState<Member[]>([]);
     const [draftText, setDraftText] = useState("");
     const [draftLoading, setDraftLoading] = useState(false);
@@ -400,10 +402,30 @@ export function SiteFormModal({
         const matchedClientId = findMatchingClientId(draft.client_name, clients);
         if (matchedClientId) {
             setClientId(matchedClientId);
+            setClientNameInput("");
             setDraftClientName(null);
         } else {
+            setClientNameInput(draft.client_name || "");
             setDraftClientName(draft.client_name || null);
         }
+    };
+
+    const resolveClientIdForSubmit = async (): Promise<string | undefined> => {
+        const typedClientName = clientNameInput.trim();
+        if (!typedClientName) {
+            return clientId || undefined;
+        }
+
+        const matchedClientId = findMatchingClientId(typedClientName, clients);
+        if (matchedClientId) {
+            return matchedClientId;
+        }
+
+        const createdClient = await createClient({ name: typedClientName });
+        setClients((prev) => [...prev, { id: createdClient.id, name: createdClient.name }]);
+        setClientId(createdClient.id);
+        setClientNameInput("");
+        return createdClient.id;
     };
 
     const handleParseDraft = async () => {
@@ -501,11 +523,13 @@ export function SiteFormModal({
                 }
             }
 
+            const resolvedClientId = await resolveClientIdForSubmit();
+
             const payload = {
                 name: name.trim(),
                 cautions: cautions.trim() || undefined,
                 address: address.trim() || undefined,
-                client_id: clientId || undefined,
+                client_id: resolvedClientId,
                 assigned_users: assignedUsers.length > 0 ? assignedUsers : undefined,
                 required_worker_count: normalizedRequiredWorkerCount,
                 started_at: startedAt || undefined,
@@ -662,13 +686,17 @@ export function SiteFormModal({
                         </div>
                     )}
 
-                    {clients.length > 0 && (
-                        <div className={styles.formGroup}>
-                            <label className={styles.label}>取引先</label>
+                    <div className={styles.formGroup}>
+                        <label className={styles.label}>取引先</label>
+                        {clients.length > 0 && (
                             <select
                                 className={styles.select}
                                 value={clientId}
-                                onChange={(e) => setClientId(e.target.value)}
+                                onChange={(e) => {
+                                    setClientId(e.target.value);
+                                    setClientNameInput("");
+                                    setDraftClientName(null);
+                                }}
                             >
                                 <option value="">選択してください</option>
                                 {clients.map((c) => (
@@ -677,8 +705,23 @@ export function SiteFormModal({
                                     </option>
                                 ))}
                             </select>
-                        </div>
-                    )}
+                        )}
+                        <input
+                            type="text"
+                            className={styles.input}
+                            value={clientNameInput}
+                            onChange={(e) => {
+                                setClientNameInput(e.target.value);
+                                setDraftClientName(null);
+                            }}
+                            placeholder={clients.length > 0 ? "未登録の取引先名を入力" : "取引先名を入力"}
+                        />
+                        <span className={styles.scheduleHint}>
+                            {clients.length > 0
+                                ? "既存を選択するか、未登録名を入力すると保存時に取引先を追加します。"
+                                : "取引先一覧が空です。ここに入力すると保存時に取引先を追加します。"}
+                        </span>
+                    </div>
 
                     <div className={styles.formGroup}>
                         <label className={styles.label}>
