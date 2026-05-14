@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import {
     getDefaultDevAuthUser,
+    assertDevAuthRemoteSafety,
     getDevAuthUserByKey,
     getDevDefaultOrgId,
     isDevAuthMode,
@@ -56,6 +57,13 @@ export const authMiddleware = async (
 ) => {
     // 開発モード: 認証スキップ
     if (isDevAuthMode()) {
+        try {
+            assertDevAuthRemoteSafety();
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Unsafe dev auth configuration";
+            return res.status(500).json({ error: message });
+        }
+
         const requestedDevUserKey = readDevUserKey(req);
         const selectedDevUser = getDevAuthUserByKey(requestedDevUserKey) ?? getDefaultDevAuthUser();
         const useLegacyUserEnv = !requestedDevUserKey && process.env.DEV_USER_UUID;

@@ -4,7 +4,6 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import {
     AlertCircle,
     Building2,
-    Check,
     CheckCircle2,
     ChevronLeft,
     ChevronRight,
@@ -142,8 +141,6 @@ type FocusActionSnapshot = {
 type FocusNotice = {
     itemId: string;
     message: string;
-    showMemoAction: boolean;
-    showSendTomorrowAction: boolean;
 };
 
 const EMPTY_DAY_LOG_FORM: DayLogFormState = {
@@ -317,17 +314,17 @@ function getFocusStateLabel(item: FocusItemRecord): string {
 
 function renderFocusStateIcon(item: FocusItemRecord) {
     if (item.status === "open") {
-        return <Circle size={14} strokeWidth={2.4} aria-hidden="true" />;
+        return <Circle size={20} strokeWidth={2.2} aria-hidden="true" />;
     }
     switch (item.resolution_kind) {
         case "completed_as_planned":
-            return <Check size={14} strokeWidth={2.6} aria-hidden="true" />;
+            return <CheckCircle2 size={20} strokeWidth={2.4} aria-hidden="true" />;
         case "completed_with_change":
-            return <RotateCcw size={14} strokeWidth={2.4} aria-hidden="true" />;
+            return <RefreshCw size={20} strokeWidth={2.3} aria-hidden="true" />;
         case "not_completed":
-            return <X size={14} strokeWidth={2.6} aria-hidden="true" />;
+            return <AlertCircle size={20} strokeWidth={2.4} aria-hidden="true" />;
         default:
-            return <CheckCircle2 size={14} strokeWidth={2.4} aria-hidden="true" />;
+            return <CheckCircle2 size={20} strokeWidth={2.4} aria-hidden="true" />;
     }
 }
 
@@ -913,12 +910,6 @@ export function Today() {
             setFocusNotice({
                 itemId: saved.id,
                 message: getFocusActionMessage(saved),
-                showMemoAction:
-                    saved.status === "done"
-                    && (saved.resolution_kind === "completed_with_change" || saved.resolution_kind === "not_completed"),
-                showSendTomorrowAction:
-                    saved.status === "done"
-                    && saved.resolution_kind === "not_completed",
             });
         } catch (err: unknown) {
             setActionError(getErrorMessage(err));
@@ -971,8 +962,6 @@ export function Today() {
             setFocusNotice({
                 itemId: restored.id,
                 message: `「${restored.title}」を元に戻しました`,
-                showMemoAction: false,
-                showSendTomorrowAction: false,
             });
             setLastFocusAction(null);
         } catch (err: unknown) {
@@ -1013,8 +1002,6 @@ export function Today() {
             setFocusNotice({
                 itemId: copied.id,
                 message: `「${item.title}」を明日の候補として追加しました`,
-                showMemoAction: false,
-                showSendTomorrowAction: false,
             });
         } catch (err: unknown) {
             setActionError(getErrorMessage(err));
@@ -1022,6 +1009,19 @@ export function Today() {
             setCompletingId(null);
         }
     };
+
+    useEffect(() => {
+        if (!focusNotice) {
+            return;
+        }
+
+        const timeoutId = window.setTimeout(() => {
+            setFocusNotice(null);
+            setLastFocusAction(null);
+        }, 5000);
+
+        return () => window.clearTimeout(timeoutId);
+    }, [focusNotice]);
 
     const handlePromoteCandidateToToday = async (item: FocusItemRecord) => {
         try {
@@ -1241,35 +1241,21 @@ export function Today() {
             )}
 
             {focusNotice && (
-                <div className={styles.noticeBanner} role="status" aria-live="polite">
+                <div
+                    className={`${styles.noticeBanner} ${styles.focusNoticeToast}`}
+                    role="status"
+                    aria-live="polite"
+                >
                     <CheckCircle2 size={14} />
                     <span className={styles.noticeText}>{focusNotice.message}</span>
                     <div className={styles.noticeActions}>
-                        {focusNotice.showMemoAction && (
-                            <button
-                                type="button"
-                                className={styles.noticeActionButton}
-                                onClick={() => handleOpenFocusMemo(focusNotice.itemId)}
-                            >
-                                メモを残す
-                            </button>
-                        )}
-                        {focusNotice.showSendTomorrowAction && (
-                            <button
-                                type="button"
-                                className={styles.noticeActionButton}
-                                onClick={() => void handleSendFocusItemToTomorrow(focusNotice.itemId)}
-                            >
-                                明日に送る
-                            </button>
-                        )}
                         {lastFocusAction && (
                             <button
                                 type="button"
                                 className={styles.noticeActionButton}
                                 onClick={() => void handleUndoFocusAction()}
                             >
-                                Undo
+                                元に戻す
                             </button>
                         )}
                     </div>
@@ -1415,6 +1401,13 @@ export function Today() {
                                             const note = item.status === "done"
                                                 ? item.resolution_note || item.note
                                                 : item.note;
+                                            const showMemoAction =
+                                                item.status === "done"
+                                                && (item.resolution_kind === "completed_with_change"
+                                                    || item.resolution_kind === "not_completed");
+                                            const showSendTomorrowAction =
+                                                item.status === "done"
+                                                && item.resolution_kind === "not_completed";
 
                                             return (
                                                 <article key={item.id} className={getFocusItemClassName(item)}>
@@ -1425,6 +1418,7 @@ export function Today() {
                                                         onClick={() => void handleCycleFocusItem(item)}
                                                         aria-busy={completingId === item.id}
                                                         aria-label={`現在: ${getFocusStateLabel(item)}。タップで${getNextFocusActionLabel(item)}。`}
+                                                        title={`現在: ${getFocusStateLabel(item)}`}
                                                     >
                                                         <span className={styles.focusStatusChipIcon}>
                                                             {completingId === item.id ? (
@@ -1458,6 +1452,34 @@ export function Today() {
                                                                     <Building2 size={12} />
                                                                     {item.site_name_snapshot}
                                                                 </span>
+                                                            </div>
+                                                        )}
+                                                        {(showMemoAction || showSendTomorrowAction) && (
+                                                            <div className={styles.focusResultActions}>
+                                                                {showMemoAction && (
+                                                                    <button
+                                                                        type="button"
+                                                                        className={styles.focusResultActionButton}
+                                                                        onClick={(event) => {
+                                                                            event.stopPropagation();
+                                                                            handleOpenFocusMemo(item.id);
+                                                                        }}
+                                                                    >
+                                                                        メモを残す
+                                                                    </button>
+                                                                )}
+                                                                {showSendTomorrowAction && (
+                                                                    <button
+                                                                        type="button"
+                                                                        className={styles.focusResultActionButton}
+                                                                        onClick={(event) => {
+                                                                            event.stopPropagation();
+                                                                            void handleSendFocusItemToTomorrow(item.id);
+                                                                        }}
+                                                                    >
+                                                                        明日に送る
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                         )}
                                                     </div>

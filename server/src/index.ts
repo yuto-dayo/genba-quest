@@ -28,6 +28,9 @@ import calendarRouter from "./routes/calendar";
 import devPreviewRouter from "./routes/devPreview";
 import profileViewConsentRouter from "./routes/profileViewConsent";
 import memberInvoicesRouter from "./routes/memberInvoices";
+import { assertDevAuthRemoteSafety } from "./config/devAuthUsers";
+
+assertDevAuthRemoteSafety();
 
 const app = express();
 const PORT = Number(process.env.PORT) || 4001;

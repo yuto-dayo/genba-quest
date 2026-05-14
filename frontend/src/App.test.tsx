@@ -177,6 +177,8 @@ vi.mock("./lib/supabase", () => ({
 describe("App entry gate", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        vi.stubEnv("VITE_SUPABASE_URL", "http://127.0.0.1:54321");
+        vi.stubEnv("VITE_API_URL", "http://localhost:4001");
         authStateCallback = null;
         window.history.pushState({}, "", "/");
         window.localStorage.clear();
@@ -266,6 +268,7 @@ describe("App entry gate", () => {
     });
 
     afterEach(() => {
+        vi.unstubAllEnvs();
         window.localStorage.clear();
         document.cookie = "genba_quest_dev_auth_session=; Path=/; Max-Age=0";
     });
@@ -1128,6 +1131,16 @@ describe("App entry gate", () => {
         expect(signUp).not.toHaveBeenCalled();
         expect(resetPasswordForEmail).not.toHaveBeenCalled();
         expect(updateUser).not.toHaveBeenCalled();
+    });
+
+    it("hides development auth when the browser is configured for hosted Supabase", async () => {
+        vi.stubEnv("VITE_SUPABASE_URL", "https://example-ref.supabase.co");
+        getSession.mockResolvedValue({ data: { session: null } });
+
+        render(<App />);
+
+        expect(await screen.findByText("ログインして始める")).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "開発用ユーザーで入る" })).not.toBeInTheDocument();
     });
 
     it("restores local development auth from the dev auth cookie", async () => {
