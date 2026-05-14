@@ -98,6 +98,10 @@ const approveProposal = vi.fn();
 const executeProposal = vi.fn();
 const instructProposal = vi.fn();
 const rejectProposal = vi.fn();
+const resolveFocusItem = vi.fn();
+const reopenFocusItem = vi.fn();
+const createFocusItem = vi.fn();
+const updateFocusItem = vi.fn();
 
 vi.mock("framer-motion", () => ({
     AnimatePresence: ({ children }: { children: ReactNode }) => <>{children}</>,
@@ -124,12 +128,13 @@ vi.mock("../lib/api", () => ({
     submitPathV33LevelDraft: (...args: unknown[]) => submitPathV33LevelDraft(...args),
     savePathV31DayLog: (...args: unknown[]) => savePathV31DayLog(...args),
     approveProposal: (...args: unknown[]) => approveProposal(...args),
-    completeFocusItem: vi.fn(),
-    createFocusItem: vi.fn(),
+    resolveFocusItem: (...args: unknown[]) => resolveFocusItem(...args),
+    reopenFocusItem: (...args: unknown[]) => reopenFocusItem(...args),
+    createFocusItem: (...args: unknown[]) => createFocusItem(...args),
     executeProposal: (...args: unknown[]) => executeProposal(...args),
     instructProposal: (...args: unknown[]) => instructProposal(...args),
     rejectProposal: (...args: unknown[]) => rejectProposal(...args),
-    updateFocusItem: vi.fn(),
+    updateFocusItem: (...args: unknown[]) => updateFocusItem(...args),
 }));
 
 vi.mock("../lib/pathProposal", () => ({
@@ -276,6 +281,70 @@ function primeTodayPageMocks() {
     fetchSiteLineItems.mockResolvedValue([]);
     fetchPendingProposals.mockResolvedValue([]);
     fetchPathV31DayLogs.mockResolvedValue({ logs: [] });
+    resolveFocusItem.mockResolvedValue({
+        id: "focus-1",
+        org_id: "org-1",
+        scope: "personal",
+        horizon: "today",
+        status: "done",
+        title: "資材確認",
+        note: null,
+        resolution_kind: "completed_as_planned",
+        resolution_note: null,
+        resolved_at: new Date().toISOString(),
+        focus_date: formatDateKey(new Date()),
+        created_by: "user-1",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+    });
+    reopenFocusItem.mockResolvedValue({
+        id: "focus-1",
+        org_id: "org-1",
+        scope: "personal",
+        horizon: "today",
+        status: "open",
+        title: "資材確認",
+        note: null,
+        resolution_kind: null,
+        resolution_note: null,
+        resolved_at: null,
+        focus_date: formatDateKey(new Date()),
+        created_by: "user-1",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+    });
+    createFocusItem.mockResolvedValue({
+        id: "focus-new",
+        org_id: "org-1",
+        scope: "personal",
+        horizon: "today",
+        status: "open",
+        title: "明日の候補",
+        note: null,
+        resolution_kind: null,
+        resolution_note: null,
+        resolved_at: null,
+        focus_date: formatDateKey(new Date(Date.now() + DAY_MS)),
+        created_by: "user-1",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+    });
+    updateFocusItem.mockResolvedValue({
+        id: "focus-candidate",
+        org_id: "org-1",
+        scope: "personal",
+        horizon: "today",
+        status: "open",
+        title: "昨日の持ち越し",
+        note: null,
+        resolution_kind: null,
+        resolution_note: null,
+        resolved_at: null,
+        focus_date: formatDateKey(new Date()),
+        created_by: "user-1",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+    });
     fetchSite.mockResolvedValue({
         id: "site-1",
         name: "渋谷マンション",
@@ -488,6 +557,224 @@ describe("Today page", () => {
 
         await waitFor(() => expect(approveProposal).toHaveBeenCalledWith("proposal-1", "確認しました"));
         expect(await screen.findByText("承認し、実行まで完了しました。")).toBeInTheDocument();
+    });
+});
+
+describe("Today focus cycle and carryover", () => {
+    beforeEach(() => {
+        primeTodayPageMocks();
+    });
+
+    it("cycles focus state through 4 steps and keeps completed item in the same todo list", async () => {
+        const todayKey = formatDateKey(new Date());
+        const createdAt = new Date().toISOString();
+        fetchFocusItems
+            .mockResolvedValueOnce([
+                {
+                    id: "focus-cycle",
+                    org_id: "org-1",
+                    scope: "personal",
+                    horizon: "today",
+                    status: "open",
+                    title: "配線確認",
+                    note: null,
+                    resolution_kind: null,
+                    resolution_note: null,
+                    resolved_at: null,
+                    focus_date: todayKey,
+                    created_by: "user-1",
+                    created_at: createdAt,
+                    updated_at: createdAt,
+                },
+            ])
+            .mockResolvedValueOnce([])
+            .mockResolvedValueOnce([]);
+
+        resolveFocusItem
+            .mockResolvedValueOnce({
+                id: "focus-cycle",
+                org_id: "org-1",
+                scope: "personal",
+                horizon: "today",
+                status: "done",
+                title: "配線確認",
+                note: null,
+                resolution_kind: "completed_as_planned",
+                resolution_note: null,
+                resolved_at: new Date().toISOString(),
+                focus_date: todayKey,
+                created_by: "user-1",
+                created_at: createdAt,
+                updated_at: new Date().toISOString(),
+            })
+            .mockResolvedValueOnce({
+                id: "focus-cycle",
+                org_id: "org-1",
+                scope: "personal",
+                horizon: "today",
+                status: "done",
+                title: "配線確認",
+                note: null,
+                resolution_kind: "completed_with_change",
+                resolution_note: null,
+                resolved_at: new Date().toISOString(),
+                focus_date: todayKey,
+                created_by: "user-1",
+                created_at: createdAt,
+                updated_at: new Date().toISOString(),
+            })
+            .mockResolvedValueOnce({
+                id: "focus-cycle",
+                org_id: "org-1",
+                scope: "personal",
+                horizon: "today",
+                status: "done",
+                title: "配線確認",
+                note: null,
+                resolution_kind: "not_completed",
+                resolution_note: null,
+                resolved_at: new Date().toISOString(),
+                focus_date: todayKey,
+                created_by: "user-1",
+                created_at: createdAt,
+                updated_at: new Date().toISOString(),
+            });
+
+        reopenFocusItem.mockResolvedValueOnce({
+            id: "focus-cycle",
+            org_id: "org-1",
+            scope: "personal",
+            horizon: "today",
+            status: "open",
+            title: "配線確認",
+            note: null,
+            resolution_kind: null,
+            resolution_note: null,
+            resolved_at: null,
+            focus_date: todayKey,
+            created_by: "user-1",
+            created_at: createdAt,
+            updated_at: new Date().toISOString(),
+        });
+
+        render(
+            <MemoryRouter initialEntries={["/today"]}>
+                <Routes>
+                    <Route path="/today" element={<Today />} />
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        const cycleButton = await screen.findByRole("button", { name: /現在: 未着手/ });
+        fireEvent.click(cycleButton);
+        await waitFor(() => {
+            expect(resolveFocusItem).toHaveBeenCalledWith("focus-cycle", {
+                resolution_kind: "completed_as_planned",
+            });
+        });
+        expect(screen.queryByText(/完了済み（当日）/)).not.toBeInTheDocument();
+        expect(screen.queryByText("今日やることはありません")).not.toBeInTheDocument();
+        expect(await screen.findByText("配線確認")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /現在: できた/ })).toBeInTheDocument();
+        expect(screen.getByText("できた")).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: /現在: できた/ }));
+        await waitFor(() => {
+            expect(resolveFocusItem).toHaveBeenCalledWith("focus-cycle", {
+                resolution_kind: "completed_with_change",
+            });
+        });
+        expect(await screen.findByText("変更して完了")).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: /現在: 変更して完了/ }));
+        await waitFor(() => {
+            expect(resolveFocusItem).toHaveBeenCalledWith("focus-cycle", {
+                resolution_kind: "not_completed",
+            });
+        });
+        expect(await screen.findByText("できなかった")).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: "明日に送る" }));
+        await waitFor(() => {
+            expect(createFocusItem).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    title: "配線確認",
+                    horizon: "today",
+                    focus_date: formatDateKey(new Date(Date.now() + DAY_MS)),
+                }),
+            );
+        });
+
+        fireEvent.click(screen.getByRole("button", { name: /現在: できなかった/ }));
+        await waitFor(() => {
+            expect(reopenFocusItem).toHaveBeenCalledWith("focus-cycle");
+        });
+        expect(await screen.findByRole("button", { name: /現在: 未着手/ })).toBeInTheDocument();
+    });
+
+    it("promotes a carryover candidate into today open list", async () => {
+        const todayKey = formatDateKey(new Date());
+        const yesterdayKey = formatDateKey(new Date(Date.now() - DAY_MS));
+        fetchFocusItems
+            .mockResolvedValueOnce([])
+            .mockResolvedValueOnce([])
+            .mockResolvedValueOnce([
+                {
+                    id: "focus-candidate",
+                    org_id: "org-1",
+                    scope: "personal",
+                    horizon: "today",
+                    status: "open",
+                    title: "昨日の持ち越し",
+                    note: null,
+                    resolution_kind: null,
+                    resolution_note: null,
+                    resolved_at: null,
+                    focus_date: yesterdayKey,
+                    created_by: "user-1",
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                },
+            ]);
+
+        updateFocusItem.mockResolvedValueOnce({
+            id: "focus-candidate",
+            org_id: "org-1",
+            scope: "personal",
+            horizon: "today",
+            status: "open",
+            title: "昨日の持ち越し",
+            note: null,
+            resolution_kind: null,
+            resolution_note: null,
+            resolved_at: null,
+            focus_date: todayKey,
+            created_by: "user-1",
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+        });
+
+        render(
+            <MemoryRouter initialEntries={["/today"]}>
+                <Routes>
+                    <Route path="/today" element={<Today />} />
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        expect(await screen.findByText("候補")).toBeInTheDocument();
+        fireEvent.click(await screen.findByRole("button", { name: "昨日の持ち越し を今日やるに移動" }));
+
+        await waitFor(() => {
+            expect(updateFocusItem).toHaveBeenCalledWith(
+                "focus-candidate",
+                expect.objectContaining({
+                    status: "open",
+                    focus_date: todayKey,
+                }),
+            );
+        });
+        expect(await screen.findByText("昨日の持ち越し")).toBeInTheDocument();
     });
 });
 

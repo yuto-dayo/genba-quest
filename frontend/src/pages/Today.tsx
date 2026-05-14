@@ -8,6 +8,7 @@ import {
     CheckCircle2,
     ChevronLeft,
     ChevronRight,
+    Circle,
     ClipboardCheck,
     FileText,
     Paperclip,
@@ -19,7 +20,6 @@ import {
 import {
     fetchPathV31DayLogs,
     approveProposal,
-    completeFocusItem,
     createFocusItem,
     executeProposal,
     fetchMembers,
@@ -30,8 +30,11 @@ import {
     fetchSiteDocuments,
     instructProposal,
     rejectProposal,
+    reopenFocusItem,
+    resolveFocusItem,
     savePathV31DayLog,
     type FocusItemHorizon,
+    type FocusItemResolutionKind,
     type FocusItemRecord,
     type FocusItemScope,
     type Member,
@@ -70,6 +73,12 @@ const HORIZON_LABELS: Record<FocusItemHorizon, string> = {
 const SCOPE_LABELS: Record<FocusItemScope, string> = {
     personal: "自分",
     org: "組織",
+};
+
+const RESOLUTION_LABELS: Record<FocusItemResolutionKind, string> = {
+    completed_as_planned: "できた",
+    completed_with_change: "変更して完了",
+    not_completed: "できなかった",
 };
 
 const QUICK_RECORD_PRESETS = [
@@ -117,6 +126,24 @@ type DayLogFormState = {
     role_type: PathV31RoleType;
     credited_unit: number;
     memo: string;
+};
+
+type FocusCycleAction =
+    | { type: "resolve"; resolutionKind: FocusItemResolutionKind }
+    | { type: "reopen" };
+
+type FocusActionSnapshot = {
+    itemId: string;
+    previousStatus: "open" | "done";
+    previousResolutionKind: FocusItemResolutionKind | null;
+    previousResolutionNote: string | null;
+};
+
+type FocusNotice = {
+    itemId: string;
+    message: string;
+    showMemoAction: boolean;
+    showSendTomorrowAction: boolean;
 };
 
 const EMPTY_DAY_LOG_FORM: DayLogFormState = {
@@ -258,6 +285,84 @@ function resolveCurrentUserId(sessionUserId?: string | null): string | null {
     return null;
 }
 
+function getFocusDateKey(item: FocusItemRecord): string {
+    if (item.focus_date && /^\d{4}-\d{2}-\d{2}$/.test(item.focus_date)) {
+        return item.focus_date;
+    }
+    return buildTodayKey(new Date(item.created_at));
+}
+
+function getTodayBounds(baseDate: Date): { todayKey: string; startIso: string; endIso: string } {
+    const start = new Date(baseDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+
+    return {
+        todayKey: buildTodayKey(start),
+        startIso: start.toISOString(),
+        endIso: end.toISOString(),
+    };
+}
+
+function getFocusStateLabel(item: FocusItemRecord): string {
+    if (item.status === "open") {
+        return "未着手";
+    }
+    if (!item.resolution_kind) {
+        return "完了";
+    }
+    return RESOLUTION_LABELS[item.resolution_kind];
+}
+
+function renderFocusStateIcon(item: FocusItemRecord) {
+    if (item.status === "open") {
+        return <Circle size={14} strokeWidth={2.4} aria-hidden="true" />;
+    }
+    switch (item.resolution_kind) {
+        case "completed_as_planned":
+            return <Check size={14} strokeWidth={2.6} aria-hidden="true" />;
+        case "completed_with_change":
+            return <RotateCcw size={14} strokeWidth={2.4} aria-hidden="true" />;
+        case "not_completed":
+            return <X size={14} strokeWidth={2.6} aria-hidden="true" />;
+        default:
+            return <CheckCircle2 size={14} strokeWidth={2.4} aria-hidden="true" />;
+    }
+}
+
+function getNextFocusAction(item: FocusItemRecord): FocusCycleAction {
+    if (item.status === "open") {
+        return { type: "resolve", resolutionKind: "completed_as_planned" };
+    }
+    switch (item.resolution_kind) {
+        case "completed_as_planned":
+            return { type: "resolve", resolutionKind: "completed_with_change" };
+        case "completed_with_change":
+            return { type: "resolve", resolutionKind: "not_completed" };
+        case "not_completed":
+            return { type: "reopen" };
+        default:
+            return { type: "resolve", resolutionKind: "completed_with_change" };
+    }
+}
+
+function getNextFocusActionLabel(item: FocusItemRecord): string {
+    const action = getNextFocusAction(item);
+    if (action.type === "reopen") {
+        return "未着手に戻す";
+    }
+    return `${RESOLUTION_LABELS[action.resolutionKind]}にする`;
+}
+
+function getFocusActionMessage(item: FocusItemRecord): string {
+    if (item.status === "open") {
+        return `「${item.title}」を未着手に戻しました`;
+    }
+    const label = item.resolution_kind ? RESOLUTION_LABELS[item.resolution_kind] : "完了";
+    return `「${item.title}」を${label}にしました`;
+}
+
 function getDayLogErrorMessage(error: unknown): string {
     const message = getErrorMessage(error);
     if (message === "DAY_LOG_LOCKED") {
@@ -301,14 +406,17 @@ export function Today() {
     const [selectedSite, setSelectedSite] = useState<Site | null>(null);
     const [constructionEditSite, setConstructionEditSite] = useState<Site | null>(null);
     const [actionNotice, setActionNotice] = useState<string | null>(null);
+    const [focusNotice, setFocusNotice] = useState<FocusNotice | null>(null);
     const [actionError, setActionError] = useState<string | null>(null);
     const [completingId, setCompletingId] = useState<string | null>(null);
+    const [lastFocusAction, setLastFocusAction] = useState<FocusActionSnapshot | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     const { calendarDays } = useCalendar();
     const targetProposalId = searchParams.get("proposal");
-    const todayKey = useMemo(() => buildTodayKey(todayDate), [todayDate]);
+    const todayBounds = useMemo(() => getTodayBounds(todayDate), [todayDate]);
+    const todayKey = todayBounds.todayKey;
     const [currentDayKey, setCurrentDayKey] = useState(todayKey);
     const currentAssignments = useMemo(
         () => calendarDays.find((day) => day.date === currentDayKey)?.assignments || [],
@@ -470,20 +578,48 @@ export function Today() {
             setError(null);
             const [
                 sessionResult,
-                focusItemsData,
+                todayOpenItemsData,
+                todayDoneItemsData,
+                carryoverItemsData,
                 sitesData,
                 membersData,
                 pendingProposalsData,
             ] = await Promise.all([
                 supabase.auth.getSession(),
-                fetchFocusItems({ status: "open" }),
+                fetchFocusItems({
+                    status: "open",
+                    horizon: "today",
+                    focus_date_from: todayBounds.todayKey,
+                    focus_date_to: todayBounds.todayKey,
+                }),
+                fetchFocusItems({
+                    status: "done",
+                    horizon: "today",
+                    resolved_from: todayBounds.startIso,
+                    resolved_to: todayBounds.endIso,
+                    include_legacy_done: true,
+                }),
+                fetchFocusItems({
+                    status: "open",
+                    horizon: "today",
+                    focus_date_to: addDays(todayBounds.todayKey, -1),
+                }),
                 fetchSites(),
                 fetchMembers().catch(() => []),
                 fetchPendingProposals().catch(() => []),
             ]);
             const nextCurrentUserId = resolveCurrentUserId(sessionResult.data.session?.user?.id);
             setCurrentUserId(nextCurrentUserId);
-            setFocusItems(focusItemsData);
+            const mergedFocusItems = [
+                ...todayOpenItemsData,
+                ...todayDoneItemsData,
+                ...carryoverItemsData,
+            ];
+            const deduped = Array.from(
+                mergedFocusItems.reduce((acc, item) => acc.set(item.id, item), new Map<string, FocusItemRecord>())
+                    .values()
+            ).sort((a, b) => b.created_at.localeCompare(a.created_at));
+            setFocusItems(deduped);
             setSites(sitesData);
             setMembers(membersData);
             setPendingProposals(pendingProposalsData);
@@ -497,7 +633,7 @@ export function Today() {
         } finally {
             setLoading(false);
         }
-    }, [syncTodayDayLogs]);
+    }, [syncTodayDayLogs, todayBounds.endIso, todayBounds.startIso, todayBounds.todayKey]);
 
     useEffect(() => {
         void loadData();
@@ -633,9 +769,65 @@ export function Today() {
     };
 
     const todayFocusItems = useMemo(
-        () => focusItems.filter((item) => item.horizon === "today"),
-        [focusItems]
+        () =>
+            focusItems
+                .filter((item) => {
+                    if (item.horizon !== "today") {
+                        return false;
+                    }
+                    if (item.status === "open") {
+                        return getFocusDateKey(item) === todayBounds.todayKey;
+                    }
+                    if (item.status !== "done") {
+                        return false;
+                    }
+                    if (!item.resolved_at) {
+                        return getFocusDateKey(item) === todayBounds.todayKey;
+                    }
+                    return item.resolved_at >= todayBounds.startIso && item.resolved_at < todayBounds.endIso;
+                })
+                .sort((a, b) => b.created_at.localeCompare(a.created_at)),
+        [focusItems, todayBounds.endIso, todayBounds.startIso, todayBounds.todayKey]
     );
+
+    const todayOpenFocusCount = todayFocusItems.filter((item) => item.status === "open").length;
+    const todayDoneFocusCount = todayFocusItems.length - todayOpenFocusCount;
+
+    const carryoverFocusItems = useMemo(
+        () =>
+            focusItems
+                .filter(
+                    (item) =>
+                        item.horizon === "today"
+                        && item.status === "open"
+                        && getFocusDateKey(item) < todayBounds.todayKey
+                )
+                .sort((a, b) => getFocusDateKey(a).localeCompare(getFocusDateKey(b))),
+        [focusItems, todayBounds.todayKey]
+    );
+
+    const getFocusItemClassName = (item: FocusItemRecord) =>
+        [
+            styles.focusItem,
+            item.status === "done" ? styles.focusItemDone : "",
+            item.resolution_kind === "completed_as_planned" ? styles.focusItemCompleted : "",
+            item.resolution_kind === "completed_with_change" ? styles.focusItemChanged : "",
+            item.resolution_kind === "not_completed" ? styles.focusItemNotCompleted : "",
+        ]
+            .filter(Boolean)
+            .join(" ");
+
+    const getFocusStatusChipButtonClassName = (item: FocusItemRecord) =>
+        [
+            styles.focusStatusChipButton,
+            item.status === "open" ? styles.focusStatusChipOpen : "",
+            item.status === "done" && !item.resolution_kind ? styles.focusStatusChipLegacyDone : "",
+            item.resolution_kind === "completed_as_planned" ? styles.focusStatusChipCompleted : "",
+            item.resolution_kind === "completed_with_change" ? styles.focusStatusChipChanged : "",
+            item.resolution_kind === "not_completed" ? styles.focusStatusChipNotCompleted : "",
+        ]
+            .filter(Boolean)
+            .join(" ");
 
     const todayDateLabel = todayDate.toLocaleDateString("ja-JP", {
         year: "numeric",
@@ -687,13 +879,166 @@ export function Today() {
         }));
     };
 
-    const handleCompleteFocusItem = async (item: FocusItemRecord) => {
+    const upsertFocusItem = useCallback((saved: FocusItemRecord) => {
+        setFocusItems((current) => {
+            const next = current.filter((item) => item.id !== saved.id);
+            return [saved, ...next].sort((a, b) => b.created_at.localeCompare(a.created_at));
+        });
+    }, []);
+
+    const handleCycleFocusItem = async (item: FocusItemRecord) => {
+        const nextAction = getNextFocusAction(item);
         try {
             setCompletingId(item.id);
             setActionError(null);
-            await completeFocusItem(item.id);
-            setFocusItems((current) => current.filter((focusItem) => focusItem.id !== item.id));
-            setActionNotice(`「${item.title}」を完了にしました`);
+            setActionNotice(null);
+            setFocusNotice(null);
+
+            setLastFocusAction({
+                itemId: item.id,
+                previousStatus: item.status,
+                previousResolutionKind: item.resolution_kind ?? null,
+                previousResolutionNote: item.resolution_note ?? null,
+            });
+
+            const saved =
+                nextAction.type === "resolve"
+                    ? await resolveFocusItem(item.id, {
+                          resolution_kind: nextAction.resolutionKind,
+                      })
+                    : await reopenFocusItem(item.id);
+
+            upsertFocusItem(saved);
+
+            setFocusNotice({
+                itemId: saved.id,
+                message: getFocusActionMessage(saved),
+                showMemoAction:
+                    saved.status === "done"
+                    && (saved.resolution_kind === "completed_with_change" || saved.resolution_kind === "not_completed"),
+                showSendTomorrowAction:
+                    saved.status === "done"
+                    && saved.resolution_kind === "not_completed",
+            });
+        } catch (err: unknown) {
+            setActionError(getErrorMessage(err));
+        } finally {
+            setCompletingId(null);
+        }
+    };
+
+    const handleUndoFocusAction = async () => {
+        if (!lastFocusAction) {
+            return;
+        }
+        const target = focusItems.find((item) => item.id === lastFocusAction.itemId);
+        if (!target) {
+            setActionError("対象のやることが見つかりませんでした");
+            return;
+        }
+
+        try {
+            setCompletingId(lastFocusAction.itemId);
+            setActionError(null);
+            setActionNotice(null);
+
+            const restored = await (() => {
+                if (lastFocusAction.previousStatus === "open") {
+                    return reopenFocusItem(lastFocusAction.itemId);
+                }
+
+                if (lastFocusAction.previousResolutionKind === null) {
+                    return reopenFocusItem(lastFocusAction.itemId).then((reopened) =>
+                        updateFocusItem(lastFocusAction.itemId, {
+                            title: reopened.title,
+                            scope: reopened.scope,
+                            horizon: reopened.horizon,
+                            status: "done",
+                            note: reopened.note || undefined,
+                            site_id: reopened.site_id || undefined,
+                            focus_date: reopened.focus_date || getFocusDateKey(reopened),
+                        })
+                    );
+                }
+
+                return resolveFocusItem(lastFocusAction.itemId, {
+                    resolution_kind: lastFocusAction.previousResolutionKind,
+                    resolution_note: lastFocusAction.previousResolutionNote,
+                });
+            })();
+
+            upsertFocusItem(restored);
+            setFocusNotice({
+                itemId: restored.id,
+                message: `「${restored.title}」を元に戻しました`,
+                showMemoAction: false,
+                showSendTomorrowAction: false,
+            });
+            setLastFocusAction(null);
+        } catch (err: unknown) {
+            setActionError(getErrorMessage(err));
+        } finally {
+            setCompletingId(null);
+        }
+    };
+
+    const handleOpenFocusMemo = (itemId: string) => {
+        const item = focusItems.find((focusItem) => focusItem.id === itemId);
+        if (!item) {
+            return;
+        }
+        setFocusNotice(null);
+        openComposerForEdit(item);
+    };
+
+    const handleSendFocusItemToTomorrow = async (itemId: string) => {
+        const item = focusItems.find((focusItem) => focusItem.id === itemId);
+        if (!item) {
+            setActionError("対象のやることが見つかりませんでした");
+            return;
+        }
+        try {
+            setCompletingId(item.id);
+            setActionError(null);
+            const tomorrowKey = addDays(todayBounds.todayKey, 1);
+            const copied = await createFocusItem({
+                title: item.title,
+                note: item.note || undefined,
+                scope: item.scope,
+                horizon: item.horizon,
+                site_id: item.site_id || undefined,
+                focus_date: tomorrowKey,
+            });
+            upsertFocusItem(copied);
+            setFocusNotice({
+                itemId: copied.id,
+                message: `「${item.title}」を明日の候補として追加しました`,
+                showMemoAction: false,
+                showSendTomorrowAction: false,
+            });
+        } catch (err: unknown) {
+            setActionError(getErrorMessage(err));
+        } finally {
+            setCompletingId(null);
+        }
+    };
+
+    const handlePromoteCandidateToToday = async (item: FocusItemRecord) => {
+        try {
+            setCompletingId(item.id);
+            setActionError(null);
+            const saved = await updateFocusItem(item.id, {
+                title: item.title,
+                note: item.note || undefined,
+                scope: item.scope,
+                horizon: item.horizon,
+                site_id: item.site_id || undefined,
+                status: "open",
+                focus_date: todayBounds.todayKey,
+            });
+            upsertFocusItem(saved);
+            setActionNotice(`「${saved.title}」を今日やるに入れました`);
+            setFocusNotice(null);
         } catch (err: unknown) {
             setActionError(getErrorMessage(err));
         } finally {
@@ -713,6 +1058,7 @@ export function Today() {
             setComposerSubmitting(true);
             setActionError(null);
             setActionNotice(null);
+            setFocusNotice(null);
 
             const payload = {
                 title: composerForm.title.trim(),
@@ -720,6 +1066,10 @@ export function Today() {
                 scope: composerForm.scope,
                 horizon: composerForm.horizon,
                 site_id: composerForm.site_id || undefined,
+                focus_date:
+                    composerForm.horizon === "today"
+                        ? (editingFocusItem?.focus_date || todayBounds.todayKey)
+                        : undefined,
             };
 
             const saved = editingFocusItem
@@ -765,6 +1115,7 @@ export function Today() {
             setDayLogSubmitting(true);
             setActionError(null);
             setActionNotice(null);
+            setFocusNotice(null);
 
             const { log } = await savePathV31DayLog({
                 id: dayLogForm.id,
@@ -806,6 +1157,7 @@ export function Today() {
             setProposalActing(true);
             setActionError(null);
             setActionNotice(null);
+            setFocusNotice(null);
 
             let updatedProposal: ProposalRecord | null = null;
             if (action === "approve") {
@@ -888,8 +1240,44 @@ export function Today() {
                 </div>
             )}
 
+            {focusNotice && (
+                <div className={styles.noticeBanner} role="status" aria-live="polite">
+                    <CheckCircle2 size={14} />
+                    <span className={styles.noticeText}>{focusNotice.message}</span>
+                    <div className={styles.noticeActions}>
+                        {focusNotice.showMemoAction && (
+                            <button
+                                type="button"
+                                className={styles.noticeActionButton}
+                                onClick={() => handleOpenFocusMemo(focusNotice.itemId)}
+                            >
+                                メモを残す
+                            </button>
+                        )}
+                        {focusNotice.showSendTomorrowAction && (
+                            <button
+                                type="button"
+                                className={styles.noticeActionButton}
+                                onClick={() => void handleSendFocusItemToTomorrow(focusNotice.itemId)}
+                            >
+                                明日に送る
+                            </button>
+                        )}
+                        {lastFocusAction && (
+                            <button
+                                type="button"
+                                className={styles.noticeActionButton}
+                                onClick={() => void handleUndoFocusAction()}
+                            >
+                                Undo
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {actionNotice && (
-                <div className={styles.noticeBanner}>
+                <div className={styles.noticeBanner} role="status" aria-live="polite">
                     <CheckCircle2 size={14} />
                     {actionNotice}
                 </div>
@@ -997,7 +1385,14 @@ export function Today() {
                                 transition={{ delay: 0.08 }}
                             >
                                 <div className={styles.sectionHeader}>
-                                    <h2 className={styles.sectionTitle}>やること</h2>
+                                    <div className={styles.sectionTitleGroup}>
+                                        <h2 className={styles.sectionTitle}>やること</h2>
+                                        {todayFocusItems.length > 0 && (
+                                            <span className={styles.focusSectionSummary}>
+                                                未着手 {todayOpenFocusCount} / 結果 {todayDoneFocusCount}
+                                            </span>
+                                        )}
+                                    </div>
                                     <button
                                         type="button"
                                         className={styles.sectionAddButton}
@@ -1011,52 +1406,94 @@ export function Today() {
 
                                 {todayFocusItems.length === 0 ? (
                                     <div className={styles.emptyState}>
-                                        <p>やることはありません</p>
+                                        <p>今日やることはありません</p>
                                         <span>追加から今日の作業を残せます</span>
                                     </div>
                                 ) : (
                                     <div className={styles.focusList}>
-                                        {todayFocusItems.map((item) => (
-                                            <article key={item.id} className={styles.focusItem}>
-                                                <button
-                                                    type="button"
-                                                    className={styles.completeCircle}
-                                                    disabled={completingId === item.id}
-                                                    onClick={() => void handleCompleteFocusItem(item)}
-                                                    aria-label="完了にする"
-                                                >
-                                                    {completingId === item.id ? (
-                                                        <div className={styles.miniSpinner} />
-                                                    ) : (
-                                                        <Check size={14} className={styles.checkIcon} />
-                                                    )}
-                                                </button>
-                                                <div
-                                                    className={styles.focusContent}
-                                                    onClick={() => openComposerForEdit(item)}
-                                                >
-                                                    <div className={styles.focusTitleRow}>
-                                                        <span className={styles.focusTitle}>{item.title}</span>
-                                                        <span
-                                                            className={`${styles.scopeTag} ${item.scope === "org" ? styles.scopeTagOrg : ""}`}
-                                                        >
-                                                            {SCOPE_LABELS[item.scope]}
+                                        {todayFocusItems.map((item) => {
+                                            const note = item.status === "done"
+                                                ? item.resolution_note || item.note
+                                                : item.note;
+
+                                            return (
+                                                <article key={item.id} className={getFocusItemClassName(item)}>
+                                                    <button
+                                                        type="button"
+                                                        className={getFocusStatusChipButtonClassName(item)}
+                                                        disabled={completingId === item.id}
+                                                        onClick={() => void handleCycleFocusItem(item)}
+                                                        aria-busy={completingId === item.id}
+                                                        aria-label={`現在: ${getFocusStateLabel(item)}。タップで${getNextFocusActionLabel(item)}。`}
+                                                    >
+                                                        <span className={styles.focusStatusChipIcon}>
+                                                            {completingId === item.id ? (
+                                                                <div className={styles.miniSpinner} />
+                                                            ) : (
+                                                                renderFocusStateIcon(item)
+                                                            )}
                                                         </span>
-                                                    </div>
-                                                    {item.note && (
-                                                        <p className={styles.focusNote}>{item.note}</p>
-                                                    )}
-                                                    {item.site_name_snapshot && (
-                                                        <div className={styles.focusMeta}>
-                                                            <span className={styles.metaItem}>
-                                                                <Building2 size={12} />
-                                                                {item.site_name_snapshot}
+                                                        <span className={styles.focusStatusChipLabel}>
+                                                            {getFocusStateLabel(item)}
+                                                        </span>
+                                                    </button>
+                                                    <div
+                                                        className={styles.focusContent}
+                                                        onClick={() => openComposerForEdit(item)}
+                                                    >
+                                                        <div className={styles.focusTitleRow}>
+                                                            <span className={styles.focusTitle}>{item.title}</span>
+                                                            <span
+                                                                className={`${styles.scopeTag} ${item.scope === "org" ? styles.scopeTagOrg : ""}`}
+                                                            >
+                                                                {SCOPE_LABELS[item.scope]}
                                                             </span>
                                                         </div>
-                                                    )}
-                                                </div>
-                                            </article>
-                                        ))}
+                                                        {note && (
+                                                            <p className={styles.focusNote}>{note}</p>
+                                                        )}
+                                                        {item.site_name_snapshot && (
+                                                            <div className={styles.focusMeta}>
+                                                                <span className={styles.metaItem}>
+                                                                    <Building2 size={12} />
+                                                                    {item.site_name_snapshot}
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </article>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+
+                                {carryoverFocusItems.length > 0 && (
+                                    <div className={styles.candidateSection}>
+                                        <div className={styles.candidateHeader}>
+                                            <h3>候補</h3>
+                                            <span>昨日以前の未着手 {carryoverFocusItems.length}件</span>
+                                        </div>
+                                        <div className={styles.candidateList}>
+                                            {carryoverFocusItems.map((item) => (
+                                                <article key={item.id} className={styles.candidateItem}>
+                                                    <div className={styles.candidateBody}>
+                                                        <strong>{item.title}</strong>
+                                                        <span>
+                                                            {getFocusDateKey(item)} から持ち越し
+                                                        </span>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        className={styles.candidateActionButton}
+                                                        disabled={completingId === item.id}
+                                                        onClick={() => void handlePromoteCandidateToToday(item)}
+                                                        aria-label={`${item.title} を今日やるに移動`}
+                                                    >
+                                                        今日やる
+                                                    </button>
+                                                </article>
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
                             </motion.section>
