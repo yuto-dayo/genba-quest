@@ -2,7 +2,7 @@
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `PR作成・マージ`
+- NEXT_CMD: `PR作成・マージ・Render再デプロイ確認`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
   - `/Users/yutoyoshino/Documents/genba-quest/handoff/repo/worktree-cleanup.md`
@@ -18,8 +18,8 @@
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `e939c48`
-  - Updated: `2026-05-15T02:13:20+0900`
+  - HEAD: `f35adbf`
+  - Updated: `2026-05-15T02:16:56+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
@@ -36,31 +36,32 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `PR作成・マージ`. Source: realtime
+- [focus] NEXT_CMD: `PR作成・マージ・Render再デプロイ確認`. Source: realtime
+- [H0006] Completed: 未使用のuseLocation()を削除しTS6133ビルドエラー解消
+- [H0006] Remaining: PR作成・マージ・Render再デプロイ確認
 - [H0005] Completed: Today画面のsingle-item FAB（連絡を記録）を削除
 - [H0005] Remaining: PR作成・マージ
-- [H0004] Completed: Today Todo UIを状態チップボタンへ変更し、完了済み別セクションを廃止。未着手/できた/変更して完了/できなかったを同一リストで循環表示。
-- [H0004] Remaining: 必要ならデザイン微調整後にコミット/PR化。
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
+- [H0006] Auto-captured decision: 未使用のuseLocation()を削除しTS6133ビルドエラー解消
 - [H0005] Auto-captured decision: Today画面のsingle-item FAB（連絡を記録）を削除
 - [H0004] Auto-captured decision: Today Todo UIを状態チップボタンへ変更し、完了済み別セクションを廃止。未着手/できた/変更して完了/できなかったを同一リストで循環表示。
 - [H0003] Auto-captured decision: Fix profile avatar update path: server PATCH /me now accepts avatar_url (validated to caller bucket path); Settings page gains avatar upload/change/remove UI reusing compressIma...
 - [H0002] Auto-captured decision: Quality gate再確認: server全体testの日付依存失敗を communicationContactReadModel.test.ts の固定時刻化で解消。
-- [H0001] Auto-captured decision: Calendar復旧: codex/dirty-worktree-snapshot-20260504-161411 から Calendar UI/hook/lib/type と server calendar route を復元。PATH/Reward系の既存差分は codex/pre-calendar-recovery-20260504-183918...
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
 <!-- HANDOFF_L2_LANDMINES_START -->
-- [H0005] No new landmines reported in this chunk.
+- [H0006] No new landmines reported in this chunk.
 <!-- HANDOFF_L2_LANDMINES_END -->
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
+- [H0006] PR作成・マージ・Render再デプロイ確認
 - [H0005] PR作成・マージ
 - [H0004] 必要ならデザイン微調整後にコミット/PR化。
 - [H0003] Push fix/profile-avatar-url and open PR; then restore stashed Today.* WIP on fix/member-invoices-status-ambiguous
@@ -71,7 +72,7 @@
 <!-- HANDOFF_L2_STATE_START -->
 - threshold: `20`
 - keep_recent: `12`
-- current_l3_entries: `5`
+- current_l3_entries: `6`
 - last_compacted_at: `never`
 - archived_entries: `0`
 <!-- HANDOFF_L2_STATE_END -->
@@ -100,6 +101,7 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
+- [x] 未使用のuseLocation()を削除しTS6133ビルドエラー解消
 - [x] Today画面のsingle-item FAB（連絡を記録）を削除
 - [x] Today Todo UIを状態チップボタンへ変更し、完了済み別セクションを廃止。未着手/できた/変更して完了/できなかったを同一リストで循環表示。
 - [x] Fix profile avatar update path: server PATCH /me now accepts avatar_url (validated to caller bucket path); Settings page gains avatar upload/change/remove UI reusing compressImageForAvatar + Supabase Storage
@@ -109,7 +111,8 @@ Phase: A-0/A-1
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: PR作成・マージ
+- [ ] **P0**: PR作成・マージ・Render再デプロイ確認
+- [ ] **P1**: PR作成・マージ
 - [ ] **P1**: 必要ならデザイン微調整後にコミット/PR化。
 - [ ] **P1**: Push fix/profile-avatar-url and open PR; then restore stashed Today.* WIP on fix/member-invoices-status-ambiguous
 - [ ] **P1**: 必要なら Calendar の個人予定DDLを現行 supabase/migrations へ移植する。server/sql はアーカイブ済み方針のため今回は復活させていない。
@@ -243,5 +246,21 @@ cd frontend && npx eslint src/
   - Auto-captured decision: Today画面のsingle-item FAB（連絡を記録）を削除
 - Validation:
   - `vitest run src/App.test.tsx → 30/30 passed`
+- Landmines:
+  - No new landmines reported in this chunk.
+
+### 2026-05-15 02:16:56 +0900
+
+- Entry-ID: `H0006`
+- Completed:
+  - [x] 未使用のuseLocation()を削除しTS6133ビルドエラー解消
+- Remaining:
+  - [ ] PR作成・マージ・Render再デプロイ確認
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: 未使用のuseLocation()を削除しTS6133ビルドエラー解消
+- Validation:
+  - `npx tsc -b → no errors`
 - Landmines:
   - No new landmines reported in this chunk.

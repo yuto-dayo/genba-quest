@@ -1426,7 +1426,6 @@ function DevPreviewRoute({ children }: { children: ReactNode }) {
 }
 
 function AppContent() {
-  const location = useLocation();
   const navigate = useNavigate();
   const [siteLevelDraftNotifications, setSiteLevelDraftNotifications] = useState<NotificationRecord[]>([]);
   const [pendingApprovals, setPendingApprovals] = useState<AccountingTransaction[]>([]);
