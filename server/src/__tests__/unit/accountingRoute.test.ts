@@ -145,6 +145,8 @@ describe("accounting router", () => {
   const createSaleHandler = getPostHandler("/sales");
   const getTransactionsHandler = getGetHandler("/transactions");
   const getPlHandler = getGetHandler("/pl");
+  const getMemberReimbursementsSummaryHandler = getGetHandler("/member-reimbursements-summary");
+  const getMemberReimbursementBalanceHandler = getGetHandler("/member/:memberId/reimbursement-balance");
   const getInvoiceSettingsHandler = getGetHandler("/invoice-settings");
   const updateInvoiceSettingsHandler = getPutHandler("/invoice-settings");
   const getInvoiceEligibilityHandler = getGetHandler("/invoice-eligibility/:transactionId");
@@ -694,6 +696,177 @@ describe("accounting router", () => {
     expect(queryChain.gte).toHaveBeenCalledWith("recorded_date", "2026-04-01");
     expect(queryChain.lte).toHaveBeenCalledWith("recorded_date", "2026-04-30");
     expect(res.json).toHaveBeenCalledWith([]);
+  });
+
+  it("GET /member-reimbursements-summary returns team reimbursement totals with self first", async () => {
+    const now = new Date();
+    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const memberChain = createChain({
+      data: [
+        { id: "membership-self", user_id: "user-1" },
+        { id: "membership-2", user_id: "user-2" },
+      ],
+      error: null,
+    });
+    const profileChain = createChain({
+      data: [
+        { id: "user-1", nickname: "ゆうと長い" },
+        { id: "user-2", username: "akira" },
+      ],
+      error: null,
+    });
+    const txChain = createChain({
+      data: [
+        {
+          id: "tx-self-1",
+          recorded_date: `${month}-02`,
+          category: "travel",
+          amount_total: 1000,
+          claimant_member_id: "membership-self",
+          reimbursement_status: "submitted",
+        },
+        {
+          id: "tx-self-2",
+          recorded_date: `${month}-03`,
+          category: "fuel",
+          amount_total: 2000,
+          claimant_member_id: "membership-self",
+          reimbursement_status: "unsubmitted",
+        },
+        {
+          id: "tx-other-1",
+          recorded_date: `${month}-04`,
+          category: "material",
+          amount_total: 5000,
+          claimant_member_id: "membership-2",
+          reimbursement_status: "reimbursed",
+        },
+      ],
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [memberChain, profileChain, txChain]);
+
+    const req = {
+      userId: "user-1",
+      orgId: "org-1",
+      orgMembershipId: "membership-self",
+      query: { month },
+    } as any;
+    const res = createMockRes();
+
+    await getMemberReimbursementsSummaryHandler(req, res);
+
+    expect(memberChain.eq).toHaveBeenCalledWith("org_id", "org-1");
+    expect(txChain.eq).toHaveBeenCalledWith("paid_by", "member");
+    expect(txChain.eq).toHaveBeenCalledWith("settlement_type", "unpaid");
+    expect(txChain.in).toHaveBeenCalledWith("claimant_member_id", ["membership-self", "membership-2"]);
+    expect(res.json).toHaveBeenCalledWith({
+      month,
+      self_member_id: "membership-self",
+      members: [
+        {
+          member_id: "membership-self",
+          nickname: "ゆうと長い",
+          total_advanced: 3000,
+          unsettled: 3000,
+          settled: 0,
+          count_pending: 2,
+          status: "in_review",
+        },
+        {
+          member_id: "membership-2",
+          nickname: "akira",
+          total_advanced: 5000,
+          unsettled: 0,
+          settled: 5000,
+          count_pending: 0,
+          status: "settled",
+        },
+      ],
+    });
+  });
+
+  it("GET /member-reimbursements-summary rejects future months", async () => {
+    const req = {
+      orgId: "org-1",
+      query: { month: "2999-01" },
+    } as any;
+    const res = createMockRes();
+
+    await getMemberReimbursementsSummaryHandler(req, res);
+
+    expect(mockFrom).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: "future month" });
+  });
+
+  it("GET /member/:memberId/reimbursement-balance returns sanitized recent items", async () => {
+    const now = new Date();
+    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const memberChain = createChain({ data: { id: "membership-2" }, error: null });
+    const txChain = createChain({
+      data: [
+        { id: "tx-1", recorded_date: `${month}-06`, category: "fuel", amount_total: 1000, claimant_member_id: "membership-2", reimbursement_status: "submitted" },
+        { id: "tx-2", recorded_date: `${month}-05`, category: "travel", amount_total: 2000, claimant_member_id: "membership-2", reimbursement_status: "approved" },
+        { id: "tx-3", recorded_date: `${month}-04`, category: "material", amount_total: 3000, claimant_member_id: "membership-2", reimbursement_status: "reimbursed" },
+        { id: "tx-4", recorded_date: `${month}-03`, category: null, amount_total: 4000, claimant_member_id: "membership-2", reimbursement_status: "unsubmitted" },
+        { id: "tx-5", recorded_date: `${month}-02`, category: "tool", amount_total: 5000, claimant_member_id: "membership-2", reimbursement_status: "submitted" },
+        { id: "tx-6", recorded_date: `${month}-01`, category: "food", amount_total: 6000, claimant_member_id: "membership-2", reimbursement_status: "submitted" },
+      ],
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [memberChain, txChain]);
+
+    const req = {
+      orgId: "org-1",
+      params: { memberId: "membership-2" },
+      query: { month },
+    } as any;
+    const res = createMockRes();
+
+    await getMemberReimbursementBalanceHandler(req, res);
+
+    expect(memberChain.eq).toHaveBeenCalledWith("id", "membership-2");
+    expect(txChain.eq).toHaveBeenCalledWith("claimant_member_id", "membership-2");
+    expect(res.json).toHaveBeenCalledWith({
+      member_id: "membership-2",
+      month,
+      total_advanced: 21000,
+      unsettled: 18000,
+      settled: 3000,
+      by_status: {
+        unsubmitted: 4000,
+        submitted: 12000,
+        approved: 2000,
+        reimbursed: 3000,
+      },
+      recent_items: [
+        { id: "tx-1", occurred_on: `${month}-06`, category: "fuel", amount: 1000, reimbursement_status: "submitted" },
+        { id: "tx-2", occurred_on: `${month}-05`, category: "travel", amount: 2000, reimbursement_status: "approved" },
+        { id: "tx-3", occurred_on: `${month}-04`, category: "material", amount: 3000, reimbursement_status: "reimbursed" },
+        { id: "tx-4", occurred_on: `${month}-03`, category: "other", amount: 4000, reimbursement_status: "unsubmitted" },
+        { id: "tx-5", occurred_on: `${month}-02`, category: "tool", amount: 5000, reimbursement_status: "submitted" },
+      ],
+    });
+  });
+
+  it("GET /member/:memberId/reimbursement-balance rejects members outside the org", async () => {
+    const now = new Date();
+    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const memberChain = createChain({ data: null, error: null });
+    setupMockFromSequence(mockFrom, [memberChain]);
+
+    const req = {
+      orgId: "org-1",
+      params: { memberId: "foreign-membership" },
+      query: { month },
+    } as any;
+    const res = createMockRes();
+
+    await getMemberReimbursementBalanceHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({ error: "member not in org" });
   });
 
   it("POST /expenses stores misc expenses as tax-free when selected", async () => {

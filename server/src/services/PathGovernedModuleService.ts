@@ -378,6 +378,23 @@ export interface PathRewardConfirmationSummary {
   };
 }
 
+export interface PathTeamRewardSummaryMember {
+  member_id: string;
+  nickname: string;
+  level: "L1" | "L2" | "L3" | "L4" | "L5";
+  attendance_days: number;
+  amount: number;
+  status: "finalized" | "preview" | "pending";
+  has_invoice: boolean;
+  has_paid: boolean;
+}
+
+export interface PathTeamRewardSummary {
+  month: string;
+  is_finalized: boolean;
+  members: PathTeamRewardSummaryMember[];
+}
+
 export interface PathRewardQaRequest {
   month: string;
   member_id: string;
@@ -534,6 +551,17 @@ function isMissingColumnError(error: unknown, columnName: string): boolean {
 function normalizeMoney(value: number, code = "INVALID_MONEY_VALUE"): number {
   assert(Number.isFinite(value), code);
   return Math.round(value);
+}
+
+function normalizeTeamRewardLevel(value: unknown): PathTeamRewardSummaryMember["level"] {
+  return value === "L1" || value === "L2" || value === "L3" || value === "L4" || value === "L5"
+    ? value
+    : "L3";
+}
+
+function toShortNickname(value: unknown, fallback: string): string {
+  const raw = typeof value === "string" && value.trim().length > 0 ? value.trim() : fallback;
+  return Array.from(raw).slice(0, 5).join("");
 }
 
 function normalizeScore(
@@ -3864,6 +3892,171 @@ export class PathGovernedModuleService {
         : {},
       source: member ? "preview" : "empty",
     };
+  }
+
+  async getTeamRewardSummary(month: string): Promise<PathTeamRewardSummary> {
+    const normalizedMonth = ensureMonth(month);
+    const memberIds = await this.listActiveRewardConfirmationMemberIds();
+    if (memberIds.length === 0) {
+      return { month: normalizedMonth, is_finalized: false, members: [] };
+    }
+
+    const [memberNameMap, invoiceState] = await Promise.all([
+      this.loadMemberNameMap(memberIds),
+      this.loadTeamRewardInvoiceState(normalizedMonth, memberIds),
+    ]);
+    const finalized = await this.loadFinalizedTeamRewardSummary(normalizedMonth, memberIds, memberNameMap, invoiceState);
+    if (finalized) {
+      return finalized;
+    }
+
+    const preview = await new PathV32SimpleRewardService(this.orgId).previewMonthlyDistribution(normalizedMonth);
+    return {
+      month: normalizedMonth,
+      is_finalized: false,
+      members: preview.members
+        .map((member) => {
+          const state = invoiceState.get(member.member_id) ?? { has_invoice: false, has_paid: false };
+          return {
+            member_id: member.member_id,
+            nickname: toShortNickname(memberNameMap.get(member.member_id) ?? member.member_name, member.member_id),
+            level: normalizeTeamRewardLevel(member.level),
+            attendance_days: Number(member.confirmed_work_days ?? 0),
+            amount: normalizeMoney(Number(member.total_pay_amount ?? member.rounded_amount ?? 0)),
+            status: "preview" as const,
+            has_invoice: state.has_invoice,
+            has_paid: state.has_paid,
+          };
+        })
+        .sort((left, right) => right.amount - left.amount),
+    };
+  }
+
+  private async loadTeamRewardInvoiceState(
+    month: string,
+    memberIds: string[],
+  ): Promise<Map<string, { has_invoice: boolean; has_paid: boolean }>> {
+    if (memberIds.length === 0) {
+      return new Map();
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("member_invoices")
+      .select("member_id,status,source")
+      .eq("org_id", this.orgId)
+      .eq("period_month", month)
+      .in("member_id", memberIds)
+      .in("source", ["path_reward", "monthly_distribution"])
+      .neq("status", "void");
+
+    if (error) {
+      throw new Error(`Failed to fetch team reward invoice state: ${error.message}`);
+    }
+
+    const state = new Map<string, { has_invoice: boolean; has_paid: boolean }>();
+    for (const row of (data ?? []) as Array<Record<string, unknown>>) {
+      const memberId = typeof row.member_id === "string" ? row.member_id : "";
+      if (!UUID_PATTERN.test(memberId)) {
+        continue;
+      }
+      const current = state.get(memberId) ?? { has_invoice: false, has_paid: false };
+      current.has_invoice = true;
+      current.has_paid = current.has_paid || row.status === "paid";
+      state.set(memberId, current);
+    }
+    return state;
+  }
+
+  private async loadFinalizedTeamRewardSummary(
+    month: string,
+    memberIds: string[],
+    memberNameMap: Map<string, string>,
+    invoiceState: Map<string, { has_invoice: boolean; has_paid: boolean }>,
+  ): Promise<PathTeamRewardSummary | null> {
+    const { data: monthlyCloses, error: closeError } = await supabaseAdmin
+      .from("monthly_distribution_closes")
+      .select("id,path_rule_version,closed_at")
+      .eq("org_id", this.orgId)
+      .eq("month", month)
+      .eq("status", "finalized")
+      .order("closed_at", { ascending: false })
+      .limit(12);
+
+    if (closeError) {
+      throw new Error(`Failed to fetch team reward closes: ${closeError.message}`);
+    }
+
+    const closeRows = ((monthlyCloses ?? []) as Array<Record<string, unknown>>)
+      .filter((row) => UUID_PATTERN.test(String(row.id ?? "")))
+      .filter((row) => String(row.path_rule_version ?? "") === PATH_V32_SIMPLE_RULE_VERSION);
+    if (closeRows.length === 0) {
+      return null;
+    }
+
+    const closeIds = closeRows.map((row) => String(row.id));
+    const { data: lineData, error: lineError } = await supabaseAdmin
+      .from("monthly_distribution_lines")
+      .select("monthly_distribution_close_id,member_id,floor_units,floor_pay,result_pay,total_pay,total_pay_amount,level,confirmed_work_days,rounded_amount")
+      .eq("org_id", this.orgId)
+      .in("monthly_distribution_close_id", closeIds);
+
+    if (lineError) {
+      throw new Error(`Failed to fetch team reward lines: ${lineError.message}`);
+    }
+
+    const linesByCloseId = new Map<string, Array<Record<string, unknown>>>();
+    for (const line of (lineData ?? []) as Array<Record<string, unknown>>) {
+      const closeId = typeof line.monthly_distribution_close_id === "string" ? line.monthly_distribution_close_id : "";
+      if (!UUID_PATTERN.test(closeId)) {
+        continue;
+      }
+      const rows = linesByCloseId.get(closeId) ?? [];
+      rows.push(line);
+      linesByCloseId.set(closeId, rows);
+    }
+
+    for (const close of closeRows) {
+      const closeId = String(close.id);
+      const lines = linesByCloseId.get(closeId) ?? [];
+      const memberLineMap = new Map(
+        lines
+          .filter((line) => UUID_PATTERN.test(String(line.member_id ?? "")))
+          .map((line) => [String(line.member_id), line] as const),
+      );
+      if (!memberIds.every((memberId) => memberLineMap.has(memberId))) {
+        continue;
+      }
+
+      return {
+        month,
+        is_finalized: true,
+        members: memberIds
+          .map((memberId) => {
+            const line = memberLineMap.get(memberId) ?? {};
+            const state = invoiceState.get(memberId) ?? { has_invoice: false, has_paid: false };
+            const hasResultAmount =
+              line.result_pay != null ||
+              line.rounded_amount != null ||
+              line.total_pay_amount != null ||
+              line.total_pay != null;
+            return {
+              member_id: memberId,
+              nickname: toShortNickname(memberNameMap.get(memberId), memberId),
+              level: normalizeTeamRewardLevel(line.level),
+              attendance_days: Number(line.confirmed_work_days ?? line.floor_units ?? 0),
+              amount: normalizeMoney(
+                Number(line.total_pay_amount ?? line.total_pay ?? line.result_pay ?? line.rounded_amount ?? line.floor_pay ?? 0),
+              ),
+              status: hasResultAmount ? "finalized" as const : "pending" as const,
+              has_invoice: state.has_invoice,
+              has_paid: state.has_paid,
+            };
+          })
+          .sort((left, right) => right.amount - left.amount),
+      };
+    }
+
+    return null;
   }
 
   private async listActiveRewardConfirmationMemberIds(): Promise<string[]> {

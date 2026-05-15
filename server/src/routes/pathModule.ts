@@ -1,6 +1,7 @@
 import { Router, Response } from "express";
 import { resolveActiveOrgMembership } from "../lib/orgAccess";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
+import { validateReportingMonth } from "../lib/reportingMonth";
 import { DeterministicPathReviewer } from "../services/DeterministicPathReviewer";
 import { ProposalService } from "../services/ProposalService";
 import { PathGovernedModuleService } from "../services/PathGovernedModuleService";
@@ -130,6 +131,22 @@ function buildHumanActor(req: AuthenticatedRequest): ActorRef {
 
 function getPathModuleService(req: AuthenticatedRequest): PathGovernedModuleService {
   return new PathGovernedModuleService(getOrgId(req));
+}
+
+function resolveSelfRewardMemberId(
+  members: Array<{ member_id: string }>,
+  membershipId?: string | null,
+  userId?: string | null,
+): string | null {
+  if (membershipId && members.some((member) => member.member_id === membershipId)) {
+    return membershipId;
+  }
+
+  if (userId && members.some((member) => member.member_id === userId)) {
+    return userId;
+  }
+
+  return membershipId ?? userId ?? null;
 }
 
 function getPathV31Service(req: AuthenticatedRequest): PathV31Service {
@@ -773,6 +790,31 @@ router.get("/reward-confirmation", async (req: AuthenticatedRequest, res: Respon
     const memberId = typeof req.query.member_id === "string" ? req.query.member_id : "";
     const summary = await getPathModuleService(req).getRewardConfirmationSummary(month, memberId);
     res.json({ summary });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+router.get("/team-reward-summary", async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const monthValidation = validateReportingMonth(req.query.month);
+    if (!monthValidation.ok) {
+      res.status(monthValidation.status).json({ error: monthValidation.error });
+      return;
+    }
+
+    const membership = await resolveActiveOrgMembership(req, "member");
+    req.orgId = membership.org_id;
+    req.orgMembershipId = membership.id ?? null;
+    const summary = await getPathModuleService(req).getTeamRewardSummary(monthValidation.month);
+    res.json({
+      ...summary,
+      self_member_id: resolveSelfRewardMemberId(
+        summary.members,
+        membership.id ?? null,
+        membership.user_id ?? req.userId ?? null,
+      ),
+    });
   } catch (error) {
     handleError(res, error);
   }
