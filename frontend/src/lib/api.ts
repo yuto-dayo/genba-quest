@@ -1280,8 +1280,8 @@ export interface OutstandingInvoicesSummary {
     };
 }
 
-export const fetchMemberInvoiceDrafts = () =>
-    api<{ drafts: MemberInvoiceDraft[] }>("/api/v1/member-invoices/drafts");
+export const fetchMemberInvoiceDrafts = (options?: RequestInit) =>
+    api<{ drafts: MemberInvoiceDraft[] }>("/api/v1/member-invoices/drafts", options);
 
 export const issueMemberInvoice = (input: {
     source: MemberInvoiceSource;
@@ -1296,8 +1296,8 @@ export const issueMemberInvoice = (input: {
         },
     );
 
-export const fetchMyMemberInvoices = () =>
-    api<{ invoices: MemberInvoice[] }>("/api/v1/member-invoices/mine");
+export const fetchMyMemberInvoices = (options?: RequestInit) =>
+    api<{ invoices: MemberInvoice[] }>("/api/v1/member-invoices/mine", options);
 
 export const fetchOutstandingInvoicesSummary = () =>
     api<OutstandingInvoicesSummary>("/api/v1/org/invoices/outstanding-summary");
@@ -2335,6 +2335,72 @@ export interface CashflowSummary {
 export const fetchCashflowSummary = (month: string) =>
     api<CashflowSummary>(`/api/v1/accounting/cashflow-summary?month=${encodeURIComponent(month)}`);
 
+export interface TeamMemberReimbursement {
+    member_id: string;
+    nickname: string;
+    total_advanced: number;
+    unsettled: number;
+    settled: number;
+    count_pending: number;
+    status: "pending" | "in_review" | "none" | "settled";
+}
+
+export interface MemberReimbursementsSummary {
+    month: string;
+    self_member_id: string | null;
+    members: TeamMemberReimbursement[];
+}
+
+export interface MemberReimbursementBalance {
+    member_id: string;
+    month: string;
+    total_advanced: number;
+    unsettled: number;
+    settled: number;
+    by_status: {
+        unsubmitted: number;
+        submitted: number;
+        approved: number;
+        reimbursed: number;
+    };
+    recent_items: Array<{
+        id: string;
+        occurred_on: string;
+        category: string;
+        amount: number;
+        reimbursement_status: string;
+    }>;
+}
+
+export interface TeamMemberReward {
+    member_id: string;
+    nickname: string;
+    level: "L1" | "L2" | "L3" | "L4" | "L5";
+    attendance_days: number;
+    amount: number;
+    status: "finalized" | "preview" | "pending";
+    has_invoice: boolean;
+    has_paid: boolean;
+}
+
+export interface TeamRewardSummary {
+    month: string;
+    self_member_id: string | null;
+    is_finalized: boolean;
+    members: TeamMemberReward[];
+}
+
+export const fetchMemberReimbursementsSummary = (month: string) =>
+    api<MemberReimbursementsSummary>(`/api/v1/accounting/member-reimbursements-summary?month=${encodeURIComponent(month)}`);
+
+export const fetchMemberReimbursementBalance = (memberId: string, month: string) =>
+    api<MemberReimbursementBalance>(
+        `/api/v1/accounting/member/${encodeURIComponent(memberId)}/reimbursement-balance?month=${encodeURIComponent(month)}`,
+    );
+
+export const fetchTeamRewardSummary = (month: string) =>
+    api<TeamRewardSummary>(`/api/v1/path/module/team-reward-summary?month=${encodeURIComponent(month)}`);
+
 // 月次推移 (PR #8)
 export interface PLTrendMonth {
     month: string; // "YYYY-MM"
@@ -2498,6 +2564,11 @@ export interface AccountingTransaction extends AccountingCommandEnvelope {
     client?: { id: string; name: string };
     reviewer?: { id: string; full_name: string };
     items?: AccountingTransactionItem[];
+    paid_by?: "org" | "member";
+    claimant_member_id?: string | null;
+    settlement_type?: "paid" | "unpaid";
+    payment_account?: "cash" | "bank" | null;
+    reimbursement_status?: "unsubmitted" | "submitted" | "approved" | "reimbursed" | null;
 }
 
 export interface AccountingTransactionItem {
@@ -2524,6 +2595,11 @@ export interface CreateExpenseRequest {
     tax_category?: "10_STANDARD" | "08_REDUCED" | "00_EXEMPT" | "00_TAXFREE";
     invoice_number?: string;
     expense_scope?: "job" | "job_advance" | "stockpile" | "overhead";
+    paid_by?: "org" | "member";
+    claimant_member_id?: string | null;
+    settlement_type?: "paid" | "unpaid";
+    payment_account?: "cash" | "bank" | null;
+    reimbursement_status?: "unsubmitted" | "submitted" | "approved" | "reimbursed" | null;
     source_document_id?: string;
     input_sources?: Record<string, "ocr" | "manual">;
 }
@@ -3933,9 +4009,10 @@ export const fetchPathModuleRewardExplanation = (memberId: string, month: string
         `/api/v1/path/module/members/${encodeURIComponent(memberId)}/reward-explanation?month=${encodeURIComponent(month)}`
     );
 
-export const fetchPathRewardConfirmation = (month: string, memberId: string) =>
+export const fetchPathRewardConfirmation = (month: string, memberId: string, options?: RequestInit) =>
     api<{ summary: PathRewardConfirmationSummary }>(
-        `/api/v1/path/module/reward-confirmation?month=${encodeURIComponent(month)}&member_id=${encodeURIComponent(memberId)}`
+        `/api/v1/path/module/reward-confirmation?month=${encodeURIComponent(month)}&member_id=${encodeURIComponent(memberId)}`,
+        options,
     ).then((response) => response.summary);
 
 export const askPathRewardConfirmationQuestion = (data: PathRewardQaRequest) =>
@@ -4147,9 +4224,10 @@ export const fetchResponsibilityLockTargets = () =>
         (response) => response.targets,
     );
 
-export const fetchPathV33MonthlyPreview = (memberId: string, month: string) =>
+export const fetchPathV33MonthlyPreview = (memberId: string, month: string, options?: RequestInit) =>
     api<{ preview: PathV33MonthlyPreview }>(
         `/api/v1/path/module/v33/level-drafts/preview?member_id=${encodeURIComponent(memberId)}&month=${encodeURIComponent(month)}`,
+        options,
     ).then((response) => response.preview);
 
 export interface PathV33TeamFeedMember {
