@@ -22,13 +22,14 @@ import systemRouter from "./routes/system";
 import luqoRouter from "./routes/luqo";
 import pathEvaluationsRouter from "./routes/pathEvaluations";
 import pathRewardsRouter from "./routes/pathRewards";
-import pathModuleRouter from "./routes/pathModule";
+import pathModuleRouter, { handleMonthCloseReminder } from "./routes/pathModule";
 import focusItemsRouter from "./routes/focusItems";
 import calendarRouter from "./routes/calendar";
 import devPreviewRouter from "./routes/devPreview";
 import profileViewConsentRouter from "./routes/profileViewConsent";
 import memberInvoicesRouter from "./routes/memberInvoices";
 import { assertDevAuthRemoteSafety } from "./config/devAuthUsers";
+import { requireCronAuth } from "./middleware/cronAuth";
 
 assertDevAuthRemoteSafety();
 
@@ -98,6 +99,8 @@ app.get("/health", (_req, res) => {
 
 // Webhooks（認証不要）
 app.use("/api/v1/webhooks", webhooksRouter);
+
+app.post("/api/v1/path/month/_remind-close", requireCronAuth, handleMonthCloseReminder);
 
 // 開発用プレビュー（認証不要・NODE_ENV!=productionでのみ動作）
 app.use("/api/v1/dev", devPreviewRouter);

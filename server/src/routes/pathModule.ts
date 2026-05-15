@@ -1,8 +1,9 @@
-import { Router, Response } from "express";
+import { Request, Router, Response } from "express";
 import { resolveActiveOrgMembership } from "../lib/orgAccess";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import { validateReportingMonth } from "../lib/reportingMonth";
 import { DeterministicPathReviewer } from "../services/DeterministicPathReviewer";
+import { MonthCloseReminderService } from "../services/MonthCloseReminderService";
 import { ProposalService } from "../services/ProposalService";
 import { PathGovernedModuleService } from "../services/PathGovernedModuleService";
 import {
@@ -217,6 +218,19 @@ function handleError(res: Response, error: unknown): void {
 
   console.error("[PATH_MODULE] error:", error);
   res.status(500).json({ error: "Internal server error" });
+}
+
+export async function handleMonthCloseReminder(req: Request, res: Response): Promise<void> {
+  try {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const result = await new MonthCloseReminderService().remindClose({
+      month: typeof body.month === "string" ? body.month : undefined,
+      force: body.force === true,
+    });
+    res.json(result);
+  } catch (error) {
+    handleError(res, error);
+  }
 }
 
 router.get("/policy-bundles", async (req: AuthenticatedRequest, res: Response) => {
