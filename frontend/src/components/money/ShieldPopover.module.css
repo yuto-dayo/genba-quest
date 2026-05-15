@@ -1,0 +1,58 @@
+.root {
+    position: relative;
+    flex: 0 0 auto;
+}
+
+.button {
+    width: var(--md-sys-tap-target-min);
+    height: var(--md-sys-tap-target-min);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: var(--md-sys-shape-corner-full);
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: pointer;
+}
+
+.button:hover,
+.button[aria-expanded="true"] {
+    background: var(--md-sys-color-surface-container);
+    color: var(--md-sys-color-primary);
+}
+
+.button:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--md-sys-color-primary) 35%, transparent);
+    outline-offset: 2px;
+}
+
+.popover {
+    position: absolute;
+    top: calc(100% + var(--md-sys-spacing-xs));
+    right: 0;
+    z-index: 20;
+    width: min(calc(var(--md-sys-spacing-2xl) * 6), calc(100vw - var(--md-sys-spacing-xl)));
+    display: grid;
+    gap: var(--md-sys-spacing-sm);
+    padding: var(--md-sys-spacing-md);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-large);
+    background: var(--md-sys-color-surface-container-lowest);
+    box-shadow: var(--md-sys-elevation-level3);
+}
+
+.popover h3 {
+    margin: 0 0 var(--md-sys-spacing-xs);
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-large);
+}
+
+.popover ul {
+    display: grid;
+    gap: var(--md-sys-spacing-2xs);
+    margin: 0;
+    padding-left: var(--md-sys-spacing-md);
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+}

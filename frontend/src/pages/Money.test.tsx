@@ -16,6 +16,8 @@ const fetchPLTrend = vi.fn();
 const fetchPendingApprovals = vi.fn();
 const fetchPendingProposals = vi.fn();
 const fetchPL = vi.fn();
+const fetchTeamRewardSummary = vi.fn();
+const fetchMemberReimbursementsSummary = vi.fn();
 const fetchTransactions = vi.fn();
 const instructProposal = vi.fn();
 const rejectProposal = vi.fn();
@@ -55,6 +57,8 @@ vi.mock("../lib/api", () => ({
     fetchPendingApprovals: (...args: unknown[]) => fetchPendingApprovals(...args),
     fetchPendingProposals: (...args: unknown[]) => fetchPendingProposals(...args),
     fetchPL: (...args: unknown[]) => fetchPL(...args),
+    fetchTeamRewardSummary: (...args: unknown[]) => fetchTeamRewardSummary(...args),
+    fetchMemberReimbursementsSummary: (...args: unknown[]) => fetchMemberReimbursementsSummary(...args),
     fetchTransactions: (...args: unknown[]) => fetchTransactions(...args),
     instructProposal: (...args: unknown[]) => instructProposal(...args),
     rejectProposal: (...args: unknown[]) => rejectProposal(...args),
@@ -209,6 +213,17 @@ describe("Money PATH proposal queue", () => {
         fetchPendingApprovals.mockResolvedValue([]);
         fetchPendingProposals.mockResolvedValue([]);
         fetchPL.mockResolvedValue(plReport);
+        fetchTeamRewardSummary.mockResolvedValue({
+            month: "2026-05",
+            self_member_id: "member-1",
+            is_finalized: true,
+            members: [],
+        });
+        fetchMemberReimbursementsSummary.mockResolvedValue({
+            month: "2026-05",
+            self_member_id: "member-1",
+            members: [],
+        });
         fetchTransactions.mockResolvedValue([]);
         instructProposal.mockResolvedValue({ proposal: pathProposal });
         rejectProposal.mockResolvedValue({ proposal: { ...pathProposal, status: "rejected" } });
