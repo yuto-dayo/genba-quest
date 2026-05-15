@@ -1,0 +1,68 @@
+name: Month Close Reminder
+
+on:
+  schedule:
+    # GitHub cron is UTC. These candidates cover JST day 1 at 00:00
+    # across 28/29/30/31-day months; the job skips non-1..7 JST days.
+    - cron: "0 15 28-31 * *"
+    # UTC days 1-6 at 15:00 are JST days 2-7 at 00:00.
+    - cron: "0 15 1-6 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: month-close-reminder
+  cancel-in-progress: false
+
+jobs:
+  remind:
+    name: Call month close reminder endpoint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call remind-close endpoint
+        env:
+          SERVER_URL: ${{ secrets.SERVER_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+
+          if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
+            jst_day="$(TZ=Asia/Tokyo date +%d)"
+            case "$jst_day" in
+              01|02|03|04|05|06|07)
+                ;;
+              *)
+                echo "Skipping because JST day is ${jst_day}, outside 01-07."
+                exit 0
+                ;;
+            esac
+          fi
+
+          if [ -z "$SERVER_URL" ]; then
+            echo "::error::SERVER_URL secret is not configured."
+            exit 1
+          fi
+
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET secret is not configured."
+            exit 1
+          fi
+
+          case "$SERVER_URL" in
+            https://*)
+              ;;
+            *)
+              echo "::error::SERVER_URL must start with https://."
+              exit 1
+              ;;
+          esac
+
+          SERVER_URL="${SERVER_URL%/}"
+
+          curl --fail --show-error --silent -X POST "${SERVER_URL}/api/v1/path/month/_remind-close" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "Content-Type: application/json" \
+            -d '{}'
