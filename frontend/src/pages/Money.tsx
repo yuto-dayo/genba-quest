@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import {
     fetchPL,
+    fetchTeamRewardSummary,
+    fetchMemberReimbursementsSummary,
     approveProposal,
     executeProposal,
     fetchPendingProposals,
@@ -35,6 +37,8 @@ import {
     type ProposalRecord,
     type Client,
     type PartnersSummary,
+    type TeamRewardSummary,
+    type MemberReimbursementsSummary,
 } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
 import { useActiveOrgStore } from "../stores/activeOrg";
@@ -51,13 +55,16 @@ import { ProposalDetailModal } from "../components/ProposalDetailModal";
 import { TransactionDetailModal } from "../components/TransactionDetailModal";
 import { ApprovalCard } from "../components/ApprovalCard";
 import { FloatingActionButton } from "../components/FloatingActionButton";
-import { CashflowBucketStrip } from "../components/CashflowBucketStrip";
-import { MonthlyTrendChart } from "../components/MonthlyTrendChart";
-import { MoneyHero } from "../components/MoneyHero";
 import { MoneyTabs, type MoneyTab } from "../components/MoneyTabs";
 import { MoneyFilterSheet, type ExpenseCategory } from "../components/MoneyFilterSheet";
 import { PartnerSection } from "../components/PartnerSection";
 import { ReceivePartnerCard, PayPartnerCard, DonePartnerCard } from "../components/PartnerCard";
+import { InlineLoader } from "../components/InlineLoader";
+import { MoneyHeroSection } from "../components/money/MoneyHeroSection";
+import { MemberCarousel } from "../components/money/MemberCarousel";
+import { CompanySummaryCard } from "../components/money/CompanySummaryCard";
+import { ShieldPopover } from "../components/money/ShieldPopover";
+import { OwnRewardModal } from "../components/money/OwnRewardModal";
 import styles from "./Money.module.css";
 
 // 日付フォーマットヘルパー (YYYY/MM/DD)
@@ -160,6 +167,15 @@ const defaultFilters: SearchFilters = {
     category: null,
 };
 
+const getRecentMonths = (endMonth: string, count: number) => {
+    const [year, month] = endMonth.split("-").map(Number);
+    const cursor = new Date(year, month - 1, 1);
+    return Array.from({ length: count }, (_, index) => {
+        const dt = new Date(cursor.getFullYear(), cursor.getMonth() - (count - 1 - index), 1);
+        return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`;
+    });
+};
+
 // モバイル判定
 const useIsMobile = () => {
     const [isMobile, setIsMobile] = useState(false);
@@ -189,6 +205,12 @@ export function Money() {
     });
 
     const [pl, setPL] = useState<PLReport | null>(null);
+    const [teamRewardSummary, setTeamRewardSummary] = useState<TeamRewardSummary | null>(null);
+    const [reimbursementsSummary, setReimbursementsSummary] = useState<MemberReimbursementsSummary | null>(null);
+    const [moneyHeroLoading, setMoneyHeroLoading] = useState(false);
+    const [moneyHeroError, setMoneyHeroError] = useState<string | null>(null);
+    const [companyTrend, setCompanyTrend] = useState<number[]>([]);
+    const [shieldOpen, setShieldOpen] = useState(false);
     const [transactions, setTransactions] = useState<AccountingTransaction[]>([]);
     const [pendingApprovals, setPendingApprovals] = useState<AccountingTransaction[]>([]);
     const [pendingProposals, setPendingProposals] = useState<ProposalRecord[]>([]);
@@ -283,6 +305,7 @@ export function Money() {
     const [showSalesModal, setShowSalesModal] = useState(false);
     const [showInvoiceModal, setShowInvoiceModal] = useState(false);
     const [invoiceRefreshKey, setInvoiceRefreshKey] = useState(0);
+    const [ownRewardModalOpen, setOwnRewardModalOpen] = useState(false);
     const [selectedTransaction, setSelectedTransaction] = useState<AccountingTransaction | null>(null);
     const [expenseDraft, setExpenseDraft] = useState<ExpenseCorrectionDraft | null>(null);
     const [salesDraft, setSalesDraft] = useState<SalesCorrectionDraft | null>(null);
@@ -340,6 +363,54 @@ export function Money() {
     useEffect(() => {
         loadData();
     }, [loadData]);
+
+    useEffect(() => {
+        let cancelled = false;
+        setMoneyHeroLoading(true);
+        setMoneyHeroError(null);
+
+        Promise.all([
+            fetchTeamRewardSummary(selectedMonth),
+            fetchMemberReimbursementsSummary(selectedMonth),
+        ])
+            .then(([rewardData, reimbursementData]) => {
+                if (cancelled) return;
+                setTeamRewardSummary(rewardData);
+                setReimbursementsSummary(reimbursementData);
+            })
+            .catch((err: unknown) => {
+                if (cancelled) return;
+                setMoneyHeroError(getErrorMessage(err));
+            })
+            .finally(() => {
+                if (!cancelled) setMoneyHeroLoading(false);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [selectedMonth]);
+
+    useEffect(() => {
+        let cancelled = false;
+        const months = getRecentMonths(selectedMonth, 6);
+
+        Promise.all(
+            months.map((month) =>
+                fetchPL({ month })
+                    .then((report) => report.profit)
+                    .catch(() => null),
+            ),
+        ).then((values) => {
+            if (cancelled) return;
+            const usableValues = values.filter((value): value is number => typeof value === "number");
+            setCompanyTrend(usableValues);
+        });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [selectedMonth]);
 
     const clearProposalSearchParam = useCallback(() => {
         if (!searchParams.has("proposal")) {
@@ -444,6 +515,33 @@ export function Money() {
         date.setMonth(date.getMonth() + (direction === "prev" ? -1 : 1));
         const newMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
         setSelectedMonth(newMonth);
+    };
+
+    const handleRewardCardTap = (memberId: string) => {
+        if (memberId === teamRewardSummary?.self_member_id) {
+            setOwnRewardModalOpen(true);
+            return;
+        }
+        console.log("open member-reward-modal", memberId);
+    };
+
+    const handleExpenseCardTap = (memberId: string) => {
+        console.log("open member-reimbursement-modal", memberId);
+    };
+
+    const handleMoneyHeroRetry = () => {
+        setMoneyHeroLoading(true);
+        setMoneyHeroError(null);
+        Promise.all([
+            fetchTeamRewardSummary(selectedMonth),
+            fetchMemberReimbursementsSummary(selectedMonth),
+        ])
+            .then(([rewardData, reimbursementData]) => {
+                setTeamRewardSummary(rewardData);
+                setReimbursementsSummary(reimbursementData);
+            })
+            .catch((err: unknown) => setMoneyHeroError(getErrorMessage(err)))
+            .finally(() => setMoneyHeroLoading(false));
     };
 
     // フィルター検索API呼び出し
@@ -691,43 +789,135 @@ export function Money() {
                 </div>
             )}
 
-            {/* ヒーロー (PR #4 再設計): 利益大 + 売上/経費サブ + 赤字色フェード + spring カウントアップ */}
-            {pl && (
-                <MoneyHero
-                    profit={pl.profit}
-                    sales={pl.sales}
-                    expenses={pl.expenses}
-                    monthLabel={selectedMonth.replace("-", "年") + "月"}
-                    onPrevMonth={() => changeMonth("prev")}
-                    onNextMonth={() => changeMonth("next")}
-                    disabled={loading}
+            <div className={styles.moneyHeroShell}>
+                <div className={styles.moneyHeroMonthBar}>
+                    <button
+                        type="button"
+                        className={styles.heroMonthButton}
+                        onClick={() => changeMonth("prev")}
+                        aria-label="前の月"
+                    >
+                        ‹
+                    </button>
+                    <span className={styles.heroMonthLabel}>
+                        {selectedMonth.replace("-", "年")}月
+                    </span>
+                    <button
+                        type="button"
+                        className={styles.heroMonthButton}
+                        onClick={() => changeMonth("next")}
+                        aria-label="次の月"
+                    >
+                        ›
+                    </button>
+                </div>
+
+                {moneyHeroError && (
+                    <div className={styles.moneyHeroError}>
+                        <span>報酬・立替の取得に失敗しました</span>
+                        <button type="button" onClick={handleMoneyHeroRetry}>
+                            再試行
+                        </button>
+                    </div>
+                )}
+
+                {moneyHeroLoading && !teamRewardSummary && !reimbursementsSummary ? (
+                    <div className={styles.moneyHeroLoading}>
+                        {Array.from({ length: 4 }).map((_, index) => (
+                            <span key={index} className={styles.moneyHeroSkeleton}>
+                                <InlineLoader size="sm" tone="muted" />
+                            </span>
+                        ))}
+                    </div>
+                ) : (
+                    <>
+                        <MoneyHeroSection
+                            title="① 報酬"
+                            shield={
+                                <ShieldPopover
+                                    open={shieldOpen}
+                                    onToggle={() => setShieldOpen((value) => !value)}
+                                    onClose={() => setShieldOpen(false)}
+                                />
+                            }
+                        >
+                            <MemberCarousel
+                                mode="reward"
+                                members={teamRewardSummary?.members ?? []}
+                                selfMemberId={teamRewardSummary?.self_member_id ?? null}
+                                isFinalized={teamRewardSummary?.is_finalized ?? false}
+                                onCardTap={handleRewardCardTap}
+                                onSeeAllTap={() => console.log("open all-rewards")}
+                            />
+                        </MoneyHeroSection>
+
+                        <MoneyHeroSection title="② 立替">
+                            <MemberCarousel
+                                mode="expense"
+                                members={reimbursementsSummary?.members ?? []}
+                                selfMemberId={reimbursementsSummary?.self_member_id ?? null}
+                                onCardTap={handleExpenseCardTap}
+                                onSeeAllTap={() => console.log("open all-reimbursements")}
+                            />
+                        </MoneyHeroSection>
+
+                        {pl && (
+                            <MoneyHeroSection title="③ 会社">
+                                <CompanySummaryCard
+                                    profit={pl.profit}
+                                    sales={pl.sales}
+                                    expenses={pl.expenses}
+                                    sparkline={companyTrend.length > 0 ? companyTrend : [pl.profit]}
+                                    overdueCount={0}
+                                    pendingCount={pendingProposals.length}
+                                    onOverdueTap={() => console.log("open overdue-filter")}
+                                    onPendingTap={() => console.log("open pending-invoice-filter")}
+                                />
+                            </MoneyHeroSection>
+                        )}
+                    </>
+                )}
+            </div>
+
+            {ownRewardModalOpen && teamRewardSummary?.self_member_id && (
+                <OwnRewardModal
+                    selfMemberId={teamRewardSummary.self_member_id}
+                    selfUserId={selfUserId}
+                    month={selectedMonth}
+                    onClose={() => setOwnRewardModalOpen(false)}
+                    onInvoiceChanged={() => {
+                        setInvoiceRefreshKey((current) => current + 1);
+                        handleMoneyHeroRetry();
+                    }}
                 />
             )}
-
-            {/* キャッシュフロー 4 バー (PR #10) — 請求漏れゼロ MVP の核 */}
-            <CashflowBucketStrip month={selectedMonth} />
 
             {/* Phase 2-2a: 本人主導の請求書 — 本人にはドラフト、admin には集計を出す */}
             {selfUserId && (
                 <MemberInvoiceDraftBanner
                     selfUserId={selfUserId}
                     hideWhenEmpty={isAdmin}
+                    onIssued={() => {
+                        setInvoiceRefreshKey((current) => current + 1);
+                        handleMoneyHeroRetry();
+                    }}
                 />
             )}
             {/* Phase 2-2b: 本人は自分の請求書履歴 (取消し可)、admin は支払い対象リスト + 集計 */}
-            {selfUserId && !isAdmin && <MyMemberInvoicesList />}
+            {selfUserId && !isAdmin && (
+                <MyMemberInvoicesList
+                    onChanged={() => {
+                        setInvoiceRefreshKey((current) => current + 1);
+                        handleMoneyHeroRetry();
+                    }}
+                />
+            )}
             {isAdmin && (
-                <>
+                <div className={styles.legacyInvoiceTrim}>
                     <OutstandingInvoicesCard />
                     <AdminInvoiceActionableList />
-                </>
+                </div>
             )}
-
-            {/* 月次推移 (PR #8) — 黒字可視化 MVP の核 */}
-            <MonthlyTrendChart
-                endMonth={selectedMonth}
-                onSelectMonth={setSelectedMonth}
-            />
 
             {/* クイックアクション */}
             {!isMobile && (

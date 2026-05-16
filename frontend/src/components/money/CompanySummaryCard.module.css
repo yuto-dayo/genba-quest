@@ -1,0 +1,106 @@
+.card {
+    display: grid;
+    gap: var(--md-sys-spacing-sm);
+    padding: var(--md-sys-spacing-md);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-large);
+    background: var(--md-sys-color-surface-container-lowest);
+}
+
+.topRow {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(calc(var(--md-sys-tap-target-min) * 2), 34%);
+    gap: var(--md-sys-spacing-md);
+    align-items: center;
+}
+
+.label {
+    display: block;
+    margin-bottom: var(--md-sys-spacing-2xs);
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-medium);
+}
+
+.profit {
+    display: block;
+    overflow-wrap: anywhere;
+    color: var(--md-sys-color-primary);
+    font: var(--md-sys-typescale-headline-medium);
+    font-feature-settings: "tnum";
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+    line-height: 1.08;
+}
+
+.negative {
+    color: var(--money-status-overdue);
+}
+
+.sparkline {
+    min-width: 0;
+    height: var(--md-sys-tap-target-min);
+    border-radius: var(--md-sys-shape-corner-medium);
+    background: var(--md-sys-color-surface-container-low);
+}
+
+.sparkline svg {
+    width: 100%;
+    height: 100%;
+}
+
+.sparkline polyline {
+    fill: none;
+    stroke: var(--md-sys-color-primary);
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 4;
+}
+
+.metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--md-sys-spacing-sm);
+}
+
+.metrics span {
+    display: grid;
+    gap: var(--md-sys-spacing-2xs);
+    min-width: 0;
+}
+
+.metrics small {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-xsmall);
+}
+
+.metrics b {
+    overflow: hidden;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-large);
+    font-feature-settings: "tnum";
+    font-variant-numeric: tabular-nums;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.alerts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--md-sys-spacing-xs);
+}
+
+.alertChip {
+    min-height: var(--md-sys-tap-target-min);
+    padding: 0 var(--md-sys-spacing-sm);
+    border: 1px solid color-mix(in srgb, var(--money-status-overdue) 35%, var(--md-sys-color-outline-variant));
+    border-radius: var(--md-sys-shape-corner-full);
+    background: var(--money-status-overdue-container);
+    color: var(--money-status-overdue);
+    font: var(--md-sys-typescale-label-medium);
+    cursor: pointer;
+}
+
+.alertChip:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--money-status-overdue) 30%, transparent);
+    outline-offset: 2px;
+}

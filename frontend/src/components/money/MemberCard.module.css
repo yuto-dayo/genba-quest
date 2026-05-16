@@ -1,0 +1,145 @@
+.card {
+    flex: 0 0 calc(var(--md-sys-spacing-2xl) * 3);
+    min-height: calc(var(--md-sys-tap-target-min) * 2 + var(--md-sys-spacing-lg));
+    scroll-snap-align: start;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--md-sys-spacing-2xs);
+    padding: var(--md-sys-spacing-sm);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-large);
+    background: var(--md-sys-color-surface-container-lowest);
+    color: var(--md-sys-color-on-surface);
+    text-align: left;
+    cursor: pointer;
+    transition:
+        border-color var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        box-shadow var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        transform var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.card:hover {
+    border-color: var(--md-sys-color-primary);
+    box-shadow: var(--md-sys-elevation-level1);
+    transform: translateY(-1px);
+}
+
+.card:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--md-sys-color-primary) 35%, transparent);
+    outline-offset: 2px;
+}
+
+.self {
+    border-color: color-mix(in srgb, var(--md-sys-color-primary) 70%, var(--md-sys-color-outline-variant));
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
+}
+
+.name {
+    max-width: 100%;
+    overflow: hidden;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-medium);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.self .name {
+    color: var(--md-sys-color-on-primary-container);
+    opacity: 0.78;
+}
+
+.amount {
+    max-width: 100%;
+    overflow: hidden;
+    color: inherit;
+    font: var(--md-sys-typescale-title-large);
+    font-feature-settings: "tnum";
+    font-variant-numeric: tabular-nums;
+    line-height: 1.12;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.subLabel {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-xsmall);
+}
+
+.self .subLabel {
+    color: var(--md-sys-color-on-primary-container);
+    opacity: 0.78;
+}
+
+.status {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-2xs);
+    margin-top: auto;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-xsmall);
+}
+
+.status::before {
+    content: "";
+    display: inline-block;
+    width: calc(var(--md-sys-spacing-2xs) * 3);
+    height: calc(var(--md-sys-spacing-2xs) * 3);
+    border-radius: var(--md-sys-shape-corner-full);
+    background: currentColor;
+}
+
+.pending {
+    color: var(--money-status-pending);
+}
+
+.overdue {
+    color: var(--money-status-overdue);
+}
+
+.completed {
+    color: var(--money-status-completed);
+}
+
+.draft {
+    color: var(--money-status-draft);
+}
+
+.self .status {
+    color: var(--md-sys-color-on-primary-container);
+}
+
+.self .status::before {
+    background: var(--md-sys-color-primary);
+}
+
+.cta {
+    width: 100%;
+    min-height: calc(var(--md-sys-spacing-xl) + var(--md-sys-spacing-2xs));
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: var(--md-sys-spacing-xs);
+    border-radius: var(--md-sys-shape-corner-full);
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+    font: var(--md-sys-typescale-label-medium);
+}
+
+.seeAll {
+    justify-content: center;
+    align-items: center;
+    border-style: dashed;
+    background: var(--md-sys-color-surface-container-low);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.seeAllMain {
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-large);
+}
+
+.seeAllSub {
+    font: var(--md-sys-typescale-body-xsmall);
+}

@@ -1,0 +1,29 @@
+.carousel {
+    display: flex;
+    gap: var(--md-sys-spacing-sm);
+    margin-inline: calc(-1 * var(--md-sys-spacing-md));
+    padding: var(--md-sys-spacing-2xs) var(--md-sys-spacing-md) var(--md-sys-spacing-xs);
+    overflow-x: auto;
+    scroll-padding-inline: var(--md-sys-spacing-md);
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+}
+
+.carousel::-webkit-scrollbar {
+    display: none;
+}
+
+.emptyCard {
+    flex: 0 0 calc(var(--md-sys-spacing-2xl) * 3);
+    min-height: calc(var(--md-sys-tap-target-min) * 2);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    scroll-snap-align: start;
+    border: 1px dashed var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-large);
+    background: var(--md-sys-color-surface-container-low);
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-medium);
+}
