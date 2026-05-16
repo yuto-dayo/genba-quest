@@ -3515,6 +3515,7 @@ export interface PathRewardConfirmationSummary {
     member_id: string;
     member_name: string;
     status: "試算中" | "確定申請中" | "確定済み";
+    is_objection_window?: boolean;
     estimated_amount: number;
     base_amount: number;
     result_amount: number;

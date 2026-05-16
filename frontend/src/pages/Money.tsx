@@ -65,6 +65,8 @@ import { MemberCarousel } from "../components/money/MemberCarousel";
 import { CompanySummaryCard } from "../components/money/CompanySummaryCard";
 import { ShieldPopover } from "../components/money/ShieldPopover";
 import { OwnRewardModal } from "../components/money/OwnRewardModal";
+import { OtherRewardModal } from "../components/money/OtherRewardModal";
+import { TeamSummaryModal } from "../components/money/TeamSummaryModal";
 import styles from "./Money.module.css";
 
 // 日付フォーマットヘルパー (YYYY/MM/DD)
@@ -306,6 +308,8 @@ export function Money() {
     const [showInvoiceModal, setShowInvoiceModal] = useState(false);
     const [invoiceRefreshKey, setInvoiceRefreshKey] = useState(0);
     const [ownRewardModalOpen, setOwnRewardModalOpen] = useState(false);
+    const [otherRewardMemberId, setOtherRewardMemberId] = useState<string | null>(null);
+    const [teamSummaryModalOpen, setTeamSummaryModalOpen] = useState(false);
     const [selectedTransaction, setSelectedTransaction] = useState<AccountingTransaction | null>(null);
     const [expenseDraft, setExpenseDraft] = useState<ExpenseCorrectionDraft | null>(null);
     const [salesDraft, setSalesDraft] = useState<SalesCorrectionDraft | null>(null);
@@ -522,7 +526,7 @@ export function Money() {
             setOwnRewardModalOpen(true);
             return;
         }
-        console.log("open member-reward-modal", memberId);
+        setOtherRewardMemberId(memberId);
     };
 
     const handleExpenseCardTap = (memberId: string) => {
@@ -847,7 +851,7 @@ export function Money() {
                                 selfMemberId={teamRewardSummary?.self_member_id ?? null}
                                 isFinalized={teamRewardSummary?.is_finalized ?? false}
                                 onCardTap={handleRewardCardTap}
-                                onSeeAllTap={() => console.log("open all-rewards")}
+                                onSeeAllTap={() => setTeamSummaryModalOpen(true)}
                             />
                         </MoneyHeroSection>
 
@@ -885,6 +889,26 @@ export function Money() {
                     selfUserId={selfUserId}
                     month={selectedMonth}
                     onClose={() => setOwnRewardModalOpen(false)}
+                    onInvoiceChanged={() => {
+                        setInvoiceRefreshKey((current) => current + 1);
+                        handleMoneyHeroRetry();
+                    }}
+                />
+            )}
+
+            {otherRewardMemberId && (
+                <OtherRewardModal
+                    memberId={otherRewardMemberId}
+                    month={selectedMonth}
+                    onClose={() => setOtherRewardMemberId(null)}
+                />
+            )}
+
+            {teamSummaryModalOpen && (
+                <TeamSummaryModal
+                    month={selectedMonth}
+                    selfUserId={selfUserId}
+                    onClose={() => setTeamSummaryModalOpen(false)}
                     onInvoiceChanged={() => {
                         setInvoiceRefreshKey((current) => current + 1);
                         handleMoneyHeroRetry();
