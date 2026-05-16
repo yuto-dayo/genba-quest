@@ -23,7 +23,7 @@ import {
     useTransform,
     type PanInfo,
 } from "framer-motion";
-import { Bell, Calendar, ChevronLeft, CheckCircle, AlertTriangle, Users, User } from "lucide-react";
+import { Bell, Calendar, ChevronLeft, ChevronRight, CheckCircle, AlertTriangle, Users, User, CircleDollarSign } from "lucide-react";
 import { ApprovalCard } from "./ApprovalCard";
 import { reviewExpense, type AccountingTransaction, type NotificationRecord, type ProposalRecord } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
@@ -39,8 +39,10 @@ interface BellDrawerProps {
     selfApprovals: AccountingTransaction[];
     consensusPending: ProposalRecord[];
     notifications: NotificationRecord[];
+    invoicePayNotifications?: NotificationRecord[];
     onSelfApprovalComplete: () => void;
     onOpenProposal: (proposal: ProposalRecord) => void;
+    onOpenInvoicePay?: (notification: NotificationRecord) => void;
 }
 
 const formatYen = (n: number) => `¥${Math.abs(n).toLocaleString()}`;
@@ -51,12 +53,15 @@ export function BellDrawer({
     selfApprovals,
     consensusPending,
     notifications,
+    invoicePayNotifications = [],
     onSelfApprovalComplete,
     onOpenProposal,
+    onOpenInvoicePay,
 }: BellDrawerProps) {
     const navigate = useNavigate();
     const monthCloseNotifications = notifications.filter((n) => n.type === "month_close_reminder" && !n.read);
-    const totalCount = selfApprovals.length + consensusPending.length + monthCloseNotifications.length;
+    const totalCount = selfApprovals.length + consensusPending.length + monthCloseNotifications.length + invoicePayNotifications.length;
+    const selfSectionCount = selfApprovals.length + invoicePayNotifications.length;
     const allClear = totalCount === 0;
     const openMonthClose = (notification: NotificationRecord) => {
         const month = getNotificationDataString(notification, "month");
@@ -126,18 +131,25 @@ export function BellDrawer({
                                                 </span>
                                                 自分が承認担当
                                             </span>
-                                            {selfApprovals.length > 0 && (
+                                            {selfSectionCount > 0 && (
                                                 <span className={styles.sectionCount}>
-                                                    {selfApprovals.length}
+                                                    {selfSectionCount}
                                                 </span>
                                             )}
                                         </div>
-                                        {selfApprovals.length === 0 ? (
+                                        {selfApprovals.length === 0 && invoicePayNotifications.length === 0 ? (
                                             <div className={styles.emptyHint}>
                                                 自分宛の承認待ちはありません
                                             </div>
                                         ) : (
                                             <div className={styles.cardList}>
+                                                {invoicePayNotifications.map((notification) => (
+                                                    <InvoicePayNotificationCard
+                                                        key={notification.id}
+                                                        notification={notification}
+                                                        onClick={() => onOpenInvoicePay?.(notification)}
+                                                    />
+                                                ))}
                                                 {selfApprovals.map((tx) => (
                                                     <SwipeableApprovalRow
                                                         key={tx.id}
@@ -314,6 +326,37 @@ function ConsensusProposalCard({ proposal, onClick }: ConsensusProposalCardProps
             <div className={styles.consensusMeta}>
                 <AlertTriangle size={11} aria-hidden /> タップで承認画面を開く
             </div>
+        </button>
+    );
+}
+
+interface InvoicePayNotificationCardProps {
+    notification: NotificationRecord;
+    onClick: () => void;
+}
+
+function InvoicePayNotificationCard({ notification, onClick }: InvoicePayNotificationCardProps) {
+    const createdAt = notification.created_at
+        ? new Date(notification.created_at).toLocaleString("ja-JP", {
+              month: "numeric",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+          })
+        : null;
+
+    return (
+        <button type="button" className={styles.invoicePayCard} onClick={onClick}>
+            <span className={styles.invoicePayIcon}>
+                <CircleDollarSign size={18} aria-hidden="true" />
+            </span>
+            <span className={styles.invoicePayBody}>
+                <span className={styles.invoicePayTitle}>💰 請求書の振込操作</span>
+                <span className={styles.invoicePayMeta}>
+                    {createdAt ? `${createdAt} · ` : ""}タップして支払い内容を確認
+                </span>
+            </span>
+            <ChevronRight className={styles.invoicePayArrow} size={16} aria-hidden="true" />
         </button>
     );
 }

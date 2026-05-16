@@ -205,6 +205,62 @@
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
 }
 
+.invoicePayCard {
+    appearance: none;
+    width: 100%;
+    min-height: 56px;
+    display: grid;
+    grid-template-columns: 38px 1fr auto;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--md-sys-color-outline-variant, #d8dee5);
+    border-radius: 12px;
+    background: var(--md-sys-color-surface, #ffffff);
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.invoicePayCard:hover {
+    border-color: var(--md-sys-color-outline, #b3bdc7);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+.invoicePayIcon {
+    width: 38px;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    background: var(--md-sys-color-primary-container, #e0e7ff);
+    color: var(--md-sys-color-on-primary-container, #312e81);
+}
+
+.invoicePayBody {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.invoicePayTitle {
+    color: var(--md-sys-color-on-surface, #1a1f27);
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.invoicePayMeta {
+    color: var(--md-sys-color-on-surface-variant, #5b6470);
+    font-size: 11px;
+}
+
+.invoicePayArrow {
+    color: var(--md-sys-color-on-surface-variant, #5b6470);
+}
+
 .consensusHead {
     display: flex;
     align-items: baseline;
