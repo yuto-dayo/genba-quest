@@ -69,6 +69,7 @@ import { OtherRewardModal } from "../components/money/OtherRewardModal";
 import { TeamSummaryModal } from "../components/money/TeamSummaryModal";
 import { ExpenseDetailModal } from "../components/money/ExpenseDetailModal";
 import { TeamExpenseSummaryModal } from "../components/money/TeamExpenseSummaryModal";
+import { MonthCloseModal } from "../components/money/MonthCloseModal";
 import styles from "./Money.module.css";
 
 // 日付フォーマットヘルパー (YYYY/MM/DD)
@@ -314,6 +315,8 @@ export function Money() {
     const [teamSummaryModalOpen, setTeamSummaryModalOpen] = useState(false);
     const [expenseDetailMemberId, setExpenseDetailMemberId] = useState<string | null>(null);
     const [teamExpenseSummaryOpen, setTeamExpenseSummaryOpen] = useState(false);
+    const [monthCloseModalOpen, setMonthCloseModalOpen] = useState(false);
+    const [targetMonthClosePeriod, setTargetMonthClosePeriod] = useState<string | null>(null);
     const [selectedTransaction, setSelectedTransaction] = useState<AccountingTransaction | null>(null);
     const [expenseDraft, setExpenseDraft] = useState<ExpenseCorrectionDraft | null>(null);
     const [salesDraft, setSalesDraft] = useState<SalesCorrectionDraft | null>(null);
@@ -453,6 +456,29 @@ export function Money() {
         setSearchParams(next, { replace: true });
     }, [searchParams, setSearchParams]);
 
+    useEffect(() => {
+        const modal = searchParams.get("modal");
+        const period = searchParams.get("period");
+        if (modal === "month_close" && period) {
+            setTargetMonthClosePeriod(period);
+            setSelectedMonth(period);
+            setMonthCloseModalOpen(true);
+        }
+    }, [searchParams]);
+
+    const closeMonthCloseModal = useCallback(() => {
+        setMonthCloseModalOpen(false);
+        setTargetMonthClosePeriod(null);
+
+        if (!searchParams.has("modal") && !searchParams.has("period")) {
+            return;
+        }
+        const next = new URLSearchParams(searchParams);
+        next.delete("modal");
+        next.delete("period");
+        setSearchParams(next, { replace: true });
+    }, [searchParams, setSearchParams]);
+
     const handleProposalMutation = async (
         proposalId: string,
         action: "approve" | "reject" | "instruct" | "execute",
@@ -537,7 +563,7 @@ export function Money() {
         setExpenseDetailMemberId(memberId);
     };
 
-    const handleMoneyHeroRetry = () => {
+    const handleMoneyHeroRetry = useCallback(() => {
         setMoneyHeroLoading(true);
         setMoneyHeroError(null);
         Promise.all([
@@ -550,7 +576,14 @@ export function Money() {
             })
             .catch((err: unknown) => setMoneyHeroError(getErrorMessage(err)))
             .finally(() => setMoneyHeroLoading(false));
-    };
+    }, [selectedMonth]);
+
+    const handleMonthCloseCompleted = useCallback(async () => {
+        setProposalNotice("月確定が完了しました");
+        setInvoiceRefreshKey((current) => current + 1);
+        handleMoneyHeroRetry();
+        await loadData({ keepCurrentView: true, suppressPageError: true });
+    }, [handleMoneyHeroRetry, loadData]);
 
     // フィルター検索API呼び出し
     const executeFilterSearch = useCallback(async (searchFilters: SearchFilters, query: string) => {
@@ -940,6 +973,14 @@ export function Money() {
                         setTeamExpenseSummaryOpen(false);
                         setExpenseDetailMemberId(memberId);
                     }}
+                />
+            )}
+
+            {monthCloseModalOpen && targetMonthClosePeriod && (
+                <MonthCloseModal
+                    month={targetMonthClosePeriod}
+                    onClose={closeMonthCloseModal}
+                    onCompleted={handleMonthCloseCompleted}
                 />
             )}
 

@@ -19,6 +19,13 @@ const fetchPL = vi.fn();
 const fetchTeamRewardSummary = vi.fn();
 const fetchMemberReimbursementsSummary = vi.fn();
 const fetchTransactions = vi.fn();
+const fetchPathModuleMonthCloseSummary = vi.fn();
+const fetchPathV33OpenObjections = vi.fn();
+const expirePathV33MonthObjections = vi.fn();
+const finalizePathV33Month = vi.fn();
+const lockPathV33MonthDrafts = vi.fn();
+const fetchNotifications = vi.fn();
+const markNotificationRead = vi.fn();
 const instructProposal = vi.fn();
 const rejectProposal = vi.fn();
 const reviewExpense = vi.fn();
@@ -60,6 +67,13 @@ vi.mock("../lib/api", () => ({
     fetchTeamRewardSummary: (...args: unknown[]) => fetchTeamRewardSummary(...args),
     fetchMemberReimbursementsSummary: (...args: unknown[]) => fetchMemberReimbursementsSummary(...args),
     fetchTransactions: (...args: unknown[]) => fetchTransactions(...args),
+    fetchPathModuleMonthCloseSummary: (...args: unknown[]) => fetchPathModuleMonthCloseSummary(...args),
+    fetchPathV33OpenObjections: (...args: unknown[]) => fetchPathV33OpenObjections(...args),
+    expirePathV33MonthObjections: (...args: unknown[]) => expirePathV33MonthObjections(...args),
+    finalizePathV33Month: (...args: unknown[]) => finalizePathV33Month(...args),
+    lockPathV33MonthDrafts: (...args: unknown[]) => lockPathV33MonthDrafts(...args),
+    fetchNotifications: (...args: unknown[]) => fetchNotifications(...args),
+    markNotificationRead: (...args: unknown[]) => markNotificationRead(...args),
     instructProposal: (...args: unknown[]) => instructProposal(...args),
     rejectProposal: (...args: unknown[]) => rejectProposal(...args),
     reviewExpense: (...args: unknown[]) => reviewExpense(...args),
@@ -225,6 +239,18 @@ describe("Money PATH proposal queue", () => {
             members: [],
         });
         fetchTransactions.mockResolvedValue([]);
+        fetchPathModuleMonthCloseSummary.mockResolvedValue({
+            month: "2026-05",
+            closes: [],
+            reward_runs: [],
+            eligible_closes: [],
+        });
+        fetchPathV33OpenObjections.mockResolvedValue([]);
+        expirePathV33MonthObjections.mockResolvedValue({ month: "2026-05", expired_objection_count: 0 });
+        finalizePathV33Month.mockResolvedValue({ month: "2026-05", members: [] });
+        lockPathV33MonthDrafts.mockResolvedValue({ month: "2026-05", locked_draft_count: 0, recounted_drafts: 0 });
+        fetchNotifications.mockResolvedValue([]);
+        markNotificationRead.mockResolvedValue(null);
         instructProposal.mockResolvedValue({ proposal: pathProposal });
         rejectProposal.mockResolvedValue({ proposal: { ...pathProposal, status: "rejected" } });
         reviewExpense.mockResolvedValue({ transaction: null });
