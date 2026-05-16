@@ -2393,9 +2393,10 @@ export interface TeamRewardSummary {
 export const fetchMemberReimbursementsSummary = (month: string) =>
     api<MemberReimbursementsSummary>(`/api/v1/accounting/member-reimbursements-summary?month=${encodeURIComponent(month)}`);
 
-export const fetchMemberReimbursementBalance = (memberId: string, month: string) =>
+export const fetchMemberReimbursementBalance = (memberId: string, month: string, options?: RequestInit) =>
     api<MemberReimbursementBalance>(
         `/api/v1/accounting/member/${encodeURIComponent(memberId)}/reimbursement-balance?month=${encodeURIComponent(month)}`,
+        options,
     );
 
 export const fetchTeamRewardSummary = (month: string) =>
