@@ -1,5 +1,15 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "./api";
+import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
+import {
+    api,
+    fetchMemberReimbursementBalance,
+    fetchMemberReimbursementsSummary,
+    fetchTeamRewardSummary,
+    type AccountingTransaction,
+    type CreateExpenseRequest,
+    type MemberReimbursementBalance,
+    type MemberReimbursementsSummary,
+    type TeamRewardSummary,
+} from "./api";
 
 const getAuthToken = vi.fn();
 const getActiveOrgId = vi.fn();
@@ -94,5 +104,33 @@ describe("api", () => {
         await expect(api("/api/test")).rejects.toThrow(
             "NETWORK_ERROR: API server is unreachable. Start the server or set VITE_API_URL.",
         );
+    });
+});
+
+describe("money redesign api types", () => {
+    it("exposes typed member reimbursement and team reward fetchers", () => {
+        expectTypeOf(fetchMemberReimbursementsSummary).returns.toEqualTypeOf<Promise<MemberReimbursementsSummary>>();
+        expectTypeOf(fetchMemberReimbursementBalance).returns.toEqualTypeOf<Promise<MemberReimbursementBalance>>();
+        expectTypeOf(fetchTeamRewardSummary).returns.toEqualTypeOf<Promise<TeamRewardSummary>>();
+        expectTypeOf<MemberReimbursementsSummary["self_member_id"]>().toEqualTypeOf<string | null>();
+        expectTypeOf<TeamRewardSummary["self_member_id"]>().toEqualTypeOf<string | null>();
+    });
+
+    it("keeps reimbursement accounting fields optional during migration", () => {
+        expectTypeOf<AccountingTransaction["paid_by"]>().toEqualTypeOf<"org" | "member" | undefined>();
+        expectTypeOf<AccountingTransaction["claimant_member_id"]>().toEqualTypeOf<string | null | undefined>();
+        expectTypeOf<AccountingTransaction["settlement_type"]>().toEqualTypeOf<"paid" | "unpaid" | undefined>();
+        expectTypeOf<AccountingTransaction["payment_account"]>().toEqualTypeOf<"cash" | "bank" | null | undefined>();
+        expectTypeOf<AccountingTransaction["reimbursement_status"]>().toEqualTypeOf<
+            "unsubmitted" | "submitted" | "approved" | "reimbursed" | null | undefined
+        >();
+
+        expectTypeOf<CreateExpenseRequest["paid_by"]>().toEqualTypeOf<"org" | "member" | undefined>();
+        expectTypeOf<CreateExpenseRequest["claimant_member_id"]>().toEqualTypeOf<string | null | undefined>();
+        expectTypeOf<CreateExpenseRequest["settlement_type"]>().toEqualTypeOf<"paid" | "unpaid" | undefined>();
+        expectTypeOf<CreateExpenseRequest["payment_account"]>().toEqualTypeOf<"cash" | "bank" | null | undefined>();
+        expectTypeOf<CreateExpenseRequest["reimbursement_status"]>().toEqualTypeOf<
+            "unsubmitted" | "submitted" | "approved" | "reimbursed" | null | undefined
+        >();
     });
 });
