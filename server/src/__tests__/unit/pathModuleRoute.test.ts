@@ -8,6 +8,7 @@ const mockPreviewV32MonthlyDistribution = jest.fn();
 const mockBuildV32MonthlyDistributionProposalPayload = jest.fn();
 const mockResolveActiveOrgMembership = jest.fn();
 const mockGetRewardConfirmationSummary = jest.fn();
+const mockGetTeamRewardSummary = jest.fn();
 const mockAnswerRewardConfirmationQuestion = jest.fn();
 
 jest.mock("../../lib/supabaseAdmin", () => ({
@@ -31,6 +32,7 @@ jest.mock("../../services/PathGovernedModuleService", () => ({
     previewRewardRunByMonthCloseId: mockPreviewRewardRunByMonthCloseId,
     prepareRewardRunProposalByMonthCloseId: mockPrepareRewardRunProposalByMonthCloseId,
     getRewardConfirmationSummary: mockGetRewardConfirmationSummary,
+    getTeamRewardSummary: mockGetTeamRewardSummary,
     answerRewardConfirmationQuestion: mockAnswerRewardConfirmationQuestion,
   })),
 }));
@@ -89,11 +91,13 @@ describe("pathModule router", () => {
   const monthlyV32PreviewHandler = getHandler("/monthly-distribution-v32/preview", "post");
   const monthlyV32ProposalHandler = getHandler("/monthly-distribution-v32/proposals", "post");
   const rewardConfirmationHandler = getHandler("/reward-confirmation", "get");
+  const teamRewardSummaryHandler = getHandler("/team-reward-summary", "get");
   const rewardConfirmationQaHandler = getHandler("/reward-confirmation/qa", "post");
 
   beforeEach(() => {
     jest.clearAllMocks();
     mockResolveActiveOrgMembership.mockResolvedValue({
+      id: "11111111-1111-4111-8111-111111111111",
       org_id: "00000000-0000-0000-0000-000000000001",
       user_id: "33333333-3333-4333-8333-333333333333",
       role: "admin",
@@ -245,6 +249,22 @@ describe("pathModule router", () => {
         month: "2026-04",
       },
     });
+    mockGetTeamRewardSummary.mockResolvedValue({
+      month: "2026-04",
+      is_finalized: false,
+      members: [
+        {
+          member_id: "11111111-1111-4111-8111-111111111111",
+          nickname: "yuto",
+          level: "L3",
+          attendance_days: 12,
+          amount: 120000,
+          status: "preview",
+          has_invoice: true,
+          has_paid: false,
+        },
+      ],
+    });
     mockAnswerRewardConfirmationQuestion.mockResolvedValue({
       conclusion: "今月は比較データがありません。",
       amount_breakdown: [
@@ -287,6 +307,50 @@ describe("pathModule router", () => {
         }),
       }),
     );
+  });
+
+  it("GET /team-reward-summary returns team reward summary", async () => {
+    const req = {
+      orgId: "00000000-0000-0000-0000-000000000001",
+      query: {
+        month: "2026-04",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await teamRewardSummaryHandler(req, res);
+
+    expect(mockGetTeamRewardSummary).toHaveBeenCalledWith("2026-04");
+    expect(mockResolveActiveOrgMembership).toHaveBeenCalledWith(req, "member");
+    expect(res.json).toHaveBeenCalledWith({
+      month: "2026-04",
+      self_member_id: "11111111-1111-4111-8111-111111111111",
+      is_finalized: false,
+      members: [
+        expect.objectContaining({
+          member_id: "11111111-1111-4111-8111-111111111111",
+          amount: 120000,
+          has_invoice: true,
+          has_paid: false,
+        }),
+      ],
+    });
+  });
+
+  it("GET /team-reward-summary rejects invalid months before service access", async () => {
+    const req = {
+      orgId: "00000000-0000-0000-0000-000000000001",
+      query: {
+        month: "2026-13",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await teamRewardSummaryHandler(req, res);
+
+    expect(mockGetTeamRewardSummary).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: "invalid month" });
   });
 
   it("POST /reward-confirmation/qa returns grounded answer", async () => {

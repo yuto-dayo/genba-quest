@@ -3,6 +3,7 @@ import { createHash } from "crypto";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import { supabaseAdmin } from "../lib/supabaseClient";
 import { resolveActiveOrgMembership } from "../lib/orgAccess";
+import { validateReportingMonth } from "../lib/reportingMonth";
 import { analyzeDocument, assessExpenseRisk, OcrResult } from "../services/ocrService";
 import { getDriveStorageService } from "../services/DriveStorageService";
 import { ensureInvoicePdfStored, INVOICE_PDF_BUCKET } from "../services/InvoicePdfService";
@@ -58,6 +59,7 @@ const PL_EXPENSE_NET_ACCOUNT_CODES = new Set(["5100", "5110", "5120", "5130", "5
 const PL_REVENUE_GROSS_COMPAT_ACCOUNT_CODES = new Set([...PL_REVENUE_NET_ACCOUNT_CODES, "2500"]);
 const PL_EXPENSE_GROSS_COMPAT_ACCOUNT_CODES = new Set([...PL_EXPENSE_NET_ACCOUNT_CODES, "1500"]);
 const PL_NO_REVENUE_POSTING_GROUP_TYPES = new Set(["invoice_transfer", "payment_receipt", "payment_allocation"]);
+const REIMBURSEMENT_ACTIVE_TRANSACTION_STATUSES = ["posted", "approved"] as const;
 
 type ExpenseCategory = typeof EXPENSE_CATEGORIES[number];
 type ExpenseTaxCategory = typeof EXPENSE_TAX_CATEGORIES[number];
@@ -86,6 +88,20 @@ type SupplementLineItemPayload = {
     unit_name: string | null;
     unit_price: number | null;
     amount: number | null;
+};
+
+type ReimbursementTransactionRow = {
+    id: string;
+    recorded_date: string;
+    category: string | null;
+    amount_total: number | string;
+    claimant_member_id: string | null;
+    reimbursement_status: string | null;
+};
+
+type OrgMemberRow = {
+    id: string;
+    user_id: string;
 };
 
 type AccountingWriteEndpoint =
@@ -256,6 +272,116 @@ function toMoneyNumber(value: unknown): number {
     }
 
     return 0;
+}
+
+function toWholeYen(value: unknown): number {
+    return Math.round(toMoneyNumber(value));
+}
+
+function resolveReimbursementStatus(value: unknown): "unsubmitted" | "submitted" | "approved" | "reimbursed" {
+    return value === "submitted" || value === "approved" || value === "reimbursed"
+        ? value
+        : "unsubmitted";
+}
+
+function resolveMemberNickname(profile: Record<string, unknown> | undefined, fallback: string): string {
+    const raw =
+        typeof profile?.nickname === "string" && profile.nickname.trim()
+            ? profile.nickname.trim()
+            : typeof profile?.username === "string" && profile.username.trim()
+                ? profile.username.trim()
+                : typeof profile?.full_name === "string" && profile.full_name.trim()
+                    ? profile.full_name.trim()
+                    : fallback;
+    return Array.from(raw).slice(0, 5).join("");
+}
+
+function summarizeReimbursementRows(rows: ReimbursementTransactionRow[]) {
+    const byStatus = {
+        unsubmitted: 0,
+        submitted: 0,
+        approved: 0,
+        reimbursed: 0,
+    };
+    let totalAdvanced = 0;
+    let unsettled = 0;
+    let settled = 0;
+    let countPending = 0;
+
+    for (const row of rows) {
+        const amount = toWholeYen(row.amount_total);
+        const status = resolveReimbursementStatus(row.reimbursement_status);
+        byStatus[status] += amount;
+        totalAdvanced += amount;
+        if (status === "reimbursed") {
+            settled += amount;
+        } else {
+            unsettled += amount;
+            countPending += 1;
+        }
+    }
+
+    return {
+        total_advanced: totalAdvanced,
+        unsettled,
+        settled,
+        count_pending: countPending,
+        by_status: byStatus,
+    };
+}
+
+function resolveReimbursementMemberStatus(summary: ReturnType<typeof summarizeReimbursementRows>): "pending" | "in_review" | "none" | "settled" {
+    if (summary.total_advanced <= 0) {
+        return "none";
+    }
+    if (summary.unsettled <= 0) {
+        return "settled";
+    }
+    if (summary.by_status.submitted > 0 || summary.by_status.approved > 0) {
+        return "in_review";
+    }
+    return "pending";
+}
+
+async function loadActiveReimbursementMembers(orgId: string): Promise<OrgMemberRow[]> {
+    const { data, error } = await supabaseAdmin
+        .from("org_memberships")
+        .select("id,user_id")
+        .eq("org_id", orgId)
+        .eq("status", "active")
+        .is("suspended_at", null);
+
+    if (error) {
+        throw error;
+    }
+
+    return ((data ?? []) as Array<Record<string, unknown>>)
+        .map((row) => ({
+            id: typeof row.id === "string" ? row.id : "",
+            user_id: typeof row.user_id === "string" ? row.user_id : "",
+        }))
+        .filter((row) => row.id && row.user_id);
+}
+
+async function loadProfileMap(userIds: string[]): Promise<Map<string, Record<string, unknown>>> {
+    if (userIds.length === 0) {
+        return new Map();
+    }
+
+    const { data, error } = await supabaseAdmin
+        .from("profiles")
+        .select("id,nickname,username,full_name")
+        .in("id", Array.from(new Set(userIds)));
+
+    if (error) {
+        throw error;
+    }
+
+    return new Map(
+        ((data ?? []) as Array<Record<string, unknown>>)
+            .filter((row) => typeof row.id === "string")
+            .map((row) => [String(row.id), row]),
+    );
 }
 
 function normalizePlSource(value: unknown): PlSource {
@@ -4180,6 +4306,163 @@ router.get("/pl", async (req: AuthenticatedRequest, res: Response) => {
         });
     } catch (err: any) {
         console.error("PL error:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+// ============================================================
+// Member reimbursements（立替透明性サマリ）
+// ============================================================
+
+router.get("/member-reimbursements-summary", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const monthValidation = validateReportingMonth(req.query.month);
+        if (!monthValidation.ok) {
+            res.status(monthValidation.status).json({ error: monthValidation.error });
+            return;
+        }
+
+        const orgId = req.orgId!;
+        const selfMemberId = req.orgMembershipId ?? null;
+        const members = await loadActiveReimbursementMembers(orgId);
+        if (members.length === 0) {
+            res.json({ month: monthValidation.month, self_member_id: selfMemberId, members: [] });
+            return;
+        }
+
+        const membershipIds = members.map((member) => member.id);
+        const [profiles, txResult] = await Promise.all([
+            loadProfileMap(members.map((member) => member.user_id)),
+            supabaseAdmin
+                .from("accounting_transactions")
+                .select("id,recorded_date,category,amount_total,claimant_member_id,reimbursement_status")
+                .eq("org_id", orgId)
+                .eq("kind", "expense")
+                .eq("paid_by", "member")
+                .eq("settlement_type", "unpaid")
+                .in("claimant_member_id", membershipIds)
+                .in("status", [...REIMBURSEMENT_ACTIVE_TRANSACTION_STATUSES])
+                .gte("recorded_date", monthValidation.startDate)
+                .lt("recorded_date", monthValidation.endDateExclusive),
+        ]);
+
+        if (txResult.error) {
+            throw txResult.error;
+        }
+
+        const rowsByMemberId = new Map<string, ReimbursementTransactionRow[]>();
+        for (const row of (txResult.data ?? []) as ReimbursementTransactionRow[]) {
+            if (!row.claimant_member_id) {
+                continue;
+            }
+            const rows = rowsByMemberId.get(row.claimant_member_id) ?? [];
+            rows.push(row);
+            rowsByMemberId.set(row.claimant_member_id, rows);
+        }
+
+        const responseMembers = members
+            .map((member) => {
+                const rows = rowsByMemberId.get(member.id) ?? [];
+                const summary = summarizeReimbursementRows(rows);
+                if (summary.total_advanced <= 0) {
+                    return null;
+                }
+                return {
+                    member_id: member.id,
+                    nickname: resolveMemberNickname(profiles.get(member.user_id), member.user_id),
+                    total_advanced: summary.total_advanced,
+                    unsettled: summary.unsettled,
+                    settled: summary.settled,
+                    count_pending: summary.count_pending,
+                    status: resolveReimbursementMemberStatus(summary),
+                    is_self: member.user_id === req.userId || member.id === req.orgMembershipId,
+                };
+            })
+            .filter((member): member is NonNullable<typeof member> => Boolean(member))
+            .sort((left, right) => {
+                if (left.is_self !== right.is_self) {
+                    return left.is_self ? -1 : 1;
+                }
+                return right.total_advanced - left.total_advanced;
+            })
+            .map(({ is_self, ...member }) => member);
+
+        res.json({ month: monthValidation.month, self_member_id: selfMemberId, members: responseMembers });
+    } catch (err: any) {
+        console.error("[accounting] member reimbursements summary error:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+router.get("/member/:memberId/reimbursement-balance", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const monthValidation = validateReportingMonth(req.query.month);
+        if (!monthValidation.ok) {
+            res.status(monthValidation.status).json({ error: monthValidation.error });
+            return;
+        }
+
+        const orgId = req.orgId!;
+        const memberId = normalizeText(req.params.memberId);
+        if (!memberId) {
+            res.status(403).json({ error: "member not in org" });
+            return;
+        }
+
+        const { data: member, error: memberError } = await supabaseAdmin
+            .from("org_memberships")
+            .select("id")
+            .eq("org_id", orgId)
+            .eq("id", memberId)
+            .eq("status", "active")
+            .is("suspended_at", null)
+            .maybeSingle();
+
+        if (memberError) {
+            throw memberError;
+        }
+        if (!member) {
+            res.status(403).json({ error: "member not in org" });
+            return;
+        }
+
+        const { data, error } = await supabaseAdmin
+            .from("accounting_transactions")
+            .select("id,recorded_date,category,amount_total,claimant_member_id,reimbursement_status")
+            .eq("org_id", orgId)
+            .eq("kind", "expense")
+            .eq("paid_by", "member")
+            .eq("settlement_type", "unpaid")
+            .eq("claimant_member_id", memberId)
+            .in("status", [...REIMBURSEMENT_ACTIVE_TRANSACTION_STATUSES])
+            .gte("recorded_date", monthValidation.startDate)
+            .lt("recorded_date", monthValidation.endDateExclusive)
+            .order("recorded_date", { ascending: false })
+            .limit(50);
+
+        if (error) {
+            throw error;
+        }
+
+        const rows = (data ?? []) as ReimbursementTransactionRow[];
+        const summary = summarizeReimbursementRows(rows);
+        res.json({
+            member_id: memberId,
+            month: monthValidation.month,
+            total_advanced: summary.total_advanced,
+            unsettled: summary.unsettled,
+            settled: summary.settled,
+            by_status: summary.by_status,
+            recent_items: rows.slice(0, 5).map((row) => ({
+                id: row.id,
+                occurred_on: row.recorded_date,
+                category: row.category ?? "other",
+                amount: toWholeYen(row.amount_total),
+                reimbursement_status: resolveReimbursementStatus(row.reimbursement_status),
+            })),
+        });
+    } catch (err: any) {
+        console.error("[accounting] member reimbursement balance error:", err);
         res.status(500).json({ error: "Internal server error" });
     }
 });
