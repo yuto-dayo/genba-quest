@@ -43,6 +43,14 @@ interface MemberExpense {
   isSelf: boolean;
 }
 
+interface RecentExpense {
+  id: string;
+  occurredOn: string;
+  category: string;
+  amount: number;
+  status: "申請待ち" | "申請済" | "承認済" | "振込済";
+}
+
 interface CustomerInvoice {
   id: string;
   partner: string;
@@ -72,6 +80,21 @@ const MOCK_EXPENSES: MemberExpense[] = [
   { id: "yama", nickname: "ヤマ", amount: 0, count: 0, status: "なし", isSelf: false },
   { id: "masa", nickname: "マサ", amount: 8500, count: 2, status: "精算待ち", isSelf: false },
 ];
+
+const MOCK_RECENT_EXPENSES: Record<string, RecentExpense[]> = {
+  self: [
+    { id: "e1", occurredOn: "5/12", category: "駐車", amount: 12000, status: "申請待ち" },
+    { id: "e2", occurredOn: "5/10", category: "ガソリン", amount: 8200, status: "申請済" },
+    { id: "e3", occurredOn: "5/7", category: "材料", amount: 25000, status: "承認済" },
+  ],
+  take: [
+    { id: "e4", occurredOn: "5/9", category: "駐車", amount: 12000, status: "申請済" },
+  ],
+  masa: [
+    { id: "e5", occurredOn: "5/11", category: "工具", amount: 6000, status: "申請待ち" },
+    { id: "e6", occurredOn: "5/8", category: "高速代", amount: 2500, status: "承認済" },
+  ],
+};
 
 const MOCK_INVOICES: CustomerInvoice[] = [
   { id: "i1", partner: "株式会社A邸内装", amount: 350000, dueDate: "5/12", daysUntilDue: -3, status: "期限超過" },
@@ -105,6 +128,8 @@ type ModalKind =
   | null
   | { kind: "ownReward" }
   | { kind: "otherReward"; memberId: string }
+  | { kind: "expenseDetail"; memberId: string }
+  | { kind: "expenseTeam" }
   | { kind: "monthClose" }
   | { kind: "fabSheet" }
   | { kind: "invoicePay"; invoiceId: string };
@@ -128,6 +153,11 @@ export default function MoneyMock() {
         monthState={monthState}
         onMonthStateChange={setMonthState}
         onOpenModal={(kind) => setModal({ kind } as ModalKind)}
+        onOpenExpense={(kind) => {
+          if (kind === "self") setModal({ kind: "expenseDetail", memberId: "self" });
+          if (kind === "other") setModal({ kind: "expenseDetail", memberId: "take" });
+          if (kind === "team") setModal({ kind: "expenseTeam" });
+        }}
       />
 
       <Header monthState={monthState} />
@@ -144,8 +174,9 @@ export default function MoneyMock() {
       {/* ② 立替 */}
       <ExpenseSection
         expenses={MOCK_EXPENSES}
-        onSelfTap={() => setModal({ kind: "ownReward" })} /* expense detail uses same modal in mock */
-        onOtherTap={(id) => setModal({ kind: "otherReward", memberId: id })}
+        onSelfTap={() => setModal({ kind: "expenseDetail", memberId: "self" })}
+        onOtherTap={(id) => setModal({ kind: "expenseDetail", memberId: id })}
+        onSeeAllTap={() => setModal({ kind: "expenseTeam" })}
       />
 
       {/* ③ 会社 */}
@@ -180,6 +211,15 @@ export default function MoneyMock() {
           onClose={closeModal}
         />
       )}
+      {modal?.kind === "expenseDetail" && (
+        <ExpenseDetailMockModal memberId={modal.memberId} onClose={closeModal} />
+      )}
+      {modal?.kind === "expenseTeam" && (
+        <TeamExpenseSummaryMockModal
+          onClose={closeModal}
+          onExpenseClicked={(memberId) => setModal({ kind: "expenseDetail", memberId })}
+        />
+      )}
       {modal?.kind === "monthClose" && <MonthCloseModal onClose={closeModal} />}
       {modal?.kind === "fabSheet" && <FabSheet onClose={closeModal} />}
       {modal?.kind === "invoicePay" && (
@@ -196,10 +236,12 @@ function DevPanel({
   monthState,
   onMonthStateChange,
   onOpenModal,
+  onOpenExpense,
 }: {
   monthState: "before" | "after";
   onMonthStateChange: (s: "before" | "after") => void;
   onOpenModal: (kind: "monthClose" | "fabSheet") => void;
+  onOpenExpense: (kind: "self" | "other" | "team") => void;
 }) {
   return (
     <div className={styles.devPanel}>
@@ -221,6 +263,15 @@ function DevPanel({
       </button>
       <button className={styles.devToggle} onClick={() => onOpenModal("fabSheet")}>
         FABシート
+      </button>
+      <button className={styles.devToggle} onClick={() => onOpenExpense("self")}>
+        自分立替詳細
+      </button>
+      <button className={styles.devToggle} onClick={() => onOpenExpense("other")}>
+        他人立替詳細
+      </button>
+      <button className={styles.devToggle} onClick={() => onOpenExpense("team")}>
+        全員立替一覧
       </button>
     </div>
   );
@@ -352,10 +403,12 @@ function ExpenseSection({
   expenses,
   onSelfTap,
   onOtherTap,
+  onSeeAllTap,
 }: {
   expenses: MemberExpense[];
   onSelfTap: () => void;
   onOtherTap: (memberId: string) => void;
+  onSeeAllTap: () => void;
 }) {
   const ordered = useMemo(() => {
     const self = expenses.find((e) => e.isSelf);
@@ -377,7 +430,7 @@ function ExpenseSection({
             onTap={() => (e.isSelf ? onSelfTap() : onOtherTap(e.id))}
           />
         ))}
-        <SeeAllCard onClick={() => onOtherTap("all")} />
+        <SeeAllCard onClick={onSeeAllTap} />
       </div>
     </section>
   );
@@ -789,6 +842,118 @@ function OtherRewardModal({
       <p style={{ color: "var(--md-sys-color-on-surface-variant)" }}>
         計算根拠と過去の異議履歴がここに並ぶ。請求書情報は本人のみ閲覧可。
       </p>
+    </ModalShell>
+  );
+}
+
+function ExpenseDetailMockModal({
+  memberId,
+  onClose,
+}: {
+  memberId: string;
+  onClose: () => void;
+}) {
+  const member = MOCK_EXPENSES.find((expense) => expense.id === memberId) ?? MOCK_EXPENSES[0];
+  const recent = MOCK_RECENT_EXPENSES[member.id] ?? [];
+  const unsettled = member.status === "振込済" || member.status === "なし" ? 0 : member.amount;
+  const settled = member.amount - unsettled;
+  const isSelf = member.isSelf;
+
+  return (
+    <ModalShell
+      title="5月の立替"
+      onClose={onClose}
+      actions={
+        <>
+          <button className={styles.btnSecondary} onClick={onClose}>閉じる</button>
+          {isSelf && (
+            <button className={styles.btnPrimary}>経費を追加</button>
+          )}
+        </>
+      }
+    >
+      <div className={styles.rewardMetric}>
+        <span className={styles.rewardMetricLabel}>
+          {isSelf ? "自分の立替" : `${member.nickname}さんの立替`}
+        </span>
+        <span className={styles.rewardMetricValue}>{fmtYen(member.amount)}</span>
+      </div>
+
+      {member.amount > 0 ? (
+        <>
+          <section>
+            <h4 style={{ font: "var(--md-sys-typescale-label-large)", marginBottom: "var(--md-sys-spacing-sm)" }}>
+              精算状況
+            </h4>
+            <div className={styles.rewardBreakdown}>
+              <div className={styles.rewardRow}>
+                <span className={styles.rewardRowLabel}>未精算</span>
+                <span className={styles.rewardRowValue}>{fmtYen(unsettled)}</span>
+              </div>
+              <div className={styles.rewardRow}>
+                <span className={styles.rewardRowLabel}>精算済</span>
+                <span className={styles.rewardRowValue}>{fmtYen(settled)}</span>
+              </div>
+              <div className={styles.rewardRow}>
+                <span className={styles.rewardRowLabel}>状態</span>
+                <span className={styles.rewardRowValue}>{member.status}</span>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h4 style={{ font: "var(--md-sys-typescale-label-large)", marginBottom: "var(--md-sys-spacing-sm)" }}>
+              直近の経費
+            </h4>
+            {recent.map((item) => (
+              <div key={item.id} className={styles.rewardRow}>
+                <span className={styles.rewardRowLabel}>
+                  {item.occurredOn} · {item.category} · {item.status}
+                </span>
+                <span className={styles.rewardRowValue}>{fmtYen(item.amount)}</span>
+              </div>
+            ))}
+            {recent.length === 0 && (
+              <div className={`${styles.invoiceStateBox} ${styles.invoiceStateBoxDraft}`}>
+                直近の経費はありません
+              </div>
+            )}
+          </section>
+        </>
+      ) : (
+        <div className={`${styles.invoiceStateBox} ${styles.invoiceStateBoxDraft}`}>
+          立替はありません
+        </div>
+      )}
+    </ModalShell>
+  );
+}
+
+function TeamExpenseSummaryMockModal({
+  onClose,
+  onExpenseClicked,
+}: {
+  onClose: () => void;
+  onExpenseClicked: (memberId: string) => void;
+}) {
+  return (
+    <ModalShell title="5月のチーム立替" onClose={onClose}>
+      {MOCK_EXPENSES.map((expense) => (
+        <button
+          key={expense.id}
+          type="button"
+          className={styles.fabSheetItem}
+          onClick={() => onExpenseClicked(expense.id)}
+        >
+          <div>
+            <div>{expense.isSelf ? "自分" : expense.nickname}</div>
+            <small>{expense.status} · {expense.count}件</small>
+          </div>
+          <strong style={{ marginLeft: "auto", fontVariantNumeric: "tabular-nums" }}>
+            {fmtYen(expense.amount)}
+          </strong>
+        </button>
+      ))}
     </ModalShell>
   );
 }

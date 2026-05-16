@@ -67,6 +67,8 @@ import { ShieldPopover } from "../components/money/ShieldPopover";
 import { OwnRewardModal } from "../components/money/OwnRewardModal";
 import { OtherRewardModal } from "../components/money/OtherRewardModal";
 import { TeamSummaryModal } from "../components/money/TeamSummaryModal";
+import { ExpenseDetailModal } from "../components/money/ExpenseDetailModal";
+import { TeamExpenseSummaryModal } from "../components/money/TeamExpenseSummaryModal";
 import styles from "./Money.module.css";
 
 // 日付フォーマットヘルパー (YYYY/MM/DD)
@@ -310,6 +312,8 @@ export function Money() {
     const [ownRewardModalOpen, setOwnRewardModalOpen] = useState(false);
     const [otherRewardMemberId, setOtherRewardMemberId] = useState<string | null>(null);
     const [teamSummaryModalOpen, setTeamSummaryModalOpen] = useState(false);
+    const [expenseDetailMemberId, setExpenseDetailMemberId] = useState<string | null>(null);
+    const [teamExpenseSummaryOpen, setTeamExpenseSummaryOpen] = useState(false);
     const [selectedTransaction, setSelectedTransaction] = useState<AccountingTransaction | null>(null);
     const [expenseDraft, setExpenseDraft] = useState<ExpenseCorrectionDraft | null>(null);
     const [salesDraft, setSalesDraft] = useState<SalesCorrectionDraft | null>(null);
@@ -530,7 +534,7 @@ export function Money() {
     };
 
     const handleExpenseCardTap = (memberId: string) => {
-        console.log("open member-reimbursement-modal", memberId);
+        setExpenseDetailMemberId(memberId);
     };
 
     const handleMoneyHeroRetry = () => {
@@ -861,7 +865,7 @@ export function Money() {
                                 members={reimbursementsSummary?.members ?? []}
                                 selfMemberId={reimbursementsSummary?.self_member_id ?? null}
                                 onCardTap={handleExpenseCardTap}
-                                onSeeAllTap={() => console.log("open all-reimbursements")}
+                                onSeeAllTap={() => setTeamExpenseSummaryOpen(true)}
                             />
                         </MoneyHeroSection>
 
@@ -912,6 +916,29 @@ export function Money() {
                     onInvoiceChanged={() => {
                         setInvoiceRefreshKey((current) => current + 1);
                         handleMoneyHeroRetry();
+                    }}
+                />
+            )}
+
+            {expenseDetailMemberId && (
+                <ExpenseDetailModal
+                    memberId={expenseDetailMemberId}
+                    month={selectedMonth}
+                    selfMemberId={reimbursementsSummary?.self_member_id ?? null}
+                    onClose={() => setExpenseDetailMemberId(null)}
+                    onExpenseAdded={async () => {
+                        await handleMoneyHeroRetry();
+                    }}
+                />
+            )}
+
+            {teamExpenseSummaryOpen && (
+                <TeamExpenseSummaryModal
+                    month={selectedMonth}
+                    onClose={() => setTeamExpenseSummaryOpen(false)}
+                    onExpenseClicked={(memberId) => {
+                        setTeamExpenseSummaryOpen(false);
+                        setExpenseDetailMemberId(memberId);
                     }}
                 />
             )}

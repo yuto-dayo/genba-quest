@@ -1,0 +1,358 @@
+.scrim {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: var(--md-sys-spacing-md);
+    background: color-mix(in srgb, var(--md-sys-color-scrim) 72%, transparent);
+}
+
+.modal {
+    width: min(100%, calc(var(--md-sys-spacing-2xl) * 11));
+    max-height: calc(100dvh - (var(--md-sys-spacing-md) * 2));
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: var(--md-sys-focus-outline-width) solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-extra-large);
+    background: var(--md-sys-color-surface-container-lowest);
+    box-shadow: var(--md-sys-elevation-level4);
+    color: var(--md-sys-color-on-surface);
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--md-sys-spacing-sm);
+    padding: var(--md-sys-spacing-md) var(--md-sys-spacing-lg);
+    border-bottom: var(--md-sys-focus-outline-width) solid var(--md-sys-color-outline-variant);
+}
+
+.title,
+.sectionTitle {
+    margin: 0;
+    letter-spacing: 0;
+}
+
+.title {
+    font: var(--md-sys-typescale-title-large);
+}
+
+.iconButton,
+.secondaryButton,
+.primaryButton,
+.inlineButton,
+.memberRow {
+    min-height: var(--md-sys-tap-target-min);
+    border: var(--md-sys-focus-outline-width) solid transparent;
+    border-radius: var(--md-sys-shape-corner-full);
+    font: var(--md-sys-typescale-label-large);
+    cursor: pointer;
+}
+
+.iconButton {
+    width: var(--md-sys-tap-target-min);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--md-sys-color-surface-container);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--md-sys-spacing-md);
+    padding: var(--md-sys-spacing-lg);
+    overflow-y: auto;
+}
+
+.centerState,
+.errorPanel,
+.notice {
+    display: flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-sm);
+    margin: 0;
+    padding: var(--md-sys-spacing-md);
+    border-radius: var(--md-sys-shape-corner-large);
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.centerState {
+    justify-content: center;
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.errorPanel {
+    background: var(--md-sys-color-error-container);
+    color: var(--md-sys-color-on-error-container);
+}
+
+.notice {
+    background: var(--md-sys-color-success-container);
+    color: var(--md-sys-color-on-success-container);
+}
+
+.inlineButton {
+    margin-inline-start: auto;
+    padding: 0 var(--md-sys-spacing-md);
+    background: var(--md-sys-color-surface-container-lowest);
+    color: var(--md-sys-color-on-surface);
+}
+
+.metric {
+    display: flex;
+    flex-direction: column;
+    gap: var(--md-sys-spacing-xs);
+    padding: var(--md-sys-spacing-lg);
+    border-radius: var(--md-sys-shape-corner-extra-large);
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
+}
+
+.metricLabel {
+    font: var(--md-sys-typescale-label-large);
+}
+
+.metricValue {
+    font: var(--md-sys-typescale-display-small);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+}
+
+.summaryGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--md-sys-spacing-sm);
+}
+
+.summaryItem {
+    display: flex;
+    flex-direction: column;
+    gap: var(--md-sys-spacing-2xs);
+    padding: var(--md-sys-spacing-md);
+    border-radius: var(--md-sys-shape-corner-large);
+    background: var(--md-sys-color-surface-container-low);
+}
+
+.summaryLabel,
+.rowLabel,
+.itemMeta,
+.memberSub {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.summaryValue,
+.rowValue,
+.itemAmount,
+.memberAmount {
+    color: var(--md-sys-color-on-surface);
+    font-variant-numeric: tabular-nums;
+}
+
+.summaryValue {
+    font: var(--md-sys-typescale-title-medium);
+}
+
+.section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--md-sys-spacing-sm);
+}
+
+.sectionTitle {
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-large);
+}
+
+.breakdown,
+.recentList,
+.memberList {
+    display: flex;
+    flex-direction: column;
+    gap: var(--md-sys-spacing-xs);
+    padding: var(--md-sys-spacing-md);
+    border: var(--md-sys-focus-outline-width) solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-large);
+    background: var(--md-sys-color-surface-container-low);
+}
+
+.row,
+.recentItem,
+.memberRow {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--md-sys-spacing-md);
+}
+
+.row,
+.recentItem {
+    min-height: var(--md-sys-tap-target-min);
+    padding: var(--md-sys-spacing-sm) var(--md-sys-spacing-md);
+    border-radius: var(--md-sys-shape-corner-medium);
+    background: var(--md-sys-color-surface-container-lowest);
+}
+
+.recentMain,
+.memberMain {
+    display: flex;
+    flex-direction: column;
+    gap: var(--md-sys-spacing-2xs);
+}
+
+.itemTitle,
+.memberName {
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-title-small);
+}
+
+.itemAmount {
+    font: var(--md-sys-typescale-title-small);
+}
+
+.statusChip {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    min-height: calc(var(--md-sys-tap-target-min) / 2);
+    padding: 0 var(--md-sys-spacing-sm);
+    border-radius: var(--md-sys-shape-corner-full);
+    font: var(--md-sys-typescale-label-medium);
+}
+
+.statusPending {
+    background: var(--money-status-pending-container);
+    color: var(--money-status-pending);
+}
+
+.statusDraft {
+    background: var(--money-status-draft-container);
+    color: var(--money-status-draft);
+}
+
+.statusCompleted {
+    background: var(--money-status-completed-container);
+    color: var(--money-status-completed);
+}
+
+.emptyText {
+    margin: 0;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--md-sys-spacing-sm);
+    padding: var(--md-sys-spacing-md) var(--md-sys-spacing-lg);
+    border-top: var(--md-sys-focus-outline-width) solid var(--md-sys-color-outline-variant);
+}
+
+.secondaryButton,
+.primaryButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--md-sys-spacing-xs);
+    padding: 0 var(--md-sys-spacing-lg);
+}
+
+.secondaryButton {
+    background: var(--md-sys-color-surface-container-low);
+    color: var(--md-sys-color-on-surface);
+}
+
+.primaryButton {
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+}
+
+.memberList {
+    gap: var(--md-sys-spacing-sm);
+}
+
+.memberRow {
+    width: 100%;
+    padding: var(--md-sys-spacing-sm) var(--md-sys-spacing-md);
+    border-color: var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-large);
+    background: var(--md-sys-color-surface-container-lowest);
+    color: var(--md-sys-color-on-surface);
+    text-align: start;
+}
+
+.memberMeta,
+.memberAmount {
+    display: flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-xs);
+}
+
+.memberMeta {
+    flex-wrap: wrap;
+}
+
+.memberAmount {
+    justify-content: flex-end;
+    font: var(--md-sys-typescale-title-medium);
+}
+
+.iconButton:focus-visible,
+.secondaryButton:focus-visible,
+.primaryButton:focus-visible,
+.inlineButton:focus-visible,
+.memberRow:focus-visible {
+    outline: var(--md-sys-focus-outline-width) solid var(--md-sys-color-primary);
+    outline-offset: var(--md-sys-focus-ring-offset);
+}
+
+@media (min-width: 720px) {
+    .scrim {
+        align-items: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .actions {
+        flex-direction: column-reverse;
+    }
+
+    .secondaryButton,
+    .primaryButton {
+        width: 100%;
+    }
+
+    .summaryGrid,
+    .row,
+    .recentItem,
+    .memberRow {
+        grid-template-columns: 1fr;
+    }
+
+    .memberAmount {
+        justify-content: flex-start;
+    }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .modal {
+        animation: modalEnter var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-emphasized-decelerate);
+    }
+}
+
+@keyframes modalEnter {
+    from {
+        opacity: 0;
+        transform: translateY(var(--md-sys-spacing-md));
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
