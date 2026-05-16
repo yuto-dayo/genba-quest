@@ -336,16 +336,30 @@
 }
 
 .noticeRow {
+    appearance: none;
     display: grid;
-    grid-template-columns: 32px 1fr auto;
+    grid-template-columns: var(--md-sys-spacing-xl) 1fr auto;
     align-items: center;
-    gap: 10px;
-    padding: 10px 4px;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+    gap: var(--md-sys-spacing-sm);
+    width: 100%;
+    min-height: var(--md-sys-tap-target-min);
+    padding: var(--md-sys-spacing-sm);
+    border: 1px solid var(--md-sys-color-outline-variant, #d8dee5);
+    border-radius: var(--md-sys-shape-corner-large);
+    background: var(--md-sys-color-surface, #ffffff);
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
 }
 
-.noticeRow:last-child {
-    border-bottom: none;
+.noticeRow:hover {
+    border-color: var(--md-sys-color-outline, #b3bdc7);
+    box-shadow: var(--md-sys-elevation-level1);
+}
+
+.noticeRow:focus-visible {
+    outline: var(--md-sys-focus-outline-width) solid var(--md-sys-color-primary);
+    outline-offset: var(--md-sys-focus-ring-offset);
 }
 
 .noticeIcon {
@@ -365,6 +379,7 @@
 }
 
 .noticeTitle {
+    display: block;
     font-size: 13px;
     font-weight: 700;
     color: var(--md-sys-color-on-surface, #1a1f27);

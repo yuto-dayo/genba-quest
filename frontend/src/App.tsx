@@ -234,6 +234,10 @@ function isSiteLevelDraftNotification(notification: NotificationRecord): boolean
   return getNotificationDataString(notification, "task_type") === "site_level_draft";
 }
 
+function isMonthCloseReminderNotification(notification: NotificationRecord): boolean {
+  return notification.type === "month_close_reminder" && Boolean(getNotificationDataString(notification, "month"));
+}
+
 
 function formatInviteError(code: string): string {
   if (code === "ORG_INVITE_NOT_FOUND") {
@@ -1438,6 +1442,7 @@ function DevPreviewRoute({ children }: { children: ReactNode }) {
 function AppContent() {
   const navigate = useNavigate();
   const [siteLevelDraftNotifications, setSiteLevelDraftNotifications] = useState<NotificationRecord[]>([]);
+  const [monthCloseNotifications, setMonthCloseNotifications] = useState<NotificationRecord[]>([]);
   const [pendingApprovals, setPendingApprovals] = useState<AccountingTransaction[]>([]);
   const [pendingProposals, setPendingProposals] = useState<ProposalRecord[]>([]);
   const [inboxOpen, setInboxOpen] = useState(false);
@@ -1582,6 +1587,7 @@ function AppContent() {
     setInviteError(null);
     setShowInviteHelp(false);
     setSiteLevelDraftNotifications([]);
+    setMonthCloseNotifications([]);
     setPendingApprovals([]);
     setPendingProposals([]);
     setInboxOpen(false);
@@ -1680,11 +1686,14 @@ function AppContent() {
     try {
       const notifications = await fetchNotifications({ unread_only: true, limit: 50 });
       const siteDraftNotifications = notifications.filter(isSiteLevelDraftNotification);
+      const monthCloseReminderNotifications = notifications.filter(isMonthCloseReminderNotification);
       setSiteLevelDraftNotifications(siteDraftNotifications);
+      setMonthCloseNotifications(monthCloseReminderNotifications);
       return siteDraftNotifications;
     } catch (error) {
       console.error("Failed to load site level draft notifications:", error);
       setSiteLevelDraftNotifications([]);
+      setMonthCloseNotifications([]);
       return [];
     }
   }, [activeOrgId, appReady]);
@@ -1783,9 +1792,10 @@ function AppContent() {
   }, [loadPendingProposals]);
 
   const siteLevelDraftCount = siteLevelDraftNotifications.length;
+  const monthCloseCount = monthCloseNotifications.length;
   const pendingApprovalsCount = pendingApprovals.length;
   const pendingProposalsCount = pendingProposals.length;
-  const totalPendingCount = siteLevelDraftCount + pendingApprovalsCount + pendingProposalsCount;
+  const totalPendingCount = siteLevelDraftCount + monthCloseCount + pendingApprovalsCount + pendingProposalsCount;
   const bellEnabled = appReady && Boolean(activeOrgId) && totalPendingCount > 0;
   const bellNeedsAttention = totalPendingCount > 0;
   const bellBadgeLabel = totalPendingCount > 0 ? String(totalPendingCount) : null;
@@ -1798,15 +1808,20 @@ function AppContent() {
     if (!activeOrgId) {
       return;
     }
-    // siteLevelDrafts (PATH governance) は BellDrawer に section が無いため
-    // NotificationInbox に振り分ける。それ以外は v3.4 の BellDrawer を開く。
-    // 後続 PR で BellDrawer に 4 番目の section を追加したらこの分岐は撤去。
-    if (siteLevelDraftNotifications.length > 0) {
+    if (pendingApprovals.length > 0 || pendingProposals.length > 0 || monthCloseNotifications.length > 0) {
+      setBellDrawerOpen(true);
+    } else if (siteLevelDraftNotifications.length > 0) {
       setInboxOpen(true);
     } else {
       setBellDrawerOpen(true);
     }
-  }, [activeOrgId, siteLevelDraftNotifications.length]);
+  }, [
+    activeOrgId,
+    monthCloseNotifications.length,
+    pendingApprovals.length,
+    pendingProposals.length,
+    siteLevelDraftNotifications.length,
+  ]);
 
   const handleBellApprovalComplete = useCallback(() => {
     window.dispatchEvent(new CustomEvent("pending-approvals-updated"));
@@ -2273,6 +2288,7 @@ function AppContent() {
             onClose={() => setBellDrawerOpen(false)}
             selfApprovals={pendingApprovals}
             consensusPending={pendingProposals}
+            notifications={monthCloseNotifications}
             onSelfApprovalComplete={handleBellApprovalComplete}
             onOpenProposal={handleBellOpenProposal}
           />

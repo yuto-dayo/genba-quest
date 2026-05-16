@@ -963,7 +963,13 @@ export const updateCommunicationConversation = (
 export interface NotificationRecord {
     id: string;
     user_id: string;
-    type: "auto_quest" | "approval_required" | "approval_result" | "schedule_conflict" | "system_alert";
+    type:
+        | "auto_quest"
+        | "approval_required"
+        | "approval_result"
+        | "schedule_conflict"
+        | "system_alert"
+        | "month_close_reminder";
     title: string;
     message: string;
     data: Record<string, unknown>;
@@ -4327,6 +4333,10 @@ export const fetchPathV33Objection = (objectionId: string) =>
     api<{ objection: PathV33Objection }>(
         `/api/v1/path/module/v33/objections/${encodeURIComponent(objectionId)}`,
     ).then((response) => response.objection);
+
+export const fetchPathV33OpenObjections = () =>
+    api<{ objections: PathV33Objection[] }>("/api/v1/path/module/v33/objections")
+        .then((response) => response.objections);
 
 // V3.3 Phase 5 month-end admin endpoints
 

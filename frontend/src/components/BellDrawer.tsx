@@ -5,7 +5,7 @@
  * MVP スコープ:
  *  - 自分が承認担当 → 既存 ApprovalCard を再利用
  *  - 全員承認待ち → ProposalRecord を簡易カードで列挙、タップで親に open
- *  - お知らせ → 入金/支払予定の通知。実データ繋ぎは後続 PR (placeholder で empty)
+ *  - お知らせ → 月確定リマインダーを Money の確定モーダルへつなぐ
  *
  * 後続 PR に残す:
  *  - 承認カードの swipe gesture (drag="x")
@@ -15,6 +15,7 @@
  */
 
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
     motion,
     AnimatePresence,
@@ -22,9 +23,9 @@ import {
     useTransform,
     type PanInfo,
 } from "framer-motion";
-import { Bell, ChevronLeft, CheckCircle, AlertTriangle, Users, User } from "lucide-react";
+import { Bell, Calendar, ChevronLeft, CheckCircle, AlertTriangle, Users, User } from "lucide-react";
 import { ApprovalCard } from "./ApprovalCard";
-import { reviewExpense, type AccountingTransaction, type ProposalRecord } from "../lib/api";
+import { reviewExpense, type AccountingTransaction, type NotificationRecord, type ProposalRecord } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
 import { motion as motionTokens } from "../lib/motion/tokens";
 import styles from "./BellDrawer.module.css";
@@ -37,6 +38,7 @@ interface BellDrawerProps {
     onClose: () => void;
     selfApprovals: AccountingTransaction[];
     consensusPending: ProposalRecord[];
+    notifications: NotificationRecord[];
     onSelfApprovalComplete: () => void;
     onOpenProposal: (proposal: ProposalRecord) => void;
 }
@@ -48,11 +50,20 @@ export function BellDrawer({
     onClose,
     selfApprovals,
     consensusPending,
+    notifications,
     onSelfApprovalComplete,
     onOpenProposal,
 }: BellDrawerProps) {
-    const totalCount = selfApprovals.length + consensusPending.length;
+    const navigate = useNavigate();
+    const monthCloseNotifications = notifications.filter((n) => n.type === "month_close_reminder" && !n.read);
+    const totalCount = selfApprovals.length + consensusPending.length + monthCloseNotifications.length;
     const allClear = totalCount === 0;
+    const openMonthClose = (notification: NotificationRecord) => {
+        const month = getNotificationDataString(notification, "month");
+        if (!month) return;
+        onClose();
+        navigate(`/money?modal=month_close&period=${encodeURIComponent(month)}`);
+    };
 
     return (
         <AnimatePresence>
@@ -180,9 +191,37 @@ export function BellDrawer({
                                         お知らせ
                                     </span>
                                 </div>
-                                <div className={styles.emptyHint}>
-                                    入金・支払予定の通知がここに表示されます (後続実装)
-                                </div>
+                                {monthCloseNotifications.length === 0 ? (
+                                    <div className={styles.emptyHint}>
+                                        お知らせはありません
+                                    </div>
+                                ) : (
+                                    <div className={styles.cardList}>
+                                        {monthCloseNotifications.map((notification) => (
+                                            <button
+                                                key={notification.id}
+                                                type="button"
+                                                className={styles.noticeRow}
+                                                onClick={() => openMonthClose(notification)}
+                                            >
+                                                <span className={`${styles.noticeIcon} ${styles.warn}`} aria-hidden>
+                                                    <Calendar size={16} />
+                                                </span>
+                                                <span>
+                                                    <span className={styles.noticeTitle}>
+                                                        📅 {getNotificationDataString(notification, "month")} 分の月確定ができます
+                                                    </span>
+                                                    <span className={styles.noticeSub}>
+                                                        確定すると報酬と請求書発行へ進めます
+                                                    </span>
+                                                </span>
+                                                <span className={styles.noticeWhen}>
+                                                    開く
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </section>
                         </div>
                     </motion.aside>
@@ -190,6 +229,11 @@ export function BellDrawer({
             )}
         </AnimatePresence>
     );
+}
+
+function getNotificationDataString(notification: NotificationRecord, key: string): string | null {
+    const value = notification.data?.[key];
+    return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 interface ConsensusProposalCardProps {

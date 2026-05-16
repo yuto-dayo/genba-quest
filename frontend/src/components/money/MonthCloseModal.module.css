@@ -1,0 +1,277 @@
+.scrim {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: var(--md-sys-spacing-md);
+    background: color-mix(in srgb, var(--md-sys-color-scrim) 72%, transparent);
+    z-index: 120;
+}
+
+.modal {
+    width: min(100%, calc(var(--md-sys-spacing-2xl) * 10));
+    max-height: calc(100dvh - (var(--md-sys-spacing-md) * 2));
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: var(--md-sys-focus-outline-width) solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-extra-large);
+    background: var(--md-sys-color-surface-container-lowest);
+    box-shadow: var(--md-sys-elevation-level4);
+    color: var(--md-sys-color-on-surface);
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--md-sys-spacing-sm);
+    padding: var(--md-sys-spacing-md) var(--md-sys-spacing-lg);
+    border-bottom: var(--md-sys-focus-outline-width) solid var(--md-sys-color-outline-variant);
+}
+
+.title,
+.sectionTitle {
+    margin: 0;
+    letter-spacing: 0;
+}
+
+.title {
+    font: var(--md-sys-typescale-title-large);
+}
+
+.iconButton,
+.secondaryButton,
+.primaryButton,
+.inlineButton {
+    min-height: var(--md-sys-tap-target-min);
+    border: var(--md-sys-focus-outline-width) solid transparent;
+    border-radius: var(--md-sys-shape-corner-full);
+    font: var(--md-sys-typescale-label-large);
+    cursor: pointer;
+}
+
+.iconButton {
+    width: var(--md-sys-tap-target-min);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--md-sys-color-surface-container);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--md-sys-spacing-md);
+    padding: var(--md-sys-spacing-lg);
+    overflow-y: auto;
+}
+
+.noticeText {
+    margin: 0;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.summaryGrid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--md-sys-spacing-sm);
+}
+
+.summaryCard {
+    display: flex;
+    flex-direction: column;
+    gap: var(--md-sys-spacing-xs);
+    min-width: 0;
+    padding: var(--md-sys-spacing-md);
+    border: var(--md-sys-focus-outline-width) solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-large);
+    background: var(--md-sys-color-surface-container-low);
+}
+
+.summaryLabel {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-medium);
+}
+
+.summaryValue {
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-title-medium);
+    font-variant-numeric: tabular-nums;
+}
+
+.statusPanel,
+.errorPanel,
+.successPanel,
+.blockedPanel,
+.centerState {
+    display: flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-sm);
+    margin: 0;
+    padding: var(--md-sys-spacing-md);
+    border-radius: var(--md-sys-shape-corner-large);
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.centerState {
+    justify-content: center;
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.statusPanel {
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
+}
+
+.successPanel {
+    background: var(--md-sys-color-success-container);
+    color: var(--md-sys-color-on-success-container);
+}
+
+.blockedPanel,
+.errorPanel {
+    background: var(--md-sys-color-error-container);
+    color: var(--md-sys-color-on-error-container);
+}
+
+.inlineButton {
+    margin-inline-start: auto;
+    padding: 0 var(--md-sys-spacing-md);
+    background: var(--md-sys-color-surface-container-lowest);
+    color: var(--md-sys-color-on-surface);
+}
+
+.section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--md-sys-spacing-sm);
+}
+
+.sectionTitle {
+    font: var(--md-sys-typescale-label-large);
+}
+
+.stepList {
+    display: grid;
+    gap: var(--md-sys-spacing-xs);
+}
+
+.stepRow {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: var(--md-sys-spacing-sm);
+    padding: var(--md-sys-spacing-sm) var(--md-sys-spacing-md);
+    border-radius: var(--md-sys-shape-corner-medium);
+    background: var(--md-sys-color-surface-container-low);
+}
+
+.stepIcon {
+    width: var(--md-sys-spacing-lg);
+    height: var(--md-sys-spacing-lg);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.stepText {
+    display: flex;
+    flex-direction: column;
+    gap: var(--md-sys-spacing-2xs);
+    min-width: 0;
+}
+
+.stepLabel {
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.stepError {
+    color: var(--md-sys-color-error);
+    font: var(--md-sys-typescale-body-small);
+}
+
+.actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--md-sys-spacing-sm);
+    padding: var(--md-sys-spacing-md) var(--md-sys-spacing-lg);
+    border-top: var(--md-sys-focus-outline-width) solid var(--md-sys-color-outline-variant);
+}
+
+.secondaryButton,
+.primaryButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--md-sys-spacing-xs);
+    padding: 0 var(--md-sys-spacing-lg);
+}
+
+.secondaryButton {
+    background: var(--md-sys-color-surface-container-low);
+    color: var(--md-sys-color-on-surface);
+}
+
+.primaryButton {
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled {
+    cursor: not-allowed;
+    background: var(--md-sys-color-surface-container-high);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.iconButton:focus-visible,
+.secondaryButton:focus-visible,
+.primaryButton:focus-visible,
+.inlineButton:focus-visible {
+    outline: var(--md-sys-focus-outline-width) solid var(--md-sys-color-primary);
+    outline-offset: var(--md-sys-focus-ring-offset);
+}
+
+@media (min-width: 720px) {
+    .scrim {
+        align-items: center;
+    }
+}
+
+@media (max-width: 520px) {
+    .summaryGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .actions {
+        flex-direction: column-reverse;
+    }
+
+    .secondaryButton,
+    .primaryButton {
+        width: 100%;
+    }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .modal {
+        animation: modalEnter var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-emphasized-decelerate);
+    }
+}
+
+@keyframes modalEnter {
+    from {
+        opacity: 0;
+        transform: translateY(var(--md-sys-spacing-md));
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

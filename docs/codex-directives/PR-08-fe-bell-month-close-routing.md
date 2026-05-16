@@ -5,14 +5,14 @@
 
 ## Acceptance criteria
 
-- [ ] `BellDrawer.tsx` のお知らせ section が実データを表示(現状コメント `// 後続 PR に残す` を消す)
-- [ ] `month_close_reminder` 通知を「📅 N月分の月確定ができます」として表示
-- [ ] 通知タップで `/money?modal=month_close&period=YYYY-MM` に遷移
-- [ ] Money 画面が URL search params を検知して `<MonthCloseModal>` を自動オープン
-- [ ] `<MonthCloseModal>` 実装: 対象月の集計を表示、確認画面方式(typed confirmation 不要)
-- [ ] 確定実行で既存 `lockPathV33MonthDrafts` → `expirePathV33MonthObjections` → `finalizePathV33Month` の3ステップを直列実行(または summary endpoint があれば1本)
-- [ ] 確定完了で該当通知を read 化、トースト表示
-- [ ] tsc/lint/test グリーン
+- [x] `BellDrawer.tsx` のお知らせ section が実データを表示(現状コメント `// 後続 PR に残す` を消す)
+- [x] `month_close_reminder` 通知を「📅 N月分の月確定ができます」として表示
+- [x] 通知タップで `/money?modal=month_close&period=YYYY-MM` に遷移
+- [x] Money 画面が URL search params を検知して `<MonthCloseModal>` を自動オープン
+- [x] `<MonthCloseModal>` 実装: 対象月の集計を表示、確認画面方式(typed confirmation 不要)
+- [x] 確定実行で既存 `lockPathV33MonthDrafts` → `expirePathV33MonthObjections` → `finalizePathV33Month` の3ステップを直列実行(または summary endpoint があれば1本)
+- [x] 確定完了で該当通知を read 化、トースト表示
+- [x] tsc/lint/test グリーン
 
 ## Files
 
