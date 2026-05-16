@@ -97,6 +97,8 @@
     --md-sys-typescale-body-large: 400 16px/24px var(--md-sys-typescale-font-body);
     --md-sys-typescale-body-medium: 400 14px/20px var(--md-sys-typescale-font-body);
     --md-sys-typescale-body-small: 400 12px/16px var(--md-sys-typescale-font-body);
+    /* xsmall: status chips / inline meta on dense cards (e.g. carousel member card status) */
+    --md-sys-typescale-body-xsmall: 400 10px/14px var(--md-sys-typescale-font-body);
 
     /* Label */
     --md-sys-typescale-label-large: 600 14px/20px var(--md-sys-typescale-font-display);
@@ -124,6 +126,8 @@
     --md-sys-elevation-level2: 0 4px 6px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.06);
     --md-sys-elevation-level3: 0 10px 15px rgba(0, 0, 0, 0.07), 0 4px 6px rgba(0, 0, 0, 0.05);
     --md-sys-elevation-level4: 0 20px 25px rgba(0, 0, 0, 0.07), 0 8px 10px rgba(0, 0, 0, 0.04);
+    /* level5: large/full-screen modals and bottom sheets (e.g. month-close modal, FAB sheet) */
+    --md-sys-elevation-level5: 0 24px 48px rgba(0, 0, 0, 0.18), 0 8px 16px rgba(0, 0, 0, 0.08);
 
     /* ============================================================
        Motion System
@@ -146,12 +150,47 @@
        Spacing
        ============================================================ */
 
+    /* 2xs: hairline gaps inside dense cards (e.g. between currency symbol and figure) */
+    --md-sys-spacing-2xs: 2px;
     --md-sys-spacing-xs: 4px;
     --md-sys-spacing-sm: 8px;
     --md-sys-spacing-md: 16px;
     --md-sys-spacing-lg: 24px;
     --md-sys-spacing-xl: 32px;
     --md-sys-spacing-2xl: 48px;
+
+    /* ============================================================
+       Interaction Targets
+       ------------------------------------------------------------
+       Standardize tap targets and focus rings across the app.
+       WCAG 2.2 enhanced target size: 44x44 CSS px.
+       Apple HIG / Material 3: 48dp.
+       We adopt 48px as the project minimum (carousel cards, FAB
+       menu items, list rows, icon buttons).
+       ============================================================ */
+
+    --md-sys-tap-target-min: 48px;
+    --md-sys-focus-outline-width: 2px;
+    --md-sys-focus-ring-offset: 2px;
+
+    /* ============================================================
+       Money Semantic Status
+       ------------------------------------------------------------
+       Aliases on top of the M3 status palette so Money components
+       can express domain meaning ("invoice overdue", "expense
+       pending settlement") without re-declaring colors in each
+       component. Always pair with a text label — never use color
+       alone to convey state (WCAG 1.4.1).
+       ============================================================ */
+
+    --money-status-pending: var(--md-sys-color-warning);
+    --money-status-pending-container: var(--md-sys-color-warning-container);
+    --money-status-completed: var(--md-sys-color-success);
+    --money-status-completed-container: var(--md-sys-color-success-container);
+    --money-status-overdue: var(--md-sys-color-error);
+    --money-status-overdue-container: var(--md-sys-color-error-container);
+    --money-status-draft: var(--md-sys-color-on-surface-variant);
+    --money-status-draft-container: var(--md-sys-color-surface-container);
 }
 
 /* ============================================================
@@ -183,8 +222,8 @@ body {
 }
 
 :focus-visible {
-    outline: 2px solid var(--md-sys-color-primary);
-    outline-offset: 2px;
+    outline: var(--md-sys-focus-outline-width) solid var(--md-sys-color-primary);
+    outline-offset: var(--md-sys-focus-ring-offset);
 }
 
 button:focus-visible,
@@ -192,8 +231,8 @@ a:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
-    outline: 2px solid var(--md-sys-color-primary);
-    outline-offset: 2px;
+    outline: var(--md-sys-focus-outline-width) solid var(--md-sys-color-primary);
+    outline-offset: var(--md-sys-focus-ring-offset);
     box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.15);
 }
 
