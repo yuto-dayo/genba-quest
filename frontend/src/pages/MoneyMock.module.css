@@ -1,0 +1,814 @@
+/* ============================================================
+   MoneyMock - PR #0 visual reference for Money redesign
+   ------------------------------------------------------------
+   All numeric values MUST reference design tokens defined in
+   frontend/src/styles/genba-quest.css. No hardcoded sizes,
+   colors, durations. Codex 5.5 reuses these patterns when
+   migrating Money.tsx in PR #3-#15.
+   ============================================================ */
+
+.page {
+    min-height: 100vh;
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-body-medium);
+    padding-bottom: 96px;
+}
+
+/* ---------- Dev panel (mock-only, not in production) ---------- */
+.devPanel {
+    position: sticky;
+    top: 0;
+    z-index: 60;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--md-sys-spacing-sm);
+    align-items: center;
+    padding: var(--md-sys-spacing-sm) var(--md-sys-spacing-md);
+    background: var(--md-sys-color-inverse-surface);
+    color: var(--md-sys-color-inverse-on-surface);
+    font: var(--md-sys-typescale-body-small);
+}
+
+.devLabel {
+    font: var(--md-sys-typescale-label-medium);
+    opacity: 0.7;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.devToggle {
+    background: transparent;
+    color: var(--md-sys-color-inverse-on-surface);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: var(--md-sys-shape-corner-full);
+    padding: var(--md-sys-spacing-2xs) var(--md-sys-spacing-sm);
+    font: var(--md-sys-typescale-label-small);
+    cursor: pointer;
+    min-height: 28px;
+}
+
+.devToggleActive {
+    background: var(--md-sys-color-primary);
+    border-color: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+}
+
+/* ---------- Header (month nav) ---------- */
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--md-sys-spacing-md);
+    background: var(--md-sys-color-surface);
+}
+
+.monthGroup {
+    display: flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-sm);
+}
+
+.monthLabel {
+    font: var(--md-sys-typescale-title-large);
+    font-variant-numeric: tabular-nums;
+}
+
+.monthNav {
+    width: var(--md-sys-tap-target-min);
+    height: var(--md-sys-tap-target-min);
+    border: none;
+    background: transparent;
+    color: var(--md-sys-color-on-surface);
+    border-radius: var(--md-sys-shape-corner-full);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font: var(--md-sys-typescale-title-medium);
+}
+
+.monthNav:hover {
+    background: var(--md-sys-color-surface-container);
+}
+
+.monthState {
+    margin-left: var(--md-sys-spacing-sm);
+    padding: var(--md-sys-spacing-2xs) var(--md-sys-spacing-sm);
+    border-radius: var(--md-sys-shape-corner-full);
+    font: var(--md-sys-typescale-label-small);
+    background: var(--md-sys-color-surface-container);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.monthStateClosed {
+    background: var(--money-status-completed-container);
+    color: var(--money-status-completed);
+}
+
+.settingsBtn {
+    width: var(--md-sys-tap-target-min);
+    height: var(--md-sys-tap-target-min);
+    border: none;
+    background: transparent;
+    border-radius: var(--md-sys-shape-corner-full);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+/* ---------- Section (hero) ---------- */
+.section {
+    padding: var(--md-sys-spacing-md);
+    background: var(--md-sys-color-surface);
+}
+
+.sectionHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--md-sys-spacing-sm);
+}
+
+.sectionTitle {
+    font: var(--md-sys-typescale-title-medium);
+    color: var(--md-sys-color-on-surface);
+    letter-spacing: 0.01em;
+}
+
+.shieldBtn {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    border: none;
+    background: transparent;
+    border-radius: var(--md-sys-shape-corner-full);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 16px;
+}
+
+.shieldBtn:hover {
+    background: var(--md-sys-color-surface-container);
+}
+
+/* ---------- Carousel ---------- */
+.carousel {
+    display: flex;
+    gap: var(--md-sys-spacing-sm);
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-padding: var(--md-sys-spacing-md);
+    padding: var(--md-sys-spacing-xs) 0 var(--md-sys-spacing-sm);
+    margin: 0 calc(-1 * var(--md-sys-spacing-md));
+    padding-left: var(--md-sys-spacing-md);
+    padding-right: var(--md-sys-spacing-md);
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+
+.carousel::-webkit-scrollbar {
+    display: none;
+}
+
+/* ---------- Member card ---------- */
+.card {
+    flex: 0 0 auto;
+    width: 144px;
+    min-height: var(--md-sys-tap-target-min);
+    scroll-snap-align: start;
+    background: var(--md-sys-color-surface-container-lowest);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-large);
+    padding: var(--md-sys-spacing-md) var(--md-sys-spacing-sm);
+    display: flex;
+    flex-direction: column;
+    gap: var(--md-sys-spacing-2xs);
+    cursor: pointer;
+    transition: transform var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        box-shadow var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+    text-align: left;
+    position: relative;
+}
+
+.card:hover {
+    box-shadow: var(--md-sys-elevation-level1);
+    transform: translateY(-1px);
+}
+
+.cardSelf {
+    border-color: var(--md-sys-color-primary);
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
+}
+
+.cardName {
+    font: var(--md-sys-typescale-label-medium);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.cardSelf .cardName {
+    color: var(--md-sys-color-on-primary-container);
+    opacity: 0.8;
+}
+
+.cardAmount {
+    font: var(--md-sys-typescale-headline-small);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+    color: var(--md-sys-color-on-surface);
+    letter-spacing: -0.01em;
+}
+
+.cardSelf .cardAmount {
+    color: var(--md-sys-color-on-primary-container);
+}
+
+.cardStatus {
+    margin-top: var(--md-sys-spacing-2xs);
+    font: var(--md-sys-typescale-body-xsmall);
+    color: var(--md-sys-color-on-surface-variant);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-2xs);
+}
+
+.cardSelf .cardStatus {
+    color: var(--md-sys-color-on-primary-container);
+}
+
+.cardStatusPending::before,
+.cardStatusOverdue::before,
+.cardStatusCompleted::before,
+.cardStatusDraft::before {
+    content: "";
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: var(--md-sys-shape-corner-full);
+}
+
+.cardStatusPending::before {
+    background: var(--money-status-pending);
+}
+
+.cardStatusOverdue::before {
+    background: var(--money-status-overdue);
+}
+
+.cardStatusCompleted::before {
+    background: var(--money-status-completed);
+}
+
+.cardStatusDraft::before {
+    background: var(--money-status-draft);
+}
+
+.cardCta {
+    margin-top: var(--md-sys-spacing-sm);
+    min-height: 36px;
+    width: 100%;
+    border: none;
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+    border-radius: var(--md-sys-shape-corner-full);
+    font: var(--md-sys-typescale-label-medium);
+    cursor: pointer;
+    padding: var(--md-sys-spacing-xs) var(--md-sys-spacing-sm);
+}
+
+.cardCta:hover {
+    box-shadow: var(--md-sys-elevation-level1);
+}
+
+/* "See all" card */
+.cardSeeAll {
+    flex: 0 0 auto;
+    width: 96px;
+    min-height: var(--md-sys-tap-target-min);
+    scroll-snap-align: start;
+    background: transparent;
+    border: 1px dashed var(--md-sys-color-outline);
+    border-radius: var(--md-sys-shape-corner-large);
+    padding: var(--md-sys-spacing-md) var(--md-sys-spacing-sm);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--md-sys-spacing-xs);
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: pointer;
+    font: var(--md-sys-typescale-label-small);
+}
+
+.cardSeeAllIcon {
+    font-size: 20px;
+}
+
+/* ---------- Company summary card (③) ---------- */
+.companyCard {
+    margin: 0 var(--md-sys-spacing-md);
+    padding: var(--md-sys-spacing-md);
+    background: var(--md-sys-color-surface-container-lowest);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-large);
+    display: flex;
+    flex-direction: column;
+    gap: var(--md-sys-spacing-sm);
+}
+
+.companyHeader {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+}
+
+.companyLabel {
+    font: var(--md-sys-typescale-title-medium);
+    color: var(--md-sys-color-on-surface);
+}
+
+.companyProfit {
+    font: var(--md-sys-typescale-headline-medium);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+    color: var(--money-status-completed);
+    letter-spacing: -0.02em;
+}
+
+.companyProfitNegative {
+    color: var(--money-status-overdue);
+}
+
+.companyBreakdown {
+    font: var(--md-sys-typescale-body-small);
+    font-variant-numeric: tabular-nums;
+    color: var(--md-sys-color-on-surface-variant);
+    display: flex;
+    gap: var(--md-sys-spacing-md);
+}
+
+.companyChips {
+    display: flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-sm);
+    flex-wrap: wrap;
+}
+
+.sparkline {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 28px;
+    flex: 1;
+}
+
+.sparkBar {
+    flex: 1;
+    background: var(--md-sys-color-primary);
+    border-radius: var(--md-sys-shape-corner-extra-small) var(--md-sys-shape-corner-extra-small) 0 0;
+    min-height: 2px;
+    opacity: 0.5;
+    transition: opacity var(--md-sys-motion-duration-short2);
+}
+
+.sparkBarLast {
+    opacity: 1;
+}
+
+.alertChip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-2xs);
+    padding: var(--md-sys-spacing-2xs) var(--md-sys-spacing-sm);
+    border-radius: var(--md-sys-shape-corner-full);
+    font: var(--md-sys-typescale-label-small);
+    background: var(--money-status-overdue-container);
+    color: var(--money-status-overdue);
+    border: none;
+    cursor: pointer;
+    min-height: 28px;
+}
+
+.alertChipPending {
+    background: var(--money-status-pending-container);
+    color: var(--money-status-pending);
+}
+
+/* ---------- Tabs ---------- */
+.tabs {
+    display: flex;
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
+    margin: var(--md-sys-spacing-md) 0 0;
+    padding: 0 var(--md-sys-spacing-md);
+    gap: var(--md-sys-spacing-md);
+}
+
+.tab {
+    padding: var(--md-sys-spacing-sm) 0;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-title-small);
+    cursor: pointer;
+    min-height: var(--md-sys-tap-target-min);
+}
+
+.tabActive {
+    color: var(--md-sys-color-primary);
+    border-bottom-color: var(--md-sys-color-primary);
+}
+
+.tabBadge {
+    margin-left: var(--md-sys-spacing-2xs);
+    background: var(--money-status-overdue-container);
+    color: var(--money-status-overdue);
+    border-radius: var(--md-sys-shape-corner-full);
+    padding: 0 var(--md-sys-spacing-2xs);
+    font: var(--md-sys-typescale-label-small);
+}
+
+.tabBody {
+    padding: var(--md-sys-spacing-md);
+}
+
+/* Invoice/partner cards inside tab */
+.invoiceFilterRow {
+    display: flex;
+    gap: var(--md-sys-spacing-sm);
+    margin-bottom: var(--md-sys-spacing-md);
+    overflow-x: auto;
+    padding-bottom: var(--md-sys-spacing-2xs);
+}
+
+.filterChip {
+    flex: 0 0 auto;
+    padding: var(--md-sys-spacing-xs) var(--md-sys-spacing-sm);
+    background: var(--md-sys-color-surface-container);
+    color: var(--md-sys-color-on-surface);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-full);
+    font: var(--md-sys-typescale-label-medium);
+    cursor: pointer;
+    min-height: 32px;
+}
+
+.filterChipActive {
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
+    border-color: var(--md-sys-color-primary);
+}
+
+.filterChipBadge {
+    margin-left: var(--md-sys-spacing-2xs);
+    font: var(--md-sys-typescale-label-small);
+    opacity: 0.7;
+}
+
+.partnerCard {
+    background: var(--md-sys-color-surface-container-lowest);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-large);
+    padding: var(--md-sys-spacing-md);
+    margin-bottom: var(--md-sys-spacing-sm);
+    display: flex;
+    flex-direction: column;
+    gap: var(--md-sys-spacing-xs);
+    position: relative;
+    cursor: pointer;
+    min-height: var(--md-sys-tap-target-min);
+}
+
+.partnerCardOverdue {
+    border-left: 3px solid var(--money-status-overdue);
+}
+
+.partnerName {
+    font: var(--md-sys-typescale-title-small);
+    color: var(--md-sys-color-on-surface);
+}
+
+.partnerAmount {
+    font: var(--md-sys-typescale-headline-small);
+    font-variant-numeric: tabular-nums;
+    color: var(--md-sys-color-on-surface);
+}
+
+.partnerInvoiceLine {
+    font: var(--md-sys-typescale-body-small);
+    color: var(--md-sys-color-on-surface-variant);
+    font-variant-numeric: tabular-nums;
+    display: flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-xs);
+}
+
+.partnerOverdueBadge {
+    font: var(--md-sys-typescale-label-small);
+    color: var(--money-status-overdue);
+    background: var(--money-status-overdue-container);
+    border-radius: var(--md-sys-shape-corner-full);
+    padding: var(--md-sys-spacing-2xs) var(--md-sys-spacing-sm);
+    align-self: flex-start;
+}
+
+/* ---------- FAB ---------- */
+.fab {
+    position: fixed;
+    right: var(--md-sys-spacing-md);
+    bottom: var(--md-sys-spacing-md);
+    height: 56px;
+    min-width: 56px;
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+    border: none;
+    border-radius: var(--md-sys-shape-corner-extra-large);
+    padding: 0 var(--md-sys-spacing-lg);
+    font: var(--md-sys-typescale-label-large);
+    cursor: pointer;
+    box-shadow: var(--md-sys-elevation-level3);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-xs);
+    z-index: 30;
+    transition: box-shadow var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.fab:hover {
+    box-shadow: var(--md-sys-elevation-level4);
+}
+
+.fabIcon {
+    font-size: 20px;
+}
+
+/* ---------- Modal / sheet ---------- */
+.scrim {
+    position: fixed;
+    inset: 0;
+    background: var(--md-sys-color-scrim);
+    z-index: 50;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    animation: fadeIn var(--md-sys-motion-duration-medium1) var(--md-sys-motion-easing-standard);
+}
+
+.modal {
+    background: var(--md-sys-color-surface-container-lowest);
+    border-radius: var(--md-sys-shape-corner-extra-large) var(--md-sys-shape-corner-extra-large) 0 0;
+    width: 100%;
+    max-width: 560px;
+    max-height: 92vh;
+    overflow-y: auto;
+    box-shadow: var(--md-sys-elevation-level5);
+    animation: slideUp var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-emphasized-decelerate);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from { transform: translateY(20%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.modalHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--md-sys-spacing-md);
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
+    position: sticky;
+    top: 0;
+    background: var(--md-sys-color-surface-container-lowest);
+    z-index: 1;
+}
+
+.modalTitle {
+    font: var(--md-sys-typescale-title-large);
+    color: var(--md-sys-color-on-surface);
+}
+
+.modalClose {
+    width: var(--md-sys-tap-target-min);
+    height: var(--md-sys-tap-target-min);
+    border: none;
+    background: transparent;
+    border-radius: var(--md-sys-shape-corner-full);
+    cursor: pointer;
+    font-size: 18px;
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.modalBody {
+    padding: var(--md-sys-spacing-md);
+    display: flex;
+    flex-direction: column;
+    gap: var(--md-sys-spacing-md);
+}
+
+.modalActions {
+    display: flex;
+    gap: var(--md-sys-spacing-sm);
+    justify-content: flex-end;
+    padding: var(--md-sys-spacing-md);
+    border-top: 1px solid var(--md-sys-color-outline-variant);
+    position: sticky;
+    bottom: 0;
+    background: var(--md-sys-color-surface-container-lowest);
+}
+
+.btnPrimary {
+    min-height: var(--md-sys-tap-target-min);
+    padding: 0 var(--md-sys-spacing-lg);
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+    border: none;
+    border-radius: var(--md-sys-shape-corner-full);
+    font: var(--md-sys-typescale-label-large);
+    cursor: pointer;
+}
+
+.btnSecondary {
+    min-height: var(--md-sys-tap-target-min);
+    padding: 0 var(--md-sys-spacing-lg);
+    background: transparent;
+    color: var(--md-sys-color-primary);
+    border: 1px solid var(--md-sys-color-outline);
+    border-radius: var(--md-sys-shape-corner-full);
+    font: var(--md-sys-typescale-label-large);
+    cursor: pointer;
+}
+
+/* Reward detail content */
+.rewardMetric {
+    display: flex;
+    flex-direction: column;
+    gap: var(--md-sys-spacing-2xs);
+    padding: var(--md-sys-spacing-md);
+    background: var(--md-sys-color-surface-container);
+    border-radius: var(--md-sys-shape-corner-large);
+}
+
+.rewardMetricLabel {
+    font: var(--md-sys-typescale-label-medium);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.rewardMetricValue {
+    font: var(--md-sys-typescale-display-small);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+}
+
+.rewardBreakdown {
+    display: flex;
+    flex-direction: column;
+    gap: var(--md-sys-spacing-xs);
+}
+
+.rewardRow {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--md-sys-spacing-sm) 0;
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
+    font: var(--md-sys-typescale-body-medium);
+    font-variant-numeric: tabular-nums;
+}
+
+.rewardRow:last-child {
+    border-bottom: none;
+}
+
+.rewardRowLabel {
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.rewardRowValue {
+    color: var(--md-sys-color-on-surface);
+}
+
+.invoiceStateBox {
+    padding: var(--md-sys-spacing-md);
+    border-radius: var(--md-sys-shape-corner-large);
+    background: var(--money-status-completed-container);
+    color: var(--money-status-completed);
+    font: var(--md-sys-typescale-body-medium);
+    display: flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-sm);
+}
+
+.invoiceStateBoxDraft {
+    background: var(--md-sys-color-surface-container);
+    color: var(--md-sys-color-on-surface);
+}
+
+/* FAB sheet items */
+.fabSheetItem {
+    display: flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-md);
+    padding: var(--md-sys-spacing-md);
+    background: transparent;
+    border: none;
+    border-radius: var(--md-sys-shape-corner-large);
+    cursor: pointer;
+    font: var(--md-sys-typescale-title-small);
+    color: var(--md-sys-color-on-surface);
+    text-align: left;
+    width: 100%;
+    min-height: var(--md-sys-tap-target-min);
+}
+
+.fabSheetItem:hover {
+    background: var(--md-sys-color-surface-container);
+}
+
+.fabSheetIcon {
+    width: 40px;
+    height: 40px;
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
+    border-radius: var(--md-sys-shape-corner-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+}
+
+/* Shield popover */
+.shieldPopover {
+    position: absolute;
+    top: calc(100% + var(--md-sys-spacing-xs));
+    right: 0;
+    width: 280px;
+    background: var(--md-sys-color-inverse-surface);
+    color: var(--md-sys-color-inverse-on-surface);
+    border-radius: var(--md-sys-shape-corner-medium);
+    padding: var(--md-sys-spacing-md);
+    box-shadow: var(--md-sys-elevation-level3);
+    z-index: 40;
+    font: var(--md-sys-typescale-body-small);
+    display: flex;
+    flex-direction: column;
+    gap: var(--md-sys-spacing-sm);
+}
+
+.shieldPopoverTitle {
+    font: var(--md-sys-typescale-label-medium);
+    opacity: 0.8;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.shieldPopoverList {
+    margin: 0;
+    padding-left: var(--md-sys-spacing-md);
+    display: flex;
+    flex-direction: column;
+    gap: var(--md-sys-spacing-2xs);
+}
+
+/* Month-close modal-specific */
+.monthCloseSummary {
+    display: flex;
+    flex-direction: column;
+    gap: var(--md-sys-spacing-sm);
+    padding: var(--md-sys-spacing-md);
+    background: var(--md-sys-color-surface-container);
+    border-radius: var(--md-sys-shape-corner-large);
+    font-variant-numeric: tabular-nums;
+}
+
+.monthCloseRow {
+    display: flex;
+    justify-content: space-between;
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.monthCloseNotice {
+    font: var(--md-sys-typescale-body-small);
+    color: var(--md-sys-color-on-surface-variant);
+    padding: var(--md-sys-spacing-sm) 0;
+}
+
+/* Mobile tuning */
+@media (max-width: 480px) {
+    .companyProfit {
+        font: var(--md-sys-typescale-headline-small);
+    }
+    .companyBreakdown {
+        flex-wrap: wrap;
+        gap: var(--md-sys-spacing-xs);
+    }
+}

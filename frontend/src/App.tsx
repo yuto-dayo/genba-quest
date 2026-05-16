@@ -33,6 +33,7 @@ import { Communications } from "./pages/Communications";
 import { Calendar } from "./pages/Calendar";
 import PathRewardConfirmationPage from "./pages/PathRewardConfirmation";
 import { Money } from "./pages/Money";
+import MoneyMock from "./pages/MoneyMock";
 import { Settings } from "./pages/Settings";
 import { Sites } from "./pages/Sites";
 import { Today } from "./pages/Today";
@@ -1366,9 +1367,18 @@ function OrgSelectionGate({
 function App() {
   return (
     <BrowserRouter>
-      <DevPreviewRoute>
-        <AppContent />
-      </DevPreviewRoute>
+      <Routes>
+        {/* Dev-only Money redesign mock — bypasses auth shell. Remove with PR cleanup. */}
+        <Route path="/money-mock" element={<MoneyMock />} />
+        <Route
+          path="*"
+          element={
+            <DevPreviewRoute>
+              <AppContent />
+            </DevPreviewRoute>
+          }
+        />
+      </Routes>
     </BrowserRouter>
   );
 }
@@ -2232,6 +2242,7 @@ function AppContent() {
                 <Route path="/calendar" element={<Calendar />} />
                 <Route path="/sites" element={<Sites />} />
                 <Route path="/money" element={<Money />} />
+                <Route path="/money-mock" element={<MoneyMock />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/communications" element={<Communications />} />
                 <Route path="/path" element={<PathRewardConfirmationPage />} />
