@@ -63,6 +63,9 @@ function handleError(res: Response, err: unknown): void {
         MEMBER_INVOICE_MARK_PAID_APPROVER_MUST_BE_HUMAN: 403,
         MEMBER_INVOICE_MARK_PAID_APPROVER_MUST_BE_ADMIN: 403,
         MEMBER_INVOICE_MARK_PAID_INVOICE_MISSING: 400,
+        INVOICE_REVIEW_ASSIGNMENT_NOT_FOUND: 403,
+        INVOICE_REVIEW_ASSIGNMENT_EXPIRED: 403,
+        INVOICE_REVIEW_ASSIGNMENT_COMPLETED: 403,
         MEMBER_INVOICE_VOID_APPROVER_MUST_BE_HUMAN: 403,
         MEMBER_INVOICE_VOID_APPROVER_MUST_BE_OWNER: 403,
         MEMBER_INVOICE_VOID_CREATOR_MUST_BE_OWNER: 403,
@@ -76,6 +79,25 @@ function handleError(res: Response, err: unknown): void {
         console.error("[MEMBER_INVOICE] unhandled error:", err);
     }
     res.status(status).json({ error: code });
+}
+
+function buildPaymentSummary(invoice: Awaited<ReturnType<MemberInvoiceService["findById"]>>) {
+    if (!invoice) {
+        return null;
+    }
+    return {
+        id: invoice.id,
+        org_id: invoice.org_id,
+        invoice_no: invoice.invoice_no,
+        period_month: invoice.period_month,
+        amount_total: invoice.amount_total,
+        status: invoice.status,
+        source: invoice.source,
+        issued_at: invoice.issued_at,
+        paid_at: invoice.paid_at ?? null,
+        paid_proposal_id: invoice.paid_proposal_id ?? null,
+        paid_method: invoice.paid_method ?? null,
+    };
 }
 
 // ============================================================
@@ -325,7 +347,7 @@ router.post(
 
             res.status(201).json({
                 proposal: approved.proposal,
-                invoice: updated,
+                invoice: buildPaymentSummary(updated),
             });
         } catch (err) {
             handleError(res, err);

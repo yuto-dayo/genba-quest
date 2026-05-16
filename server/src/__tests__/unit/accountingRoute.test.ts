@@ -10,6 +10,13 @@ jest.mock("../../lib/supabaseClient", () => ({
   },
 }));
 
+jest.mock("../../lib/supabaseAdmin", () => ({
+  supabaseAdmin: {
+    from: jest.fn(),
+    rpc: jest.fn(),
+  },
+}));
+
 jest.mock("../../services/ocrService", () => ({
   analyzeDocument: jest.fn(),
   assessExpenseRisk: jest.fn(() => ({ level: "LOW" })),

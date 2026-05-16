@@ -26,6 +26,10 @@ import { LUQOService } from "./LUQOService";
 import { assignOnSubmit } from "./ProposalAssignmentService";
 import { ProfileViewConsentService, profileViewConsentService } from "./ProfileViewConsentService";
 import { MemberInvoiceService, memberInvoiceService } from "./MemberInvoiceService";
+import {
+  InvoiceReviewerAssignmentService,
+  invoiceReviewerAssignmentService,
+} from "./InvoiceReviewerAssignmentService";
 
 // ============================================================
 // Types
@@ -191,6 +195,7 @@ export class ProposalService {
   private pathV32SimpleRewardService: PathV32SimpleRewardService;
   private profileViewConsentService: ProfileViewConsentService;
   private memberInvoiceService: MemberInvoiceService;
+  private invoiceReviewerAssignmentService: InvoiceReviewerAssignmentService;
 
   constructor(orgId: string = '00000000-0000-0000-0000-000000000001') {
     this.orgId = orgId;
@@ -200,6 +205,7 @@ export class ProposalService {
     this.pathV32SimpleRewardService = new PathV32SimpleRewardService(orgId);
     this.profileViewConsentService = profileViewConsentService;
     this.memberInvoiceService = memberInvoiceService;
+    this.invoiceReviewerAssignmentService = invoiceReviewerAssignmentService;
     const fallbackMode = (process.env.PROPOSAL_RPC_FALLBACK_MODE || 'allow').toLowerCase();
     this.disableRpcFallback = ['disabled', 'deny', 'off'].includes(fallbackMode);
   }
@@ -437,7 +443,7 @@ export class ProposalService {
       }
     }
 
-    // Phase 2-2b: invoice.member_mark_paid は admin (= org の active admin) のみが承認できる。
+    // PR-09: invoice.member_mark_paid は、ランダム割当された経理担当だけが時限内に承認できる。
     // 発行者本人が自分の請求書を「払った」と記録できると振込なしに paid 化できてしまうため、
     // 発行者本人による mark_paid 承認は禁止する。AI 不可。
     if (proposal.type === 'invoice.member_mark_paid') {
@@ -450,19 +456,6 @@ export class ProposalService {
           : null;
       if (!invoiceId) {
         throw new Error('MEMBER_INVOICE_MARK_PAID_INVOICE_MISSING');
-      }
-      const { data: membership, error: memErr } = await supabaseAdmin
-        .from('org_memberships')
-        .select('role,status')
-        .eq('org_id', proposal.org_id)
-        .eq('user_id', approver.id)
-        .eq('status', 'active')
-        .maybeSingle();
-      if (memErr) {
-        throw memErr;
-      }
-      if (!membership || membership.role !== 'admin') {
-        throw new Error('MEMBER_INVOICE_MARK_PAID_APPROVER_MUST_BE_ADMIN');
       }
       const { data: invoiceRow, error: invErr } = await supabaseAdmin
         .from('member_invoices')
@@ -482,6 +475,11 @@ export class ProposalService {
       if (invoiceRow.status !== 'issued') {
         throw new Error('MEMBER_INVOICE_NOT_IN_ISSUED_STATE');
       }
+      await this.invoiceReviewerAssignmentService.assertActiveReviewer({
+        invoiceId,
+        orgId: proposal.org_id,
+        reviewerUserId: approver.id,
+      });
     }
 
     // Phase 2-2b: invoice.member_void は「発行者本人のみ」承認できる。
@@ -2101,7 +2099,10 @@ export class ProposalService {
     // payload.debit_account_code / credit_account_code / amount を見て自動で立てる。
     // routes/memberInvoices.ts の発行リクエスト側で当該フィールドを埋める。
     if (proposal.type === 'invoice.member_issue') {
-      await this.memberInvoiceService.issueFromExecutedProposal(proposal);
+      const result = await this.memberInvoiceService.issueFromExecutedProposal(proposal);
+      if (!result.alreadyExisted) {
+        await this.invoiceReviewerAssignmentService.assignFinanceReviewer(result.invoice.id);
+      }
     }
 
     // Phase 2-2b: invoice.member_mark_paid — member_invoices.status を paid に進める。

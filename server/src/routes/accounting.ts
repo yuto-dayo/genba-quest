@@ -9,6 +9,10 @@ import { getDriveStorageService } from "../services/DriveStorageService";
 import { ensureInvoicePdfStored, INVOICE_PDF_BUCKET } from "../services/InvoicePdfService";
 import { buildInvoiceDisplayLineItems } from "../services/InvoiceLineItemsService";
 import { assertActiveClientForOrg } from "../services/ClientDirectoryService";
+import { memberInvoiceService } from "../services/MemberInvoiceService";
+import { invoiceReviewerAssignmentService } from "../services/InvoiceReviewerAssignmentService";
+import { ProposalService } from "../services/ProposalService";
+import type { ActorRef } from "../services/PolicyEngine";
 import {
     AccountingCommandError,
     createAccountingCommandProposalLineage,
@@ -133,6 +137,65 @@ class AccountingRouteError extends Error {
         super(message);
         this.status = status;
     }
+}
+
+function isUuid(value: unknown): value is string {
+    return (
+        typeof value === "string" &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+    );
+}
+
+function buildHumanActor(req: AuthenticatedRequest): ActorRef {
+    return {
+        type: "human",
+        id: req.userId!,
+        name: req.userName || "Member",
+    };
+}
+
+function statusForInvoiceReviewError(message: string): number {
+    const normalized = message.includes(":") ? message.split(":")[0] : message;
+    const map: Record<string, number> = {
+        MEMBER_INVOICE_NOT_FOUND: 404,
+        MEMBER_INVOICE_NOT_IN_ISSUED_STATE: 409,
+        MEMBER_INVOICE_MARK_PAID_OWNER_CANNOT_SELF_APPROVE: 403,
+        MEMBER_INVOICE_MARK_PAID_APPROVER_MUST_BE_HUMAN: 403,
+        MEMBER_INVOICE_MARK_PAID_INVOICE_MISSING: 400,
+        INVOICE_REVIEW_ASSIGNMENT_NOT_FOUND: 403,
+        INVOICE_REVIEW_ASSIGNMENT_EXPIRED: 403,
+        INVOICE_REVIEW_ASSIGNMENT_COMPLETED: 403,
+    };
+    return map[normalized] ?? 500;
+}
+
+function sendInvoiceReviewError(res: Response, err: unknown): void {
+    const message = err instanceof Error ? err.message : "UNKNOWN_ERROR";
+    const code = message.includes(":") ? message.split(":")[0] : message;
+    const status = statusForInvoiceReviewError(message);
+    if (status === 500) {
+        console.error("[ACCOUNTING_INVOICE_REVIEW] unhandled error:", err);
+    }
+    res.status(status).json({ error: code });
+}
+
+function buildMemberInvoicePaymentSummary(invoice: Awaited<ReturnType<typeof memberInvoiceService.findById>>) {
+    if (!invoice) {
+        return null;
+    }
+    return {
+        id: invoice.id,
+        org_id: invoice.org_id,
+        invoice_no: invoice.invoice_no,
+        period_month: invoice.period_month,
+        amount_total: invoice.amount_total,
+        status: invoice.status,
+        source: invoice.source,
+        issued_at: invoice.issued_at,
+        paid_at: invoice.paid_at ?? null,
+        paid_proposal_id: invoice.paid_proposal_id ?? null,
+        paid_method: invoice.paid_method ?? null,
+    };
 }
 
 router.use(async (req: AuthenticatedRequest, res, next) => {
@@ -3322,6 +3385,101 @@ router.post("/invoices", async (req: AuthenticatedRequest, res: Response) => {
         }
         console.error("Invoice create error:", err);
         res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+router.get("/invoices/:id/payout-detail", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const orgId = req.orgId!;
+        const invoiceId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+        if (!isUuid(invoiceId)) {
+            throw new Error("MEMBER_INVOICE_NOT_FOUND");
+        }
+
+        const detail = await invoiceReviewerAssignmentService.getPayoutDetail({
+            invoiceId,
+            orgId,
+            reviewerUserId: req.userId!,
+        });
+
+        res.json(detail);
+    } catch (err) {
+        sendInvoiceReviewError(res, err);
+    }
+});
+
+router.post("/invoices/:id/mark-paid", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const orgId = req.orgId!;
+        const invoiceId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+        if (!isUuid(invoiceId)) {
+            throw new Error("MEMBER_INVOICE_NOT_FOUND");
+        }
+
+        await invoiceReviewerAssignmentService.assertActiveReviewer({
+            invoiceId,
+            orgId,
+            reviewerUserId: req.userId!,
+        });
+
+        const invoice = await memberInvoiceService.findById(invoiceId);
+        if (!invoice || invoice.org_id !== orgId) {
+            throw new Error("MEMBER_INVOICE_NOT_FOUND");
+        }
+        if (invoice.member_id === req.userId) {
+            throw new Error("MEMBER_INVOICE_MARK_PAID_OWNER_CANNOT_SELF_APPROVE");
+        }
+        if (invoice.status !== "issued") {
+            throw new Error("MEMBER_INVOICE_NOT_IN_ISSUED_STATE");
+        }
+
+        const body = (req.body && typeof req.body === "object" ? req.body : {}) as Record<
+            string,
+            unknown
+        >;
+        const paidAt = typeof body.paid_at === "string" ? body.paid_at : new Date().toISOString();
+        const memo = typeof body.memo === "string" && body.memo.trim()
+            ? body.memo.trim().slice(0, 500)
+            : null;
+
+        const proposalService = new ProposalService(orgId);
+        const actor = buildHumanActor(req);
+        const created = await proposalService.create({
+            type: "invoice.member_mark_paid",
+            payload: {
+                invoice_id: invoice.id,
+                invoice_no: invoice.invoice_no,
+                paid_at: paidAt,
+                paid_method: "bank_transfer",
+                memo,
+                amount: invoice.amount_total,
+                debit_account_code: "2110",
+                credit_account_code: "1100",
+                description: `${invoice.invoice_no} 支払い`,
+            },
+            description: `${invoice.invoice_no} を支払い済みに記録 (¥${Number(invoice.amount_total).toLocaleString()})`,
+            created_by: actor,
+            org_id: orgId,
+        });
+
+        await proposalService.submit(created.id, actor);
+        const approved = await proposalService.approve(created.id, actor);
+        const completedAssignment = await invoiceReviewerAssignmentService.markCompleted({
+            invoiceId,
+            orgId,
+            reviewerUserId: req.userId!,
+        });
+        const updated = await memberInvoiceService.findById(invoice.id);
+
+        res.status(201).json({
+            proposal: approved.proposal,
+            invoice: buildMemberInvoicePaymentSummary(updated),
+            assignment: completedAssignment,
+            self_member_id: req.userId!,
+            is_self: invoice.member_id === req.userId,
+        });
+    } catch (err) {
+        sendInvoiceReviewError(res, err);
     }
 });
 
