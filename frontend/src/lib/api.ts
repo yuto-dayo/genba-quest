@@ -138,6 +138,7 @@ export type ProposalType =
     | "invoice.create"
     | "invoice.send"
     | "invoice.mark_paid"
+    | "invoice.member_mark_paid"
     | "reward.calculate"
     | "reward.adjust"
     | "reward.pool.adjust"
@@ -1326,6 +1327,59 @@ export const fetchAdminActionableInvoices = (status: MemberInvoiceStatus = "issu
     api<{ invoices: AdminActionableInvoice[] }>(
         `/api/v1/org/invoices/admin-actionable?status=${encodeURIComponent(status)}`,
     );
+
+export interface InvoicePayoutDetail {
+    invoice_id: string;
+    invoice_no: string;
+    amount: number;
+    issued_at: string;
+    snapshot: {
+        bank_name: string | null;
+        branch_name: string | null;
+        account_type: string | null;
+        account_number: string | null;
+        account_holder: string | null;
+        real_name: string | null;
+        tax_id: string | null;
+    };
+    body_html: string;
+    line_items: unknown[];
+    expires_at: string;
+    self_member_id: string;
+    is_self: boolean;
+    is_reviewer: boolean;
+}
+
+export interface InvoiceReviewAssignment {
+    id: string;
+    invoice_id: string;
+    reviewer_user_id: string;
+    org_id: string;
+    assigned_at: string;
+    expires_at: string;
+    completed_at: string | null;
+    reassigned_from: string | null;
+}
+
+export const fetchInvoicePayoutDetail = (invoiceId: string) =>
+    api<InvoicePayoutDetail>(
+        `/api/v1/accounting/invoices/${encodeURIComponent(invoiceId)}/payout-detail`,
+    );
+
+export const markInvoicePaid = (
+    invoiceId: string,
+    input: { paid_at: string; memo?: string },
+) =>
+    api<{
+        proposal: ProposalRecord;
+        invoice: MemberInvoice | null;
+        assignment: InvoiceReviewAssignment;
+        self_member_id: string;
+        is_self: boolean;
+    }>(`/api/v1/accounting/invoices/${encodeURIComponent(invoiceId)}/mark-paid`, {
+        method: "POST",
+        body: JSON.stringify(input),
+    });
 
 export const markMemberInvoicePaid = (
     invoiceId: string,

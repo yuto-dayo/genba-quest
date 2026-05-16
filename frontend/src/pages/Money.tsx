@@ -32,6 +32,7 @@ import {
     rejectProposal,
     searchTransactions,
     batchReviewExpenses,
+    fetchNotifications,
     type PLReport,
     type AccountingTransaction,
     type ProposalRecord,
@@ -39,6 +40,7 @@ import {
     type PartnersSummary,
     type TeamRewardSummary,
     type MemberReimbursementsSummary,
+    type NotificationRecord,
 } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
 import { useActiveOrgStore } from "../stores/activeOrg";
@@ -70,6 +72,7 @@ import { TeamSummaryModal } from "../components/money/TeamSummaryModal";
 import { ExpenseDetailModal } from "../components/money/ExpenseDetailModal";
 import { TeamExpenseSummaryModal } from "../components/money/TeamExpenseSummaryModal";
 import { MonthCloseModal } from "../components/money/MonthCloseModal";
+import { InvoicePayModal } from "../components/money/InvoicePayModal";
 import styles from "./Money.module.css";
 
 // 日付フォーマットヘルパー (YYYY/MM/DD)
@@ -134,6 +137,11 @@ interface SalesCorrectionDraft {
     }>;
 }
 
+interface InvoicePayTarget {
+    invoiceId: string;
+    notificationId: string | null;
+}
+
 // 日付プリセットの計算
 const getDateRange = (preset: SearchFilters["datePreset"]): { from: string; to: string } => {
     const now = new Date();
@@ -180,6 +188,12 @@ const getRecentMonths = (endMonth: string, count: number) => {
         return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`;
     });
 };
+
+function isInvoicePayNotification(notification: NotificationRecord, invoiceId: string): boolean {
+    return notification.type === "approval_required"
+        && notification.data?.kind === "member_invoice_pay"
+        && notification.data?.invoice_id === invoiceId;
+}
 
 // モバイル判定
 const useIsMobile = () => {
@@ -309,6 +323,7 @@ export function Money() {
     const [showExpenseModal, setShowExpenseModal] = useState(false);
     const [showSalesModal, setShowSalesModal] = useState(false);
     const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+    const [invoicePayTarget, setInvoicePayTarget] = useState<InvoicePayTarget | null>(null);
     const [invoiceRefreshKey, setInvoiceRefreshKey] = useState(0);
     const [ownRewardModalOpen, setOwnRewardModalOpen] = useState(false);
     const [otherRewardMemberId, setOtherRewardMemberId] = useState<string | null>(null);
@@ -444,6 +459,42 @@ export function Money() {
             setSelectedProposal(matchedProposal);
         }
     }, [pendingProposals, searchParams]);
+
+    const clearInvoicePaySearchParams = useCallback(() => {
+        const next = new URLSearchParams(searchParams);
+        next.delete("modal");
+        next.delete("invoice_id");
+        setSearchParams(next, { replace: true });
+    }, [searchParams, setSearchParams]);
+
+    useEffect(() => {
+        const modal = searchParams.get("modal");
+        const invoiceId = searchParams.get("invoice_id");
+        if (modal !== "invoice_pay" || !invoiceId) {
+            setInvoicePayTarget(null);
+            return;
+        }
+
+        let cancelled = false;
+        (async () => {
+            let notificationId: string | null = null;
+            try {
+                const notifications = await fetchNotifications({ unread_only: true, limit: 50 });
+                notificationId = notifications.find((notification) => (
+                    isInvoicePayNotification(notification, invoiceId)
+                ))?.id ?? null;
+            } catch (err) {
+                console.warn("[Money] failed to locate invoice pay notification:", err);
+            }
+            if (!cancelled) {
+                setInvoicePayTarget({ invoiceId, notificationId });
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [searchParams]);
 
     // ベル経由で来た「経費承認」リクエストを ApprovalsModal で開く
     useEffect(() => {
@@ -1511,6 +1562,22 @@ export function Money() {
                         approvals={pendingApprovals}
                         onClose={() => setShowApprovalsModal(false)}
                         onComplete={handleApprovalComplete}
+                    />
+                )}
+                {invoicePayTarget && (
+                    <InvoicePayModal
+                        invoiceId={invoicePayTarget.invoiceId}
+                        notificationId={invoicePayTarget.notificationId}
+                        onClose={() => {
+                            setInvoicePayTarget(null);
+                            clearInvoicePaySearchParams();
+                        }}
+                        onCompleted={() => {
+                            setProposalNotice("支払い済みにしました");
+                            setInvoiceRefreshKey((prev) => prev + 1);
+                            window.dispatchEvent(new CustomEvent("invoice-pay-notification-updated"));
+                            void loadData({ keepCurrentView: true, suppressPageError: true });
+                        }}
                     />
                 )}
                 {selectedTransaction && (

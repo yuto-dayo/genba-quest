@@ -238,6 +238,11 @@ function isMonthCloseReminderNotification(notification: NotificationRecord): boo
   return notification.type === "month_close_reminder" && Boolean(getNotificationDataString(notification, "month"));
 }
 
+function isInvoicePayNotification(notification: NotificationRecord): boolean {
+  return notification.type === "approval_required"
+    && getNotificationDataString(notification, "kind") === "member_invoice_pay"
+    && Boolean(getNotificationDataString(notification, "invoice_id"));
+}
 
 function formatInviteError(code: string): string {
   if (code === "ORG_INVITE_NOT_FOUND") {
@@ -1443,6 +1448,7 @@ function AppContent() {
   const navigate = useNavigate();
   const [siteLevelDraftNotifications, setSiteLevelDraftNotifications] = useState<NotificationRecord[]>([]);
   const [monthCloseNotifications, setMonthCloseNotifications] = useState<NotificationRecord[]>([]);
+  const [invoicePayNotifications, setInvoicePayNotifications] = useState<NotificationRecord[]>([]);
   const [pendingApprovals, setPendingApprovals] = useState<AccountingTransaction[]>([]);
   const [pendingProposals, setPendingProposals] = useState<ProposalRecord[]>([]);
   const [inboxOpen, setInboxOpen] = useState(false);
@@ -1680,6 +1686,7 @@ function AppContent() {
   const loadSiteLevelDraftNotifications = useCallback(async (): Promise<NotificationRecord[]> => {
     if (!appReady || !activeOrgId) {
       setSiteLevelDraftNotifications([]);
+      setInvoicePayNotifications([]);
       return [];
     }
 
@@ -1687,13 +1694,16 @@ function AppContent() {
       const notifications = await fetchNotifications({ unread_only: true, limit: 50 });
       const siteDraftNotifications = notifications.filter(isSiteLevelDraftNotification);
       const monthCloseReminderNotifications = notifications.filter(isMonthCloseReminderNotification);
+      const invoicePayItems = notifications.filter(isInvoicePayNotification);
       setSiteLevelDraftNotifications(siteDraftNotifications);
       setMonthCloseNotifications(monthCloseReminderNotifications);
+      setInvoicePayNotifications(invoicePayItems);
       return siteDraftNotifications;
     } catch (error) {
       console.error("Failed to load site level draft notifications:", error);
       setSiteLevelDraftNotifications([]);
       setMonthCloseNotifications([]);
+      setInvoicePayNotifications([]);
       return [];
     }
   }, [activeOrgId, appReady]);
@@ -1766,8 +1776,10 @@ function AppContent() {
 
   useEffect(() => {
     window.addEventListener("site-level-draft-updated", loadSiteLevelDraftNotifications);
+    window.addEventListener("invoice-pay-notification-updated", loadSiteLevelDraftNotifications);
     return () => {
       window.removeEventListener("site-level-draft-updated", loadSiteLevelDraftNotifications);
+      window.removeEventListener("invoice-pay-notification-updated", loadSiteLevelDraftNotifications);
     };
   }, [loadSiteLevelDraftNotifications]);
 
@@ -1793,9 +1805,10 @@ function AppContent() {
 
   const siteLevelDraftCount = siteLevelDraftNotifications.length;
   const monthCloseCount = monthCloseNotifications.length;
+  const invoicePayCount = invoicePayNotifications.length;
   const pendingApprovalsCount = pendingApprovals.length;
   const pendingProposalsCount = pendingProposals.length;
-  const totalPendingCount = siteLevelDraftCount + monthCloseCount + pendingApprovalsCount + pendingProposalsCount;
+  const totalPendingCount = siteLevelDraftCount + monthCloseCount + invoicePayCount + pendingApprovalsCount + pendingProposalsCount;
   const bellEnabled = appReady && Boolean(activeOrgId) && totalPendingCount > 0;
   const bellNeedsAttention = totalPendingCount > 0;
   const bellBadgeLabel = totalPendingCount > 0 ? String(totalPendingCount) : null;
@@ -1808,7 +1821,12 @@ function AppContent() {
     if (!activeOrgId) {
       return;
     }
-    if (pendingApprovals.length > 0 || pendingProposals.length > 0 || monthCloseNotifications.length > 0) {
+    if (
+      pendingApprovals.length > 0
+      || pendingProposals.length > 0
+      || monthCloseNotifications.length > 0
+      || invoicePayNotifications.length > 0
+    ) {
       setBellDrawerOpen(true);
     } else if (siteLevelDraftNotifications.length > 0) {
       setInboxOpen(true);
@@ -1817,6 +1835,7 @@ function AppContent() {
     }
   }, [
     activeOrgId,
+    invoicePayNotifications.length,
     monthCloseNotifications.length,
     pendingApprovals.length,
     pendingProposals.length,
@@ -1832,6 +1851,16 @@ function AppContent() {
     (proposal: ProposalRecord) => {
       setBellDrawerOpen(false);
       navigate(`/money?proposal=${proposal.id}`);
+    },
+    [navigate],
+  );
+
+  const handleBellOpenInvoicePay = useCallback(
+    (notification: NotificationRecord) => {
+      const invoiceId = getNotificationDataString(notification, "invoice_id");
+      if (!invoiceId) return;
+      setBellDrawerOpen(false);
+      navigate(`/money?modal=invoice_pay&invoice_id=${encodeURIComponent(invoiceId)}`);
     },
     [navigate],
   );
@@ -2289,8 +2318,10 @@ function AppContent() {
             selfApprovals={pendingApprovals}
             consensusPending={pendingProposals}
             notifications={monthCloseNotifications}
+            invoicePayNotifications={invoicePayNotifications}
             onSelfApprovalComplete={handleBellApprovalComplete}
             onOpenProposal={handleBellOpenProposal}
+            onOpenInvoicePay={handleBellOpenInvoicePay}
           />
           <LevelDraftSheet
             open={activeLevelDraftTarget !== null}
