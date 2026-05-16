@@ -5,13 +5,13 @@
 
 ## Acceptance criteria
 
-- [ ] 他人カードタップで `<OtherRewardModal memberId>` が開く
-- [ ] そのメンバーの報酬額・レベル・出勤日数・計算根拠 を表示
-- [ ] 異議申立期間中(月末+3〜+7日)のみ `[異議を申し立てる]` ボタン表示
-- [ ] ボタン押下で既存 `ObjectionSubmitSheet` を inline 起動
-- [ ] 請求書状態は表示しない(本人プライバシー)
-- [ ] 「全員を見る」カードタップ時は `<TeamSummaryModal>` を開く(同モーダルの一覧バリアント、簡易リスト表示)
-- [ ] tsc/lint/test グリーン
+- [x] 他人カードタップで `<OtherRewardModal memberId>` が開く
+- [x] そのメンバーの報酬額・レベル・出勤日数・計算根拠 を表示
+- [x] 異議申立期間中(月末+3〜+7日)のみ `[異議を申し立てる]` ボタン表示
+- [x] ボタン押下で既存 `ObjectionSubmitSheet` を inline 起動
+- [x] 請求書状態は表示しない(本人プライバシー)
+- [x] 「全員を見る」カードタップ時は `<TeamSummaryModal>` を開く(同モーダルの一覧バリアント、簡易リスト表示)
+- [x] tsc/lint/test グリーン
 
 ## Files
 

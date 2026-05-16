@@ -174,7 +174,11 @@ export default function MoneyMock() {
         <OwnRewardModal monthState={monthState} onClose={closeModal} />
       )}
       {modal?.kind === "otherReward" && (
-        <OtherRewardModal memberId={modal.memberId} onClose={closeModal} />
+        <OtherRewardModal
+          memberId={modal.memberId}
+          isObjectionWindow={monthState === "after"}
+          onClose={closeModal}
+        />
       )}
       {modal?.kind === "monthClose" && <MonthCloseModal onClose={closeModal} />}
       {modal?.kind === "fabSheet" && <FabSheet onClose={closeModal} />}
@@ -739,9 +743,11 @@ function OwnRewardModal({
 
 function OtherRewardModal({
   memberId,
+  isObjectionWindow,
   onClose,
 }: {
   memberId: string;
+  isObjectionWindow: boolean;
   onClose: () => void;
 }) {
   const member = MOCK_REWARDS.find((r) => r.id === memberId);
@@ -770,7 +776,9 @@ function OtherRewardModal({
       actions={
         <>
           <button className={styles.btnSecondary} onClick={onClose}>閉じる</button>
-          <button className={styles.btnSecondary}>異議を申し立てる</button>
+          {isObjectionWindow && (
+            <button className={styles.btnSecondary}>異議を申し立てる</button>
+          )}
         </>
       }
     >
