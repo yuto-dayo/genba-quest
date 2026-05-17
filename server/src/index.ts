@@ -28,6 +28,7 @@ import calendarRouter from "./routes/calendar";
 import devPreviewRouter from "./routes/devPreview";
 import profileViewConsentRouter from "./routes/profileViewConsent";
 import memberInvoicesRouter from "./routes/memberInvoices";
+import documentsRouter from "./routes/documents";
 import membersRouter from "./routes/members";
 import { assertDevAuthRemoteSafety } from "./config/devAuthUsers";
 import { requireCronAuth } from "./middleware/cronAuth";
@@ -140,6 +141,7 @@ app.use("/api/v1/calendar", calendarRouter);
 app.use("/api/v1/members", membersRouter);
 app.use("/api/v1", profileViewConsentRouter);
 app.use("/api/v1", memberInvoicesRouter);
+app.use("/api/v1/documents", documentsRouter);
 
 app.listen(PORT, "0.0.0.0", () => {
     console.log(`🏗️ GENBA QUEST server listening on http://0.0.0.0:${PORT}`);

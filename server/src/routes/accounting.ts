@@ -11,6 +11,7 @@ import { buildInvoiceDisplayLineItems } from "../services/InvoiceLineItemsServic
 import { assertActiveClientForOrg } from "../services/ClientDirectoryService";
 import { memberInvoiceService } from "../services/MemberInvoiceService";
 import { invoiceReviewerAssignmentService } from "../services/InvoiceReviewerAssignmentService";
+import { electronicDocumentService } from "../services/ElectronicDocumentService";
 import { ProposalService } from "../services/ProposalService";
 import type { ActorRef } from "../services/PolicyEngine";
 import { TaxAccountMappingService, type TaxAccountCategory } from "../services/TaxAccountMappingService";
@@ -265,6 +266,38 @@ function parseAsOfDate(value: unknown): Date | null {
     }
     const date = new Date(`${value}T00:00:00.000Z`);
     return Number.isNaN(date.getTime()) ? null : date;
+}
+
+async function registerElectronicDocumentForExpense(input: {
+    orgId: string;
+    userId: string;
+    sourceDocumentId: unknown;
+    transactionId: string;
+    transactionDate: string;
+    vendorName: unknown;
+    amountTotal: number;
+    expenseScope: string;
+    siteId: string | null;
+}): Promise<void> {
+    if (typeof input.sourceDocumentId !== "string" || !input.sourceDocumentId) {
+        return;
+    }
+
+    await electronicDocumentService.registerFromStoredDocument({
+        orgId: input.orgId,
+        sourceDocumentId: input.sourceDocumentId,
+        kind: "receipt",
+        transactionDate: input.transactionDate,
+        counterpartyName: normalizeText(input.vendorName) || "取引先未設定",
+        amount: input.amountTotal,
+        registeredBy: input.userId,
+        sourceTransactionId: input.transactionId,
+        metadata: {
+            source: "accounting.expenses.create",
+            expense_scope: input.expenseScope,
+            site_id: input.siteId,
+        },
+    });
 }
 
 function isOrgScopedStoragePath(orgId: string, storagePath: string | null | undefined): storagePath is string {
@@ -2014,6 +2047,18 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
                     },
                 });
 
+                await registerElectronicDocumentForExpense({
+                    orgId,
+                    userId: req.userId!,
+                    sourceDocumentId: source_document_id,
+                    transactionId: String((canonicalData as Record<string, unknown>).id),
+                    transactionDate: String((canonicalData as Record<string, unknown>).recorded_date || recorded_date || new Date().toISOString().split("T")[0]),
+                    vendorName: vendor_name,
+                    amountTotal: resolvedTotal,
+                    expenseScope: normalizedExpenseScope,
+                    siteId: typeof resolvedSiteId === "string" ? resolvedSiteId : null,
+                });
+
                 await completeAccountingWriteIdempotency(idempotency, 201, responseBody);
                 res.status(201).json(responseBody);
                 return;
@@ -2156,6 +2201,18 @@ router.post("/expenses", async (req: AuthenticatedRequest, res: Response) => {
                 paid_by: normalizedPaidBy,
                 requires_review: requiresReview,
             },
+        });
+
+        await registerElectronicDocumentForExpense({
+            orgId,
+            userId: req.userId!,
+            sourceDocumentId: source_document_id,
+            transactionId: String(data.id),
+            transactionDate: String(data.recorded_date),
+            vendorName: vendor_name,
+            amountTotal: resolvedTotal,
+            expenseScope: normalizedExpenseScope,
+            siteId: typeof resolvedSiteId === "string" ? resolvedSiteId : null,
         });
 
         await completeAccountingWriteIdempotency(idempotency, 201, responseBody);
