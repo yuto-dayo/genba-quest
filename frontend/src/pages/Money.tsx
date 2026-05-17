@@ -1221,24 +1221,6 @@ export function Money() {
                 />
             )}
 
-            {/* クイックアクション */}
-            {!isMobile && (
-                <section className={styles.quickActions}>
-                    <button className={styles.actionBtn} onClick={() => openExpenseModal()}>
-                        <Receipt size={20} />
-                        <span>経費を記録</span>
-                    </button>
-                    <button className={styles.actionBtn} onClick={() => openSalesModal()}>
-                        <TrendingUp size={20} />
-                        <span>売上を記録</span>
-                    </button>
-                    <button className={styles.actionBtn} onClick={openInvoiceModal}>
-                        <FileText size={20} />
-                        <span>請求書を作る</span>
-                    </button>
-                </section>
-            )}
-
             <div className={styles.workspaceGrid}>
                 <div className={styles.primaryColumn}>
                     {/* タブ + フィルタトリガ (PR #5, v3.3 mock 準拠) */}
@@ -1733,6 +1715,7 @@ export function Money() {
                     initialCostCenter={expenseDraft?.costCenter}
                     initialExpenseItemCode={expenseDraft?.expenseItemCode}
                     initialExpenseItemOther={expenseDraft?.expenseItemOther}
+                    defaultClaimantMemberId={reimbursementsSummary?.self_member_id ?? null}
                 />
                 {showSalesModal && (
                     <SalesModal
@@ -1828,19 +1811,17 @@ export function Money() {
                 matchedCount={filteredTransactions.length}
             />
 
-            {isMobile && (
-                <FloatingActionButton
-                    behavior="draggable"
-                    hideOnDesktop
-                    openLabel="お金の登録メニューを開く"
-                    closeLabel="お金の登録メニューを閉じる"
-                    items={[
-                        { id: "expense", label: "経費を記録", icon: <Receipt size={18} />, onClick: openExpenseModal },
-                        { id: "sale", label: "売上を記録", icon: <TrendingUp size={18} />, onClick: openSalesModal },
-                        { id: "invoice", label: "請求書を作る", icon: <FileText size={18} />, onClick: openInvoiceModal },
-                    ]}
-                />
-            )}
+            <FloatingActionButton
+                behavior="draggable"
+                buttonLabel="追加"
+                openLabel="お金の登録メニューを開く"
+                closeLabel="お金の登録メニューを閉じる"
+                items={[
+                    { id: "expense", label: "経費・立替を記録", icon: <Receipt size={18} />, onClick: openExpenseModal },
+                    { id: "sale", label: "売上を記録", icon: <TrendingUp size={18} />, onClick: openSalesModal },
+                    { id: "invoice", label: "請求書を発行", icon: <FileText size={18} />, onClick: openInvoiceModal },
+                ]}
+            />
         </div>
     );
 }

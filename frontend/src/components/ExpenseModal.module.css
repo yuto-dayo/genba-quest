@@ -292,6 +292,67 @@
     line-height: 1.5;
 }
 
+.fieldError {
+    font: var(--md-sys-typescale-body-small);
+    color: var(--md-sys-color-error);
+    line-height: 1.5;
+}
+
+.segmentedControl {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--md-sys-spacing-xs);
+    padding: var(--md-sys-spacing-xs);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-full);
+    background: var(--md-sys-color-surface-container);
+}
+
+.segmentButton {
+    min-height: var(--md-sys-tap-target-min);
+    border: none;
+    border-radius: var(--md-sys-shape-corner-full);
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-large);
+    cursor: pointer;
+    transition:
+        background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        color var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        box-shadow var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.segmentButton:hover {
+    background: var(--md-sys-color-surface-container-high);
+}
+
+.segmentButton:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--md-sys-color-primary) 24%, white);
+    outline-offset: 2px;
+}
+
+.segmentButtonActive {
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+    box-shadow: var(--md-sys-elevation-level1);
+}
+
+.reimbursementFields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-medium);
+    background: var(--md-sys-color-surface-container-low);
+}
+
+@media (max-width: 768px) {
+    .reimbursementFields {
+        grid-template-columns: 1fr;
+    }
+}
+
 .radioGroup {
     display: flex;
     gap: var(--md-sys-spacing-md);

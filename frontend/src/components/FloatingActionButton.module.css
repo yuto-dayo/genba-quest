@@ -43,6 +43,22 @@
     cursor: not-allowed;
 }
 
+.fabLabeled {
+    width: auto;
+    min-width: 92px;
+    border-radius: var(--md-sys-shape-corner-full);
+}
+
+.fabContent {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--md-sys-spacing-xs);
+    padding-inline: var(--md-sys-spacing-md);
+    font: var(--md-sys-typescale-label-large);
+    white-space: nowrap;
+}
+
 .mobileFabDock {
     position: fixed;
     inset: auto;
@@ -99,6 +115,11 @@
     width: 22px;
     height: 22px;
     flex: 0 0 auto;
+}
+
+.mobileFabLabel {
+    font: var(--md-sys-typescale-label-large);
+    line-height: 1;
 }
 
 .mobileFab:active {

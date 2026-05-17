@@ -15,11 +15,13 @@ import {
     uploadDocument,
     analyzeDocumentOcr,
     createExpense,
+    fetchMembers,
     fetchTransactions,
     fetchSites,
     type AccountingDocument,
     type OcrFields,
     type AccountingTransaction,
+    type Member,
     type Site,
 } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
@@ -44,6 +46,8 @@ interface ExpenseModalProps {
     initialCostCenter?: "HQ" | "SITE";
     initialExpenseItemCode?: string;
     initialExpenseItemOther?: string;
+    defaultPaidBy?: "org" | "member";
+    defaultClaimantMemberId?: string | null;
 }
 
 type Step = "upload" | "ocr" | "form";
@@ -106,6 +110,8 @@ export function ExpenseModal({
     initialCostCenter = "SITE",
     initialExpenseItemCode = "",
     initialExpenseItemOther = "",
+    defaultPaidBy = "org",
+    defaultClaimantMemberId = null,
 }: ExpenseModalProps) {
     const hasPrefilledForm = Boolean(
         initialVendorName
@@ -142,6 +148,9 @@ export function ExpenseModal({
         site_id: initialSiteId,
         invoice_number: "",
         payment_method: "cash" as "cash" | "card" | "transfer" | "other",
+        paid_by: defaultPaidBy,
+        claimant_member_id: defaultClaimantMemberId || "",
+        payment_account: "" as "" | "cash" | "bank",
         // F-3: 紐付け先 4値. 既存 cost_center から初期値を導出する.
         expense_scope: (initialCostCenter === "HQ" ? "overhead" : "job") as
             | "job"
@@ -158,6 +167,7 @@ export function ExpenseModal({
 
     // 現場リスト
     const [sites, setSites] = useState<Site[]>([]);
+    const [members, setMembers] = useState<Member[]>([]);
 
     // 初期データ取得
     useEffect(() => {
@@ -174,7 +184,36 @@ export function ExpenseModal({
             .catch((err) => {
                 console.warn("Failed to fetch sites:", err);
             });
+
+        fetchMembers()
+            .then(setMembers)
+            .catch((err) => {
+                console.warn("Failed to fetch members:", err);
+            });
     }, []);
+
+    const activeMembers = useMemo(
+        () => members.filter((member) => !member.status || member.status === "active"),
+        [members]
+    );
+
+    useEffect(() => {
+        if (formData.claimant_member_id || activeMembers.length === 0) {
+            return;
+        }
+
+        const fallbackMemberId = defaultClaimantMemberId
+            && activeMembers.some((member) => member.id === defaultClaimantMemberId)
+            ? defaultClaimantMemberId
+            : activeMembers[0]?.id;
+
+        if (fallbackMemberId) {
+            setFormData((prev) => ({
+                ...prev,
+                claimant_member_id: prev.claimant_member_id || fallbackMemberId,
+            }));
+        }
+    }, [activeMembers, defaultClaimantMemberId, formData.claimant_member_id]);
 
     // 重複検知
     useEffect(() => {
@@ -407,6 +446,10 @@ export function ExpenseModal({
 
     const scopeRequiresSite =
         formData.expense_scope === "job" || formData.expense_scope === "job_advance";
+    const selectedClaimant = members.find((member) => member.id === formData.claimant_member_id);
+    const claimantIsOrgMember =
+        formData.paid_by !== "member"
+        || Boolean(selectedClaimant && (!selectedClaimant.status || selectedClaimant.status === "active"));
 
     // フィールドホバー
     const handleFieldHover = useCallback((field: string | null) => {
@@ -433,6 +476,11 @@ export function ExpenseModal({
             return;
         }
 
+        if (formData.paid_by === "member" && !claimantIsOrgMember) {
+            setError("立替した人を選んでください");
+            return;
+        }
+
         setLoading(true);
         setError(null);
 
@@ -456,6 +504,11 @@ export function ExpenseModal({
                 cost_center: formData.cost_center,
                 site_id: scopeRequiresSite ? formData.site_id : undefined,
                 expense_scope: formData.expense_scope,
+                paid_by: formData.paid_by,
+                claimant_member_id: formData.paid_by === "member" ? formData.claimant_member_id : undefined,
+                settlement_type: formData.paid_by === "member" ? "unpaid" : "paid",
+                payment_account: formData.paid_by === "member" ? formData.payment_account || null : undefined,
+                reimbursement_status: formData.paid_by === "member" ? "unsubmitted" : undefined,
                 source_document_id: document?.id,
                 input_sources: inputSources,
             });
@@ -584,6 +637,73 @@ export function ExpenseModal({
 
                     {/* 右側: フォーム */}
                     <form className={styles.form} onSubmit={handleSubmit}>
+                        <div className={styles.formGroup}>
+                            <label className={styles.label}>誰が払った？</label>
+                            <div className={styles.segmentedControl} role="group" aria-label="誰が払った？">
+                                <button
+                                    type="button"
+                                    className={`${styles.segmentButton} ${formData.paid_by === "org" ? styles.segmentButtonActive : ""}`}
+                                    onClick={() => handleInputChange("paid_by", "org")}
+                                    aria-pressed={formData.paid_by === "org"}
+                                >
+                                    会社
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`${styles.segmentButton} ${formData.paid_by === "member" ? styles.segmentButtonActive : ""}`}
+                                    onClick={() => handleInputChange("paid_by", "member")}
+                                    aria-pressed={formData.paid_by === "member"}
+                                >
+                                    立替
+                                </button>
+                            </div>
+                        </div>
+
+                        {formData.paid_by === "member" && (
+                            <div className={styles.reimbursementFields}>
+                                <div className={styles.formGroup}>
+                                    <label className={styles.label}>立替した人</label>
+                                    <select
+                                        className={styles.select}
+                                        value={formData.claimant_member_id}
+                                        onChange={(e) => handleInputChange("claimant_member_id", e.target.value)}
+                                        disabled={activeMembers.length === 0}
+                                        required
+                                    >
+                                        <option value="">メンバーを選択</option>
+                                        {members.map((member) => {
+                                            const disabled = Boolean(member.status && member.status !== "active");
+                                            const label = member.display_name || member.full_name || member.username || "名前未設定";
+                                            return (
+                                                <option key={member.id} value={member.id} disabled={disabled}>
+                                                    {label}
+                                                    {disabled ? "（無効）" : ""}
+                                                </option>
+                                            );
+                                        })}
+                                    </select>
+                                    {!claimantIsOrgMember && (
+                                        <span className={styles.fieldError}>
+                                            有効な組織メンバーを選んでください。
+                                        </span>
+                                    )}
+                                </div>
+
+                                <div className={styles.formGroup}>
+                                    <label className={styles.label}>精算口座（任意）</label>
+                                    <select
+                                        className={styles.select}
+                                        value={formData.payment_account}
+                                        onChange={(e) => handleInputChange("payment_account", e.target.value)}
+                                    >
+                                        <option value="">未指定</option>
+                                        <option value="cash">現金</option>
+                                        <option value="bank">銀行</option>
+                                    </select>
+                                </div>
+                            </div>
+                        )}
+
                         <div className={styles.formGroup}>
                             <label className={styles.label}>
                                 取引先名
@@ -906,7 +1026,7 @@ export function ExpenseModal({
                             <button
                                 type="submit"
                                 className={styles.submitButton}
-                                disabled={loading}
+                                disabled={loading || !claimantIsOrgMember}
                             >
                                 {loading ? (
                                     <Loader2 size={20} className={styles.spinner} />
