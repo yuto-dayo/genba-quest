@@ -266,6 +266,7 @@
 }
 
 .field input,
+.field select,
 .field textarea {
     min-height: 48px;
     padding: 12px 14px;
@@ -276,8 +277,50 @@
     font: var(--md-sys-typescale-body-medium);
 }
 
+.field select {
+    appearance: none;
+}
+
 .field textarea {
     resize: vertical;
+}
+
+.sectionBlock {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 18px;
+    background: var(--md-sys-color-surface-container-low);
+}
+
+.sectionHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-large);
+    font-weight: 800;
+}
+
+.textLink {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 32px;
+    color: var(--md-sys-color-primary);
+    font: var(--md-sys-typescale-label-medium);
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.helperText {
+    margin: 0;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+    line-height: 1.5;
 }
 
 .modalActions {
@@ -323,6 +366,7 @@
 .iconButton:focus-visible,
 .tab:focus-visible,
 .tabActive:focus-visible,
+.textLink:focus-visible,
 .primaryButton:focus-visible,
 .secondaryButton:focus-visible {
     outline: 3px solid color-mix(in srgb, var(--md-sys-color-primary) 62%, transparent);
@@ -353,4 +397,3 @@
         flex-direction: column-reverse;
     }
 }
-

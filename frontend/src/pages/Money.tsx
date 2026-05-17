@@ -28,6 +28,7 @@ import {
     fetchPendingApprovals,
     fetchClients,
     fetchInvoices,
+    fetchMonthlyDeductible,
     fetchPartnersSummary,
     instructProposal,
     rejectProposal,
@@ -42,6 +43,7 @@ import {
     type PartnersSummary,
     type TeamRewardSummary,
     type MemberReimbursementsSummary,
+    type MonthlyDeductibleAmount,
     type NotificationRecord,
 } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
@@ -303,6 +305,7 @@ export function Money() {
     });
 
     const [pl, setPL] = useState<PLReport | null>(null);
+    const [monthlyDeductible, setMonthlyDeductible] = useState<MonthlyDeductibleAmount | null>(null);
     const [teamRewardSummary, setTeamRewardSummary] = useState<TeamRewardSummary | null>(null);
     const [reimbursementsSummary, setReimbursementsSummary] = useState<MemberReimbursementsSummary | null>(null);
     const [moneyHeroLoading, setMoneyHeroLoading] = useState(false);
@@ -530,6 +533,27 @@ export function Money() {
     useEffect(() => {
         loadData();
     }, [loadData]);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        fetchMonthlyDeductible(selectedMonth)
+            .then((result) => {
+                if (!cancelled) {
+                    setMonthlyDeductible(result);
+                }
+            })
+            .catch((err: unknown) => {
+                console.warn("[Money] monthly deductible load failed:", err);
+                if (!cancelled) {
+                    setMonthlyDeductible(null);
+                }
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [selectedMonth]);
 
     useEffect(() => {
         let cancelled = false;
@@ -1159,6 +1183,7 @@ export function Money() {
                                     sparkline={companyTrend.length > 0 ? companyTrend : [pl.profit]}
                                     overdueCount={0}
                                     pendingCount={pendingProposals.length}
+                                    monthlyDeductible={monthlyDeductible}
                                     onOverdueTap={() => console.log("open overdue-filter")}
                                     onPendingTap={() => console.log("open pending-invoice-filter")}
                                 />

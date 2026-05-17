@@ -72,6 +72,8 @@ describe("MemberTaxClassificationService", () => {
       member_id: memberId,
       contract_type: "subcontract",
       classification_check_status: "verified",
+      invoice_registration_status: "unknown",
+      invoice_registration_number: null,
       proposal_id: proposalId,
     }));
   });
@@ -96,5 +98,32 @@ describe("MemberTaxClassificationService", () => {
       created_at: "2026-05-20T00:00:00Z",
       updated_at: "2026-05-20T00:00:00Z",
     })).toThrow("MEMBER_CLASSIFICATION_CHECK_RESULTS_INVALID");
+  });
+
+  it("buildClassificationPayloadFromProposal carries invoice registration fields", () => {
+    const payload = buildClassificationPayloadFromProposal({
+      id: proposalId,
+      org_id: TEST_ORG_ID,
+      type: "member.classification.update",
+      status: "approved",
+      created_by: actors.human,
+      payload: {
+        member_id: memberId,
+        contract_type: "subcontract",
+        tax_withholding_category: "none",
+        classification_check_results: checks,
+        invoice_registration_status: "registered",
+        invoice_registration_number: "t1234567890123",
+        effective_from: "2026-05-20",
+      },
+      description: "契約区分を更新",
+      approvals: [],
+      required_approvals: 1,
+      created_at: "2026-05-20T00:00:00Z",
+      updated_at: "2026-05-20T00:00:00Z",
+    });
+
+    expect(payload.invoiceRegistrationStatus).toBe("registered");
+    expect(payload.invoiceRegistrationNumber).toBe("T1234567890123");
   });
 });

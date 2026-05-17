@@ -1,5 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "../lib/supabaseAdmin";
+import type { InvoiceRegistrationStatus } from "../lib/transitional-deduction";
 import type { ActorRef, Proposal } from "./PolicyEngine";
 
 export type MemberContractType = "subcontract" | "employee_like" | "undetermined";
@@ -24,6 +25,8 @@ export interface MemberTaxClassificationRecord {
   classification_check_status: ClassificationCheckStatus;
   classification_check_results: ClassificationCheckResults;
   classification_notes: string | null;
+  invoice_registration_status: InvoiceRegistrationStatus;
+  invoice_registration_number: string | null;
   effective_from: string;
   effective_until: string | null;
   decided_by: string;
@@ -40,6 +43,8 @@ export interface RecordClassificationPayload {
   customWithholdingRate?: number | null;
   classificationCheckResults: ClassificationCheckResults;
   classificationNotes?: string | null;
+  invoiceRegistrationStatus?: InvoiceRegistrationStatus;
+  invoiceRegistrationNumber?: string | null;
   effectiveFrom: string;
   proposalId?: string | null;
 }
@@ -48,6 +53,7 @@ type MemberTaxClassificationClient = Pick<SupabaseClient, "from">;
 
 const CONTRACT_TYPES = new Set<MemberContractType>(["subcontract", "employee_like", "undetermined"]);
 const WITHHOLDING_CATEGORIES = new Set<TaxWithholdingCategory>(["none", "10.21%", "custom"]);
+const INVOICE_REGISTRATION_STATUSES = new Set<InvoiceRegistrationStatus>(["registered", "exempt", "transitional", "unknown"]);
 const CHECK_KEYS: Array<keyof ClassificationCheckResults> = [
   "q1_substitution",
   "q2_time_freedom",
@@ -82,6 +88,11 @@ function checkStatusFromResults(results: ClassificationCheckResults): Classifica
 function toPayloadValue(payload: Record<string, unknown>, key: string): string | null {
   const value = payload[key];
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function normalizeInvoiceRegistrationNumber(value: string | null | undefined): string | null {
+  const normalized = normalizeNotes(value)?.toUpperCase() ?? null;
+  return normalized;
 }
 
 function parseCheckResults(value: unknown): ClassificationCheckResults {
@@ -120,6 +131,7 @@ export function buildClassificationPayloadFromProposal(proposal: Proposal): Reco
   }
 
   const customRate = payload.custom_withholding_rate;
+  const invoiceRegistrationStatus = (toPayloadValue(payload, "invoice_registration_status") || "unknown") as InvoiceRegistrationStatus;
   return {
     orgId: proposal.org_id,
     memberId,
@@ -128,6 +140,8 @@ export function buildClassificationPayloadFromProposal(proposal: Proposal): Reco
     customWithholdingRate: typeof customRate === "number" ? customRate : null,
     classificationCheckResults: parseCheckResults(payload.classification_check_results),
     classificationNotes: normalizeNotes(toPayloadValue(payload, "classification_notes")),
+    invoiceRegistrationStatus,
+    invoiceRegistrationNumber: normalizeInvoiceRegistrationNumber(toPayloadValue(payload, "invoice_registration_number")),
     effectiveFrom,
     proposalId: proposal.id,
   };
@@ -220,6 +234,8 @@ export class MemberTaxClassificationService {
       classification_check_status: checkStatusFromResults(payload.classificationCheckResults),
       classification_check_results: payload.classificationCheckResults,
       classification_notes: normalizeNotes(payload.classificationNotes),
+      invoice_registration_status: payload.invoiceRegistrationStatus ?? "unknown",
+      invoice_registration_number: normalizeInvoiceRegistrationNumber(payload.invoiceRegistrationNumber),
       effective_from: payload.effectiveFrom,
       effective_until: null,
       decided_by: actor.id,
@@ -261,6 +277,17 @@ export class MemberTaxClassificationService {
     if (!isIsoDate(payload.effectiveFrom)) {
       throw new Error("MEMBER_CLASSIFICATION_EFFECTIVE_FROM_INVALID");
     }
+    const invoiceStatus = payload.invoiceRegistrationStatus ?? "unknown";
+    if (!INVOICE_REGISTRATION_STATUSES.has(invoiceStatus)) {
+      throw new Error("MEMBER_CLASSIFICATION_INVOICE_STATUS_INVALID");
+    }
+    const invoiceNumber = normalizeInvoiceRegistrationNumber(payload.invoiceRegistrationNumber);
+    if (invoiceNumber && !/^T[0-9]{13}$/.test(invoiceNumber)) {
+      throw new Error("MEMBER_CLASSIFICATION_INVOICE_NUMBER_INVALID");
+    }
+    if (invoiceStatus === "registered" && !invoiceNumber) {
+      throw new Error("MEMBER_CLASSIFICATION_INVOICE_NUMBER_REQUIRED");
+    }
     parseCheckResults(payload.classificationCheckResults);
   }
 
@@ -298,4 +325,3 @@ export class MemberTaxClassificationService {
 }
 
 export const memberTaxClassificationService = new MemberTaxClassificationService();
-
