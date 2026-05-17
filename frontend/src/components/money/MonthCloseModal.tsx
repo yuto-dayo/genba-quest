@@ -5,11 +5,13 @@ import {
     fetchNotifications,
     fetchPathModuleMonthCloseSummary,
     fetchPathV33OpenObjections,
+    fetchSiteCostTransferPreview,
     fetchTeamRewardSummary,
     finalizePathV33Month,
     lockPathV33MonthDrafts,
     markNotificationRead,
     type PathV33Objection,
+    type SiteCostTransferPreviewRow,
     type TeamRewardSummary,
 } from "../../lib/api";
 import { getErrorMessage } from "../../lib/error";
@@ -35,6 +37,7 @@ interface MonthCloseModalProps {
 interface MonthCloseData {
     rewardSummary: TeamRewardSummary;
     openObjections: PathV33Objection[];
+    transferPreview: SiteCostTransferPreviewRow[];
     alreadyFinalized: boolean;
 }
 
@@ -108,10 +111,11 @@ export function MonthCloseModal({ month, onClose, onCompleted }: MonthCloseModal
         setSteps(createInitialSteps());
 
         try {
-            const [rewardSummary, openObjections, moduleSummary] = await Promise.all([
+            const [rewardSummary, openObjections, moduleSummary, transferPreview] = await Promise.all([
                 fetchTeamRewardSummary(month),
                 fetchPathV33OpenObjections(),
                 fetchPathModuleMonthCloseSummary(month).catch(() => null),
+                fetchSiteCostTransferPreview(month),
             ]);
             if (signal?.aborted) return;
 
@@ -120,6 +124,7 @@ export function MonthCloseModal({ month, onClose, onCompleted }: MonthCloseModal
             setData({
                 rewardSummary,
                 openObjections: monthObjections,
+                transferPreview: transferPreview.transfers,
                 alreadyFinalized: rewardSummary.is_finalized || canonicalFixed,
             });
         } catch (err) {
@@ -141,12 +146,13 @@ export function MonthCloseModal({ month, onClose, onCompleted }: MonthCloseModal
 
     const summary = useMemo(() => {
         if (!data) {
-            return { memberCount: 0, totalReward: 0, objectionCount: 0 };
+            return { memberCount: 0, totalReward: 0, objectionCount: 0, transferTotal: 0 };
         }
         return {
             memberCount: data.rewardSummary.members.length,
             totalReward: sumReward(data.rewardSummary),
             objectionCount: data.openObjections.length,
+            transferTotal: data.transferPreview.reduce((total, row) => total + row.accumulated_amount, 0),
         };
     }, [data]);
 
@@ -277,7 +283,35 @@ export function MonthCloseModal({ month, onClose, onCompleted }: MonthCloseModal
                                     <span className={styles.summaryLabel}>異議申立</span>
                                     <strong className={styles.summaryValue}>{summary.objectionCount}件</strong>
                                 </div>
+                                <div className={styles.summaryCard}>
+                                    <span className={styles.summaryLabel}>振替予定</span>
+                                    <strong className={styles.summaryValue}>{formatYen(summary.transferTotal)}</strong>
+                                </div>
                             </div>
+
+                            {data.transferPreview.length > 0 && (
+                                <section className={styles.section} aria-labelledby="site-cost-transfer-title">
+                                    <h3 id="site-cost-transfer-title" className={styles.sectionTitle}>
+                                        完成現場の振替仕訳
+                                    </h3>
+                                    <div className={styles.transferList}>
+                                        {data.transferPreview.map((row) => (
+                                            <div key={row.site_id} className={styles.transferRow}>
+                                                <span className={styles.transferSite}>{row.site_name}</span>
+                                                <span className={styles.transferEntry}>
+                                                    Dr 完成工事原価 / Cr 未成工事支出金
+                                                </span>
+                                                <strong className={styles.transferAmount}>
+                                                    {formatYen(row.accumulated_amount)}
+                                                </strong>
+                                                <span className={styles.transferStatus}>
+                                                    {row.transfer_status === "transferred" ? "転記済" : "未転記"}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </section>
+                            )}
 
                             {data.alreadyFinalized && (
                                 <div className={styles.successPanel} role="status">

@@ -14,6 +14,7 @@ import {
     Calendar,
     Trash2,
     TrendingUp,
+    CircleDollarSign,
 } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
@@ -41,6 +42,13 @@ interface SiteDetailModalProps {
     onClose: () => void;
     onUpdated: (result?: { site?: Site; message?: string }) => void;
 }
+
+const formatYen = (amount: number) =>
+    new Intl.NumberFormat("ja-JP", {
+        style: "currency",
+        currency: "JPY",
+        maximumFractionDigits: 0,
+    }).format(amount);
 
 export function SiteDetailModal({ site, onClose, onUpdated }: SiteDetailModalProps) {
     const [searchParams] = useSearchParams();
@@ -251,7 +259,7 @@ export function SiteDetailModal({ site, onClose, onUpdated }: SiteDetailModalPro
                         )}
 
                         {/* 基本情報 */}
-                        {(site.client || site.address || site.started_at || site.expected_completion_at || assignedMembers.length > 0 || schedulePattern) && (
+                        {(site.client || site.address || site.started_at || site.expected_completion_at || assignedMembers.length > 0 || schedulePattern || (site.current_accumulated_cost ?? 0) > 0) && (
                             <div className={styles.infoSection}>
                                 {site.client && (
                                     <div className={styles.infoRow}>
@@ -282,6 +290,14 @@ export function SiteDetailModal({ site, onClose, onUpdated }: SiteDetailModalPro
                                         <Users size={16} className={styles.infoIcon} />
                                         <span className={styles.infoText}>
                                             {assignedMembers.map((m) => m.full_name || m.username).join("、")}
+                                        </span>
+                                    </div>
+                                )}
+                                {typeof site.current_accumulated_cost === "number" && site.current_accumulated_cost > 0 && (
+                                    <div className={styles.infoRow}>
+                                        <CircleDollarSign size={16} className={styles.infoIcon} />
+                                        <span className={styles.infoText}>
+                                            現在の累積支出金 {formatYen(site.current_accumulated_cost)}
                                         </span>
                                     </div>
                                 )}

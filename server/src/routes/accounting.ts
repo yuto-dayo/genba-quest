@@ -31,6 +31,7 @@ import {
     reverseCanonicalSale,
 } from "../services/AccountingCommandService";
 import { getPartnersSummary } from "../services/PartnersSummaryService";
+import { ConstructionAccountingService } from "../services/ConstructionAccountingService";
 import {
     buildDefaultInvoiceSettings,
     buildInvoiceSourceSummarySnapshot,
@@ -61,6 +62,8 @@ const LEDGER_AGGREGATION_STATUSES = ["posted", "approved", "voided"] as const;
 const PL_SOURCES = ["legacy", "journal", "compare"] as const;
 const PL_REVENUE_NET_ACCOUNT_CODES = new Set(["4100"]);
 const PL_EXPENSE_NET_ACCOUNT_CODES = new Set(["5100", "5110", "5120", "5130", "5140", "5200", "5300", "5400", "5900"]);
+const PL_COMPLETED_COGS_ACCOUNT_CODES = new Set(["5420"]);
+const PL_WORK_IN_PROGRESS_ACCOUNT_CODES = new Set(["1230"]);
 const PL_REVENUE_GROSS_COMPAT_ACCOUNT_CODES = new Set([...PL_REVENUE_NET_ACCOUNT_CODES, "2500"]);
 const PL_EXPENSE_GROSS_COMPAT_ACCOUNT_CODES = new Set([...PL_EXPENSE_NET_ACCOUNT_CODES, "1500"]);
 const PL_NO_REVENUE_POSTING_GROUP_TYPES = new Set(["invoice_transfer", "payment_receipt", "payment_allocation"]);
@@ -73,6 +76,9 @@ type PlJournalBasis = "net_accounting" | "gross_compat";
 type PlSummary = {
     sales: number;
     expenses: number;
+    completed_cogs: number;
+    overhead: number;
+    work_in_progress: number;
     profit: number;
     distributable: number;
     transaction_count?: number;
@@ -488,19 +494,28 @@ function normalizePlSource(value: unknown): PlSource {
 
 function completePlSummary(input: {
     sales: number;
-    expenses: number;
+    expenses?: number;
+    completedCogs?: number;
+    overhead?: number;
+    workInProgress?: number;
     transactionCount?: number;
     journalEntryCount?: number;
     journalLineCount?: number;
 }): PlSummary {
     const sales = roundMoney(input.sales);
-    const expenses = roundMoney(input.expenses);
+    const completedCogs = roundMoney(input.completedCogs ?? input.expenses ?? 0);
+    const overhead = roundMoney(input.overhead ?? 0);
+    const workInProgress = roundMoney(input.workInProgress ?? 0);
+    const expenses = roundMoney(input.expenses ?? completedCogs + overhead);
     const profit = roundMoney(sales - expenses);
     const distributable = roundMoney(Math.max(profit, 0) * 0.7);
 
     return {
         sales,
         expenses,
+        completed_cogs: completedCogs,
+        overhead,
+        work_in_progress: workInProgress,
         profit,
         distributable,
         ...(input.transactionCount !== undefined ? { transaction_count: input.transactionCount } : {}),
@@ -511,19 +526,32 @@ function completePlSummary(input: {
 
 function summarizeLegacyPlRows(rows: Array<Record<string, unknown>>): PlSummary {
     let sales = 0;
-    let expenses = 0;
+    let completedCogs = 0;
+    let workInProgress = 0;
+    let overhead = 0;
 
     for (const tx of rows) {
-        if (tx.kind === "sale" || tx.kind === "invoice") {
+        const site = firstNestedRecord(tx.site);
+        const siteStatus = typeof site?.status === "string" ? site.status : null;
+        const isCompletedSite = siteStatus === "completed" || siteStatus === "closed";
+        const hasSite = typeof tx.site_id === "string" && tx.site_id.length > 0;
+
+        if ((tx.kind === "sale" || tx.kind === "invoice") && isCompletedSite) {
             sales += toMoneyNumber(tx.amount_total);
+        } else if (tx.kind === "expense" && hasSite && isCompletedSite) {
+            completedCogs += toMoneyNumber(tx.amount_total);
+        } else if (tx.kind === "expense" && hasSite) {
+            workInProgress += toMoneyNumber(tx.amount_total);
         } else if (tx.kind === "expense") {
-            expenses += toMoneyNumber(tx.amount_total);
+            overhead += toMoneyNumber(tx.amount_total);
         }
     }
 
     return completePlSummary({
         sales,
-        expenses,
+        completedCogs,
+        overhead,
+        workInProgress,
         transactionCount: rows.length,
     });
 }
@@ -566,6 +594,9 @@ function summarizeJournalPlRows(
 ): PlSummary {
     let sales = 0;
     let expenses = 0;
+    let completedCogs = 0;
+    let workInProgress = 0;
+    let overhead = 0;
     let journalEntryCount = 0;
     let journalLineCount = 0;
     const revenueAccountCodes = basis === "gross_compat"
@@ -604,8 +635,18 @@ function summarizeJournalPlRows(
                 sales += credit - debit;
                 journalLineCount += 1;
                 countedEntry = true;
+            } else if (PL_COMPLETED_COGS_ACCOUNT_CODES.has(accountCode)) {
+                completedCogs += debit - credit;
+                journalLineCount += 1;
+                countedEntry = true;
+            } else if (PL_WORK_IN_PROGRESS_ACCOUNT_CODES.has(accountCode)) {
+                workInProgress += debit - credit;
+                journalLineCount += 1;
+                countedEntry = true;
             } else if (expenseAccountCodes.has(accountCode)) {
-                expenses += debit - credit;
+                const amount = debit - credit;
+                expenses += amount;
+                overhead += amount;
                 journalLineCount += 1;
                 countedEntry = true;
             }
@@ -618,16 +659,25 @@ function summarizeJournalPlRows(
 
     return completePlSummary({
         sales,
-        expenses,
+        expenses: expenses + completedCogs,
+        completedCogs,
+        overhead,
+        workInProgress,
         journalEntryCount,
         journalLineCount,
     });
 }
 
-function buildPlDiff(legacy: PlSummary, journal: PlSummary): Pick<PlSummary, "sales" | "expenses" | "profit" | "distributable"> {
+function buildPlDiff(
+    legacy: PlSummary,
+    journal: PlSummary
+): Pick<PlSummary, "sales" | "expenses" | "completed_cogs" | "overhead" | "work_in_progress" | "profit" | "distributable"> {
     return {
         sales: roundMoney(journal.sales - legacy.sales),
         expenses: roundMoney(journal.expenses - legacy.expenses),
+        completed_cogs: roundMoney(journal.completed_cogs - legacy.completed_cogs),
+        overhead: roundMoney(journal.overhead - legacy.overhead),
+        work_in_progress: roundMoney(journal.work_in_progress - legacy.work_in_progress),
         profit: roundMoney(journal.profit - legacy.profit),
         distributable: roundMoney(journal.distributable - legacy.distributable),
     };
@@ -4479,6 +4529,28 @@ router.get("/pl/trend", async (req: AuthenticatedRequest, res: Response) => {
     }
 });
 
+router.get("/site-cost-transfers/preview", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const monthValidation = validateReportingMonth(req.query.month);
+        if (!monthValidation.ok) {
+            res.status(monthValidation.status).json({ error: monthValidation.error });
+            return;
+        }
+
+        const service = new ConstructionAccountingService(req.orgId!);
+        const transfers = await service.listMonthlyTransferPreview(monthValidation.month);
+        res.json({ month: monthValidation.month, transfers });
+    } catch (err: any) {
+        const code = err instanceof Error ? err.message : "UNKNOWN_ERROR";
+        if (code === "INVALID_MONTH") {
+            res.status(400).json({ error: code });
+            return;
+        }
+        console.error("[accounting] site cost transfer preview error:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
 router.get("/pl", async (req: AuthenticatedRequest, res: Response) => {
     try {
         const { month, site_id, cost_center, source } = req.query;
@@ -4497,7 +4569,7 @@ router.get("/pl", async (req: AuthenticatedRequest, res: Response) => {
         if (plSource !== "journal") {
             let query = supabaseAdmin
                 .from("accounting_transactions")
-                .select("*")
+                .select("*, site:sites(id, status)")
                 .eq("org_id", req.orgId!)
                 .in("status", [...LEDGER_AGGREGATION_STATUSES])
                 .gte("recorded_date", startDate)

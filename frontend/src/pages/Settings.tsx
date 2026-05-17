@@ -60,6 +60,7 @@ import { useActiveOrgStore, type ActiveOrgOption } from "../stores/activeOrg";
 import { InvoiceSettingsModal } from "../components/InvoiceSettingsModal";
 import { ClientSettingsModal } from "../components/ClientSettingsModal";
 import { ProfileViewConsentModal } from "../components/ProfileViewConsentModal";
+import { ClassificationPanel } from "../components/settings/ClassificationPanel";
 import styles from "./Settings.module.css";
 
 function getAvatarErrorMessage(error: unknown): string {
@@ -93,7 +94,14 @@ const statusMeta = {
     },
 } as const;
 
-type SettingPanel = "profile" | "organization" | "members" | "invoice" | "clients" | "electronicDocs";
+type SettingPanel =
+    | "profile"
+    | "organization"
+    | "members"
+    | "invoice"
+    | "clients"
+    | "classification"
+    | "electronicDocs";
 
 type ProfileFormState = {
     full_name: string;
@@ -890,6 +898,15 @@ export function Settings() {
             summary: `${electronicDocuments.length}件 / 規程 ${officeRules.length}版`,
             icon: <Shield size={20} />,
         }] : []),
+        ...(isCurrentUserAdmin
+            ? [{
+                id: "classification" as const,
+                group: "組織",
+                title: "契約区分管理",
+                summary: "外注 / 給与寄り",
+                icon: <BadgeCheck size={20} />,
+            }]
+            : []),
     ];
     const settingItems = allSettingItems.filter((item) => {
         if (!settingsSearch) {
@@ -2044,6 +2061,10 @@ export function Settings() {
                                     )}
                                 </div>
                             </>
+                        )}
+
+                        {selectedSetting === "classification" && isCurrentUserAdmin && (
+                            <ClassificationPanel members={members} />
                         )}
 
                         {selectedSetting === "clients" && (

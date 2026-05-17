@@ -272,6 +272,7 @@ type AccountingTransactionForJournal = {
     amount_total?: number | null;
     tax_category?: string | null;
     category?: unknown;
+    site_id?: string | null;
 };
 
 type JournalLineInsert = {
@@ -319,6 +320,14 @@ function resolveExpenseTaxType(taxCategory: string | null | undefined): "taxable
 function resolveExpenseAccount(category: unknown): { code: string; name: string } {
     const normalizedCategory = normalizeExpenseCategory(category) || "other";
     return EXPENSE_ACCOUNT_MAP[normalizedCategory];
+}
+
+function resolveConstructionExpenseAccount(transaction: AccountingTransactionForJournal): { code: string; name: string } {
+    if (transaction.site_id) {
+        return { code: "1230", name: "未成工事支出金" };
+    }
+
+    return resolveExpenseAccount(transaction.category);
 }
 
 function isVoidableStatus(status: unknown): status is typeof VOIDABLE_TRANSACTION_STATUSES[number] {
@@ -1570,8 +1579,9 @@ export async function createJournalEntry(
             }
         }
     } else if (transaction.kind === "expense") {
-        const expenseAccount = resolveExpenseAccount(transaction.category);
+        const expenseAccount = resolveConstructionExpenseAccount(transaction);
         const expenseAmount = normalizeNetSubtotal(subtotal, taxAmount, total);
+        const debitExpenseAmount = transaction.site_id ? total : expenseAmount;
 
         if (isReversalAmount) {
             lines.push({
@@ -1591,12 +1601,12 @@ export async function createJournalEntry(
                 account_code: expenseAccount.code,
                 account_name: expenseAccount.name,
                 debit: 0,
-                credit: expenseAmount,
+                credit: debitExpenseAmount,
                 tax_rate: taxRate,
                 tax_type: taxType,
             });
 
-            if (taxAmount > 0) {
+            if (taxAmount > 0 && !transaction.site_id) {
                 lines.push({
                     org_id: orgId,
                     entry_id: entry.id,
@@ -1614,13 +1624,13 @@ export async function createJournalEntry(
                 line_no: lineNo++,
                 account_code: expenseAccount.code,
                 account_name: expenseAccount.name,
-                debit: expenseAmount,
+                debit: debitExpenseAmount,
                 credit: 0,
                 tax_rate: taxRate,
                 tax_type: taxType,
             });
 
-            if (taxAmount > 0) {
+            if (taxAmount > 0 && !transaction.site_id) {
                 lines.push({
                     org_id: orgId,
                     entry_id: entry.id,
