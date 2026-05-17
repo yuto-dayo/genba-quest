@@ -23,21 +23,28 @@ import {
     bootstrapOrg,
     createOrgInvite,
     fetchClients,
+    fetchDocumentIntegrityReport,
+    fetchElectronicDocuments,
     fetchInvoiceSettings,
     fetchMembers,
     fetchMyProfile,
+    fetchOfficeProcessingRules,
     fetchProfileViewGrantsIncoming,
     listOrgInvites,
     removeOrgMember,
     restoreClient,
     revokeOrgInvite,
     revokeProfileViewGrant,
+    registerOfficeProcessingRule,
     rotateOrgInvite,
     updateMemberRole,
     updateMyProfile,
     type Client,
+    type DocumentIntegrityReport,
+    type ElectronicDocumentRecord,
     type InvoiceSettings,
     type Member,
+    type OfficeProcessingRuleRecord,
     type MyProfileRecord,
     type OrgInviteRecord,
     type OrgInviteRole,
@@ -87,7 +94,14 @@ const statusMeta = {
     },
 } as const;
 
-type SettingPanel = "profile" | "organization" | "members" | "invoice" | "clients" | "classification";
+type SettingPanel =
+    | "profile"
+    | "organization"
+    | "members"
+    | "invoice"
+    | "clients"
+    | "classification"
+    | "electronicDocs";
 
 type ProfileFormState = {
     full_name: string;
@@ -199,6 +213,34 @@ function buildInviteLink(inviteId: string) {
     url.searchParams.set("invite", inviteId);
     url.searchParams.set("openExternalBrowser", "1");
     return url.toString();
+}
+
+function fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const result = typeof reader.result === "string" ? reader.result : "";
+            const [, base64 = ""] = result.split(",");
+            resolve(base64);
+        };
+        reader.onerror = () => reject(reader.error || new Error("FILE_READ_FAILED"));
+        reader.readAsDataURL(file);
+    });
+}
+
+function formatYen(value: number | string) {
+    return new Intl.NumberFormat("ja-JP", {
+        style: "currency",
+        currency: "JPY",
+        maximumFractionDigits: 0,
+    }).format(Number(value) || 0);
+}
+
+function formatDate(value: string | null | undefined) {
+    if (!value) return "-";
+    const date = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleDateString("ja-JP");
 }
 
 function formatInviteError(error: unknown) {
@@ -314,6 +356,23 @@ export function Settings() {
     const [orgCreateBusy, setOrgCreateBusy] = useState(false);
     const [orgCreateError, setOrgCreateError] = useState<string | null>(null);
     const [orgCreateMessage, setOrgCreateMessage] = useState<string | null>(null);
+    const [electronicDocuments, setElectronicDocuments] = useState<ElectronicDocumentRecord[]>([]);
+    const [officeRules, setOfficeRules] = useState<OfficeProcessingRuleRecord[]>([]);
+    const [integrityReport, setIntegrityReport] = useState<DocumentIntegrityReport | null>(null);
+    const [complianceLoading, setComplianceLoading] = useState(false);
+    const [complianceError, setComplianceError] = useState<string | null>(null);
+    const [complianceMessage, setComplianceMessage] = useState<string | null>(null);
+    const [documentSearch, setDocumentSearch] = useState({
+        from: "",
+        to: "",
+        counterparty: "",
+        minAmount: "",
+        maxAmount: "",
+    });
+    const [ruleVersion, setRuleVersion] = useState("1");
+    const [ruleMarkdown, setRuleMarkdown] = useState("");
+    const [rulePdfFile, setRulePdfFile] = useState<File | null>(null);
+    const [ruleSaving, setRuleSaving] = useState(false);
     const activeOrgId = useActiveOrgStore((state) => state.activeOrgId);
     const orgOptions = useActiveOrgStore((state) => state.options);
     const setOrgOptions = useActiveOrgStore((state) => state.setOptions);
@@ -340,6 +399,30 @@ export function Settings() {
             setDeletedClients(deletedClientsData);
             setMembers(membersData);
             setCurrentMember(currentUserId ? membersData.find((member) => member.id === currentUserId) || null : null);
+
+            const selectedOrg = useActiveOrgStore.getState().options.find((option) =>
+                option.org.id === useActiveOrgStore.getState().activeOrgId
+            );
+            if (selectedOrg?.membership.role === "admin") {
+                try {
+                    const [documentData, ruleData, reportData] = await Promise.all([
+                        fetchElectronicDocuments(),
+                        fetchOfficeProcessingRules(),
+                        fetchDocumentIntegrityReport(),
+                    ]);
+                    setElectronicDocuments(documentData.documents);
+                    setOfficeRules(ruleData.rules);
+                    setIntegrityReport(reportData.report);
+                    const latestRule = ruleData.rules[0];
+                    if (latestRule) {
+                        setRuleVersion(String(latestRule.version + 1));
+                    }
+                } catch {
+                    setElectronicDocuments([]);
+                    setOfficeRules([]);
+                    setIntegrityReport(null);
+                }
+            }
 
             if (!currentUserId) {
                 return;
@@ -415,6 +498,62 @@ export function Settings() {
         ]);
         setClients(nextClients);
         setDeletedClients(nextDeletedClients);
+    };
+
+    const refreshElectronicBookkeeping = async () => {
+        setComplianceLoading(true);
+        setComplianceError(null);
+        try {
+            const [documentData, ruleData, reportData] = await Promise.all([
+                fetchElectronicDocuments({
+                    from: documentSearch.from || undefined,
+                    to: documentSearch.to || undefined,
+                    counterparty: documentSearch.counterparty || undefined,
+                    minAmount: documentSearch.minAmount ? Number(documentSearch.minAmount) : undefined,
+                    maxAmount: documentSearch.maxAmount ? Number(documentSearch.maxAmount) : undefined,
+                }),
+                fetchOfficeProcessingRules(),
+                fetchDocumentIntegrityReport(),
+            ]);
+            setElectronicDocuments(documentData.documents);
+            setOfficeRules(ruleData.rules);
+            setIntegrityReport(reportData.report);
+            const latestRule = ruleData.rules[0];
+            if (latestRule && !ruleMarkdown.trim()) {
+                setRuleVersion(String(latestRule.version + 1));
+            }
+        } catch (error: unknown) {
+            setComplianceError(getErrorMessage(error));
+        } finally {
+            setComplianceLoading(false);
+        }
+    };
+
+    const handleSaveOfficeRule = async () => {
+        setRuleSaving(true);
+        setComplianceError(null);
+        setComplianceMessage(null);
+        try {
+            const pdfBase64 = rulePdfFile ? await fileToBase64(rulePdfFile) : undefined;
+            const result = await registerOfficeProcessingRule({
+                version: Number(ruleVersion),
+                markdown_content: ruleMarkdown,
+                pdf_base64: pdfBase64,
+                pdf_mime_type: rulePdfFile?.type,
+                pdf_original_filename: rulePdfFile?.name,
+            });
+            setOfficeRules((prev) => [result.rule, ...prev.map((rule) => (
+                rule.status === "active" ? { ...rule, status: "superseded" as const } : rule
+            ))]);
+            setRuleMarkdown("");
+            setRulePdfFile(null);
+            setRuleVersion(String(result.rule.version + 1));
+            setComplianceMessage("事務処理規程を登録しました。");
+        } catch (error: unknown) {
+            setComplianceError(getErrorMessage(error));
+        } finally {
+            setRuleSaving(false);
+        }
     };
 
     const closeClientModal = () => {
@@ -752,6 +891,13 @@ export function Settings() {
             summary: `${clients.length}件`,
             icon: <Building2 size={20} />,
         },
+        ...(isCurrentUserAdmin ? [{
+            id: "electronicDocs" as const,
+            group: "組織",
+            title: "電子帳簿保存法",
+            summary: `${electronicDocuments.length}件 / 規程 ${officeRules.length}版`,
+            icon: <Shield size={20} />,
+        }] : []),
         ...(isCurrentUserAdmin
             ? [{
                 id: "classification" as const,
@@ -1695,6 +1841,222 @@ export function Settings() {
                                                     </div>
                                                 );
                                             })}
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        )}
+
+                        {selectedSetting === "electronicDocs" && isCurrentUserAdmin && (
+                            <>
+                                <div className={styles.detailHeader}>
+                                    <div className={styles.clientListSummary}>
+                                        <Shield size={16} />
+                                        <span>
+                                            {integrityReport?.ok ? "改ざん検知 OK" : "確認が必要"} / {electronicDocuments.length}件
+                                        </span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className={styles.secondaryButton}
+                                        onClick={() => void refreshElectronicBookkeeping()}
+                                        disabled={complianceLoading}
+                                    >
+                                        {complianceLoading ? <Loader2 size={16} className={styles.spinner} /> : <RefreshCw size={16} />}
+                                        更新
+                                    </button>
+                                </div>
+
+                                {complianceError && <p className={styles.formError}>{complianceError}</p>}
+                                {complianceMessage && <p className={styles.successMessage}>{complianceMessage}</p>}
+
+                                <div className={styles.infoCard}>
+                                    <div className={styles.infoCardHeader}>
+                                        <div>
+                                            <h3 className={styles.infoCardTitle}>事務処理規程</h3>
+                                            <p className={styles.infoCardDescription}>
+                                                電子取引データの訂正・削除防止ルールを保存します。
+                                            </p>
+                                        </div>
+                                        <FileText size={18} className={styles.infoCardIcon} />
+                                    </div>
+
+                                    <div className={styles.orgCreateForm}>
+                                        <label className={styles.inputField}>
+                                            <span>版</span>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                inputMode="numeric"
+                                                value={ruleVersion}
+                                                onChange={(event) => setRuleVersion(event.target.value)}
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>本文（Markdown）</span>
+                                            <textarea
+                                                value={ruleMarkdown}
+                                                onChange={(event) => setRuleMarkdown(event.target.value)}
+                                                placeholder="電子取引データの訂正及び削除の防止に関する事務処理規程"
+                                                rows={8}
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>PDF（任意）</span>
+                                            <input
+                                                type="file"
+                                                accept="application/pdf"
+                                                onChange={(event) => setRulePdfFile(event.target.files?.[0] ?? null)}
+                                            />
+                                        </label>
+                                        {rulePdfFile && (
+                                            <p className={styles.helperText}>
+                                                {rulePdfFile.name} / {Math.ceil(rulePdfFile.size / 1024)}KB
+                                            </p>
+                                        )}
+                                        <button
+                                            type="button"
+                                            className={styles.primaryButton}
+                                            onClick={() => void handleSaveOfficeRule()}
+                                            disabled={ruleSaving || !ruleMarkdown.trim() || !ruleVersion.trim()}
+                                            aria-busy={ruleSaving}
+                                        >
+                                            {ruleSaving ? <Loader2 size={16} className={styles.spinner} /> : <Check size={16} />}
+                                            規程を登録
+                                        </button>
+                                    </div>
+
+                                    <div className={styles.complianceList}>
+                                        {officeRules.length === 0 ? (
+                                            <div className={styles.emptyList}>規程は未登録です</div>
+                                        ) : (
+                                            officeRules.slice(0, 3).map((rule) => (
+                                                <div key={rule.id} className={styles.complianceRow}>
+                                                    <span>
+                                                        <strong>v{rule.version} {rule.status === "active" ? "有効" : "旧版"}</strong>
+                                                        <small>{formatDate(rule.effective_from)} / {rule.pdf_storage_path ? "PDFあり" : "本文のみ"}</small>
+                                                    </span>
+                                                    <code>{rule.pdf_sha256?.slice(0, 12) || "markdown"}</code>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className={styles.infoCard}>
+                                    <div className={styles.infoCardHeader}>
+                                        <div>
+                                            <h3 className={styles.infoCardTitle}>文書検索</h3>
+                                            <p className={styles.infoCardDescription}>
+                                                日付・取引先・金額で領収書と請求書を探せます。
+                                            </p>
+                                        </div>
+                                        <Search size={18} className={styles.infoCardIcon} />
+                                    </div>
+
+                                    <div className={styles.complianceSearchGrid}>
+                                        <label className={styles.inputField}>
+                                            <span>開始日</span>
+                                            <input
+                                                type="date"
+                                                value={documentSearch.from}
+                                                onChange={(event) => setDocumentSearch((prev) => ({ ...prev, from: event.target.value }))}
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>終了日</span>
+                                            <input
+                                                type="date"
+                                                value={documentSearch.to}
+                                                onChange={(event) => setDocumentSearch((prev) => ({ ...prev, to: event.target.value }))}
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>取引先</span>
+                                            <input
+                                                value={documentSearch.counterparty}
+                                                onChange={(event) => setDocumentSearch((prev) => ({ ...prev, counterparty: event.target.value }))}
+                                                placeholder="例: 資材屋"
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>最小金額</span>
+                                            <input
+                                                inputMode="numeric"
+                                                value={documentSearch.minAmount}
+                                                onChange={(event) => setDocumentSearch((prev) => ({ ...prev, minAmount: event.target.value }))}
+                                                placeholder="0"
+                                            />
+                                        </label>
+                                        <label className={styles.inputField}>
+                                            <span>最大金額</span>
+                                            <input
+                                                inputMode="numeric"
+                                                value={documentSearch.maxAmount}
+                                                onChange={(event) => setDocumentSearch((prev) => ({ ...prev, maxAmount: event.target.value }))}
+                                                placeholder="50000"
+                                            />
+                                        </label>
+                                        <button
+                                            type="button"
+                                            className={styles.primaryButton}
+                                            onClick={() => void refreshElectronicBookkeeping()}
+                                            disabled={complianceLoading}
+                                        >
+                                            <Search size={16} />
+                                            検索
+                                        </button>
+                                    </div>
+
+                                    <div className={styles.documentTable}>
+                                        {electronicDocuments.length === 0 ? (
+                                            <div className={styles.emptyList}>保存済み文書はありません</div>
+                                        ) : (
+                                            electronicDocuments.map((document) => (
+                                                <div key={document.id} className={styles.documentRow}>
+                                                    <span>
+                                                        <strong>{document.counterparty_name}</strong>
+                                                        <small>
+                                                            {formatDate(document.transaction_date)} / {document.kind} / 保管期限 {formatDate(document.retention_until)}
+                                                        </small>
+                                                    </span>
+                                                    <span className={styles.documentAmount}>{formatYen(document.amount)}</span>
+                                                    <code>{document.sha256.slice(0, 12)}</code>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className={styles.infoCard}>
+                                    <div className={styles.infoCardHeader}>
+                                        <div>
+                                            <h3 className={styles.infoCardTitle}>改ざん検知</h3>
+                                            <p className={styles.infoCardDescription}>
+                                                文書ごとの SHA-256 と前後のハッシュ鎖を検証します。
+                                            </p>
+                                        </div>
+                                        <Shield size={18} className={styles.infoCardIcon} />
+                                    </div>
+
+                                    <div className={styles.integrityPanel}>
+                                        <span className={integrityReport?.ok ? styles.integrityOk : styles.integrityWarn}>
+                                            {integrityReport?.ok ? "OK" : "NG"}
+                                        </span>
+                                        <span>{integrityReport?.checked_count ?? 0}件確認</span>
+                                        <code>{integrityReport?.latest_attestation_hash?.slice(0, 16) || "no-chain"}</code>
+                                    </div>
+                                    {integrityReport && integrityReport.issues.length > 0 && (
+                                        <div className={styles.complianceList}>
+                                            {integrityReport.issues.map((issue) => (
+                                                <div key={`${issue.id}-${issue.error}`} className={styles.complianceRow}>
+                                                    <span>
+                                                        <strong>#{issue.sequence}</strong>
+                                                        <small>{issue.error}</small>
+                                                    </span>
+                                                    <code>{issue.id.slice(0, 8)}</code>
+                                                </div>
+                                            ))}
                                         </div>
                                     )}
                                 </div>
