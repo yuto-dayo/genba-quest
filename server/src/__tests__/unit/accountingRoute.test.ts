@@ -1827,6 +1827,97 @@ describe("accounting router", () => {
     ]);
   });
 
+  it("GET /invoices filters this_week bucket using JST due dates", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-05-16T15:30:00.000Z"));
+
+    try {
+      const invoiceChain = createChain({
+        data: [
+          {
+            id: "inv-today",
+            transaction_id: "tx-today",
+            invoice_no: "INV-2026-0101",
+            document_type: "qualified_invoice",
+            issue_date: "2026-05-01",
+            due_date: "2026-05-17",
+            billing_name: "株式会社今日",
+            billing_address: "東京都港区1-2-3",
+            notes: null,
+            pdf_render_status: "generated",
+            created_at: "2026-05-01T00:00:00.000Z",
+            eligibility_snapshot: {},
+          },
+          {
+            id: "inv-week",
+            transaction_id: "tx-week",
+            invoice_no: "INV-2026-0102",
+            document_type: "standard_invoice",
+            issue_date: "2026-05-02",
+            due_date: "2026-05-24",
+            billing_name: "株式会社今週",
+            billing_address: "東京都港区4-5-6",
+            notes: null,
+            pdf_render_status: "generated",
+            created_at: "2026-05-02T00:00:00.000Z",
+            eligibility_snapshot: {},
+          },
+        ],
+        error: null,
+      });
+      const sourceLinksChain = createChain({ data: [], error: null });
+      setupMockFromSequence(mockFrom, [invoiceChain, sourceLinksChain]);
+
+      const req = {
+        orgId: "11111111-1111-4111-8111-111111111111",
+        query: {
+          bucket: "this_week",
+          limit: "20",
+          offset: "0",
+        },
+      } as any;
+      const res = createMockRes();
+
+      await getInvoicesHandler(req, res);
+
+      expect(invoiceChain.gte).toHaveBeenCalledWith("due_date", "2026-05-17");
+      expect(invoiceChain.lte).toHaveBeenCalledWith("due_date", "2026-05-24");
+      expect(res.json).toHaveBeenCalledWith([
+        expect.objectContaining({
+          id: "inv-today",
+          is_overdue: false,
+          days_until_due: 0,
+        }),
+        expect.objectContaining({
+          id: "inv-week",
+          is_overdue: false,
+          days_until_due: 7,
+        }),
+      ]);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("GET /invoices rejects invalid bucket values", async () => {
+    mockFrom.mockImplementation(() => createChain());
+
+    const req = {
+      orgId: "11111111-1111-4111-8111-111111111111",
+      query: {
+        bucket: "soon",
+      },
+    } as any;
+    const res = createMockRes();
+
+    await getInvoicesHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      error: "bucket must be one of overdue, this_week, later, draft, all",
+    });
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
   it("GET /invoices filters by source transaction id when provided", async () => {
     const sourceLinksChain = createChain({
       data: [],

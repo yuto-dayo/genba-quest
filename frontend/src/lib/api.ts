@@ -2293,11 +2293,13 @@ export const createInvoiceSupplement = (invoiceId: string, data: CreateInvoiceSu
 export const fetchInvoices = (params?: {
     limit?: number;
     offset?: number;
+    bucket?: "overdue" | "this_week" | "later" | "draft" | "all";
     source_transaction_id?: string;
 }) => {
     const searchParams = new URLSearchParams();
     if (params?.limit) searchParams.append("limit", String(params.limit));
     if (params?.offset) searchParams.append("offset", String(params.offset));
+    if (params?.bucket) searchParams.append("bucket", params.bucket);
     if (params?.source_transaction_id) searchParams.append("source_transaction_id", params.source_transaction_id);
     const query = searchParams.toString();
     return api<AccountingInvoiceListItem[]>(`/api/v1/accounting/invoices${query ? `?${query}` : ""}`);
@@ -2771,6 +2773,10 @@ export interface AccountingInvoice extends AccountingCommandEnvelope {
     transaction_id: string;
     source_transaction_id?: string;
     invoice_no: string;
+    status?: "draft" | "issued" | "paid" | "void" | string;
+    invoice_bucket?: "overdue" | "this_week" | "later" | "draft" | "all";
+    is_overdue?: boolean;
+    days_until_due?: number | null;
     document_type?: "standard_invoice" | "qualified_invoice" | "invoice_supplement";
     issue_date: string;
     due_date?: string;

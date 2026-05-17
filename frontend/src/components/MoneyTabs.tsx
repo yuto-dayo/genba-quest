@@ -16,7 +16,7 @@ interface MoneyTabsProps {
 
 const TABS: Array<{ id: MoneyTab; label: string }> = [
     { id: "transactions", label: "取引" },
-    { id: "vendors", label: "取引先" },
+    { id: "vendors", label: "取引先・請求書" },
 ];
 
 export function MoneyTabs({ value, onChange, txCount, vendorCount, trailing }: MoneyTabsProps) {

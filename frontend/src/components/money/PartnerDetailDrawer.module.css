@@ -1,0 +1,237 @@
+.layer {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-modal, 1000);
+    pointer-events: none;
+}
+
+.scrim {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    background: color-mix(in srgb, var(--md-sys-color-scrim) 42%, transparent);
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+.drawer {
+    position: absolute;
+    inset-block: 0;
+    right: 0;
+    width: min(100vw, 420px);
+    display: flex;
+    flex-direction: column;
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
+    box-shadow: var(--md-sys-elevation-level3);
+    pointer-events: auto;
+}
+
+.header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--md-sys-spacing-md);
+    padding: var(--md-sys-spacing-lg);
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.titleBlock {
+    min-width: 0;
+}
+
+.kicker {
+    display: block;
+    margin-bottom: var(--md-sys-spacing-xs);
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-small);
+}
+
+.title {
+    margin: 0;
+    overflow: hidden;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-title-large);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.iconButton,
+.closeButton,
+.actionButton,
+.pdfButton {
+    min-height: var(--md-sys-tap-target-min);
+    border-radius: var(--md-sys-shape-corner-full);
+    font: var(--md-sys-typescale-label-medium);
+    cursor: pointer;
+}
+
+.iconButton {
+    min-width: var(--md-sys-tap-target-min);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background: var(--md-sys-color-surface-container);
+    color: var(--md-sys-color-on-surface);
+}
+
+.timeline {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--md-sys-spacing-lg);
+}
+
+.empty {
+    margin: 0;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.timelineItem {
+    position: relative;
+    display: grid;
+    grid-template-columns: var(--md-sys-spacing-md) 1fr;
+    gap: var(--md-sys-spacing-sm);
+    padding-bottom: var(--md-sys-spacing-lg);
+}
+
+.timelineItem::before {
+    content: "";
+    position: absolute;
+    top: var(--md-sys-spacing-md);
+    bottom: 0;
+    left: calc(var(--md-sys-spacing-sm) - 1px);
+    width: 1px;
+    background: var(--md-sys-color-outline-variant);
+}
+
+.timelineItem:last-child {
+    padding-bottom: 0;
+}
+
+.timelineItem:last-child::before {
+    display: none;
+}
+
+.marker {
+    position: relative;
+    z-index: 1;
+    width: var(--md-sys-spacing-md);
+    height: var(--md-sys-spacing-md);
+    margin-top: var(--md-sys-spacing-xs);
+    border-radius: var(--md-sys-shape-corner-full);
+    background: var(--md-sys-color-primary);
+}
+
+.itemBody {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--md-sys-spacing-sm);
+    padding-bottom: var(--md-sys-spacing-md);
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.itemHead {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--md-sys-spacing-sm);
+}
+
+.invoiceNo {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-title-small);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.amount {
+    flex: 0 0 auto;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-title-small);
+    font-variant-numeric: tabular-nums;
+}
+
+.meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--md-sys-spacing-xs) var(--md-sys-spacing-sm);
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+    font-variant-numeric: tabular-nums;
+}
+
+.status {
+    color: var(--money-status-overdue);
+    font-weight: 700;
+}
+
+.actions {
+    display: flex;
+    gap: var(--md-sys-spacing-sm);
+    flex-wrap: wrap;
+}
+
+.actionButton {
+    border: 1px solid var(--md-sys-color-primary);
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+    padding: 0 var(--md-sys-spacing-md);
+}
+
+.pdfButton {
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background: var(--md-sys-color-surface-container);
+    color: var(--md-sys-color-on-surface);
+    padding: 0 var(--md-sys-spacing-md);
+}
+
+.footer {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--md-sys-spacing-md);
+    padding: var(--md-sys-spacing-md) var(--md-sys-spacing-lg);
+    border-top: 1px solid var(--md-sys-color-outline-variant);
+    background: var(--md-sys-color-surface);
+}
+
+.contact {
+    min-width: 0;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+}
+
+.closeButton {
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background: var(--md-sys-color-surface-container-high);
+    color: var(--md-sys-color-on-surface);
+    padding: 0 var(--md-sys-spacing-lg);
+}
+
+.iconButton:focus-visible,
+.closeButton:focus-visible,
+.actionButton:focus-visible,
+.pdfButton:focus-visible,
+.scrim:focus-visible {
+    outline: 2px solid var(--md-sys-color-primary);
+    outline-offset: var(--md-sys-spacing-2xs);
+}
+
+@media (max-width: 640px) {
+    .drawer {
+        width: 100vw;
+    }
+
+    .header,
+    .timeline,
+    .footer {
+        padding-inline: var(--md-sys-spacing-md);
+    }
+}

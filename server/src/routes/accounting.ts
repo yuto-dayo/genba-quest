@@ -1293,12 +1293,66 @@ function buildInvoiceListSelect(includeSourceSummarySnapshot: boolean): string {
     `;
 }
 
+const invoiceBuckets = ["overdue", "this_week", "later", "draft", "all"] as const;
+type InvoiceBucket = typeof invoiceBuckets[number];
+
+function normalizeInvoiceBucket(value: unknown): InvoiceBucket | null {
+    if (typeof value !== "string" || !value.trim()) {
+        return "all";
+    }
+
+    const normalized = value.trim();
+    return invoiceBuckets.includes(normalized as InvoiceBucket)
+        ? normalized as InvoiceBucket
+        : null;
+}
+
+function getJstDateString(now = new Date()): string {
+    return new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Tokyo",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).format(now);
+}
+
+function addDaysToDateString(dateString: string, days: number): string {
+    const [year, month, day] = dateString.split("-").map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day + days));
+    return date.toISOString().slice(0, 10);
+}
+
+function daysUntilDue(dueDate: unknown, todayJst = getJstDateString()): number | null {
+    if (typeof dueDate !== "string" || dueDate.length < 10) {
+        return null;
+    }
+
+    const normalizedDueDate = dueDate.slice(0, 10);
+    const [dueYear, dueMonth, dueDay] = normalizedDueDate.split("-").map(Number);
+    const [todayYear, todayMonth, todayDay] = todayJst.split("-").map(Number);
+
+    if ([dueYear, dueMonth, dueDay, todayYear, todayMonth, todayDay].some((value) => !Number.isFinite(value))) {
+        return null;
+    }
+
+    const dueTime = Date.UTC(dueYear, dueMonth - 1, dueDay);
+    const todayTime = Date.UTC(todayYear, todayMonth - 1, todayDay);
+    return Math.round((dueTime - todayTime) / 86_400_000);
+}
+
+function isOverdue(dueDate: unknown, todayJst = getJstDateString()): boolean {
+    const diff = daysUntilDue(dueDate, todayJst);
+    return diff !== null && diff < 0;
+}
+
 async function fetchInvoiceListRows(input: {
     orgId: string;
     offset: number;
     limit: number;
     filteredInvoiceIds: string[] | null;
     sourceTransactionIdFilter: string | null;
+    bucket: InvoiceBucket;
+    todayJst: string;
 }) {
     const runQuery = async (includeSourceSummarySnapshot: boolean) => {
         let query = supabaseAdmin
@@ -1313,6 +1367,16 @@ async function fetchInvoiceListRows(input: {
             query = query.in("id", input.filteredInvoiceIds);
         } else if (input.sourceTransactionIdFilter) {
             query = query.eq("source_transaction_id", input.sourceTransactionIdFilter);
+        }
+
+        if (input.bucket === "overdue") {
+            query = query.lt("due_date", input.todayJst);
+        } else if (input.bucket === "this_week") {
+            query = query.gte("due_date", input.todayJst).lte("due_date", addDaysToDateString(input.todayJst, 7));
+        } else if (input.bucket === "later") {
+            query = query.gt("due_date", addDaysToDateString(input.todayJst, 7));
+        } else if (input.bucket === "draft") {
+            query = query.eq("pdf_render_status", "pending");
         }
 
         return query;
@@ -2940,7 +3004,16 @@ router.get("/invoices", async (req: AuthenticatedRequest, res: Response) => {
             limit = 50,
             offset = 0,
             source_transaction_id: sourceTransactionId,
+            bucket: requestedBucket,
         } = req.query;
+        const bucket = normalizeInvoiceBucket(requestedBucket);
+
+        if (!bucket) {
+            res.status(400).json({ error: "bucket must be one of overdue, this_week, later, draft, all" });
+            return;
+        }
+
+        const todayJst = getJstDateString();
 
         let filteredInvoiceIds: string[] | null = null;
         let directSourceTransactionFilter: string | null = null;
@@ -2960,6 +3033,8 @@ router.get("/invoices", async (req: AuthenticatedRequest, res: Response) => {
             limit: Number(limit),
             filteredInvoiceIds,
             sourceTransactionIdFilter: directSourceTransactionFilter,
+            bucket,
+            todayJst,
         });
 
         if (invoicesError) {
@@ -3047,6 +3122,8 @@ router.get("/invoices", async (req: AuthenticatedRequest, res: Response) => {
 
         res.json(invoiceRows.map((invoice) => ({
             ...invoice,
+            is_overdue: isOverdue(invoice.due_date, todayJst),
+            days_until_due: daysUntilDue(invoice.due_date, todayJst),
             source_transaction: (() => {
                 const invoiceSourceLinks = sourceLinksByInvoiceId.get(invoice.id) || [];
                 const primaryLink = invoiceSourceLinks.find((link) => link.is_primary_document) || invoiceSourceLinks[0];
