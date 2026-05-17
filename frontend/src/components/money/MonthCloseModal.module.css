@@ -6,7 +6,7 @@
     justify-content: center;
     padding: var(--md-sys-spacing-md);
     background: color-mix(in srgb, var(--md-sys-color-scrim) 72%, transparent);
-    z-index: 120;
+    z-index: 1000;
 }
 
 .modal {
