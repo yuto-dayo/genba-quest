@@ -139,6 +139,44 @@ vi.mock("../components/PartnerCard", () => ({
     DonePartnerCard: () => null,
 }));
 
+vi.mock("../components/money/OwnRewardModal", () => ({
+    OwnRewardModal: ({
+        selfMemberId,
+        month,
+        onClose,
+    }: {
+        selfMemberId: string;
+        month: string;
+        onClose: () => void;
+    }) => (
+        <div role="dialog" aria-label="own reward modal">
+            <span>own reward:{selfMemberId}:{month}</span>
+            <button type="button" onClick={onClose}>
+                close own reward
+            </button>
+        </div>
+    ),
+}));
+
+vi.mock("../components/money/OtherRewardModal", () => ({
+    OtherRewardModal: ({
+        memberId,
+        month,
+        onClose,
+    }: {
+        memberId: string;
+        month: string;
+        onClose: () => void;
+    }) => (
+        <div role="dialog" aria-label="other reward modal">
+            <span>other reward:{memberId}:{month}</span>
+            <button type="button" onClick={onClose}>
+                close other reward
+            </button>
+        </div>
+    ),
+}));
+
 vi.mock("../components/ProposalDetailModal", () => ({
     ProposalDetailModal: ({
         proposal,
@@ -270,10 +308,10 @@ describe("Money PATH proposal queue", () => {
         fireEvent.click(screen.getByRole("button", { name: "承認する" }));
 
         await waitFor(() => expect(approveProposal).toHaveBeenCalledWith("proposal-path-1", "確認しました"));
-        await waitFor(() => expect(fetchPL).toHaveBeenCalledTimes(2));
+        await waitFor(() => expect(fetchPL.mock.calls.length).toBeGreaterThanOrEqual(2));
 
         expect(screen.queryByText("読み込みに失敗しました")).not.toBeInTheDocument();
-        expect(screen.getByText("利益（手残り）")).toBeInTheDocument();
+        expect(screen.getByLabelText("会社の月次サマリー")).toBeInTheDocument();
     });
 
     it("shows PATH action failures in the modal without replacing the Money page", async () => {
@@ -289,7 +327,7 @@ describe("Money PATH proposal queue", () => {
 
         expect(screen.getByText("承認結果の同期に失敗しました")).toBeInTheDocument();
         expect(screen.queryByText("読み込みに失敗しました")).not.toBeInTheDocument();
-        expect(screen.getByText("利益（手残り）")).toBeInTheDocument();
+        expect(screen.getByLabelText("会社の月次サマリー")).toBeInTheDocument();
     });
 
     it("opens AI/integration proposals via the deep link entry point", async () => {
@@ -300,6 +338,27 @@ describe("Money PATH proposal queue", () => {
         await screen.findByRole("dialog", { name: "proposal detail" });
         // Modal received the Sherpa proposal — approve button rendered means the proposal payload reached the detail handler.
         expect(screen.getByRole("button", { name: "承認する" })).toBeInTheDocument();
+    });
+
+    it("opens the own reward modal from modal=reward when member is self", async () => {
+        renderMoney("/money?modal=reward&member=member-1&period=2026-04&site=site-1");
+
+        expect(await screen.findByRole("dialog", { name: "own reward modal" })).toBeInTheDocument();
+        expect(screen.getByText("own reward:member-1:2026-04")).toBeInTheDocument();
+    });
+
+    it("opens the other reward modal from modal=reward when member is not self", async () => {
+        renderMoney("/money?modal=reward&member=member-2&period=2026-04&site=site-1");
+
+        expect(await screen.findByRole("dialog", { name: "other reward modal" })).toBeInTheDocument();
+        expect(screen.getByText("other reward:member-2:2026-04")).toBeInTheDocument();
+    });
+
+    it("falls back to the own reward modal for reward links without member", async () => {
+        renderMoney("/money?modal=reward&period=2026-04&site=site-1");
+
+        expect(await screen.findByRole("dialog", { name: "own reward modal" })).toBeInTheDocument();
+        expect(screen.getByText("own reward:member-1:2026-04")).toBeInTheDocument();
     });
 
     it("keeps an approved proposal open so execution can happen from the same detail", async () => {

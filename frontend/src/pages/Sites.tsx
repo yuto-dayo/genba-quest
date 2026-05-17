@@ -4,6 +4,7 @@ import { Map, RefreshCw, Plus, Building2, AlertTriangle, AlertCircle, Users, Cal
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { fetchSites, fetchSite, type Site } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
+import { buildMoneyRewardHref } from "../lib/legacyRouteRedirect";
 import { formatSiteDateRange, formatSiteSchedulePattern } from "../lib/siteSchedule";
 import { FloatingActionButton } from "../components/FloatingActionButton";
 import { SiteDetailModal } from "../components/SiteDetailModal";
@@ -345,29 +346,18 @@ function buildReturnHref(searchParams: URLSearchParams): string | null {
         return null;
     }
 
-    const next = new URLSearchParams();
-
     const period = searchParams.get("period");
-    if (period) {
-        next.set("period", period);
-    }
+    const member = searchParams.get("member");
 
     if (searchParams.get("reward") === "1") {
-        next.set("reward", "1");
-    }
-
-    const member = searchParams.get("member");
-    if (member) {
-        next.set("member", member);
+        return buildMoneyRewardHref({
+            period,
+            member,
+        });
     }
 
     const proposal = searchParams.get("proposal");
-    if (proposal) {
-        next.set("proposal", proposal);
-    }
-
-    const query = next.toString();
-    return `/path${query ? `?${query}` : ""}`;
+    return proposal ? `/money?proposal=${encodeURIComponent(proposal)}` : "/money";
 }
 
 interface SiteCardProps {

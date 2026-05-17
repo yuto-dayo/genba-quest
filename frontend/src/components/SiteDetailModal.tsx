@@ -29,6 +29,7 @@ import {
     type Member,
 } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
+import { buildMoneyRewardHref } from "../lib/legacyRouteRedirect";
 import { formatSiteDateRange, formatSiteSchedulePattern } from "../lib/siteSchedule";
 import { SiteFormModal } from "./SiteFormModal";
 import { SalesModal } from "./SalesModal";
@@ -598,17 +599,11 @@ function buildRewardReturnHref(site: Site, searchParams: URLSearchParams): strin
         return null;
     }
 
-    const next = new URLSearchParams();
-    next.set("period", period);
-    next.set("reward", "1");
-    next.set("site", site.id);
-
-    const memberId = searchParams.get("member");
-    if (memberId) {
-        next.set("member", memberId);
-    }
-
-    return `/path?${next.toString()}`;
+    return buildMoneyRewardHref({
+        period,
+        site: site.id,
+        member: searchParams.get("member"),
+    });
 }
 
 function deriveRewardMonthFromSite(site: Site): string | null {

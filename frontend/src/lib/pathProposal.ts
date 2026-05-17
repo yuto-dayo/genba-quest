@@ -1,4 +1,5 @@
 import type { PathModulePendingProposal, ProposalRecord } from "./api";
+import { buildMoneyRedirectFromLegacyRoute } from "./legacyRouteRedirect";
 
 type PathProposalLike = Pick<ProposalRecord, "id" | "type" | "description"> & {
     payload?: Record<string, unknown> | null;
@@ -94,5 +95,5 @@ export function buildPathProposalHref(
         searchParams.set("member", context.memberId);
     }
 
-    return `/luqo?${searchParams.toString()}`;
+    return buildMoneyRedirectFromLegacyRoute(searchParams);
 }
