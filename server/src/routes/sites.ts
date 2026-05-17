@@ -403,7 +403,11 @@ type SiteCloseProposalSummary = {
 async function enrichSitesWithCloseState<T extends Record<string, unknown>>(
     orgId: string,
     rows: T[],
-): Promise<Array<T & { close_phase: SiteClosePhase; active_close_proposal?: SiteCloseProposalSummary | null }>> {
+): Promise<Array<T & {
+    close_phase: SiteClosePhase;
+    active_close_proposal?: SiteCloseProposalSummary | null;
+    current_accumulated_cost: number;
+}>> {
     const siteIds = rows
         .map((row) => (typeof row.id === "string" ? row.id : ""))
         .filter((value) => value.length > 0);
@@ -413,10 +417,11 @@ async function enrichSitesWithCloseState<T extends Record<string, unknown>>(
             ...row,
             close_phase: (row.status === "completed" ? "completed_unclosed" : "active") as SiteClosePhase,
             active_close_proposal: null,
+            current_accumulated_cost: 0,
         }));
     }
 
-    const [proposalResult, siteCloseResult] = await Promise.all([
+    const [proposalResult, siteCloseResult, costResult] = await Promise.all([
         supabaseAdmin
             .from("proposals")
             .select("id, site_id, status, required_approvals, created_at, executed_at")
@@ -431,6 +436,13 @@ async function enrichSitesWithCloseState<T extends Record<string, unknown>>(
             .eq("org_id", orgId)
             .in("site_id", siteIds)
             .order("closed_at", { ascending: false }),
+        supabaseAdmin
+            .from("accounting_transactions")
+            .select("site_id, amount_total")
+            .eq("org_id", orgId)
+            .in("site_id", siteIds)
+            .eq("kind", "expense")
+            .eq("status", "posted"),
     ]);
 
     if (proposalResult.error) {
@@ -438,6 +450,22 @@ async function enrichSitesWithCloseState<T extends Record<string, unknown>>(
     }
     if (siteCloseResult.error) {
         throw siteCloseResult.error;
+    }
+    if (costResult.error) {
+        throw costResult.error;
+    }
+
+    const accumulatedCostBySite = new Map<string, number>();
+    for (const row of costResult.data || []) {
+        const siteId = typeof row.site_id === "string" ? row.site_id : "";
+        if (!siteId) {
+            continue;
+        }
+        const amount = Number(row.amount_total ?? 0);
+        accumulatedCostBySite.set(
+            siteId,
+            (accumulatedCostBySite.get(siteId) ?? 0) + (Number.isFinite(amount) ? amount : 0),
+        );
     }
 
     const activeProposalBySite = new Map<string, SiteCloseProposalSummary>();
@@ -480,6 +508,7 @@ async function enrichSitesWithCloseState<T extends Record<string, unknown>>(
                 ...row,
                 close_phase: "active" as const,
                 active_close_proposal: null,
+                current_accumulated_cost: accumulatedCostBySite.get(siteId) ?? 0,
             };
         }
 
@@ -489,6 +518,7 @@ async function enrichSitesWithCloseState<T extends Record<string, unknown>>(
                 ...row,
                 close_phase: "completed_close_pending" as const,
                 active_close_proposal: activeProposal,
+                current_accumulated_cost: accumulatedCostBySite.get(siteId) ?? 0,
             };
         }
 
@@ -497,6 +527,7 @@ async function enrichSitesWithCloseState<T extends Record<string, unknown>>(
                 ...row,
                 close_phase: "completed_close_executed" as const,
                 active_close_proposal: null,
+                current_accumulated_cost: accumulatedCostBySite.get(siteId) ?? 0,
             };
         }
 
@@ -505,6 +536,7 @@ async function enrichSitesWithCloseState<T extends Record<string, unknown>>(
                 ...row,
                 close_phase: "completed_close_rejected" as const,
                 active_close_proposal: null,
+                current_accumulated_cost: accumulatedCostBySite.get(siteId) ?? 0,
             };
         }
 
@@ -512,6 +544,7 @@ async function enrichSitesWithCloseState<T extends Record<string, unknown>>(
             ...row,
             close_phase: "completed_unclosed" as const,
             active_close_proposal: null,
+            current_accumulated_cost: accumulatedCostBySite.get(siteId) ?? 0,
         };
     });
 }

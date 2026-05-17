@@ -9,6 +9,7 @@ const expirePathV33MonthObjections = vi.fn();
 const fetchNotifications = vi.fn();
 const fetchPathModuleMonthCloseSummary = vi.fn();
 const fetchPathV33OpenObjections = vi.fn();
+const fetchSiteCostTransferPreview = vi.fn();
 const fetchTeamRewardSummary = vi.fn();
 const finalizePathV33Month = vi.fn();
 const lockPathV33MonthDrafts = vi.fn();
@@ -20,6 +21,7 @@ vi.mock("../../lib/api", () => {
         fetchNotifications: (...args: unknown[]) => fetchNotifications(...args),
         fetchPathModuleMonthCloseSummary: (...args: unknown[]) => fetchPathModuleMonthCloseSummary(...args),
         fetchPathV33OpenObjections: (...args: unknown[]) => fetchPathV33OpenObjections(...args),
+        fetchSiteCostTransferPreview: (...args: unknown[]) => fetchSiteCostTransferPreview(...args),
         fetchTeamRewardSummary: (...args: unknown[]) => fetchTeamRewardSummary(...args),
         finalizePathV33Month: (...args: unknown[]) => finalizePathV33Month(...args),
         lockPathV33MonthDrafts: (...args: unknown[]) => lockPathV33MonthDrafts(...args),
@@ -100,6 +102,7 @@ function setupDefaults() {
         reward_runs: [],
         eligible_closes: [],
     });
+    fetchSiteCostTransferPreview.mockResolvedValue({ month: "2026-05", transfers: [] });
     fetchNotifications.mockResolvedValue([monthCloseNotification]);
     markNotificationRead.mockResolvedValue({ ...monthCloseNotification, read: true });
     lockPathV33MonthDrafts.mockResolvedValue({ month: "2026-05", locked_draft_count: 2, recounted_drafts: 2 });

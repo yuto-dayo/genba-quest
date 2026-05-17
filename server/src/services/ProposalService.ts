@@ -1821,6 +1821,11 @@ export class ProposalService {
       return explicit;
     }
 
+    const siteId = this.getPayloadString(payload, ['site_id', 'siteId']);
+    if (siteId) {
+      return '1230';
+    }
+
     const category = (this.getPayloadString(payload, ['category']) || '').toLowerCase();
     const categoryMap: Record<string, string> = {
       material: ACCOUNT_CODES.materials,
