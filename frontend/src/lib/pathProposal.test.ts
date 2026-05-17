@@ -19,6 +19,6 @@ describe("pathProposal helpers", () => {
         expect(getPathProposalContext(proposal)).toMatchObject({
             month: "2026-05",
         });
-        expect(buildPathProposalHref(proposal)).toBe("/luqo?tab=path&proposal=proposal-v32&period=2026-05");
+        expect(buildPathProposalHref(proposal)).toBe("/money?proposal=proposal-v32&period=2026-05");
     });
 });

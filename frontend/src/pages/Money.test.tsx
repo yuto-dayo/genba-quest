@@ -135,6 +135,44 @@ vi.mock("../components/PartnerCard", () => ({
     DonePartnerCard: () => null,
 }));
 
+vi.mock("../components/money/OwnRewardModal", () => ({
+    OwnRewardModal: ({
+        selfMemberId,
+        month,
+        onClose,
+    }: {
+        selfMemberId: string;
+        month: string;
+        onClose: () => void;
+    }) => (
+        <div role="dialog" aria-label="own reward modal">
+            <span>own reward:{selfMemberId}:{month}</span>
+            <button type="button" onClick={onClose}>
+                close own reward
+            </button>
+        </div>
+    ),
+}));
+
+vi.mock("../components/money/OtherRewardModal", () => ({
+    OtherRewardModal: ({
+        memberId,
+        month,
+        onClose,
+    }: {
+        memberId: string;
+        month: string;
+        onClose: () => void;
+    }) => (
+        <div role="dialog" aria-label="other reward modal">
+            <span>other reward:{memberId}:{month}</span>
+            <button type="button" onClick={onClose}>
+                close other reward
+            </button>
+        </div>
+    ),
+}));
+
 vi.mock("../components/ProposalDetailModal", () => ({
     ProposalDetailModal: ({
         proposal,
@@ -296,6 +334,27 @@ describe("Money PATH proposal queue", () => {
         await screen.findByRole("dialog", { name: "proposal detail" });
         // Modal received the Sherpa proposal — approve button rendered means the proposal payload reached the detail handler.
         expect(screen.getByRole("button", { name: "承認する" })).toBeInTheDocument();
+    });
+
+    it("opens the own reward modal from modal=reward when member is self", async () => {
+        renderMoney("/money?modal=reward&member=member-1&period=2026-04&site=site-1");
+
+        expect(await screen.findByRole("dialog", { name: "own reward modal" })).toBeInTheDocument();
+        expect(screen.getByText("own reward:member-1:2026-04")).toBeInTheDocument();
+    });
+
+    it("opens the other reward modal from modal=reward when member is not self", async () => {
+        renderMoney("/money?modal=reward&member=member-2&period=2026-04&site=site-1");
+
+        expect(await screen.findByRole("dialog", { name: "other reward modal" })).toBeInTheDocument();
+        expect(screen.getByText("other reward:member-2:2026-04")).toBeInTheDocument();
+    });
+
+    it("falls back to the own reward modal for reward links without member", async () => {
+        renderMoney("/money?modal=reward&period=2026-04&site=site-1");
+
+        expect(await screen.findByRole("dialog", { name: "own reward modal" })).toBeInTheDocument();
+        expect(screen.getByText("own reward:member-1:2026-04")).toBeInTheDocument();
     });
 
     it("keeps an approved proposal open so execution can happen from the same detail", async () => {

@@ -257,6 +257,10 @@ const getRecentMonths = (endMonth: string, count: number) => {
     });
 };
 
+function isMonthParam(value: string | null): value is string {
+    return Boolean(value && /^\d{4}-\d{2}$/.test(value));
+}
+
 function isInvoicePayNotification(notification: NotificationRecord, invoiceId: string): boolean {
     return notification.type === "approval_required"
         && notification.data?.kind === "member_invoice_pay"
@@ -287,6 +291,10 @@ export function Money() {
 
     // 選択中の月 (YYYY-MM形式)
     const [selectedMonth, setSelectedMonth] = useState(() => {
+        const period = searchParams.get("period");
+        if (isMonthParam(period)) {
+            return period;
+        }
         const now = new Date();
         return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
     });
@@ -646,6 +654,54 @@ export function Money() {
             setMonthCloseModalOpen(true);
         }
     }, [searchParams]);
+
+    const clearRewardSearchParams = useCallback(() => {
+        if (searchParams.get("modal") !== "reward") {
+            return;
+        }
+        const next = new URLSearchParams(searchParams);
+        next.delete("modal");
+        next.delete("member");
+        next.delete("period");
+        next.delete("site");
+        setSearchParams(next, { replace: true });
+    }, [searchParams, setSearchParams]);
+
+    const closeOwnRewardModal = useCallback(() => {
+        setOwnRewardModalOpen(false);
+        clearRewardSearchParams();
+    }, [clearRewardSearchParams]);
+
+    const closeOtherRewardModal = useCallback(() => {
+        setOtherRewardMemberId(null);
+        clearRewardSearchParams();
+    }, [clearRewardSearchParams]);
+
+    useEffect(() => {
+        if (searchParams.get("modal") !== "reward") {
+            return;
+        }
+
+        const period = searchParams.get("period");
+        if (isMonthParam(period)) {
+            setSelectedMonth(period);
+        }
+
+        const selfMemberId = teamRewardSummary?.self_member_id ?? null;
+        const targetMemberId = searchParams.get("member") || selfMemberId;
+        if (!targetMemberId) {
+            return;
+        }
+
+        if (selfMemberId && targetMemberId === selfMemberId) {
+            setOtherRewardMemberId(null);
+            setOwnRewardModalOpen(true);
+            return;
+        }
+
+        setOwnRewardModalOpen(false);
+        setOtherRewardMemberId(targetMemberId);
+    }, [searchParams, teamRewardSummary?.self_member_id]);
 
     const closeMonthCloseModal = useCallback(() => {
         setMonthCloseModalOpen(false);
@@ -1106,7 +1162,7 @@ export function Money() {
                     selfMemberId={teamRewardSummary.self_member_id}
                     selfUserId={selfUserId}
                     month={selectedMonth}
-                    onClose={() => setOwnRewardModalOpen(false)}
+                    onClose={closeOwnRewardModal}
                     onInvoiceChanged={() => {
                         setInvoiceRefreshKey((current) => current + 1);
                         handleMoneyHeroRetry();
@@ -1118,7 +1174,7 @@ export function Money() {
                 <OtherRewardModal
                     memberId={otherRewardMemberId}
                     month={selectedMonth}
-                    onClose={() => setOtherRewardMemberId(null)}
+                    onClose={closeOtherRewardModal}
                 />
             )}
 

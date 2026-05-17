@@ -1,4 +1,4 @@
-import { BrowserRouter, Link, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { BrowserRouter, Link, Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Building2,
   CalendarDays,
@@ -15,7 +15,6 @@ import {
   MapPinned,
   MessageSquareText,
   PlusCircle,
-  Route as RouteIcon,
   Settings2,
   TriangleAlert,
   X,
@@ -31,7 +30,6 @@ import { NotificationInbox } from "./components/NotificationInbox";
 import { LevelDraftSheet } from "./components/LevelDraftSheet";
 import { Communications } from "./pages/Communications";
 import { Calendar } from "./pages/Calendar";
-import PathRewardConfirmationPage from "./pages/PathRewardConfirmation";
 import { Money } from "./pages/Money";
 import MoneyMock from "./pages/MoneyMock";
 import { Settings } from "./pages/Settings";
@@ -68,6 +66,7 @@ import {
   setDevAuthSessionActive,
 } from "./lib/devAuth";
 import { supabase } from "./lib/supabase";
+import { buildMoneyRedirectFromLegacyRoute } from "./lib/legacyRouteRedirect";
 import { useActiveOrgStore, type ActiveOrgOption } from "./stores/activeOrg";
 import "./styles/genba-quest.css";
 import styles from "./App.module.css";
@@ -86,7 +85,6 @@ const NAV_ITEMS: ReadonlyArray<{ path: string; label: string; icon: LucideIcon }
   { path: "/sites", label: "現場", icon: MapPinned },
   { path: "/communications", label: "連絡", icon: MessageSquareText },
   { path: "/money", label: "お金", icon: CircleDollarSign },
-  { path: "/path", label: "PATH", icon: RouteIcon },
   { path: "/settings", label: "設定", icon: Settings2 },
 ] as const;
 
@@ -303,7 +301,7 @@ function Navigation({
   onSignOut: () => void;
 }) {
   const location = useLocation();
-  const activePath = location.pathname === "/luqo" ? "/path" : location.pathname;
+  const activePath = location.pathname === "/luqo" || location.pathname === "/path" ? "/money" : location.pathname;
   const chipRailRef = useRef<HTMLDivElement | null>(null);
   const lastScrollYRef = useRef(0);
   const upwardScrollDistanceRef = useRef(0);
@@ -513,6 +511,11 @@ function Navigation({
       </div>
     </header>
   );
+}
+
+function RedirectPathToMoney() {
+  const [params] = useSearchParams();
+  return <Navigate to={buildMoneyRedirectFromLegacyRoute(params)} replace />;
 }
 
 function InviteHelpModal({
@@ -2289,8 +2292,8 @@ function AppContent() {
                 <Route path="/money-mock" element={<MoneyMock />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/communications" element={<Communications />} />
-                <Route path="/path" element={<PathRewardConfirmationPage />} />
-                <Route path="/luqo" element={<PathRewardConfirmationPage />} />
+                <Route path="/path" element={<RedirectPathToMoney />} />
+                <Route path="/luqo" element={<RedirectPathToMoney />} />
               </Routes>
             </div>
           </main>

@@ -468,6 +468,24 @@ describe("App entry gate", () => {
         expect(screen.queryByRole("button", { name: "連絡を記録" })).not.toBeInTheDocument();
     });
 
+    it("redirects legacy PATH reward links into the Money reward modal route", async () => {
+        window.history.pushState({}, "", "/path?reward=1&member=member-1&period=2026-05&site=site-1");
+        fetchAppEntryState.mockResolvedValue({
+            state: "ready",
+            active_org: { org_id: "org-1", org_name: "GENBA 本部", role: "admin" },
+            memberships: [{ org_id: "org-1", org_name: "GENBA 本部", role: "admin" }],
+        });
+
+        render(<App />);
+
+        expect(await screen.findByText("money-page")).toBeInTheDocument();
+        await waitFor(() => {
+            expect(window.location.pathname).toBe("/money");
+            expect(window.location.search).toBe("?modal=reward&member=member-1&period=2026-05&site=site-1");
+        });
+        expect(screen.queryByRole("link", { name: /PATH/ })).not.toBeInTheDocument();
+    });
+
     it("collapses the shared header on downward scroll and restores it on upward scroll", async () => {
         let scrollY = 0;
         const scrollYSpy = vi.spyOn(window, "scrollY", "get").mockImplementation(() => scrollY);
