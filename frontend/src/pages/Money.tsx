@@ -54,7 +54,6 @@ import { MyMemberInvoicesList } from "../components/MyMemberInvoicesList";
 import { ExpenseModal } from "../components/ExpenseModal";
 import { SalesModal } from "../components/SalesModal";
 import { InvoiceModal } from "../components/InvoiceModal";
-import { InvoiceListPanel } from "../components/InvoiceListPanel";
 import { ProposalDetailModal } from "../components/ProposalDetailModal";
 import { TransactionDetailModal } from "../components/TransactionDetailModal";
 import { ApprovalCard } from "../components/ApprovalCard";
@@ -1694,14 +1693,6 @@ export function Money() {
                     )}
                 </div>
 
-                <aside className={styles.secondaryColumn}>
-                    {activeTab === "transactions" && (
-                        <InvoiceListPanel
-                            refreshKey={invoiceRefreshKey}
-                            onCreateInvoice={openInvoiceModal}
-                        />
-                    )}
-                </aside>
             </div>
 
             {/* モーダル群 */}

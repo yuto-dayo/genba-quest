@@ -605,19 +605,13 @@
 
 .workspaceGrid {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(320px, 360px);
+    grid-template-columns: minmax(0, 1fr);
     gap: 20px;
     align-items: start;
 }
 
 .primaryColumn {
     min-width: 0;
-}
-
-.secondaryColumn {
-    position: sticky;
-    top: 24px;
-    align-self: start;
 }
 
 .actionBtn {
@@ -1326,10 +1320,6 @@
         grid-template-columns: 1fr;
     }
 
-    .secondaryColumn {
-        position: static;
-    }
-
     .transactionsSection {
         margin-bottom: 32px;
     }
@@ -1346,10 +1336,6 @@
 
     .workspaceGrid {
         grid-template-columns: 1fr;
-    }
-
-    .secondaryColumn {
-        position: static;
     }
 
     .txList {
@@ -2096,12 +2082,8 @@
 }
 
 .workspaceGrid {
-    grid-template-columns: minmax(0, 1fr) minmax(312px, 360px);
+    grid-template-columns: minmax(0, 1fr);
     gap: 18px;
-}
-
-.secondaryColumn {
-    top: 20px;
 }
 
 .searchSection {
@@ -2438,10 +2420,6 @@
 @media (max-width: 1080px) {
     .workspaceGrid {
         grid-template-columns: 1fr;
-    }
-
-    .secondaryColumn {
-        position: static;
     }
 
     .deckBody {
