@@ -20,6 +20,10 @@
     box-shadow: 0 1px 2px rgba(7, 24, 22, 0.06), 0 12px 28px rgba(7, 24, 22, 0.08);
 }
 
+.cardOverdue {
+    border-left: 3px solid var(--money-status-overdue);
+}
+
 .card.staticCard {
     cursor: default;
 }
@@ -115,4 +119,65 @@
 .unset {
     color: #b6541f;
     font: var(--md-sys-typescale-body-small);
+}
+
+.invoiceLine {
+    display: grid;
+    grid-template-columns: var(--md-sys-spacing-lg) minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--md-sys-spacing-sm);
+    min-height: var(--md-sys-tap-target-min);
+    padding: var(--md-sys-spacing-sm);
+    border-radius: var(--md-sys-shape-corner-medium);
+    background: var(--md-sys-color-surface-container-low);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.invoiceIcon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--md-sys-color-primary);
+}
+
+.invoiceMain {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--md-sys-spacing-2xs);
+}
+
+.invoiceNo,
+.invoiceDue {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.invoiceNo {
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-medium);
+    font-variant-numeric: tabular-nums;
+}
+
+.invoiceDue {
+    font: var(--md-sys-typescale-body-small);
+    font-variant-numeric: tabular-nums;
+}
+
+.invoiceStatus {
+    justify-self: end;
+    border-radius: var(--md-sys-shape-corner-full);
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
+    padding: var(--md-sys-spacing-2xs) var(--md-sys-spacing-sm);
+    font: var(--md-sys-typescale-label-small);
+    font-weight: 700;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.invoiceStatusOverdue {
+    background: var(--money-status-overdue-container);
+    color: var(--money-status-overdue);
 }

@@ -1,31 +1,31 @@
-# Session Handoff - 2026-05-13
+# Session Handoff - 2026-05-17
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `必要ならこのままコミットしてPR作成`
+- NEXT_CMD: `draft PR 作成、CI green 後 ready 化`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
-  - `/Users/yutoyoshino/Documents/genba-quest/handoff/local.md`
-  - `/Users/yutoyoshino/Documents/genba-quest/docs/DESIGN_PHILOSOPHY.md`
+  - `/Users/yutoyoshino/Documents/genba-quest-pr11/handoff/local.md`
+  - `/Users/yutoyoshino/Documents/genba-quest-pr11/docs/DESIGN_PHILOSOPHY.md`
 - DO_NOT_READ:
   - `docs/DESIGN_PHILOSOPHY.md` (full)
 - VERIFY_FIRST:
   - `sed -n '1,120p' docs/DESIGN_PHILOSOPHY.md`
 - STATE:
-  - Branch: `feature/level-revision-and-app-lock`
-  - Uncommitted: `11 files`
+  - Branch: `feat/money-redesign-pr11-fe-partner-invoice-tab`
+  - Uncommitted: `0 files`
   - DB migrations: `latest local: none found`
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `935a4e1`
-  - Updated: `2026-05-13T20:36:45+0900`
+  - HEAD: `f3f71d0`
+  - Updated: `2026-05-17T15:39:44+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
 
 <!-- HANDOFF_SESSION_EVENTS_START -->
-- 2026-05-13 20:16:11 +0900 — started by codex
+- 2026-05-17 15:24:56 +0900 — started by codex
 <!-- HANDOFF_SESSION_EVENTS_END -->
 
 ---
@@ -33,16 +33,16 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `必要ならこのままコミットしてPR作成`. Source: realtime
-- [H0001] Completed: PR4実装を feature/level-revision-and-app-lock に整理。revision履歴migration、PathV33 revise/responsibility-lock API、PATH修正UI、強制入力モーダル、関連テストを追加。
-- [H0001] Remaining: 必要ならこのままコミットしてPR作成
+- [focus] NEXT_CMD: `draft PR 作成、CI green 後 ready 化`. Source: realtime
+- [H0001] Completed: PR-11 取引先・請求書タブ実装: filter chips, invoice inline, partner drawer, invoice bucket API
+- [H0001] Remaining: draft PR 作成、CI green 後 ready 化
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
-- [H0001] Auto-captured decision: PR4実装を feature/level-revision-and-app-lock に整理。revision履歴migration、PathV33 revise/responsibility-lock API、PATH修正UI、強制入力モーダル、関連テストを追加。
+- [H0001] Auto-captured decision: PR-11 取引先・請求書タブ実装: filter chips, invoice inline, partner drawer, invoice bucket API
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
@@ -52,7 +52,7 @@
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
-- [H0001] 必要ならこのままコミットしてPR作成
+- [H0001] draft PR 作成、CI green 後 ready 化
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
@@ -70,11 +70,11 @@
 
 ```text
 Agent: 未定（Claude Code / Codex）
-Branch: feature/level-revision-and-app-lock
+Branch: feat/money-redesign-pr11-fe-partner-invoice-tab
 Phase: A-0/A-1
 ```
 
-> [carryover] Working tree was dirty at session start (12 files). Prior session may have unfinished work — verify NEXT_CMD before executing.
+> [carryover] Working tree was dirty at session start (1 files). Prior session may have unfinished work — verify NEXT_CMD before executing.
 
 1. `docs/DESIGN_PHILOSOPHY.md` の冒頭を確認
 2. このファイルを更新しながら実装を進める
@@ -90,23 +90,19 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
-- [x] PR4実装を feature/level-revision-and-app-lock に整理。revision履歴migration、PathV33 revise/responsibility-lock API、PATH修正UI、強制入力モーダル、関連テストを追加。
+- [x] PR-11 取引先・請求書タブ実装: filter chips, invoice inline, partner drawer, invoice bucket API
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: 必要ならこのままコミットしてPR作成
+- [ ] **P0**: draft PR 作成、CI green 後 ready 化
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
-| `frontend/src/components/PathV33PersonalDashboard.tsx` | PATH修正ボタンとLevelRevisionSheet連携 |
-| `frontend/src/App.tsx` | 強制ロックモーダル導線と期限超過スキップ追加 |
-| `server/src/routes/pathModule.ts` | v33 revise/responsibility-lock ルート追加 |
-| `server/src/services/PathV33RewardService.ts` | reviseLevelDraft と responsibility-lock targets 追加 |
-| `supabase/migrations/20260516030000_add_site_member_level_draft_revisions.sql` | PR4 revision監査テーブル追加 |
+| `(not recorded)` | No file list provided (use --file "path - semantic description") |
 ---
 
 ## 6. Locked Files（編集中 - 他エージェント触らない）
@@ -153,22 +149,18 @@ cd frontend && npx eslint src/
 
 ## 11. Incremental Updates
 
-### 2026-05-13 20:36:45 +0900
+### 2026-05-17 15:39:44 +0900
 
 - Entry-ID: `H0001`
 - Completed:
-  - [x] PR4実装を feature/level-revision-and-app-lock に整理。revision履歴migration、PathV33 revise/responsibility-lock API、PATH修正UI、強制入力モーダル、関連テストを追加。
+  - [x] PR-11 取引先・請求書タブ実装: filter chips, invoice inline, partner drawer, invoice bucket API
 - Remaining:
-  - [ ] 必要ならこのままコミットしてPR作成
+  - [ ] draft PR 作成、CI green 後 ready 化
 - Changed Files:
-  - `supabase/migrations/20260516030000_add_site_member_level_draft_revisions.sql` - PR4 revision監査テーブル追加
-  - `server/src/services/PathV33RewardService.ts` - reviseLevelDraft と responsibility-lock targets 追加
-  - `server/src/routes/pathModule.ts` - v33 revise/responsibility-lock ルート追加
-  - `frontend/src/App.tsx` - 強制ロックモーダル導線と期限超過スキップ追加
-  - `frontend/src/components/PathV33PersonalDashboard.tsx` - PATH修正ボタンとLevelRevisionSheet連携
+  - No file list provided (use --file "path - semantic description")
 - Working Context:
-  - Auto-captured decision: PR4実装を feature/level-revision-and-app-lock に整理。revision履歴migration、PathV33 revise/responsibility-lock API、PATH修正UI、強制入力モーダル、関連テストを追加。
+  - Auto-captured decision: PR-11 取引先・請求書タブ実装: filter chips, invoice inline, partner drawer, invoice bucket API
 - Validation:
-  - `cd server && npx tsc --noEmit => pass; cd frontend && npx tsc --noEmit => pass; cd server && npx jest src/__tests__/unit/PathV33RewardService.test.ts --runInBand => pass; cd frontend && npx vitest run src/components/LevelDraftSheet.test.tsx src/components/LevelRevisionSheet.test.tsx src/components/PathV33PersonalDashboard.test.tsx src/App.test.tsx => pass; cd server && npm run build => pass; cd frontend && npm run build => pass; cd frontend && npx eslint src/ => pass`
+  - `frontend tsc/lint/component tests passed; server tsc/accounting route tests passed; Playwright mocked /money 375px/1280px/reduced-motion verified`
 - Landmines:
   - No new landmines reported in this chunk.

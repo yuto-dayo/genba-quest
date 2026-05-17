@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -27,6 +27,7 @@ import {
     fetchTransactions,
     fetchPendingApprovals,
     fetchClients,
+    fetchInvoices,
     fetchPartnersSummary,
     instructProposal,
     rejectProposal,
@@ -37,6 +38,7 @@ import {
     type AccountingTransaction,
     type ProposalRecord,
     type Client,
+    type AccountingInvoiceListItem,
     type PartnersSummary,
     type TeamRewardSummary,
     type MemberReimbursementsSummary,
@@ -60,7 +62,7 @@ import { FloatingActionButton } from "../components/FloatingActionButton";
 import { MoneyTabs, type MoneyTab } from "../components/MoneyTabs";
 import { MoneyFilterSheet, type ExpenseCategory } from "../components/MoneyFilterSheet";
 import { PartnerSection } from "../components/PartnerSection";
-import { ReceivePartnerCard, PayPartnerCard, DonePartnerCard } from "../components/PartnerCard";
+import { ReceivePartnerCard, PayPartnerCard, DonePartnerCard, type PartnerInvoiceInline } from "../components/PartnerCard";
 import { InlineLoader } from "../components/InlineLoader";
 import { MoneyHeroSection } from "../components/money/MoneyHeroSection";
 import { MemberCarousel } from "../components/money/MemberCarousel";
@@ -73,6 +75,8 @@ import { ExpenseDetailModal } from "../components/money/ExpenseDetailModal";
 import { TeamExpenseSummaryModal } from "../components/money/TeamExpenseSummaryModal";
 import { MonthCloseModal } from "../components/money/MonthCloseModal";
 import { InvoicePayModal } from "../components/money/InvoicePayModal";
+import { InvoiceFilterRow, type InvoiceBucket, type InvoiceBucketCounts } from "../components/money/InvoiceFilterRow";
+import { PartnerDetailDrawer } from "../components/money/PartnerDetailDrawer";
 import styles from "./Money.module.css";
 
 // 日付フォーマットヘルパー (YYYY/MM/DD)
@@ -80,6 +84,76 @@ const formatDate = (dateStr?: string | null) => {
     if (!dateStr) return "";
     return dateStr.replace(/-/g, "/");
 };
+
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+function getJstDateIso(date = new Date()): string {
+    return new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Tokyo",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).format(date);
+}
+
+function toJstDateTime(iso: string): number {
+    return new Date(`${iso.slice(0, 10)}T00:00:00+09:00`).getTime();
+}
+
+function daysUntilDueJst(dueDate?: string | null, todayIso = getJstDateIso()): number | null {
+    if (!dueDate) return null;
+    const due = toJstDateTime(dueDate);
+    const today = toJstDateTime(todayIso);
+    if (Number.isNaN(due) || Number.isNaN(today)) return null;
+    return Math.round((due - today) / MS_PER_DAY);
+}
+
+function invoiceBucket(invoice: AccountingInvoiceListItem): InvoiceBucket | "later" {
+    if (invoice.invoice_bucket && invoice.invoice_bucket !== "all") {
+        return invoice.invoice_bucket;
+    }
+    if (invoice.status === "draft") return "draft";
+    const days = typeof invoice.days_until_due === "number"
+        ? invoice.days_until_due
+        : daysUntilDueJst(invoice.due_date);
+    if (days !== null && days < 0) return "overdue";
+    if (days !== null && days <= 7) return "this_week";
+    return "later";
+}
+
+function invoiceAmount(invoice: AccountingInvoiceListItem): number {
+    return Number(invoice.source_summary?.amount_total ?? invoice.source_transaction?.amount_total ?? 0);
+}
+
+function getInvoiceClientId(invoice: AccountingInvoiceListItem): string | null {
+    return invoice.source_transaction?.client?.id ?? null;
+}
+
+function latestInvoice(a: AccountingInvoiceListItem, b: AccountingInvoiceListItem): number {
+    return (b.issue_date || b.created_at || "").localeCompare(a.issue_date || a.created_at || "");
+}
+
+function toPartnerInvoiceInline(invoice: AccountingInvoiceListItem): PartnerInvoiceInline {
+    const bucket = invoiceBucket(invoice);
+    const days = typeof invoice.days_until_due === "number"
+        ? invoice.days_until_due
+        : daysUntilDueJst(invoice.due_date);
+    const overdueDays = days !== null && days < 0 ? Math.abs(days) : null;
+    return {
+        invoiceNo: invoice.invoice_no,
+        amount: invoiceAmount(invoice),
+        dueDate: invoice.due_date ?? null,
+        statusLabel: bucket === "overdue"
+            ? "期限超過"
+            : bucket === "this_week"
+                ? "今週入金予定"
+                : bucket === "draft"
+                    ? "下書き"
+                    : "入金待ち",
+        overdueDays,
+        isOverdue: bucket === "overdue",
+    };
+}
 
 // PR #12: day-head 用フォーマット (例: "5月10日 (土)")
 const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
@@ -277,6 +351,12 @@ export function Money() {
     const [partnersSummary, setPartnersSummary] = useState<PartnersSummary | null>(null);
     const [partnersLoading, setPartnersLoading] = useState(false);
     const [partnersError, setPartnersError] = useState<string | null>(null);
+    const [partnerInvoiceBucket, setPartnerInvoiceBucket] = useState<InvoiceBucket>("overdue");
+    const [partnerInvoices, setPartnerInvoices] = useState<AccountingInvoiceListItem[]>([]);
+    const [partnerInvoicesLoading, setPartnerInvoicesLoading] = useState(false);
+    const [partnerInvoicesError, setPartnerInvoicesError] = useState<string | null>(null);
+    const [partnerDrawer, setPartnerDrawer] = useState<{ clientId: string | null; name: string } | null>(null);
+    const [invoiceRefreshKey, setInvoiceRefreshKey] = useState(0);
 
     // 取引先一覧 — フィルタシート (取引先 chips) でマウント時にロード
     const [clients, setClients] = useState<Client[] | null>(null);
@@ -316,6 +396,68 @@ export function Money() {
         };
     }, [activeTab, selectedMonth]);
 
+    useEffect(() => {
+        if (activeTab !== "vendors") return;
+        let cancelled = false;
+        setPartnerInvoicesLoading(true);
+        setPartnerInvoicesError(null);
+        fetchInvoices({ bucket: "all", limit: 200 })
+            .then((data) => {
+                if (!cancelled) setPartnerInvoices(data);
+            })
+            .catch((err: unknown) => {
+                if (!cancelled) setPartnerInvoicesError(getErrorMessage(err));
+            })
+            .finally(() => {
+                if (!cancelled) setPartnerInvoicesLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [activeTab, invoiceRefreshKey]);
+
+    const invoiceInsights = useMemo(() => {
+        const invoicesByClient = new Map<string, AccountingInvoiceListItem[]>();
+        const counts: InvoiceBucketCounts = {
+            overdue: 0,
+            this_week: 0,
+            draft: 0,
+            all: partnerInvoices.length,
+        };
+
+        for (const invoice of partnerInvoices) {
+            const bucket = invoiceBucket(invoice);
+            if (bucket === "overdue" || bucket === "this_week" || bucket === "draft") {
+                counts[bucket] += 1;
+            }
+
+            const clientId = getInvoiceClientId(invoice);
+            if (!clientId) continue;
+            const list = invoicesByClient.get(clientId) ?? [];
+            list.push(invoice);
+            invoicesByClient.set(clientId, list);
+        }
+
+        const latestByClient = new Map<string, AccountingInvoiceListItem>();
+        for (const [clientId, invoices] of invoicesByClient.entries()) {
+            invoices.sort(latestInvoice);
+            if (invoices[0]) {
+                latestByClient.set(clientId, invoices[0]);
+            }
+        }
+
+        return { counts, invoicesByClient, latestByClient };
+    }, [partnerInvoices]);
+
+    const visibleReceivePartners = useMemo(() => {
+        const partners = partnersSummary?.receive.partners ?? [];
+        if (partnerInvoiceBucket === "all") return partners;
+        return partners.filter((partner) => {
+            const invoices = invoiceInsights.invoicesByClient.get(partner.client_id) ?? [];
+            return invoices.some((invoice) => invoiceBucket(invoice) === partnerInvoiceBucket);
+        });
+    }, [invoiceInsights.invoicesByClient, partnerInvoiceBucket, partnersSummary]);
+
     // 承認モーダル (バッチ操作用、ベルから個別カードと別に開ける)
     const [showApprovalsModal, setShowApprovalsModal] = useState(false);
 
@@ -324,7 +466,6 @@ export function Money() {
     const [showSalesModal, setShowSalesModal] = useState(false);
     const [showInvoiceModal, setShowInvoiceModal] = useState(false);
     const [invoicePayTarget, setInvoicePayTarget] = useState<InvoicePayTarget | null>(null);
-    const [invoiceRefreshKey, setInvoiceRefreshKey] = useState(0);
     const [ownRewardModalOpen, setOwnRewardModalOpen] = useState(false);
     const [otherRewardMemberId, setOtherRewardMemberId] = useState<string | null>(null);
     const [teamSummaryModalOpen, setTeamSummaryModalOpen] = useState(false);
@@ -1436,8 +1577,8 @@ export function Money() {
                         >
                             <div className={styles.sectionHeader}>
                                 <div>
-                                    <p className={styles.sectionKicker}>もらう / 払う / 完了</p>
-                                    <h2 className={styles.sectionTitle}>取引先</h2>
+                                    <p className={styles.sectionKicker}>期限 / 入金 / 履歴</p>
+                                    <h2 className={styles.sectionTitle}>取引先・請求書</h2>
                                 </div>
                                 {partnersSummary && (
                                     <span className={styles.txCountBadge}>
@@ -1462,50 +1603,90 @@ export function Money() {
                                 </div>
                             )}
 
+                            <InvoiceFilterRow
+                                value={partnerInvoiceBucket}
+                                counts={invoiceInsights.counts}
+                                onChange={setPartnerInvoiceBucket}
+                            />
+
+                            {partnerInvoicesLoading && (
+                                <div className={styles.vendorsLoading}>
+                                    <RefreshCw size={16} className={styles.spinIcon} />
+                                    <span>請求書を読み込み中</span>
+                                </div>
+                            )}
+
+                            {partnerInvoicesError && (
+                                <div className={styles.vendorsError}>
+                                    請求書の取得に失敗: {partnerInvoicesError}
+                                </div>
+                            )}
+
                             {!partnersLoading && !partnersError && partnersSummary && (
                                 <div className={styles.partnerSections}>
                                     <PartnerSection
                                         title="もらう (請求/入金)"
                                         warn
                                         total={partnersSummary.receive.total}
-                                        count={partnersSummary.receive.partners.length}
-                                        emptyLabel="今月の売上はまだ記録されていません"
+                                        count={visibleReceivePartners.length}
+                                        emptyLabel={partnerInvoiceBucket === "all"
+                                            ? "今月の売上はまだ記録されていません"
+                                            : "該当する請求書はありません"}
                                     >
-                                        {partnersSummary.receive.partners.map((p) => (
-                                            <ReceivePartnerCard
-                                                key={p.client_id}
-                                                partner={p}
-                                                onClick={() =>
-                                                    setFilters((prev) => ({ ...prev, clientId: p.client_id }))
-                                                }
-                                            />
-                                        ))}
+                                        {visibleReceivePartners.map((p) => {
+                                            const latest = invoiceInsights.latestByClient.get(p.client_id);
+                                            return (
+                                                <ReceivePartnerCard
+                                                    key={p.client_id}
+                                                    partner={p}
+                                                    latestInvoice={latest ? toPartnerInvoiceInline(latest) : null}
+                                                    onClick={() => setPartnerDrawer({
+                                                        clientId: p.client_id,
+                                                        name: p.client_name,
+                                                    })}
+                                                />
+                                            );
+                                        })}
                                     </PartnerSection>
 
-                                    <PartnerSection
-                                        title="払う (仕入/外注)"
-                                        total={partnersSummary.pay.total}
-                                        count={partnersSummary.pay.partners.length}
-                                        emptyLabel="今月の経費はまだ記録されていません"
-                                    >
-                                        {partnersSummary.pay.partners.map((p) => (
-                                            <PayPartnerCard key={p.vendor_name} partner={p} />
-                                        ))}
-                                    </PartnerSection>
+                                    {partnerInvoiceBucket === "all" && (
+                                        <>
+                                            <PartnerSection
+                                                title="払う (仕入/外注)"
+                                                total={partnersSummary.pay.total}
+                                                count={partnersSummary.pay.partners.length}
+                                                emptyLabel="今月の経費はまだ記録されていません"
+                                            >
+                                                {partnersSummary.pay.partners.map((p) => (
+                                                    <PayPartnerCard key={p.vendor_name} partner={p} />
+                                                ))}
+                                            </PartnerSection>
 
-                                    <PartnerSection
-                                        title="完了 (入金済)"
-                                        total={partnersSummary.done.total}
-                                        count={partnersSummary.done.partners.length}
-                                        emptyLabel="今月の入金はまだありません"
-                                    >
-                                        {partnersSummary.done.partners.map((p, idx) => (
-                                            <DonePartnerCard
-                                                key={`${p.client_id ?? "anon"}-${p.paid_at}-${idx}`}
-                                                partner={p}
-                                            />
-                                        ))}
-                                    </PartnerSection>
+                                            <PartnerSection
+                                                title="完了 (入金済)"
+                                                total={partnersSummary.done.total}
+                                                count={partnersSummary.done.partners.length}
+                                                emptyLabel="今月の入金はまだありません"
+                                            >
+                                                {partnersSummary.done.partners.map((p, idx) => {
+                                                    const latest = p.client_id
+                                                        ? invoiceInsights.latestByClient.get(p.client_id)
+                                                        : null;
+                                                    return (
+                                                        <DonePartnerCard
+                                                            key={`${p.client_id ?? "anon"}-${p.paid_at}-${idx}`}
+                                                            partner={p}
+                                                            latestInvoice={latest ? toPartnerInvoiceInline(latest) : null}
+                                                            onClick={p.client_id ? () => setPartnerDrawer({
+                                                                clientId: p.client_id,
+                                                                name: p.client_name,
+                                                            }) : undefined}
+                                                        />
+                                                    );
+                                                })}
+                                            </PartnerSection>
+                                        </>
+                                    )}
                                 </div>
                             )}
 
@@ -1514,10 +1695,12 @@ export function Money() {
                 </div>
 
                 <aside className={styles.secondaryColumn}>
-                    <InvoiceListPanel
-                        refreshKey={invoiceRefreshKey}
-                        onCreateInvoice={openInvoiceModal}
-                    />
+                    {activeTab === "transactions" && (
+                        <InvoiceListPanel
+                            refreshKey={invoiceRefreshKey}
+                            onCreateInvoice={openInvoiceModal}
+                        />
+                    )}
                 </aside>
             </div>
 
@@ -1603,6 +1786,25 @@ export function Money() {
                         onExecute={(proposalId) => handleProposalMutation(proposalId, "execute")}
                         isActing={proposalActing}
                         actionError={proposalError}
+                    />
+                )}
+                {partnerDrawer && (
+                    <PartnerDetailDrawer
+                        key={`partner-drawer-${partnerDrawer.clientId ?? partnerDrawer.name}`}
+                        open
+                        partnerName={partnerDrawer.name}
+                        invoices={partnerDrawer.clientId
+                            ? invoiceInsights.invoicesByClient.get(partnerDrawer.clientId) ?? []
+                            : []}
+                        onClose={() => setPartnerDrawer(null)}
+                        onRecordPayment={(invoice) => {
+                            const clientId = getInvoiceClientId(invoice);
+                            if (clientId) {
+                                setFilters((prev) => ({ ...prev, kind: "invoice", clientId }));
+                            }
+                            setActiveTab("transactions");
+                            setPartnerDrawer(null);
+                        }}
                     />
                 )}
             </AnimatePresence>

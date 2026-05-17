@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { CalendarClock, Receipt } from "lucide-react";
+import { CalendarClock, FileText, Receipt } from "lucide-react";
 import {
     type ReceivePartnerSummary,
     type PayPartnerSummary,
@@ -8,6 +8,15 @@ import {
 import { describeRule, formatDateJa } from "../lib/billingRuleFormat";
 import { motion as motionTokens } from "../lib/motion/tokens";
 import styles from "./PartnerCard.module.css";
+
+export interface PartnerInvoiceInline {
+    invoiceNo: string;
+    amount: number;
+    dueDate: string | null;
+    statusLabel: string;
+    overdueDays?: number | null;
+    isOverdue?: boolean;
+}
 
 function formatYenShort(amount: number): string {
     if (amount >= 10_000) {
@@ -19,10 +28,11 @@ function formatYenShort(amount: number): string {
 
 interface ReceivePartnerCardProps {
     partner: ReceivePartnerSummary;
+    latestInvoice?: PartnerInvoiceInline | null;
     onClick?: () => void;
 }
 
-export function ReceivePartnerCard({ partner, onClick }: ReceivePartnerCardProps) {
+export function ReceivePartnerCard({ partner, latestInvoice, onClick }: ReceivePartnerCardProps) {
     const amountToneClass =
         partner.status === "awaiting_payment"
             ? styles.amountNeg
@@ -33,15 +43,16 @@ export function ReceivePartnerCard({ partner, onClick }: ReceivePartnerCardProps
     return (
         <motion.button
             type="button"
-            className={styles.card}
+            className={`${styles.card} ${latestInvoice?.isOverdue ? styles.cardOverdue : ""}`}
             onClick={onClick}
+            aria-label={`${partner.client_name} の請求書履歴を開く`}
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={motionTokens.spatialDefault}
             whileTap={{ scale: 0.985 }}
         >
             <div className={styles.head}>
-                <span className={styles.name}>{partner.client_name}</span>
+                <span className={styles.name} title={partner.client_name}>{partner.client_name}</span>
                 <span className={`${styles.amount} ${amountToneClass}`}>
                     {formatYenShort(partner.amount)}
                 </span>
@@ -86,7 +97,31 @@ export function ReceivePartnerCard({ partner, onClick }: ReceivePartnerCardProps
                     </>
                 )}
             </div>
+
+            {latestInvoice && <InvoiceInline invoice={latestInvoice} />}
         </motion.button>
+    );
+}
+
+function InvoiceInline({ invoice }: { invoice: PartnerInvoiceInline }) {
+    return (
+        <div className={styles.invoiceLine}>
+            <span className={styles.invoiceIcon} aria-hidden>
+                <FileText size={13} />
+            </span>
+            <span className={styles.invoiceMain}>
+                <span className={styles.invoiceNo}>{invoice.invoiceNo}</span>
+                <span className={styles.invoiceDue}>
+                    {invoice.dueDate ? `${formatDateJa(invoice.dueDate)} 期限` : "期限未設定"}
+                </span>
+            </span>
+            <span className={`${styles.invoiceStatus} ${invoice.isOverdue ? styles.invoiceStatusOverdue : ""}`}>
+                {invoice.statusLabel}
+                {invoice.isOverdue && typeof invoice.overdueDays === "number"
+                    ? ` ${invoice.overdueDays}日`
+                    : ""}
+            </span>
+        </div>
     );
 }
 
@@ -148,18 +183,22 @@ export function PayPartnerCard({ partner }: PayPartnerCardProps) {
 
 interface DonePartnerCardProps {
     partner: DonePartnerSummary;
+    latestInvoice?: PartnerInvoiceInline | null;
+    onClick?: () => void;
 }
 
-export function DonePartnerCard({ partner }: DonePartnerCardProps) {
+export function DonePartnerCard({ partner, latestInvoice, onClick }: DonePartnerCardProps) {
+    const Component = onClick ? motion.button : motion.div;
     return (
-        <motion.div
-            className={`${styles.card} ${styles.staticCard}`}
+        <Component
+            {...(onClick ? { type: "button" as const, onClick, "aria-label": `${partner.client_name} の請求書履歴を開く` } : {})}
+            className={`${styles.card} ${onClick ? "" : styles.staticCard}`}
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={motionTokens.spatialDefault}
         >
             <div className={styles.head}>
-                <span className={styles.name}>{partner.client_name}</span>
+                <span className={styles.name} title={partner.client_name}>{partner.client_name}</span>
                 <span className={`${styles.amount} ${styles.amountDone}`}>
                     +{formatYenShort(partner.amount)}
                 </span>
@@ -169,6 +208,7 @@ export function DonePartnerCard({ partner }: DonePartnerCardProps) {
                     入金日: <b>{formatDateJa(partner.paid_at)}</b>
                 </span>
             </div>
-        </motion.div>
+            {latestInvoice && <InvoiceInline invoice={latestInvoice} />}
+        </Component>
     );
 }
