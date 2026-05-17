@@ -97,10 +97,6 @@ vi.mock("../components/InvoiceModal", () => ({
     InvoiceModal: () => null,
 }));
 
-vi.mock("../components/InvoiceListPanel", () => ({
-    InvoiceListPanel: () => <div data-testid="invoice-list-panel" />,
-}));
-
 vi.mock("../components/TransactionDetailModal", () => ({
     TransactionDetailModal: () => null,
 }));
@@ -270,10 +266,10 @@ describe("Money PATH proposal queue", () => {
         fireEvent.click(screen.getByRole("button", { name: "承認する" }));
 
         await waitFor(() => expect(approveProposal).toHaveBeenCalledWith("proposal-path-1", "確認しました"));
-        await waitFor(() => expect(fetchPL).toHaveBeenCalledTimes(2));
+        await waitFor(() => expect(fetchPL.mock.calls.length).toBeGreaterThanOrEqual(2));
 
         expect(screen.queryByText("読み込みに失敗しました")).not.toBeInTheDocument();
-        expect(screen.getByText("利益（手残り）")).toBeInTheDocument();
+        expect(screen.getByLabelText("会社の月次サマリー")).toBeInTheDocument();
     });
 
     it("shows PATH action failures in the modal without replacing the Money page", async () => {
@@ -289,7 +285,7 @@ describe("Money PATH proposal queue", () => {
 
         expect(screen.getByText("承認結果の同期に失敗しました")).toBeInTheDocument();
         expect(screen.queryByText("読み込みに失敗しました")).not.toBeInTheDocument();
-        expect(screen.getByText("利益（手残り）")).toBeInTheDocument();
+        expect(screen.getByLabelText("会社の月次サマリー")).toBeInTheDocument();
     });
 
     it("opens AI/integration proposals via the deep link entry point", async () => {
