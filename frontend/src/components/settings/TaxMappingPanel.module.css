@@ -1,0 +1,249 @@
+.panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.trustBanner {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+    border-radius: 18px;
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
+}
+
+.trustBanner div {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.trustBanner strong {
+    font: var(--md-sys-typescale-title-small);
+}
+
+.trustBanner span {
+    font: var(--md-sys-typescale-body-small);
+    line-height: 1.5;
+}
+
+.mappingList,
+.historyRows {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.mappingRow,
+.historyPanel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    border-radius: 18px;
+    background: var(--md-sys-color-surface);
+    border: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.mappingMain {
+    display: grid;
+    grid-template-columns: minmax(96px, 0.9fr) auto minmax(120px, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+}
+
+.displayLabel,
+.mappingMain strong {
+    min-width: 0;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-title-small);
+}
+
+.accountCode,
+.categoryChip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 30px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: var(--md-sys-color-secondary-container);
+    color: var(--md-sys-color-on-secondary-container);
+    font: var(--md-sys-typescale-label-medium);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.categoryChip {
+    background: var(--md-sys-color-surface-container-high);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.scopeLine {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+}
+
+.editGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    padding: 14px;
+    border-radius: 16px;
+    background: var(--md-sys-color-surface-container-low);
+}
+
+.editGrid label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-medium);
+}
+
+.editGrid input,
+.editGrid select {
+    width: 100%;
+    min-height: 44px;
+    padding: 0 12px;
+    border-radius: 12px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background: var(--md-sys-color-surface-container-lowest);
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.editGrid input:focus-visible,
+.editGrid select:focus-visible,
+.primaryAction:focus-visible,
+.secondaryAction:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--md-sys-color-primary) 30%, transparent);
+    outline-offset: 2px;
+}
+
+.rowActions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.primaryAction,
+.secondaryAction {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 0 14px;
+    border-radius: 999px;
+    cursor: pointer;
+    font: var(--md-sys-typescale-label-medium);
+    font-weight: 700;
+}
+
+.primaryAction {
+    border: 1px solid var(--md-sys-color-primary);
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+}
+
+.secondaryAction {
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background: var(--md-sys-color-surface-container-low);
+    color: var(--md-sys-color-primary);
+}
+
+.primaryAction:disabled,
+.secondaryAction:disabled {
+    cursor: not-allowed;
+    opacity: 0.64;
+}
+
+.historyHeader {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-title-small);
+}
+
+.historyRow {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: var(--md-sys-color-surface-container-low);
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+}
+
+.historyRow span:first-child {
+    font-variant-numeric: tabular-nums;
+}
+
+.historyRow strong {
+    color: var(--md-sys-color-on-surface);
+}
+
+.centerState,
+.errorMessage,
+.successMessage {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 16px;
+    border-radius: 16px;
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.centerState {
+    justify-content: center;
+    color: var(--md-sys-color-on-surface-variant);
+    background: var(--md-sys-color-surface-container-low);
+}
+
+.errorMessage {
+    color: var(--md-sys-color-error);
+    background: var(--md-sys-color-error-container);
+}
+
+.successMessage {
+    color: var(--md-sys-color-primary);
+    background: var(--md-sys-color-primary-container);
+}
+
+.spinner {
+    animation: spin 900ms linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (max-width: 720px) {
+    .mappingMain,
+    .editGrid,
+    .historyRow {
+        grid-template-columns: 1fr;
+    }
+
+    .rowActions {
+        justify-content: stretch;
+    }
+
+    .primaryAction,
+    .secondaryAction {
+        flex: 1 1 auto;
+    }
+}

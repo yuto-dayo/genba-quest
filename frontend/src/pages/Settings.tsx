@@ -60,6 +60,7 @@ import { useActiveOrgStore, type ActiveOrgOption } from "../stores/activeOrg";
 import { InvoiceSettingsModal } from "../components/InvoiceSettingsModal";
 import { ClientSettingsModal } from "../components/ClientSettingsModal";
 import { ProfileViewConsentModal } from "../components/ProfileViewConsentModal";
+import { TaxMappingPanel } from "../components/settings/TaxMappingPanel";
 import { ClassificationPanel } from "../components/settings/ClassificationPanel";
 import styles from "./Settings.module.css";
 
@@ -101,7 +102,8 @@ type SettingPanel =
     | "invoice"
     | "clients"
     | "classification"
-    | "electronicDocs";
+    | "electronicDocs"
+    | "taxMapping";
 
 type ProfileFormState = {
     full_name: string;
@@ -899,13 +901,22 @@ export function Settings() {
             icon: <Shield size={20} />,
         }] : []),
         ...(isCurrentUserAdmin
-            ? [{
-                id: "classification" as const,
-                group: "組織",
-                title: "契約区分管理",
-                summary: "外注 / 給与寄り",
-                icon: <BadgeCheck size={20} />,
-            }]
+            ? [
+                {
+                    id: "classification" as const,
+                    group: "組織",
+                    title: "契約区分管理",
+                    summary: "外注 / 給与寄り",
+                    icon: <BadgeCheck size={20} />,
+                },
+                {
+                    id: "taxMapping" as const,
+                    group: "組織",
+                    title: "勘定科目マッピング",
+                    summary: "表示語と帳簿科目",
+                    icon: <ReceiptText size={20} />,
+                },
+            ]
             : []),
     ];
     const settingItems = allSettingItems.filter((item) => {
@@ -2135,6 +2146,10 @@ export function Settings() {
                                     )}
                                 </div>
                             </>
+                        )}
+
+                        {selectedSetting === "taxMapping" && (
+                            <TaxMappingPanel isAdmin={isCurrentUserAdmin} />
                         )}
                     </motion.section>
                 )}

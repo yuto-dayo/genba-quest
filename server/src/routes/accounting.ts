@@ -14,6 +14,7 @@ import { invoiceReviewerAssignmentService } from "../services/InvoiceReviewerAss
 import { electronicDocumentService } from "../services/ElectronicDocumentService";
 import { ProposalService } from "../services/ProposalService";
 import type { ActorRef } from "../services/PolicyEngine";
+import { TaxAccountMappingService, type TaxAccountCategory } from "../services/TaxAccountMappingService";
 import {
     AccountingCommandError,
     createAccountingCommandProposalLineage,
@@ -233,6 +234,38 @@ function normalizeText(value: unknown): string | null {
 
     const trimmed = value.trim();
     return trimmed ? trimmed : null;
+}
+
+function normalizeTaxAccountCategory(value: unknown): TaxAccountCategory | null {
+    if (
+        value === "income" ||
+        value === "expense" ||
+        value === "asset" ||
+        value === "liability" ||
+        value === "equity"
+    ) {
+        return value;
+    }
+    return null;
+}
+
+function normalizeProposalTypes(value: unknown): string[] | null {
+    if (!Array.isArray(value)) {
+        return null;
+    }
+
+    const normalized = value
+        .map((item) => (typeof item === "string" ? item.trim() : ""))
+        .filter(Boolean);
+    return normalized.length > 0 ? Array.from(new Set(normalized)) : null;
+}
+
+function parseAsOfDate(value: unknown): Date | null {
+    if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        return null;
+    }
+    const date = new Date(`${value}T00:00:00.000Z`);
+    return Number.isNaN(date.getTime()) ? null : date;
 }
 
 async function registerElectronicDocumentForExpense(input: {
@@ -2852,6 +2885,105 @@ router.get("/invoice-settings", async (req: AuthenticatedRequest, res: Response)
     } catch (err: any) {
         console.error("Invoice settings get error:", err);
         res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+router.get("/tax-account-mappings", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        await resolveActiveOrgMembership(req, "admin");
+        const orgId = req.orgId!;
+        const asOf = parseAsOfDate(req.query.as_of) ?? new Date();
+        const service = new TaxAccountMappingService(orgId);
+        const [mappings, historyResult, accountsResult] = await Promise.all([
+            service.listMappings(asOf),
+            service.listHistory(),
+            supabaseAdmin
+                .from("account_master")
+                .select("code,name,category,is_active,display_order")
+                .eq("is_active", true)
+                .order("display_order", { ascending: true })
+                .order("code", { ascending: true }),
+        ]);
+
+        if (accountsResult.error) {
+            throw accountsResult.error;
+        }
+
+        res.json({
+            mappings,
+            history: historyResult,
+            accounts: accountsResult.data ?? [],
+        });
+    } catch (err: any) {
+        const message = err instanceof Error ? err.message : "Internal server error";
+        const status = message === "ORG_ROLE_REQUIRED" ? 403 : 500;
+        if (status === 500) {
+            console.error("[accounting] tax account mappings get error:", err);
+        }
+        res.status(status).json({ error: message });
+    }
+});
+
+router.post("/tax-account-mappings/:id/revisions", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const membership = await resolveActiveOrgMembership(req, "admin");
+        const orgId = req.orgId!;
+        const mappingId = normalizeText(req.params.id);
+        const taxAccountCode = normalizeText(req.body.tax_account_code);
+        const taxAccountName = normalizeText(req.body.tax_account_name);
+        const category = normalizeTaxAccountCategory(req.body.category);
+        const applicableProposalTypes = normalizeProposalTypes(req.body.applicable_proposal_types);
+        const effectiveFrom = normalizeText(req.body.effective_from);
+
+        if (!mappingId) {
+            res.status(400).json({ error: "mapping id is required" });
+            return;
+        }
+        if (!taxAccountCode) {
+            res.status(400).json({ error: "tax_account_code is required" });
+            return;
+        }
+        if (!taxAccountName) {
+            res.status(400).json({ error: "tax_account_name is required" });
+            return;
+        }
+        if (!category) {
+            res.status(400).json({ error: "category must be one of income, expense, asset, liability, equity" });
+            return;
+        }
+        if (!applicableProposalTypes) {
+            res.status(400).json({ error: "applicable_proposal_types must be a non-empty array" });
+            return;
+        }
+        if (!effectiveFrom || !/^\d{4}-\d{2}-\d{2}$/.test(effectiveFrom)) {
+            res.status(400).json({ error: "effective_from must be YYYY-MM-DD" });
+            return;
+        }
+        if (!membership.id) {
+            res.status(403).json({ error: "ORG_MEMBERSHIP_REQUIRED" });
+            return;
+        }
+
+        const service = new TaxAccountMappingService(orgId);
+        const mapping = await service.replaceMapping({
+            mappingId,
+            taxAccountCode,
+            taxAccountName,
+            category,
+            applicableProposalTypes,
+            effectiveFrom,
+            actorUserId: req.userId!,
+            membershipId: membership.id,
+        });
+
+        res.status(201).json({ mapping });
+    } catch (err: any) {
+        const message = err instanceof Error ? err.message : "Internal server error";
+        const status = message === "ORG_ROLE_REQUIRED" ? 403 : 400;
+        if (status >= 500) {
+            console.error("[accounting] tax account mappings update error:", err);
+        }
+        res.status(status).json({ error: message });
     }
 });
 
