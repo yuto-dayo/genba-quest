@@ -28,6 +28,7 @@ import calendarRouter from "./routes/calendar";
 import devPreviewRouter from "./routes/devPreview";
 import profileViewConsentRouter from "./routes/profileViewConsent";
 import memberInvoicesRouter from "./routes/memberInvoices";
+import membersRouter from "./routes/members";
 import { assertDevAuthRemoteSafety } from "./config/devAuthUsers";
 import { requireCronAuth } from "./middleware/cronAuth";
 
@@ -136,6 +137,7 @@ app.use("/api/v1/path/rewards", pathRewardsRouter);
 app.use("/api/v1/path/module", pathModuleRouter);
 app.use("/api/v1/focus-items", focusItemsRouter);
 app.use("/api/v1/calendar", calendarRouter);
+app.use("/api/v1/members", membersRouter);
 app.use("/api/v1", profileViewConsentRouter);
 app.use("/api/v1", memberInvoicesRouter);
 
