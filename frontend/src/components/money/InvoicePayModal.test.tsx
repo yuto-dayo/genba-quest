@@ -8,10 +8,16 @@ import {
     markNotificationRead,
 } from "../../lib/api";
 
+const track = vi.fn();
+
 vi.mock("../../lib/api", () => ({
     fetchInvoicePayoutDetail: vi.fn(),
     markInvoicePaid: vi.fn(),
     markNotificationRead: vi.fn(),
+}));
+
+vi.mock("../../lib/telemetry", () => ({
+    track: (...args: unknown[]) => track(...args),
 }));
 
 const detail = {
@@ -40,6 +46,7 @@ describe("InvoicePayModal", () => {
     beforeEach(() => {
         vi.useRealTimers();
         vi.clearAllMocks();
+        track.mockClear();
         vi.mocked(fetchInvoicePayoutDetail).mockResolvedValue(detail);
         vi.mocked(markInvoicePaid).mockResolvedValue({
             proposal: {} as never,
@@ -82,6 +89,10 @@ describe("InvoicePayModal", () => {
             );
         });
         expect(markNotificationRead).toHaveBeenCalledWith("notification-1");
+        expect(track).toHaveBeenCalledWith({
+            type: "money.invoice.paid",
+            from: "bell",
+        });
         expect(onCompleted).toHaveBeenCalled();
         expect(onClose).toHaveBeenCalled();
     });

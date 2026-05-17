@@ -1,8 +1,18 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InvoiceFilterRow } from "./InvoiceFilterRow";
 
+const track = vi.fn();
+
+vi.mock("../../lib/telemetry", () => ({
+    track: (...args: unknown[]) => track(...args),
+}));
+
 describe("InvoiceFilterRow", () => {
+    beforeEach(() => {
+        track.mockClear();
+    });
+
     it("hides empty overdue and draft chips while keeping this week and all available", () => {
         render(
             <InvoiceFilterRow
@@ -31,5 +41,9 @@ describe("InvoiceFilterRow", () => {
         fireEvent.click(screen.getByRole("button", { name: /今週入金予定/ }));
 
         expect(onChange).toHaveBeenCalledWith("this_week");
+        expect(track).toHaveBeenCalledWith({
+            type: "money.partner_tab.filter_changed",
+            bucket: "this_week",
+        });
     });
 });

@@ -1,4 +1,5 @@
 import { MemberCard, SeeAllCard, type MoneyStatusTone } from "./MemberCard";
+import { track } from "../../lib/telemetry";
 import styles from "./MemberCarousel.module.css";
 
 export interface TeamMemberRewardLike {
@@ -124,7 +125,14 @@ export function MemberCarousel(props: MemberCarouselProps) {
                                 statusTone={status.tone}
                                 subLabel={`${member.level} / ${member.attendance_days}日`}
                                 ctaLabel={isSelf ? status.ctaLabel : undefined}
-                                onTap={() => props.onCardTap(member.member_id)}
+                                onTap={() => {
+                                    track({
+                                        type: "money.reward_card.tapped",
+                                        is_self: isSelf,
+                                        status: member.status,
+                                    });
+                                    props.onCardTap(member.member_id);
+                                }}
                             />
                         </div>
                     );

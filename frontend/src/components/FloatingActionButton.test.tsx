@@ -40,9 +40,11 @@ describe("FloatingActionButton", () => {
     });
 
     it("anchors the draggable menu inside the same fixed FAB container", async () => {
+        const onOpen = vi.fn();
         render(
             <FloatingActionButton
                 behavior="draggable"
+                onOpen={onOpen}
                 items={[
                     {
                         id: "add",
@@ -76,6 +78,7 @@ describe("FloatingActionButton", () => {
 
         fireEvent.click(fabButton);
 
+        expect(onOpen).toHaveBeenCalledTimes(1);
         const menuItem = screen.getByRole("button", { name: "追加する" });
         const menu = menuItem.parentElement;
 

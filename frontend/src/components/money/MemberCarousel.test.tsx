@@ -1,9 +1,19 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemberCarousel } from "./MemberCarousel";
 
+const track = vi.fn();
+
+vi.mock("../../lib/telemetry", () => ({
+    track: (...args: unknown[]) => track(...args),
+}));
+
 describe("MemberCarousel", () => {
+    beforeEach(() => {
+        track.mockClear();
+    });
+
     it("pins the reward self member first and routes the tap with that member id", () => {
         const onCardTap = vi.fn();
 
@@ -46,6 +56,11 @@ describe("MemberCarousel", () => {
         fireEvent.click(cards[0]);
 
         expect(onCardTap).toHaveBeenCalledWith("membership-self");
+        expect(track).toHaveBeenCalledWith({
+            type: "money.reward_card.tapped",
+            is_self: true,
+            status: "finalized",
+        });
     });
 
     it("pins the reimbursement self member first", () => {

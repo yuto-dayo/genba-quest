@@ -13,6 +13,7 @@ import {
     type TeamRewardSummary,
 } from "../../lib/api";
 import { getErrorMessage } from "../../lib/error";
+import { track } from "../../lib/telemetry";
 import styles from "./MonthCloseModal.module.css";
 
 type StepKey = "lock" | "expire" | "finalize";
@@ -90,6 +91,7 @@ function statusIcon(status: StepStatus) {
 }
 
 export function MonthCloseModal({ month, onClose, onCompleted }: MonthCloseModalProps) {
+    const [openedAt] = useState(() => Date.now());
     const [data, setData] = useState<MonthCloseData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -203,6 +205,11 @@ export function MonthCloseModal({ month, onClose, onCompleted }: MonthCloseModal
                 await runStep(key);
             }
             await markMonthCloseNotificationsRead();
+            track({
+                type: "money.month_close.completed",
+                duration_ms: Date.now() - openedAt,
+                members_count: summary.memberCount,
+            });
             setSuccess(true);
             await onCompleted?.();
             window.dispatchEvent(new CustomEvent("month-close-completed"));
@@ -213,7 +220,7 @@ export function MonthCloseModal({ month, onClose, onCompleted }: MonthCloseModal
         } finally {
             setSubmitting(false);
         }
-    }, [canSubmit, markMonthCloseNotificationsRead, onClose, onCompleted, runStep, steps]);
+    }, [canSubmit, markMonthCloseNotificationsRead, onClose, onCompleted, openedAt, runStep, steps, summary.memberCount]);
 
     return (
         <div className={styles.scrim} onClick={onClose}>

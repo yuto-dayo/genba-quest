@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -46,6 +46,7 @@ import {
 } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
 import { supabase } from "../lib/supabase";
+import { track } from "../lib/telemetry";
 import { ExpenseModal } from "../components/ExpenseModal";
 import { SalesModal } from "../components/SalesModal";
 import { InvoiceModal } from "../components/InvoiceModal";
@@ -208,6 +209,7 @@ interface SalesCorrectionDraft {
 interface InvoicePayTarget {
     invoiceId: string;
     notificationId: string | null;
+    from: "bell" | "partner_drawer";
 }
 
 // 日付プリセットの計算
@@ -285,6 +287,7 @@ const useIsMobile = () => {
 
 export function Money() {
     const [searchParams, setSearchParams] = useSearchParams();
+    const trackedMonthCloseUrlParamsRef = useRef(new Set<string>());
     const isMobile = useIsMobile();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -625,7 +628,7 @@ export function Money() {
                 console.warn("[Money] failed to locate invoice pay notification:", err);
             }
             if (!cancelled) {
-                setInvoicePayTarget({ invoiceId, notificationId });
+                setInvoicePayTarget({ invoiceId, notificationId, from: "bell" });
             }
         })();
 
@@ -649,6 +652,10 @@ export function Money() {
         const modal = searchParams.get("modal");
         const period = searchParams.get("period");
         if (modal === "month_close" && period) {
+            if (!trackedMonthCloseUrlParamsRef.current.has(period)) {
+                trackedMonthCloseUrlParamsRef.current.add(period);
+                track({ type: "money.month_close.cta_seen", from: "url_param" });
+            }
             setTargetMonthClosePeriod(period);
             setSelectedMonth(period);
             setMonthCloseModalOpen(true);
@@ -963,6 +970,7 @@ export function Money() {
     };
 
     const handleInvoiceCreated = () => {
+        track({ type: "money.invoice.issued", from: "fab" });
         setInvoiceRefreshKey((prev) => prev + 1);
         loadData();
     };
@@ -1744,6 +1752,7 @@ export function Money() {
                     <InvoicePayModal
                         invoiceId={invoicePayTarget.invoiceId}
                         notificationId={invoicePayTarget.notificationId}
+                        from={invoicePayTarget.from}
                         onClose={() => {
                             setInvoicePayTarget(null);
                             clearInvoicePaySearchParams();
@@ -1816,10 +1825,35 @@ export function Money() {
                 buttonLabel="追加"
                 openLabel="お金の登録メニューを開く"
                 closeLabel="お金の登録メニューを閉じる"
+                onOpen={() => track({ type: "money.fab.clicked", from_tab: activeTab })}
                 items={[
-                    { id: "expense", label: "経費・立替を記録", icon: <Receipt size={18} />, onClick: openExpenseModal },
-                    { id: "sale", label: "売上を記録", icon: <TrendingUp size={18} />, onClick: openSalesModal },
-                    { id: "invoice", label: "請求書を発行", icon: <FileText size={18} />, onClick: openInvoiceModal },
+                    {
+                        id: "expense",
+                        label: "経費・立替を記録",
+                        icon: <Receipt size={18} />,
+                        onClick: () => {
+                            track({ type: "money.fab.option_clicked", option: "expense" });
+                            openExpenseModal();
+                        },
+                    },
+                    {
+                        id: "sale",
+                        label: "売上を記録",
+                        icon: <TrendingUp size={18} />,
+                        onClick: () => {
+                            track({ type: "money.fab.option_clicked", option: "sale" });
+                            openSalesModal();
+                        },
+                    },
+                    {
+                        id: "invoice",
+                        label: "請求書を発行",
+                        icon: <FileText size={18} />,
+                        onClick: () => {
+                            track({ type: "money.fab.option_clicked", option: "invoice" });
+                            openInvoiceModal();
+                        },
+                    },
                 ]}
             />
         </div>

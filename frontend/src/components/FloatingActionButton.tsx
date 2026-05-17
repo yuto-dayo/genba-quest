@@ -120,6 +120,7 @@ interface FloatingActionButtonProps {
     buttonLabel?: string;
     openLabel?: string;
     closeLabel?: string;
+    onOpen?: () => void;
 }
 
 export function FloatingActionButton({
@@ -129,6 +130,7 @@ export function FloatingActionButton({
     buttonLabel,
     openLabel = "メニューを開く",
     closeLabel = "メニューを閉じる",
+    onOpen,
 }: FloatingActionButtonProps) {
     const isMobile = useIsMobileViewport();
     const supportsDragging = behavior === "draggable" && isMobile;
@@ -348,6 +350,7 @@ export function FloatingActionButton({
             return;
         }
 
+        onOpen?.();
         setOpen(true);
     };
 

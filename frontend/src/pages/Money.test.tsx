@@ -32,6 +32,7 @@ const reviewExpense = vi.fn();
 const searchTransactions = vi.fn();
 const expenseModal = vi.fn();
 const floatingActionButton = vi.fn();
+const track = vi.fn();
 
 vi.mock("framer-motion", () => ({
     motion: new Proxy(
@@ -95,6 +96,10 @@ vi.mock("../lib/supabase", () => ({
     },
 }));
 
+vi.mock("../lib/telemetry", () => ({
+    track: (...args: unknown[]) => track(...args),
+}));
+
 vi.mock("../components/ExpenseModal", () => ({
     ExpenseModal: (props: Record<string, unknown>) => {
         expenseModal(props);
@@ -139,13 +144,14 @@ vi.mock("../components/FloatingActionButton", () => ({
         behavior?: string;
         hideOnDesktop?: boolean;
         buttonLabel?: string;
-        items: Array<{ id: string; label: string }>;
+        onOpen?: () => void;
+        items: Array<{ id: string; label: string; onClick: () => void }>;
     }) => {
         floatingActionButton(props);
         return (
             <div data-testid="money-fab">
                 {props.items.map((item) => (
-                    <button key={item.id} type="button">
+                    <button key={item.id} type="button" onClick={item.onClick}>
                         {item.label}
                     </button>
                 ))}
@@ -336,6 +342,7 @@ describe("Money PATH proposal queue", () => {
         searchTransactions.mockResolvedValue([]);
         expenseModal.mockClear();
         floatingActionButton.mockClear();
+        track.mockClear();
     });
 
     it("keeps the Money page visible when the post-approval background refresh fails", async () => {
@@ -422,6 +429,18 @@ describe("Money PATH proposal queue", () => {
             "売上を記録",
             "請求書を発行",
         ]);
+
+        props?.onOpen?.();
+        expect(track).toHaveBeenCalledWith({
+            type: "money.fab.clicked",
+            from_tab: "transactions",
+        });
+
+        fireEvent.click(screen.getByRole("button", { name: "請求書を発行" }));
+        expect(track).toHaveBeenCalledWith({
+            type: "money.fab.option_clicked",
+            option: "invoice",
+        });
     });
 
     it("passes the self reimbursement member id into ExpenseModal", async () => {
