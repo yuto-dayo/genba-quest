@@ -12,6 +12,7 @@ const FAB_MARGIN_X = 8;
 const FAB_MARGIN_BOTTOM = 92;
 const FAB_MIN_TOP = 88;
 const FAB_SIZE = 56;
+const FAB_LABELED_WIDTH = 92;
 const FAB_STASHED_WIDTH = 40;
 const FAB_DOCKED_VISIBLE_WIDTH = 26;
 const FAB_PROJECTION_DECELERATION_RATE = 0.998;
@@ -66,6 +67,25 @@ function useIsMobileViewport() {
     return isMobile;
 }
 
+function usePrefersReducedMotion() {
+    const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+
+    useEffect(() => {
+        if (!window.matchMedia) {
+            return;
+        }
+
+        const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+        const updatePreference = () => setPrefersReducedMotion(mediaQuery.matches);
+
+        updatePreference();
+        mediaQuery.addEventListener("change", updatePreference);
+        return () => mediaQuery.removeEventListener("change", updatePreference);
+    }, []);
+
+    return prefersReducedMotion;
+}
+
 interface SherpaFABProps {
     onClick: () => void;
 }
@@ -97,6 +117,7 @@ interface FloatingActionButtonProps {
     items: FabMenuItem[];
     behavior?: "fixed" | "draggable";
     hideOnDesktop?: boolean;
+    buttonLabel?: string;
     openLabel?: string;
     closeLabel?: string;
 }
@@ -105,11 +126,14 @@ export function FloatingActionButton({
     items,
     behavior = "fixed",
     hideOnDesktop = false,
+    buttonLabel,
     openLabel = "メニューを開く",
     closeLabel = "メニューを閉じる",
 }: FloatingActionButtonProps) {
     const isMobile = useIsMobileViewport();
     const supportsDragging = behavior === "draggable" && isMobile;
+    const prefersReducedMotion = usePrefersReducedMotion();
+    const fabWidth = buttonLabel ? FAB_LABELED_WIDTH : FAB_SIZE;
     const [open, setOpen] = useState(false);
     const [fabPosition, setFabPosition] = useState<{ x: number; y: number } | null>(null);
     const [fabDockSide, setFabDockSide] = useState<DockSide | null>(null);
@@ -163,7 +187,7 @@ export function FloatingActionButton({
             }
 
             const rect = fabEl.getBoundingClientRect();
-            const width = fabDockSide ? FAB_STASHED_WIDTH : rect.width || FAB_SIZE;
+            const width = fabDockSide ? FAB_STASHED_WIDTH : rect.width || fabWidth;
             const height = rect.height || FAB_SIZE;
 
             setFabPosition((prev) => {
@@ -194,7 +218,7 @@ export function FloatingActionButton({
             window.cancelAnimationFrame(rafId);
             window.removeEventListener("resize", updateFabBounds);
         };
-    }, [fabDockSide, supportsDragging]);
+    }, [fabDockSide, fabWidth, supportsDragging]);
 
     if (hideOnDesktop && !isMobile) {
         return null;
@@ -251,7 +275,7 @@ export function FloatingActionButton({
         }
 
         const rect = fabEl.getBoundingClientRect();
-        const width = rect.width || FAB_SIZE;
+        const width = rect.width || fabWidth;
         const height = rect.height || FAB_SIZE;
         const elapsed = Math.max(event.timeStamp - fabDragRef.current.lastTime, 1);
         fabDragRef.current.velocityX = ((event.clientX - fabDragRef.current.lastX) / elapsed) * 1000;
@@ -294,7 +318,7 @@ export function FloatingActionButton({
                 stashFabToDock(dockSide, current.y);
             } else {
                 setFabDockSide(null);
-                setFabPosition(clampFabPosition(current.x, current.y, FAB_SIZE, FAB_SIZE));
+                setFabPosition(clampFabPosition(current.x, current.y, fabWidth, FAB_SIZE));
             }
         }
 
@@ -317,10 +341,10 @@ export function FloatingActionButton({
             const y = fabPosition?.y ?? FAB_MIN_TOP;
             const x = fabDockSide === "left"
                 ? FAB_MARGIN_X
-                : window.innerWidth - FAB_SIZE - FAB_MARGIN_X;
+                : window.innerWidth - fabWidth - FAB_MARGIN_X;
 
             setFabDockSide(null);
-            setFabPosition(clampFabPosition(x, y, FAB_SIZE, FAB_SIZE));
+            setFabPosition(clampFabPosition(x, y, fabWidth, FAB_SIZE));
             return;
         }
 
@@ -333,13 +357,13 @@ export function FloatingActionButton({
             ? {
                 left: `${fabPosition.x}px`,
                 top: `${fabPosition.y}px`,
-                width: fabDockSide ? `${FAB_STASHED_WIDTH}px` : `${FAB_SIZE}px`,
+                width: fabDockSide ? `${FAB_STASHED_WIDTH}px` : `${fabWidth}px`,
                 height: `${FAB_SIZE}px`,
             }
             : {
                 right: `${FAB_MARGIN_X}px`,
                 bottom: `${FAB_MARGIN_BOTTOM}px`,
-                width: `${FAB_SIZE}px`,
+                width: `${fabWidth}px`,
                 height: `${FAB_SIZE}px`,
             }
         : undefined;
@@ -373,7 +397,7 @@ export function FloatingActionButton({
                                     initial={{ opacity: 0, y: 10, scale: 0.8 }}
                                     animate={{ opacity: 1, y: 0, scale: 1 }}
                                     exit={{ opacity: 0, y: 10, scale: 0.8 }}
-                                    transition={{ delay: index * 0.05 }}
+                                    transition={{ delay: prefersReducedMotion ? 0 : index * 0.05 }}
                                     onClick={() => {
                                         item.onClick();
                                         closeMenu();
@@ -390,7 +414,9 @@ export function FloatingActionButton({
 
             <motion.button
                 ref={fabRef}
-                className={supportsDragging ? styles.mobileFab : styles.fab}
+                className={supportsDragging
+                    ? styles.mobileFab
+                    : `${styles.fab} ${buttonLabel ? styles.fabLabeled : ""}`}
                 onClick={handleFabClick}
                 onPointerDown={supportsDragging ? handleFabPointerDown : undefined}
                 onPointerMove={supportsDragging ? handleFabPointerMove : undefined}
@@ -398,7 +424,7 @@ export function FloatingActionButton({
                 onPointerCancel={supportsDragging ? handleFabPointerEnd : undefined}
                 whileHover={supportsDragging ? undefined : { scale: 1.05 }}
                 whileTap={fabDragging ? undefined : { scale: 0.95 }}
-                animate={{ rotate: open ? 45 : 0 }}
+                animate={buttonLabel ? undefined : { rotate: open ? 45 : 0 }}
                 aria-label={open ? closeLabel : openLabel}
                 aria-haspopup="dialog"
                 data-open={open ? "true" : undefined}
@@ -419,6 +445,14 @@ export function FloatingActionButton({
                                 <Plus size={22} />
                             )}
                         </span>
+                        {buttonLabel && !fabStashed && (
+                            <span className={styles.mobileFabLabel}>{buttonLabel}</span>
+                        )}
+                    </span>
+                ) : buttonLabel ? (
+                    <span className={styles.fabContent}>
+                        {open ? <X size={22} /> : <Plus size={22} />}
+                        <span>{buttonLabel}</span>
                     </span>
                 ) : open ? (
                     <X size={28} />

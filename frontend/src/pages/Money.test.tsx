@@ -30,6 +30,8 @@ const instructProposal = vi.fn();
 const rejectProposal = vi.fn();
 const reviewExpense = vi.fn();
 const searchTransactions = vi.fn();
+const expenseModal = vi.fn();
+const floatingActionButton = vi.fn();
 
 vi.mock("framer-motion", () => ({
     motion: new Proxy(
@@ -85,8 +87,35 @@ vi.mock("../lib/pathProposal", () => ({
     isPathModuleProposal: () => true,
 }));
 
+vi.mock("../lib/supabase", () => ({
+    supabase: {
+        auth: {
+            getSession: vi.fn().mockResolvedValue({ data: { session: { user: { id: "user-1" } } } }),
+        },
+    },
+}));
+
 vi.mock("../components/ExpenseModal", () => ({
-    ExpenseModal: () => null,
+    ExpenseModal: (props: Record<string, unknown>) => {
+        expenseModal(props);
+        return null;
+    },
+}));
+
+vi.mock("../components/MemberInvoiceDraftBanner", () => ({
+    MemberInvoiceDraftBanner: () => null,
+}));
+
+vi.mock("../components/MyMemberInvoicesList", () => ({
+    MyMemberInvoicesList: () => null,
+}));
+
+vi.mock("../components/OutstandingInvoicesCard", () => ({
+    OutstandingInvoicesCard: () => null,
+}));
+
+vi.mock("../components/AdminInvoiceActionableList", () => ({
+    AdminInvoiceActionableList: () => null,
 }));
 
 vi.mock("../components/SalesModal", () => ({
@@ -106,7 +135,23 @@ vi.mock("../components/ApprovalCard", () => ({
 }));
 
 vi.mock("../components/FloatingActionButton", () => ({
-    FloatingActionButton: () => null,
+    FloatingActionButton: (props: {
+        behavior?: string;
+        hideOnDesktop?: boolean;
+        buttonLabel?: string;
+        items: Array<{ id: string; label: string }>;
+    }) => {
+        floatingActionButton(props);
+        return (
+            <div data-testid="money-fab">
+                {props.items.map((item) => (
+                    <button key={item.id} type="button">
+                        {item.label}
+                    </button>
+                ))}
+            </div>
+        );
+    },
 }));
 
 vi.mock("../components/CashflowBucketStrip", () => ({
@@ -289,6 +334,8 @@ describe("Money PATH proposal queue", () => {
         rejectProposal.mockResolvedValue({ proposal: { ...pathProposal, status: "rejected" } });
         reviewExpense.mockResolvedValue({ transaction: null });
         searchTransactions.mockResolvedValue([]);
+        expenseModal.mockClear();
+        floatingActionButton.mockClear();
     });
 
     it("keeps the Money page visible when the post-approval background refresh fails", async () => {
@@ -356,6 +403,35 @@ describe("Money PATH proposal queue", () => {
         expect(await screen.findByRole("dialog", { name: "own reward modal" })).toBeInTheDocument();
         expect(screen.getByText("own reward:member-1:2026-04")).toBeInTheDocument();
     });
+
+    it("uses the shared FAB as the only Money creation entry", async () => {
+        renderMoney();
+
+        await screen.findByTestId("money-fab");
+
+        expect(screen.queryByText("請求書を作る")).not.toBeInTheDocument();
+        expect(floatingActionButton).toHaveBeenCalled();
+        const props = floatingActionButton.mock.calls.at(-1)?.[0];
+        expect(props).toMatchObject({
+            behavior: "draggable",
+            buttonLabel: "追加",
+        });
+        expect(props?.hideOnDesktop).toBeUndefined();
+        expect(props?.items.map((item: { label: string }) => item.label)).toEqual([
+            "経費・立替を記録",
+            "売上を記録",
+            "請求書を発行",
+        ]);
+    });
+
+    it("passes the self reimbursement member id into ExpenseModal", async () => {
+        renderMoney();
+
+        await waitFor(() => {
+            expect(expenseModal).toHaveBeenLastCalledWith(
+                expect.objectContaining({ defaultClaimantMemberId: "member-1" }),
+            );
+        });
 
     it("keeps an approved proposal open so execution can happen from the same detail", async () => {
         fetchPendingProposals.mockResolvedValueOnce([pathProposal]).mockResolvedValueOnce([]);

@@ -583,14 +583,6 @@
     }
 }
 
-/* クイックアクション */
-.quickActions {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-    margin-bottom: 20px;
-}
-
 .workspaceGrid {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -600,45 +592,6 @@
 
 .primaryColumn {
     min-width: 0;
-}
-
-.actionBtn {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 12px 8px;
-    background: var(--md-sys-color-surface-container);
-    border: 1px solid var(--md-sys-color-outline-variant);
-    border-radius: var(--md-sys-shape-corner-medium);
-    color: var(--md-sys-color-on-surface);
-    font: var(--md-sys-typescale-label-small);
-    cursor: pointer;
-    transition: all var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
-}
-
-.actionBtn:hover {
-    background: var(--md-sys-color-surface-container-high);
-    border-color: var(--md-sys-color-primary);
-    transform: translateY(-2px);
-    box-shadow: var(--md-sys-elevation-level1);
-}
-
-.actionBtn svg {
-    color: var(--md-sys-color-primary);
-}
-
-@media (max-width: 480px) {
-    .quickActions {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 8px;
-    }
-
-    .actionBtn {
-        padding: 10px 4px;
-        font-size: 10px;
-    }
 }
 
 /* 検索セクション */
@@ -2040,35 +1993,6 @@
     font-size: 11px;
 }
 
-.quickActions {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 10px;
-    margin-bottom: 18px;
-}
-
-.actionBtn {
-    min-height: 58px;
-    flex-direction: row;
-    gap: 10px;
-    padding: 0 16px;
-    border-color: var(--money-line);
-    border-radius: var(--md-sys-shape-corner-full);
-    background: var(--money-panel);
-    color: var(--money-ink);
-    font: var(--md-sys-typescale-label-large);
-    box-shadow: 0 8px 22px rgba(28, 25, 23, 0.04);
-}
-
-.actionBtn:hover {
-    border-color: color-mix(in srgb, var(--money-accent) 36%, var(--money-line));
-    background: #ffffff;
-    transform: translateY(-1px);
-}
-
-.actionBtn svg {
-    color: var(--money-accent);
-}
-
 .workspaceGrid {
     grid-template-columns: minmax(0, 1fr);
     gap: 18px;
@@ -2465,10 +2389,6 @@
 
     .metricValue {
         font-size: 18px;
-    }
-
-    .quickActions {
-        display: none;
     }
 
     .searchSection {

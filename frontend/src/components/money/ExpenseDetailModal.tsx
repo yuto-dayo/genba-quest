@@ -292,6 +292,8 @@ export function ExpenseDetailModal({
                     open={expenseOpen}
                     onClose={() => setExpenseOpen(false)}
                     onSuccess={handleExpenseSuccess}
+                    defaultPaidBy="member"
+                    defaultClaimantMemberId={memberId}
                 />
             )}
         </div>
