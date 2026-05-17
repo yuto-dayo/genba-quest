@@ -5,9 +5,9 @@ Money リデザインの効果計測のため、主要イベントを既存 tele
 
 ## Acceptance criteria
 
-- [ ] 以下イベントが発火する:
+- [x] 以下イベントが発火する:
   - `money.fab.clicked` `{ from_tab }`
-  - `money.fab_sheet.option_clicked` `{ option: 'expense'|'invoice'|'sale' }`
+  - `money.fab.option_clicked` `{ option: 'expense'|'invoice'|'sale' }`
   - `money.reward_card.tapped` `{ is_self, status }`
   - `money.invoice.issued` `{ from: 'own_reward_modal'|'fab' }`
   - `money.month_close.completed` `{ duration_ms, members_count }`
@@ -15,9 +15,9 @@ Money リデザインの効果計測のため、主要イベントを既存 tele
   - `money.invoice.paid` `{ from: 'bell'|'partner_drawer' }`
   - `money.shield.opened`
   - `money.partner_tab.filter_changed` `{ bucket }`
-- [ ] PII を含めない(member_id, amount すら出さない。集計時に件数だけ)
-- [ ] 既存 telemetry helper(なければ最小ラッパ `frontend/src/lib/telemetry.ts` 新規)経由
-- [ ] tsc/lint/test グリーン
+- [x] PII を含めない(member_id, amount すら出さない。集計時に件数だけ)
+- [x] 既存 telemetry helper(なければ最小ラッパ `frontend/src/lib/telemetry.ts` 新規)経由
+- [x] tsc/lint/test グリーン
 
 ## Files
 

@@ -14,7 +14,7 @@
  *  - 全アプリ共通ヘッダへの bell 移設 (現状は Money 内)
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
     motion,
@@ -28,6 +28,7 @@ import { ApprovalCard } from "./ApprovalCard";
 import { reviewExpense, type AccountingTransaction, type NotificationRecord, type ProposalRecord } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
 import { motion as motionTokens } from "../lib/motion/tokens";
+import { track } from "../lib/telemetry";
 import styles from "./BellDrawer.module.css";
 
 const SWIPE_COMMIT_OFFSET = 100;
@@ -60,6 +61,7 @@ export function BellDrawer({
 }: BellDrawerProps) {
     const navigate = useNavigate();
     const monthCloseNotifications = notifications.filter((n) => n.type === "month_close_reminder" && !n.read);
+    const trackedMonthCloseCtaSeenRef = useRef(false);
     const totalCount = selfApprovals.length + consensusPending.length + monthCloseNotifications.length + invoicePayNotifications.length;
     const selfSectionCount = selfApprovals.length + invoicePayNotifications.length;
     const allClear = totalCount === 0;
@@ -69,6 +71,14 @@ export function BellDrawer({
         onClose();
         navigate(`/money?modal=month_close&period=${encodeURIComponent(month)}`);
     };
+
+    useEffect(() => {
+        if (!open || trackedMonthCloseCtaSeenRef.current || monthCloseNotifications.length === 0) {
+            return;
+        }
+        trackedMonthCloseCtaSeenRef.current = true;
+        track({ type: "money.month_close.cta_seen", from: "bell" });
+    }, [monthCloseNotifications.length, open]);
 
     return (
         <AnimatePresence>

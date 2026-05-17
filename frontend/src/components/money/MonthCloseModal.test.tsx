@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NotificationRecord, PathV33Objection, TeamRewardSummary } from "../../lib/api";
 import { MonthCloseModal } from "./MonthCloseModal";
 
+const track = vi.fn();
 const expirePathV33MonthObjections = vi.fn();
 const fetchNotifications = vi.fn();
 const fetchPathModuleMonthCloseSummary = vi.fn();
@@ -25,6 +26,10 @@ vi.mock("../../lib/api", () => {
         markNotificationRead: (...args: unknown[]) => markNotificationRead(...args),
     };
 });
+
+vi.mock("../../lib/telemetry", () => ({
+    track: (...args: unknown[]) => track(...args),
+}));
 
 const rewardSummary: TeamRewardSummary = {
     month: "2026-05",
@@ -105,6 +110,7 @@ function setupDefaults() {
 describe("MonthCloseModal", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        track.mockClear();
         setupDefaults();
     });
 
@@ -123,6 +129,11 @@ describe("MonthCloseModal", () => {
         expect(expirePathV33MonthObjections).toHaveBeenCalledWith("2026-05");
         expect(finalizePathV33Month).toHaveBeenCalledWith("2026-05");
         await waitFor(() => expect(markNotificationRead).toHaveBeenCalledWith("notification-month-close"));
+        expect(track).toHaveBeenCalledWith({
+            type: "money.month_close.completed",
+            duration_ms: expect.any(Number),
+            members_count: 2,
+        });
         expect(onCompleted).toHaveBeenCalledTimes(1);
         expect(screen.getByText("月確定が完了しました")).toBeInTheDocument();
     });

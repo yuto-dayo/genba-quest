@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { ShieldCheck } from "lucide-react";
+import { track } from "../../lib/telemetry";
 import styles from "./ShieldPopover.module.css";
 
 interface ShieldPopoverProps {
@@ -10,6 +11,14 @@ interface ShieldPopoverProps {
 
 export function ShieldPopover({ open, onToggle, onClose }: ShieldPopoverProps) {
     const rootRef = useRef<HTMLDivElement | null>(null);
+    const wasOpenRef = useRef(false);
+
+    useEffect(() => {
+        if (open && !wasOpenRef.current) {
+            track({ type: "money.shield.opened" });
+        }
+        wasOpenRef.current = open;
+    }, [open]);
 
     useEffect(() => {
         if (!open) return;

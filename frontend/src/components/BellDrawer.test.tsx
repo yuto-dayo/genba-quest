@@ -2,11 +2,12 @@ import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ComponentProps, ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NotificationRecord } from "../lib/api";
 import { BellDrawer } from "./BellDrawer";
 
 const navigate = vi.fn();
+const track = vi.fn();
 
 vi.mock("react-router-dom", async () => {
     const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
@@ -36,6 +37,10 @@ vi.mock("../lib/api", () => ({
     reviewExpense: vi.fn(),
 }));
 
+vi.mock("../lib/telemetry", () => ({
+    track: (...args: unknown[]) => track(...args),
+}));
+
 const monthCloseNotification: NotificationRecord = {
     id: "notification-month-close",
     user_id: "user-1",
@@ -48,6 +53,10 @@ const monthCloseNotification: NotificationRecord = {
 };
 
 describe("BellDrawer month close reminders", () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
     it("routes unread month close reminders to the Money month-close modal", () => {
         const onClose = vi.fn();
 
@@ -67,6 +76,10 @@ describe("BellDrawer month close reminders", () => {
 
         fireEvent.click(screen.getByRole("button", { name: /2026-05 分の月確定ができます/ }));
 
+        expect(track).toHaveBeenCalledWith({
+            type: "money.month_close.cta_seen",
+            from: "bell",
+        });
         expect(onClose).toHaveBeenCalledTimes(1);
         expect(navigate).toHaveBeenCalledWith("/money?modal=month_close&period=2026-05");
     });

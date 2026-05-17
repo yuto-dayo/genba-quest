@@ -13,6 +13,7 @@ import {
     type PathV33MonthlyPreview,
 } from "../../lib/api";
 import { getErrorMessage } from "../../lib/error";
+import { track } from "../../lib/telemetry";
 import { LevelRevisionSheet } from "../LevelRevisionSheet";
 import { MemberInvoiceIssueModal } from "../MemberInvoiceIssueModal";
 import styles from "./OwnRewardModal.module.css";
@@ -410,6 +411,7 @@ export function OwnRewardModal({
                     onClose={() => setActiveIssueDraft(null)}
                     onIssued={() => {
                         setActiveIssueDraft(null);
+                        track({ type: "money.invoice.issued", from: "own_reward_modal" });
                         void refreshAfterInvoiceChange("請求書を発行しました");
                     }}
                 />

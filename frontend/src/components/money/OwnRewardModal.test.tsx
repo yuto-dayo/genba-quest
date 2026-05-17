@@ -14,6 +14,7 @@ const fetchMyMemberInvoices = vi.fn();
 const fetchPathRewardConfirmation = vi.fn();
 const fetchPathV33MonthlyPreview = vi.fn();
 const voidMemberInvoice = vi.fn();
+const track = vi.fn();
 
 vi.mock("../../lib/api", async () => {
     const actual = await vi.importActual<typeof import("../../lib/api")>("../../lib/api");
@@ -26,6 +27,10 @@ vi.mock("../../lib/api", async () => {
         voidMemberInvoice: (...args: unknown[]) => voidMemberInvoice(...args),
     };
 });
+
+vi.mock("../../lib/telemetry", () => ({
+    track: (...args: unknown[]) => track(...args),
+}));
 
 vi.mock("../MemberInvoiceIssueModal", () => ({
     MemberInvoiceIssueModal: ({ onIssued }: { onIssued: () => void }) => (
@@ -186,6 +191,7 @@ const issuedInvoice: MemberInvoice = {
 describe("OwnRewardModal", () => {
     beforeEach(() => {
         vi.resetAllMocks();
+        track.mockClear();
         fetchPathRewardConfirmation.mockResolvedValue(finalizedSummary);
         fetchMyMemberInvoices.mockResolvedValue({ invoices: [] });
         fetchMemberInvoiceDrafts.mockResolvedValue({ drafts: [draft] });
@@ -216,6 +222,10 @@ describe("OwnRewardModal", () => {
         fireEvent.click(await screen.findByRole("button", { name: "発行完了" }));
 
         await waitFor(() => expect(fetchMyMemberInvoices).toHaveBeenCalledTimes(2));
+        expect(track).toHaveBeenCalledWith({
+            type: "money.invoice.issued",
+            from: "own_reward_modal",
+        });
         expect(await screen.findByText("請求書を発行しました")).toBeInTheDocument();
         expect(screen.getByText("発行中 — 経理担当が振込を準備しています")).toBeInTheDocument();
     });

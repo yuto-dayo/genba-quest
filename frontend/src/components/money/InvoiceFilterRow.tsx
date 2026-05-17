@@ -1,3 +1,4 @@
+import { track } from "../../lib/telemetry";
 import styles from "./InvoiceFilterRow.module.css";
 
 export type InvoiceBucket = "overdue" | "this_week" | "draft" | "all";
@@ -37,7 +38,10 @@ export function InvoiceFilterRow({ value, counts, onChange }: InvoiceFilterRowPr
                         type="button"
                         className={`${styles.chip} ${active ? styles.chipActive : ""}`}
                         aria-pressed={active}
-                        onClick={() => onChange(bucket)}
+                        onClick={() => {
+                            track({ type: "money.partner_tab.filter_changed", bucket });
+                            onChange(bucket);
+                        }}
                     >
                         <span>{label}</span>
                         {bucket === "all" ? null : (

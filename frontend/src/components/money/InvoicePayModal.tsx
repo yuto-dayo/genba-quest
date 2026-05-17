@@ -7,11 +7,13 @@ import {
     type InvoicePayoutDetail,
 } from "../../lib/api";
 import { getErrorMessage } from "../../lib/error";
+import { track } from "../../lib/telemetry";
 import styles from "./InvoicePayModal.module.css";
 
 interface InvoicePayModalProps {
     invoiceId: string;
     notificationId?: string | null;
+    from?: "bell" | "partner_drawer";
     onClose: () => void;
     onCompleted?: () => void;
 }
@@ -86,6 +88,7 @@ function errorMessageFor(kind: InlineErrorKind, rawMessage: string): string {
 export function InvoicePayModal({
     invoiceId,
     notificationId,
+    from = "bell",
     onClose,
     onCompleted,
 }: InvoicePayModalProps) {
@@ -142,6 +145,7 @@ export function InvoicePayModal({
         setActionError(null);
         try {
             await markInvoicePaid(invoiceId, { paid_at: new Date().toISOString() });
+            track({ type: "money.invoice.paid", from });
             if (notificationId) {
                 await markNotificationRead(notificationId).catch((err) => {
                     console.warn("[InvoicePayModal] failed to mark notification read:", err);
