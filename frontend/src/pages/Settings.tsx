@@ -54,6 +54,7 @@ import { InvoiceSettingsModal } from "../components/InvoiceSettingsModal";
 import { ClientSettingsModal } from "../components/ClientSettingsModal";
 import { ProfileViewConsentModal } from "../components/ProfileViewConsentModal";
 import { TaxMappingPanel } from "../components/settings/TaxMappingPanel";
+import { ClassificationPanel } from "../components/settings/ClassificationPanel";
 import styles from "./Settings.module.css";
 
 function getAvatarErrorMessage(error: unknown): string {
@@ -87,7 +88,14 @@ const statusMeta = {
     },
 } as const;
 
-type SettingPanel = "profile" | "organization" | "members" | "invoice" | "clients" | "taxMapping";
+type SettingPanel =
+    | "profile"
+    | "organization"
+    | "members"
+    | "invoice"
+    | "clients"
+    | "classification"
+    | "taxMapping";
 
 type ProfileFormState = {
     full_name: string;
@@ -754,6 +762,13 @@ export function Settings() {
         },
         ...(isCurrentUserAdmin
             ? [
+                {
+                    id: "classification" as const,
+                    group: "組織",
+                    title: "契約区分管理",
+                    summary: "外注 / 給与寄り",
+                    icon: <BadgeCheck size={20} />,
+                },
                 {
                     id: "taxMapping" as const,
                     group: "組織",
@@ -1701,6 +1716,10 @@ export function Settings() {
                                     )}
                                 </div>
                             </>
+                        )}
+
+                        {selectedSetting === "classification" && isCurrentUserAdmin && (
+                            <ClassificationPanel members={members} />
                         )}
 
                         {selectedSetting === "clients" && (

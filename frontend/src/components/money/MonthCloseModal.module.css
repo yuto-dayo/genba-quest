@@ -77,7 +77,7 @@
 
 .summaryGrid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: var(--md-sys-spacing-sm);
 }
 
@@ -158,6 +158,47 @@
 .stepList {
     display: grid;
     gap: var(--md-sys-spacing-xs);
+}
+
+.transferList {
+    display: grid;
+    gap: var(--md-sys-spacing-xs);
+}
+
+.transferRow {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr) minmax(0, auto) auto;
+    align-items: center;
+    gap: var(--md-sys-spacing-sm);
+    padding: var(--md-sys-spacing-sm) var(--md-sys-spacing-md);
+    border-radius: var(--md-sys-shape-corner-medium);
+    background: var(--md-sys-color-surface-container-low);
+}
+
+.transferSite,
+.transferEntry,
+.transferStatus {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.transferSite {
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-large);
+}
+
+.transferEntry,
+.transferStatus {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+}
+
+.transferAmount {
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-large);
+    font-variant-numeric: tabular-nums;
 }
 
 .stepRow {
@@ -246,7 +287,16 @@
 
 @media (max-width: 520px) {
     .summaryGrid {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .transferRow {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .transferEntry {
+        grid-column: 1 / -1;
+        white-space: normal;
     }
 
     .actions {

@@ -3,9 +3,11 @@ import {
     api,
     fetchMemberReimbursementBalance,
     fetchMemberReimbursementsSummary,
+    fetchMemberTaxClassification,
     fetchTeamRewardSummary,
     type AccountingTransaction,
     type CreateExpenseRequest,
+    type MemberTaxClassificationResponse,
     type MemberReimbursementBalance,
     type MemberReimbursementsSummary,
     type TeamRewardSummary,
@@ -112,6 +114,7 @@ describe("money redesign api types", () => {
         expectTypeOf(fetchMemberReimbursementsSummary).returns.toEqualTypeOf<Promise<MemberReimbursementsSummary>>();
         expectTypeOf(fetchMemberReimbursementBalance).returns.toEqualTypeOf<Promise<MemberReimbursementBalance>>();
         expectTypeOf(fetchTeamRewardSummary).returns.toEqualTypeOf<Promise<TeamRewardSummary>>();
+        expectTypeOf(fetchMemberTaxClassification).returns.toEqualTypeOf<Promise<MemberTaxClassificationResponse>>();
         expectTypeOf<MemberReimbursementsSummary["self_member_id"]>().toEqualTypeOf<string | null>();
         expectTypeOf<TeamRewardSummary["self_member_id"]>().toEqualTypeOf<string | null>();
     });
