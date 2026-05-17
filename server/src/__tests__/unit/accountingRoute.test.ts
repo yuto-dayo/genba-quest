@@ -3436,6 +3436,8 @@ describe("accounting router", () => {
           id: "tx-sale-1",
           kind: "sale",
           status: "voided",
+          site_id: "site-1",
+          site: { id: "site-1", status: "completed" },
           amount_total: 110000,
           recorded_date: "2026-05-07",
           voids_transaction_id: null,
@@ -3444,6 +3446,8 @@ describe("accounting router", () => {
           id: "tx-sale-reversal-1",
           kind: "sale",
           status: "posted",
+          site_id: "site-1",
+          site: { id: "site-1", status: "completed" },
           amount_total: -110000,
           recorded_date: "2026-05-07",
           voids_transaction_id: "tx-sale-1",
@@ -3469,6 +3473,70 @@ describe("accounting router", () => {
       profit: 0,
       distributable: 0,
       transaction_count: 2,
+    }));
+  });
+
+  it("GET /pl separates completed COGS, WIP, and overhead", async () => {
+    const plChain = createChain({
+      data: [
+        {
+          id: "tx-sale-completed",
+          kind: "sale",
+          status: "posted",
+          site_id: "site-completed",
+          site: { id: "site-completed", status: "completed" },
+          amount_total: 800000,
+          recorded_date: "2026-05-10",
+        },
+        {
+          id: "tx-expense-completed",
+          kind: "expense",
+          status: "posted",
+          site_id: "site-completed",
+          site: { id: "site-completed", status: "completed" },
+          amount_total: 300000,
+          recorded_date: "2026-05-11",
+        },
+        {
+          id: "tx-expense-active",
+          kind: "expense",
+          status: "posted",
+          site_id: "site-active",
+          site: { id: "site-active", status: "active" },
+          amount_total: 120000,
+          recorded_date: "2026-05-12",
+        },
+        {
+          id: "tx-overhead",
+          kind: "expense",
+          status: "posted",
+          site_id: null,
+          site: null,
+          amount_total: 50000,
+          recorded_date: "2026-05-13",
+        },
+      ],
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [plChain]);
+
+    const req = {
+      orgId: "org-1",
+      query: { month: "2026-05" },
+    } as any;
+    const res = createMockRes();
+
+    await getPlHandler(req, res);
+
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      sales: 800000,
+      completed_cogs: 300000,
+      overhead: 50000,
+      work_in_progress: 120000,
+      expenses: 350000,
+      profit: 450000,
+      distributable: 315000,
+      transaction_count: 4,
     }));
   });
 
@@ -3536,6 +3604,8 @@ describe("accounting router", () => {
           id: "tx-sale-1",
           kind: "sale",
           status: "posted",
+          site_id: "site-1",
+          site: { id: "site-1", status: "completed" },
           amount_total: 110000,
           recorded_date: "2026-05-07",
         },
@@ -3543,6 +3613,8 @@ describe("accounting router", () => {
           id: "tx-expense-1",
           kind: "expense",
           status: "posted",
+          site_id: null,
+          site: null,
           amount_total: 33000,
           recorded_date: "2026-05-08",
         },
@@ -3652,6 +3724,9 @@ describe("accounting router", () => {
       diff: {
         sales: 0,
         expenses: 0,
+        completed_cogs: 0,
+        overhead: 0,
+        work_in_progress: 0,
         profit: 0,
         distributable: 0,
       },

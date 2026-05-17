@@ -1977,6 +1977,7 @@ export interface Site {
         created_at: string;
         executed_at?: string | null;
     } | null;
+    current_accumulated_cost?: number;
 }
 
 export interface SiteCompletionResult {
@@ -2397,6 +2398,28 @@ export interface CashflowSummary {
 export const fetchCashflowSummary = (month: string) =>
     api<CashflowSummary>(`/api/v1/accounting/cashflow-summary?month=${encodeURIComponent(month)}`);
 
+export interface SiteCostTransferPreviewRow {
+    site_id: string;
+    site_name: string;
+    completed_at: string | null;
+    accumulated_amount: number;
+    from_account_code: "1230";
+    to_account_code: "5420";
+    transfer_status: "pending" | "transferred";
+    transferred_at: string | null;
+    proposal_id: string | null;
+}
+
+export interface SiteCostTransferPreview {
+    month: string;
+    transfers: SiteCostTransferPreviewRow[];
+}
+
+export const fetchSiteCostTransferPreview = (month: string) =>
+    api<SiteCostTransferPreview>(
+        `/api/v1/accounting/site-cost-transfers/preview?month=${encodeURIComponent(month)}`
+    );
+
 export interface TeamMemberReimbursement {
     member_id: string;
     nickname: string;
@@ -2810,6 +2833,9 @@ export type PLSource = "legacy" | "journal" | "compare";
 export interface PLSummary {
     sales: number;
     expenses: number;
+    completed_cogs: number;
+    overhead: number;
+    work_in_progress: number;
     profit: number;
     distributable: number;
     transaction_count?: number;
@@ -2841,7 +2867,7 @@ export interface PLCompareReport {
     legacy: PLSummary;
     journal: PLSummary;
     journal_gross_compat: PLSummary;
-    diff: Pick<PLSummary, "sales" | "expenses" | "profit" | "distributable">;
+    diff: Pick<PLSummary, "sales" | "expenses" | "completed_cogs" | "overhead" | "work_in_progress" | "profit" | "distributable">;
     mismatches: Array<{
         field: string;
         amount: number;
