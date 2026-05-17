@@ -432,6 +432,7 @@ describe("Money PATH proposal queue", () => {
                 expect.objectContaining({ defaultClaimantMemberId: "member-1" }),
             );
         });
+    });
 
     it("keeps an approved proposal open so execution can happen from the same detail", async () => {
         fetchPendingProposals.mockResolvedValueOnce([pathProposal]).mockResolvedValueOnce([]);
