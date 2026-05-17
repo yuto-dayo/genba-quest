@@ -53,6 +53,7 @@ import { useActiveOrgStore, type ActiveOrgOption } from "../stores/activeOrg";
 import { InvoiceSettingsModal } from "../components/InvoiceSettingsModal";
 import { ClientSettingsModal } from "../components/ClientSettingsModal";
 import { ProfileViewConsentModal } from "../components/ProfileViewConsentModal";
+import { TaxMappingPanel } from "../components/settings/TaxMappingPanel";
 import styles from "./Settings.module.css";
 
 function getAvatarErrorMessage(error: unknown): string {
@@ -86,7 +87,7 @@ const statusMeta = {
     },
 } as const;
 
-type SettingPanel = "profile" | "organization" | "members" | "invoice" | "clients";
+type SettingPanel = "profile" | "organization" | "members" | "invoice" | "clients" | "taxMapping";
 
 type ProfileFormState = {
     full_name: string;
@@ -751,6 +752,17 @@ export function Settings() {
             summary: `${clients.length}件`,
             icon: <Building2 size={20} />,
         },
+        ...(isCurrentUserAdmin
+            ? [
+                {
+                    id: "taxMapping" as const,
+                    group: "組織",
+                    title: "勘定科目マッピング",
+                    summary: "表示語と帳簿科目",
+                    icon: <ReceiptText size={20} />,
+                },
+            ]
+            : []),
     ];
     const settingItems = allSettingItems.filter((item) => {
         if (!settingsSearch) {
@@ -1759,6 +1771,10 @@ export function Settings() {
                                     )}
                                 </div>
                             </>
+                        )}
+
+                        {selectedSetting === "taxMapping" && (
+                            <TaxMappingPanel isAdmin={isCurrentUserAdmin} />
                         )}
                     </motion.section>
                 )}

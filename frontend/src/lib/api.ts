@@ -2314,6 +2314,57 @@ export const updateInvoiceSettings = (data: UpdateInvoiceSettingsRequest) =>
         body: JSON.stringify(data),
     });
 
+export type TaxAccountCategory = "income" | "expense" | "asset" | "liability" | "equity";
+
+export interface TaxAccountMapping {
+    id: string;
+    org_id: string;
+    display_label: string;
+    tax_account_code: string;
+    tax_account_name: string;
+    category: TaxAccountCategory;
+    applicable_proposal_types: string[];
+    effective_from: string;
+    effective_until: string | null;
+    created_by: string;
+    created_at: string;
+}
+
+export interface AccountMasterOption {
+    code: string;
+    name: string;
+    category: "asset" | "liability" | "equity" | "revenue" | "expense";
+    is_active: boolean;
+    display_order: number | null;
+}
+
+export interface TaxAccountMappingsResponse {
+    mappings: TaxAccountMapping[];
+    history: TaxAccountMapping[];
+    accounts: AccountMasterOption[];
+}
+
+export interface UpdateTaxAccountMappingRequest {
+    tax_account_code: string;
+    tax_account_name: string;
+    category: TaxAccountCategory;
+    applicable_proposal_types: string[];
+    effective_from: string;
+}
+
+export const fetchTaxAccountMappings = (params?: { as_of?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.as_of) searchParams.append("as_of", params.as_of);
+    const query = searchParams.toString();
+    return api<TaxAccountMappingsResponse>(`/api/v1/accounting/tax-account-mappings${query ? `?${query}` : ""}`);
+};
+
+export const updateTaxAccountMapping = (mappingId: string, data: UpdateTaxAccountMappingRequest) =>
+    api<{ mapping: TaxAccountMapping }>(`/api/v1/accounting/tax-account-mappings/${mappingId}/revisions`, {
+        method: "POST",
+        body: JSON.stringify(data),
+    });
+
 export const fetchInvoiceEligibility = (transactionId: string) =>
     api<InvoiceEligibility>(`/api/v1/accounting/invoice-eligibility/${transactionId}`);
 
