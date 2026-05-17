@@ -246,18 +246,6 @@
     background: var(--md-sys-color-surface-container-low);
 }
 
-.legacyInvoiceTrim {
-    display: grid;
-    gap: var(--md-sys-spacing-md);
-}
-
-.legacyInvoiceTrim :global(section[aria-label="未請求残サマリー"] p[class*="subtitle"]),
-.legacyInvoiceTrim :global(section[aria-label="未請求残サマリー"] p[class*="privacyNote"]),
-.legacyInvoiceTrim :global(section[aria-label="支払い対象の請求書"] p[class*="subtitle"]),
-.legacyInvoiceTrim :global(section[aria-label="支払い対象の請求書"] p[class*="privacyNote"]) {
-    display: none;
-}
-
 .pathQueueSection {
     margin-bottom: 20px;
     padding: 18px;
