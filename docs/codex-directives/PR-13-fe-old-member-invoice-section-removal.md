@@ -5,15 +5,15 @@ Money 画面の旧「未請求残」「支払い対象」セクション(`Outsta
 
 ## Acceptance criteria
 
-- [ ] `Money.tsx` から下記コンポーネントの使用箇所を削除:
+- [x] `Money.tsx` から下記コンポーネントの使用箇所を削除:
   - `OutstandingInvoicesCard`
   - `AdminInvoiceActionableList`
   - `MemberInvoiceDraftBanner`
   - `MyMemberInvoicesList`
-- [ ] 上記コンポーネント自体は **削除しない**(将来再利用余地 / 他ページで参照されてる可能性)。Money 画面からの参照のみ落とす
-- [ ] 関連 import 整理、未使用 hook / state 削除
-- [ ] スナップショットテストが既存にあれば更新
-- [ ] tsc/lint/test グリーン
+- [x] 上記コンポーネント自体は **削除しない**(将来再利用余地 / 他ページで参照されてる可能性)。Money 画面からの参照のみ落とす
+- [x] 関連 import 整理、未使用 hook / state 削除
+- [x] スナップショットテストが既存にあれば更新
+- [x] tsc/lint/test グリーン
 
 ## Files
 

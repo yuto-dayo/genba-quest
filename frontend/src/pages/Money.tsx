@@ -45,12 +45,7 @@ import {
     type NotificationRecord,
 } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
-import { useActiveOrgStore } from "../stores/activeOrg";
 import { supabase } from "../lib/supabase";
-import { MemberInvoiceDraftBanner } from "../components/MemberInvoiceDraftBanner";
-import { OutstandingInvoicesCard } from "../components/OutstandingInvoicesCard";
-import { AdminInvoiceActionableList } from "../components/AdminInvoiceActionableList";
-import { MyMemberInvoicesList } from "../components/MyMemberInvoicesList";
 import { ExpenseModal } from "../components/ExpenseModal";
 import { SalesModal } from "../components/SalesModal";
 import { InvoiceModal } from "../components/InvoiceModal";
@@ -323,13 +318,8 @@ export function Money() {
     const [activeTab, setActiveTab] = useState<MoneyTab>("transactions");
     const [showFilterSheet, setShowFilterSheet] = useState(false);
 
-    // Phase 2-2a: ログイン中ユーザの id とロール (本人主導の請求書発行 / 集計表示用)
+    // ログイン中ユーザの id (自分カード / チーム報酬モーダル用)
     const [selfUserId, setSelfUserId] = useState<string | null>(null);
-    const activeOrgId = useActiveOrgStore((state) => state.activeOrgId);
-    const orgOptions = useActiveOrgStore((state) => state.options);
-    const activeMembership = orgOptions.find((option) => option.org.id === activeOrgId)
-        ?.membership;
-    const isAdmin = activeMembership?.role === "admin";
 
     useEffect(() => {
         let cancelled = false;
@@ -1173,33 +1163,6 @@ export function Money() {
                     onClose={closeMonthCloseModal}
                     onCompleted={handleMonthCloseCompleted}
                 />
-            )}
-
-            {/* Phase 2-2a: 本人主導の請求書 — 本人にはドラフト、admin には集計を出す */}
-            {selfUserId && (
-                <MemberInvoiceDraftBanner
-                    selfUserId={selfUserId}
-                    hideWhenEmpty={isAdmin}
-                    onIssued={() => {
-                        setInvoiceRefreshKey((current) => current + 1);
-                        handleMoneyHeroRetry();
-                    }}
-                />
-            )}
-            {/* Phase 2-2b: 本人は自分の請求書履歴 (取消し可)、admin は支払い対象リスト + 集計 */}
-            {selfUserId && !isAdmin && (
-                <MyMemberInvoicesList
-                    onChanged={() => {
-                        setInvoiceRefreshKey((current) => current + 1);
-                        handleMoneyHeroRetry();
-                    }}
-                />
-            )}
-            {isAdmin && (
-                <div className={styles.legacyInvoiceTrim}>
-                    <OutstandingInvoicesCard />
-                    <AdminInvoiceActionableList />
-                </div>
             )}
 
             {/* クイックアクション */}
