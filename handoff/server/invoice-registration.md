@@ -27,6 +27,7 @@
 <!-- HANDOFF_SESSION_EVENTS_START -->
 - 2026-05-18 07:50:58 +0900 — started by codex
 - 2026-05-18 07:51:23 +0900 — codex validation summary before PR
+- 2026-05-18 07:53:07 +0900 — ended by codex
 <!-- HANDOFF_SESSION_EVENTS_END -->
 
 ---
@@ -126,10 +127,10 @@ cd frontend && npx eslint src/
 
 | Check | Result | Notes |
 | ----- | ------ | ----- |
-| server typecheck | PASS | npx tsc --noEmit |
-| frontend typecheck | PASS | npx tsc -b --noEmit |
-| lint | SKIP | not run yet |
-| test | SKIP | optional |
+| server typecheck | PASS | run by session-end (2026-05-18 07:52) |
+| frontend typecheck | PASS | run by session-end (2026-05-18 07:52) |
+| lint | PASS | frontend eslint src/ at 2026-05-18 07:53 |
+| test | FAIL | server npm test -- --runInBand at 2026-05-18 07:53 |
 
 ---
 
