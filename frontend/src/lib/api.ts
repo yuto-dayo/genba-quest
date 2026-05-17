@@ -2182,6 +2182,91 @@ export const analyzeDocumentOcr = (document_id: string) =>
         body: JSON.stringify({ document_id }),
     });
 
+export interface ElectronicDocumentRecord {
+    id: string;
+    org_id: string;
+    kind: "receipt" | "invoice" | "contract" | "purchase_order" | "delivery_note" | "other";
+    transaction_date: string;
+    counterparty_name: string;
+    amount: number;
+    storage_bucket: string;
+    storage_path: string;
+    original_filename?: string | null;
+    mime_type: string;
+    file_size_bytes: number;
+    sha256: string;
+    source_document_id?: string | null;
+    source_transaction_id?: string | null;
+    registered_by?: string | null;
+    registered_at: string;
+    retention_until: string;
+    metadata_json?: Record<string, unknown>;
+    created_at: string;
+}
+
+export interface OfficeProcessingRuleRecord {
+    id: string;
+    org_id: string;
+    version: number;
+    title: string;
+    markdown_content: string;
+    pdf_storage_bucket?: string | null;
+    pdf_storage_path?: string | null;
+    pdf_original_filename?: string | null;
+    pdf_mime_type?: string | null;
+    pdf_file_size_bytes?: number | null;
+    pdf_sha256?: string | null;
+    status: "active" | "superseded" | "archived";
+    effective_from: string;
+    registered_by?: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface DocumentIntegrityReport {
+    ok: boolean;
+    checked_count: number;
+    latest_attestation_id: string | null;
+    latest_attestation_hash: string | null;
+    issues: Array<{ id: string; sequence: number; error: string }>;
+}
+
+export const fetchElectronicDocuments = (params?: {
+    from?: string;
+    to?: string;
+    counterparty?: string;
+    minAmount?: number;
+    maxAmount?: number;
+}) => {
+    const searchParams = new URLSearchParams();
+    if (params?.from) searchParams.append("from", params.from);
+    if (params?.to) searchParams.append("to", params.to);
+    if (params?.counterparty) searchParams.append("counterparty", params.counterparty);
+    if (params?.minAmount !== undefined) searchParams.append("minAmount", String(params.minAmount));
+    if (params?.maxAmount !== undefined) searchParams.append("maxAmount", String(params.maxAmount));
+    const query = searchParams.toString();
+    return api<{ documents: ElectronicDocumentRecord[] }>(`/api/v1/documents/search${query ? `?${query}` : ""}`);
+};
+
+export const fetchOfficeProcessingRules = () =>
+    api<{ rules: OfficeProcessingRuleRecord[] }>("/api/v1/documents/office-processing-rules");
+
+export const registerOfficeProcessingRule = (data: {
+    version: number;
+    title?: string;
+    markdown_content: string;
+    effective_from?: string;
+    pdf_base64?: string;
+    pdf_mime_type?: string;
+    pdf_original_filename?: string;
+}) => api<{ rule: OfficeProcessingRuleRecord }>("/api/v1/documents/office-processing-rules", {
+    method: "POST",
+    body: JSON.stringify(data),
+});
+
+export const fetchDocumentIntegrityReport = () =>
+    api<{ report: DocumentIntegrityReport }>("/api/v1/documents/integrity-report");
+
 // 経費登録
 export const createExpense = (data: CreateExpenseRequest) =>
     api<AccountingTransaction>("/api/v1/accounting/expenses", {

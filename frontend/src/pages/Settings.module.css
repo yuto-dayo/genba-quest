@@ -654,7 +654,9 @@
     font-weight: 700;
 }
 
-.inputField input {
+.inputField input,
+.inputField textarea,
+.inputField select {
     min-height: 48px;
     padding: 0 14px;
     border: 1px solid var(--md-sys-color-outline-variant);
@@ -664,7 +666,16 @@
     font: var(--md-sys-typescale-body-medium);
 }
 
-.inputField input:focus {
+.inputField textarea {
+    min-height: 160px;
+    padding-top: 12px;
+    resize: vertical;
+    line-height: 1.6;
+}
+
+.inputField input:focus,
+.inputField textarea:focus,
+.inputField select:focus {
     border-color: var(--md-sys-color-primary);
     outline: none;
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--md-sys-color-primary) 18%, transparent);
@@ -992,9 +1003,113 @@
 
 .helperText {
     margin: 0;
-    color: var(--md-sys-color-on-surface-variant, #5f6470);
+    color: var(--md-sys-color-on-surface-variant);
     font: var(--md-sys-typescale-body-small);
     flex-basis: 100%;
+}
+
+.complianceSearchGrid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    align-items: end;
+    margin-top: 18px;
+}
+
+.complianceList,
+.documentTable {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+.complianceRow,
+.documentRow {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 12px;
+    min-height: 58px;
+    padding: 12px 14px;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 18px;
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
+}
+
+.complianceRow span,
+.documentRow span:first-child {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.complianceRow strong,
+.documentRow strong {
+    overflow: hidden;
+    font: var(--md-sys-typescale-body-medium);
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.complianceRow small,
+.documentRow small {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+}
+
+.complianceRow code,
+.documentRow code,
+.integrityPanel code {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-medium);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.documentAmount {
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-large);
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.integrityPanel {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin-top: 18px;
+    padding: 14px;
+    border-radius: 18px;
+    background: var(--md-sys-color-surface-container-low);
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.integrityOk,
+.integrityWarn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+    padding: 0 14px;
+    border-radius: 999px;
+    font: var(--md-sys-typescale-label-large);
+    font-weight: 800;
+}
+
+.integrityOk {
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
+}
+
+.integrityWarn {
+    background: var(--md-sys-color-error-container);
+    color: var(--md-sys-color-on-error-container);
 }
 
 @media (max-width: 768px) {
@@ -1044,6 +1159,12 @@
     }
 
     .clientGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .complianceSearchGrid,
+    .complianceRow,
+    .documentRow {
         grid-template-columns: 1fr;
     }
 }
