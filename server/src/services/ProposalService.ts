@@ -30,6 +30,11 @@ import {
   InvoiceReviewerAssignmentService,
   invoiceReviewerAssignmentService,
 } from "./InvoiceReviewerAssignmentService";
+import {
+  buildClassificationPayloadFromProposal,
+  MemberTaxClassificationService,
+  memberTaxClassificationService,
+} from "./MemberTaxClassificationService";
 
 // ============================================================
 // Types
@@ -196,6 +201,7 @@ export class ProposalService {
   private profileViewConsentService: ProfileViewConsentService;
   private memberInvoiceService: MemberInvoiceService;
   private invoiceReviewerAssignmentService: InvoiceReviewerAssignmentService;
+  private memberTaxClassificationService: MemberTaxClassificationService;
 
   constructor(orgId: string = '00000000-0000-0000-0000-000000000001') {
     this.orgId = orgId;
@@ -206,6 +212,7 @@ export class ProposalService {
     this.profileViewConsentService = profileViewConsentService;
     this.memberInvoiceService = memberInvoiceService;
     this.invoiceReviewerAssignmentService = invoiceReviewerAssignmentService;
+    this.memberTaxClassificationService = memberTaxClassificationService;
     const fallbackMode = (process.env.PROPOSAL_RPC_FALLBACK_MODE || 'allow').toLowerCase();
     this.disableRpcFallback = ['disabled', 'deny', 'off'].includes(fallbackMode);
   }
@@ -1137,6 +1144,7 @@ export class ProposalService {
       'site.close.finalize': 'site.close.finalized',
       'site.close.reopen': 'site.close.reopened',
       'profile.view_request': 'profile.view_granted',
+      'member.classification.update': 'member.classification.updated',
     };
     return mapping[type] || 'internal_transfer';
   }
@@ -1164,6 +1172,12 @@ export class ProposalService {
         break;
       case 'skill.revoke':
         await this.applySkillCertification(proposal.payload, event.actor, 'revoked');
+        break;
+      case 'member.classification.update':
+        await this.memberTaxClassificationService.recordClassification(
+          buildClassificationPayloadFromProposal(proposal),
+          event.actor,
+        );
         break;
       case 'site.close.finalize':
       case 'site.close.reopen':
@@ -2091,6 +2105,13 @@ export class ProposalService {
     // 仕訳発生も金額もないが、grant 行と governance event でアクセス権の発生を追跡する。
     if (proposal.type === 'profile.view_request') {
       await this.profileViewConsentService.createGrantFromExecutedProposal(proposal);
+    }
+
+    if (proposal.type === 'member.classification.update') {
+      await this.memberTaxClassificationService.recordClassification(
+        buildClassificationPayloadFromProposal(proposal),
+        actor,
+      );
     }
 
     // invoice.member_issue: 本人主導の請求書 row を発行する。

@@ -138,7 +138,9 @@ export type ProposalType =
     | "invoice.create"
     | "invoice.send"
     | "invoice.mark_paid"
+    | "invoice.member_issue"
     | "invoice.member_mark_paid"
+    | "invoice.member_void"
     | "reward.calculate"
     | "reward.adjust"
     | "reward.pool.adjust"
@@ -161,6 +163,7 @@ export type ProposalType =
     | "site.close.reopen"
     | "policy.update"
     | "profile.view_request"
+    | "member.classification.update"
     | "luqo.catalog.add"
     | "luqo.star.achieve"
     | "luqo.score.update"
@@ -1129,6 +1132,73 @@ export const deleteSite = (id: string, reason: string) =>
     api<Site>(`/api/v1/sites/${id}`, { method: "DELETE", body: JSON.stringify({ reason }) });
 export const fetchMembers = () =>
     api<Member[]>("/api/v1/org/members");
+
+export type MemberContractType = "subcontract" | "employee_like" | "undetermined";
+export type TaxWithholdingCategory = "none" | "10.21%" | "custom";
+export type ClassificationCheckStatus = "verified" | "review_needed" | "unset";
+
+export interface ClassificationCheckResults {
+    q1_substitution: boolean;
+    q2_time_freedom: boolean;
+    q3_work_autonomy: boolean;
+    q4_own_tools: boolean;
+    q5_outcome_liability: boolean;
+}
+
+export interface MemberTaxClassification {
+    id: string;
+    org_id: string;
+    member_id: string;
+    contract_type: MemberContractType;
+    tax_withholding_category: TaxWithholdingCategory;
+    custom_withholding_rate: number | null;
+    classification_check_status: ClassificationCheckStatus;
+    classification_check_results: ClassificationCheckResults;
+    classification_notes: string | null;
+    effective_from: string;
+    effective_until: string | null;
+    decided_by: string;
+    decided_at: string;
+    proposal_id: string | null;
+    created_at: string;
+}
+
+export interface MemberTaxClassificationResponse {
+    active: MemberTaxClassification | null;
+    history: MemberTaxClassification[];
+}
+
+export interface SubmitClassificationProposalRequest {
+    member_id: string;
+    contract_type: MemberContractType;
+    tax_withholding_category: TaxWithholdingCategory;
+    custom_withholding_rate?: number | null;
+    classification_check_results: ClassificationCheckResults;
+    classification_notes?: string;
+    effective_from: string;
+}
+
+export const fetchMemberTaxClassification = (memberId: string, asOf?: string, options?: RequestInit) => {
+    const params = new URLSearchParams();
+    if (asOf) {
+        params.set("asOf", asOf);
+    }
+    const query = params.toString();
+    return api<MemberTaxClassificationResponse>(
+        `/api/v1/members/${encodeURIComponent(memberId)}/tax-classification${query ? `?${query}` : ""}`,
+        options,
+    );
+};
+
+export const submitClassificationProposal = (payload: SubmitClassificationProposalRequest) =>
+    api<{ proposal: ProposalRecord; auto_approved: boolean; auto_executed: boolean }>("/api/v1/proposals/create-and-submit", {
+        method: "POST",
+        body: JSON.stringify({
+            type: "member.classification.update",
+            payload,
+            description: "契約区分を更新",
+        }),
+    });
 
 export const updateMemberRole = (userId: string, role: "admin" | "member") =>
     api<{ membership: Member }>(`/api/v1/org/members/${userId}`, {

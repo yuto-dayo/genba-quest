@@ -55,6 +55,8 @@ export type ProposalType =
   // Phase 2-2b: 本人主導の請求書 — admin 支払い記録 / 本人取り消し
   | 'invoice.member_mark_paid'
   | 'invoice.member_void'
+  // 税務: 契約区分（外注/給与判定）
+  | 'member.classification.update'
   // LUQO評価システム
   | 'luqo.catalog.add'
   | 'luqo.star.achieve'
@@ -417,8 +419,9 @@ export class PolicyEngine {
         type: candidate.type as ApproverSpec['type'],
       };
 
-      if (typeof candidate.value === 'string' && candidate.value.length > 0) {
-        spec.value = candidate.value;
+      const value = typeof candidate.value === 'string' ? candidate.value : candidate.role;
+      if (typeof value === 'string' && value.length > 0) {
+        spec.value = value;
       }
 
       acc.push(spec);
@@ -537,9 +540,11 @@ export class PolicyEngine {
     }
 
     const { data, error } = await supabaseAdmin
-      .from('profiles')
-      .select('id, role')
-      .in('id', uniqueIds);
+      .from('org_memberships')
+      .select('user_id, role')
+      .eq('org_id', this.orgId)
+      .eq('status', 'active')
+      .in('user_id', uniqueIds);
 
     if (error || !data) {
       console.error('Failed to load actor roles:', error);
@@ -547,8 +552,14 @@ export class PolicyEngine {
     }
 
     return data.reduce<Record<string, string>>((acc, row) => {
-      if (typeof row.id === 'string' && typeof row.role === 'string') {
-        acc[row.id] = row.role;
+      const roleRow = row as Record<string, unknown>;
+      const userId = typeof roleRow.user_id === 'string'
+        ? roleRow.user_id
+        : typeof roleRow.id === 'string'
+          ? roleRow.id
+          : null;
+      if (userId && typeof roleRow.role === 'string') {
+        acc[userId] = roleRow.role;
       }
       return acc;
     }, {});

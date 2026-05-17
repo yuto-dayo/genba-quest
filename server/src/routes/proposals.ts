@@ -84,6 +84,7 @@ const VALID_PROPOSAL_TYPES: ReadonlySet<string> = new Set<ProposalType>([
   'communication.review', 'communication.task', 'task.revision.request',
   'site.create', 'site.complete',
   'policy.update',
+  'member.classification.update',
   // プロフィール閲覧の本人承認 (Phase 2-1)
   'profile.view_request',
   // LUQO評価システム
