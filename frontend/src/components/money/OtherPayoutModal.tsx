@@ -1,13 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AlertCircle, Loader2, ShieldCheck, X } from "lucide-react";
 import {
     fetchMemberReimbursementBalance,
     fetchPathRewardConfirmation,
     fetchPathV33MonthlyPreview,
     fetchPathV33TeamFeed,
+    previewPathV32SimpleMonthlyDistribution,
     submitPathV33Objection,
     type MemberReimbursementBalance,
     type PathRewardConfirmationSummary,
+    type PathV32SimpleMonthlyDistributionPreview,
     type PathV33MonthlyPreview,
     type PathV33TeamFeedTimelineEntry,
     type PathV33Tier,
@@ -15,6 +17,9 @@ import {
 import { getErrorMessage } from "../../lib/error";
 import { ObjectionSubmitSheet } from "../ObjectionSubmitSheet";
 import { PayoutBreakdownSection } from "./PayoutBreakdownSection";
+import { PayoutCalculationSection } from "./PayoutCalculationSection";
+import { PayoutMovingFactorsSection } from "./PayoutMovingFactorsSection";
+import { PayoutReimbursementSection } from "./PayoutReimbursementSection";
 import styles from "./OtherPayoutModal.module.css";
 
 interface OtherPayoutModalProps {
@@ -24,16 +29,11 @@ interface OtherPayoutModalProps {
     readOnly?: boolean;
 }
 
-interface TrendPoint {
-    month: string;
-    amount: number;
-}
-
 interface ModalData {
     summary: PathRewardConfirmationSummary;
     preview: PathV33MonthlyPreview | null;
+    calculationPreview: PathV32SimpleMonthlyDistributionPreview | null;
     reimbursementBalance: MemberReimbursementBalance;
-    trend: TrendPoint[];
     objectionTarget: PathV33TeamFeedTimelineEntry | null;
 }
 
@@ -49,33 +49,12 @@ function formatYen(amount: number): string {
     }).format(amount);
 }
 
-function signedYen(amount: number): string {
-    if (amount === 0) return formatYen(0);
-    return `${amount > 0 ? "+" : "-"}${formatYen(Math.abs(amount))}`;
-}
-
 function formatMonthLabel(month: string): string {
     const [, monthPart] = month.split("-");
     const numericMonth = Number(monthPart);
     return Number.isFinite(numericMonth) && numericMonth > 0
         ? `${numericMonth}月分の報酬と立替`
         : `${month}分の報酬と立替`;
-}
-
-function formatShortMonth(month: string): string {
-    const [, monthPart] = month.split("-");
-    const numericMonth = Number(monthPart);
-    return Number.isFinite(numericMonth) && numericMonth > 0 ? `${numericMonth}月` : month;
-}
-
-function getRecentMonths(endMonth: string, count: number): string[] {
-    const [year, month] = endMonth.split("-").map(Number);
-    if (!Number.isFinite(year) || !Number.isFinite(month)) return [endMonth];
-    const cursor = new Date(Date.UTC(year, month - 1, 1));
-    return Array.from({ length: count }, (_, index) => {
-        const date = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() - (count - 1 - index), 1));
-        return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
-    });
 }
 
 function isClientObjectionWindow(month: string, now = new Date()): boolean {
@@ -120,27 +99,6 @@ function pickObjectionTarget(
     };
 }
 
-async function loadTrend(month: string, memberId: string, current: PathRewardConfirmationSummary, signal: AbortSignal) {
-    const months = getRecentMonths(month, 3);
-    const summaries = await Promise.all(
-        months.map(async (targetMonth) => {
-            if (targetMonth === month) return current;
-            try {
-                return await fetchPathRewardConfirmation(targetMonth, memberId, { signal });
-            } catch {
-                return null;
-            }
-        }),
-    );
-
-    return summaries
-        .filter((summary): summary is PathRewardConfirmationSummary => Boolean(summary))
-        .map((summary) => ({
-            month: summary.month,
-            amount: summary.estimated_amount,
-        }));
-}
-
 export function OtherPayoutModal({ memberId, month, onClose }: OtherPayoutModalProps) {
     const [data, setData] = useState<ModalData | null>(null);
     const [loading, setLoading] = useState(true);
@@ -164,17 +122,17 @@ export function OtherPayoutModal({ memberId, month, onClose }: OtherPayoutModalP
                 fetchPathRewardConfirmation(month, memberId, { signal: requestSignal }),
                 fetchMemberReimbursementBalance(memberId, month, { signal: requestSignal }),
             ]);
-            const [preview, feed, trend] = await Promise.all([
+            const [preview, calculationPreview, feed] = await Promise.all([
                 fetchPathV33MonthlyPreview(memberId, month, { signal: requestSignal }).catch(() => null),
+                previewPathV32SimpleMonthlyDistribution(month).catch(() => null),
                 fetchPathV33TeamFeed(month).catch(() => null),
-                loadTrend(month, memberId, summary, requestSignal).catch(() => []),
             ]);
 
             setData({
                 summary,
                 preview,
+                calculationPreview,
                 reimbursementBalance,
-                trend,
                 objectionTarget: pickObjectionTarget(
                     memberId,
                     summary.member_name,
@@ -207,11 +165,6 @@ export function OtherPayoutModal({ memberId, month, onClose }: OtherPayoutModalP
     const isObjectionWindow = data
         ? data.summary.is_objection_window ?? isClientObjectionWindow(month)
         : false;
-    const maxTrendAmount = useMemo(
-        () => Math.max(...(data?.trend.map((point) => point.amount) ?? [0]), 1),
-        [data],
-    );
-
     async function handleSubmitObjection(input: { proposed_tier: PathV33Tier; reason: string }) {
         if (!data?.objectionTarget || submitting) return;
         setSubmitting(true);
@@ -309,109 +262,29 @@ export function OtherPayoutModal({ memberId, month, onClose }: OtherPayoutModalP
                                 reimbursementCarryOver={data.reimbursementBalance.carry_over_amount ?? 0}
                             />
 
-                            <p className={styles.privacyNote}>
-                                <ShieldCheck size={18} aria-hidden="true" />
-                                請求書の状態は本人だけに表示されます
-                            </p>
+                            <PayoutCalculationSection
+                                memberId={memberId}
+                                summary={data.summary}
+                                preview={data.calculationPreview}
+                                isFinalized={data.summary.status === "確定済み"}
+                                subjectLabel={`${data.summary.member_name}さん`}
+                            />
 
-                            <section className={styles.section} aria-labelledby="other-reward-breakdown">
-                                <h3 id="other-reward-breakdown" className={styles.sectionTitle}>
-                                    計算根拠
-                                </h3>
-                                <div className={styles.breakdown}>
-                                    <div className={styles.row}>
-                                        <span className={styles.rowLabel}>レベル</span>
-                                        <span className={styles.rowValue}>
-                                            {data.preview?.current.level ?? "-"}
-                                        </span>
-                                    </div>
-                                    <div className={styles.row}>
-                                        <span className={styles.rowLabel}>出勤日数</span>
-                                        <span className={styles.rowValue}>
-                                            {data.preview ? `${data.preview.current.total_work_days}日` : "-"}
-                                        </span>
-                                    </div>
-                                    <div className={styles.row}>
-                                        <span className={styles.rowLabel}>基本給</span>
-                                        <span className={styles.rowValue}>
-                                            {formatYen(data.summary.base_amount)}
-                                        </span>
-                                    </div>
-                                    <div className={styles.row}>
-                                        <span className={styles.rowLabel}>加算</span>
-                                        <span className={styles.rowValue}>
-                                            {signedYen(data.summary.estimated_amount - data.summary.base_amount)}
-                                        </span>
-                                    </div>
-                                </div>
-                            </section>
+                            <PayoutMovingFactorsSection
+                                summary={data.summary}
+                                preview={data.calculationPreview}
+                            />
 
-                            <section className={styles.section} aria-labelledby="other-reward-path-detail">
-                                <h3 id="other-reward-path-detail" className={styles.sectionTitle}>
-                                    PATH計算
-                                </h3>
-                                <div className={styles.breakdown}>
-                                    <div className={styles.row}>
-                                        <span className={styles.rowLabel}>結果分</span>
-                                        <span className={styles.rowValue}>
-                                            {formatYen(data.summary.result_amount)}
-                                        </span>
-                                    </div>
-                                    <div className={styles.row}>
-                                        <span className={styles.rowLabel}>補正</span>
-                                        <span className={styles.rowValue}>
-                                            {signedYen(data.summary.correction_amount)}
-                                        </span>
-                                    </div>
-                                    <div className={styles.row}>
-                                        <span className={styles.rowLabel}>状態</span>
-                                        <span className={styles.rowValue}>{data.summary.status}</span>
-                                    </div>
-                                </div>
-                                {data.summary.top_reasons.length > 0 && (
-                                    <ul className={styles.reasonList}>
-                                        {data.summary.top_reasons.slice(0, 3).map((reason) => (
-                                            <li key={reason.key} className={styles.reasonItem}>
-                                                <span>{reason.label}</span>
-                                                <strong>{reason.summary}</strong>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
-                                {data.summary.site_breakdown.length > 0 && (
-                                    <div className={styles.siteList}>
-                                        {data.summary.site_breakdown.slice(0, 4).map((site) => (
-                                            <div key={site.site_id} className={styles.siteRow}>
-                                                <span>{site.site_name}</span>
-                                                <strong>{formatYen(site.amount)}</strong>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </section>
+                            <PayoutReimbursementSection balance={data.reimbursementBalance} />
 
-                            <section className={styles.section} aria-labelledby="other-reward-trend">
-                                <h3 id="other-reward-trend" className={styles.sectionTitle}>
-                                    過去3ヶ月推移
+                            <section className={styles.section} aria-labelledby="other-reward-invoice">
+                                <h3 id="other-reward-invoice" className={styles.sectionTitle}>
+                                    請求書
                                 </h3>
-                                {data.trend.length > 0 ? (
-                                    <div className={styles.trendList}>
-                                        {data.trend.map((point) => (
-                                            <div key={point.month} className={styles.trendRow}>
-                                                <span className={styles.trendLabel}>{formatShortMonth(point.month)}</span>
-                                                <span className={styles.trendTrack} aria-hidden="true">
-                                                    <span
-                                                        className={styles.trendBar}
-                                                        style={{ width: `${Math.max((point.amount / maxTrendAmount) * 100, 4)}%` }}
-                                                    />
-                                                </span>
-                                                <strong className={styles.trendValue}>{formatYen(point.amount)}</strong>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <p className={styles.emptyText}>推移はまだありません</p>
-                                )}
+                                <p className={styles.privacyNote}>
+                                    <ShieldCheck size={18} aria-hidden="true" />
+                                    請求書の状態は本人だけに表示されます
+                                </p>
                             </section>
 
                             {notice && <p className={styles.notice}>{notice}</p>}

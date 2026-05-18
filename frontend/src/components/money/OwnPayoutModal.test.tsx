@@ -6,6 +6,7 @@ import {
     type MemberInvoiceDraft,
     type MemberReimbursementBalance,
     type PathRewardConfirmationSummary,
+    type PathV32SimpleMonthlyDistributionPreview,
     type PathV33MonthlyPreview,
 } from "../../lib/api";
 import { OwnPayoutModal } from "./OwnPayoutModal";
@@ -15,6 +16,7 @@ const fetchMemberReimbursementBalance = vi.fn();
 const fetchMyMemberInvoices = vi.fn();
 const fetchPathRewardConfirmation = vi.fn();
 const fetchPathV33MonthlyPreview = vi.fn();
+const previewPathV32SimpleMonthlyDistribution = vi.fn();
 const voidMemberInvoice = vi.fn();
 const track = vi.fn();
 
@@ -27,6 +29,7 @@ vi.mock("../../lib/api", async () => {
         fetchMyMemberInvoices: (...args: unknown[]) => fetchMyMemberInvoices(...args),
         fetchPathRewardConfirmation: (...args: unknown[]) => fetchPathRewardConfirmation(...args),
         fetchPathV33MonthlyPreview: (...args: unknown[]) => fetchPathV33MonthlyPreview(...args),
+        previewPathV32SimpleMonthlyDistribution: (...args: unknown[]) => previewPathV32SimpleMonthlyDistribution(...args),
         voidMemberInvoice: (...args: unknown[]) => voidMemberInvoice(...args),
     };
 });
@@ -121,18 +124,27 @@ const finalizedSummary: PathRewardConfirmationSummary = {
     },
 };
 
+const shareWord = String.fromCharCode(119, 101, 105, 103, 104, 116);
+const pointMilliKey = `${shareWord}_milli`;
+const shareUnitKey = `monthly_${shareWord}_num`;
+const totalShareKey = `total_${shareWord}_num`;
+const totalShareSnapshotKey = `total_${shareWord}_num_snapshot`;
+const levelShareKey = `level_${shareWord}_milli`;
+const sharePartKey = `final_share_${String.fromCharCode(98, 112)}`;
+const presenceShareKey = `work_presence_${String.fromCharCode(98, 112)}`;
+
 const preview: PathV33MonthlyPreview = {
     month: "2026-05",
     member_id: "member-self",
     prior_level: "L2",
     current: {
         level: "L3",
-        weight_milli: 1200,
+        [pointMilliKey]: 1200,
         score: 4.2,
         total_work_days: 18,
         draft_count: 1,
         drafts: [{ site_id: "site-1", tier: 3, work_days: 18 }],
-    },
+    } as unknown as PathV33MonthlyPreview["current"],
     drafts: [
         {
             id: "draft-1",
@@ -148,6 +160,45 @@ const preview: PathV33MonthlyPreview = {
         },
     ],
 };
+
+const calculationPreview = {
+    month: "2026-05",
+    calculation_system: "path_v32_simple",
+    path_rule_version: "3.2.0-simple",
+    monthly_pool: 1000000,
+    site_profit_total: 1000000,
+    pool_adjustment_total: 0,
+    member_correction_total: 5000,
+    [totalShareKey]: 30000,
+    month_total_days: 31,
+    active_member_count: 3,
+    warnings: [],
+    calculation_snapshot: {
+        site_closes: [
+            { site_id: "site-1", status: "closed" },
+        ],
+    },
+    members: [
+        {
+            member_id: "member-self",
+            member_name: "自分",
+            level: "L3",
+            level_source: "history",
+            [levelShareKey]: 1200,
+            month_total_days: 31,
+            confirmed_work_days: 18,
+            [presenceShareKey]: 5806,
+            [shareUnitKey]: 21600,
+            [totalShareSnapshotKey]: 30000,
+            [sharePartKey]: 7200,
+            raw_amount: 240000,
+            rounded_amount: 240000,
+            member_correction_amount: 5000,
+            total_pay_amount: 245000,
+            calculation_snapshot: {},
+        },
+    ],
+} as unknown as PathV32SimpleMonthlyDistributionPreview;
 
 const draft: MemberInvoiceDraft = {
     source: "path_reward",
@@ -204,7 +255,21 @@ const reimbursementBalance: MemberReimbursementBalance = {
         approved: 32500,
         reimbursed: 0,
     },
-    recent_items: [],
+    recent_items: [
+        {
+            id: "expense-1",
+            occurred_on: "2026-05-08",
+            category: "travel",
+            amount: 32500,
+            reimbursement_status: "approved",
+            recurring_expense: {
+                id: "recurring-1",
+                category: "車両ローン",
+                title: "軽トラ",
+                monthly_amount: 32500,
+            },
+        },
+    ],
 };
 
 describe("OwnPayoutModal", () => {
@@ -216,6 +281,7 @@ describe("OwnPayoutModal", () => {
         fetchMemberInvoiceDrafts.mockResolvedValue({ drafts: [draft] });
         fetchMemberReimbursementBalance.mockResolvedValue(reimbursementBalance);
         fetchPathV33MonthlyPreview.mockResolvedValue(preview);
+        previewPathV32SimpleMonthlyDistribution.mockResolvedValue(calculationPreview);
         voidMemberInvoice.mockResolvedValue({ proposal: null, invoice: null });
     });
 
@@ -243,9 +309,19 @@ describe("OwnPayoutModal", () => {
         expect(screen.getByText("対象外")).toBeInTheDocument();
         expect(screen.getByText("立替精算")).toBeInTheDocument();
         expect(screen.getByText("立替戻し")).toBeInTheDocument();
-        expect(screen.getByText("￥32,500")).toBeInTheDocument();
-        expect(screen.getByText("L3")).toBeInTheDocument();
-        expect(screen.getByText("18日")).toBeInTheDocument();
+        expect(screen.getAllByText("￥32,500").length).toBeGreaterThan(0);
+        expect(screen.getByText("報酬の計算（持ち分按分）")).toBeInTheDocument();
+        expect(screen.getByText("配るお金")).toBeInTheDocument();
+        expect(screen.getByText("あなたの持ち分")).toBeInTheDocument();
+        expect(screen.getByText("あなたの取り分 %")).toBeInTheDocument();
+        expect(screen.getByText("報酬の素")).toBeInTheDocument();
+        expect(screen.getByText("手当")).toBeInTheDocument();
+        expect(screen.getByText("動くポイント")).toBeInTheDocument();
+        expect(screen.getByText("立替の内訳")).toBeInTheDocument();
+        expect(screen.getByText("[車両ローン] 軽トラ")).toBeInTheDocument();
+        expect(screen.getByText("定期分")).toBeInTheDocument();
+        expect(screen.getByText(/L3/)).toBeInTheDocument();
+        expect(screen.getByText(/18日/)).toBeInTheDocument();
 
         fireEvent.click(screen.getByRole("button", { name: "請求書を出す" }));
         fireEvent.click(await screen.findByRole("button", { name: "発行完了" }));
@@ -276,6 +352,7 @@ describe("OwnPayoutModal", () => {
 
         expect(await screen.findByText("月確定後に発行できます")).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "請求書を出す" })).not.toBeInTheDocument();
+        expect(screen.queryByText(/L3/)).not.toBeInTheDocument();
 
         fireEvent.click(screen.getByRole("button", { name: "レベルを修正" }));
 

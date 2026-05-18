@@ -16,6 +16,7 @@
 | frontend/payout-breakdown | `handoff/frontend/payout-breakdown.md` | 2026-05-18 | Force-push rebased branch and confirm PR #96 mergeability |
 | frontend/readonly-guard | `handoff/frontend/readonly-guard.md` | 2026-05-18 | active |
 | frontend/credit-monitoring | `handoff/frontend/credit-monitoring.md` | 2026-05-18 | commit product diff, create PR to master, mention baselin... |
+| frontend/payout-calculation | `handoff/frontend/payout-calculation.md` | 2026-05-18 | Create PR with frontend-only product changes; keep HANDOF... |
 
 ## Domain Selection Guide
 

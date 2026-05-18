@@ -6,11 +6,13 @@ import {
     fetchMyMemberInvoices,
     fetchPathRewardConfirmation,
     fetchPathV33MonthlyPreview,
+    previewPathV32SimpleMonthlyDistribution,
     voidMemberInvoice,
     type MemberReimbursementBalance,
     type MemberInvoice,
     type MemberInvoiceDraft,
     type PathRewardConfirmationSummary,
+    type PathV32SimpleMonthlyDistributionPreview,
     type PathV33LevelDraft,
     type PathV33MonthlyPreview,
 } from "../../lib/api";
@@ -19,6 +21,9 @@ import { track } from "../../lib/telemetry";
 import { LevelRevisionSheet } from "../LevelRevisionSheet";
 import { MemberInvoiceIssueModal } from "../MemberInvoiceIssueModal";
 import { PayoutBreakdownSection } from "./PayoutBreakdownSection";
+import { PayoutCalculationSection } from "./PayoutCalculationSection";
+import { PayoutMovingFactorsSection } from "./PayoutMovingFactorsSection";
+import { PayoutReimbursementSection } from "./PayoutReimbursementSection";
 import styles from "./OwnPayoutModal.module.css";
 
 type InvoiceState = "before_close" | "unissued" | "issued" | "paid";
@@ -37,6 +42,7 @@ interface ModalData {
     invoices: MemberInvoice[];
     drafts: MemberInvoiceDraft[];
     preview: PathV33MonthlyPreview | null;
+    calculationPreview: PathV32SimpleMonthlyDistributionPreview | null;
     reimbursementBalance: MemberReimbursementBalance;
 }
 
@@ -66,11 +72,6 @@ function formatPaidDate(invoice: MemberInvoice | null): string {
     const date = new Date(iso);
     if (Number.isNaN(date.getTime())) return "振込完了";
     return `${date.getMonth() + 1}/${date.getDate()} 振込完了`;
-}
-
-function signedYen(amount: number): string {
-    if (amount === 0) return formatYen(0);
-    return `${amount > 0 ? "+" : "-"}${formatYen(Math.abs(amount))}`;
 }
 
 function pickActiveInvoice(invoices: MemberInvoice[], month: string): MemberInvoice | null {
@@ -144,11 +145,12 @@ export function OwnPayoutModal({
         setActionError(null);
 
         try {
-            const [summary, invoiceResponse, draftResponse, preview, reimbursementBalance] = await Promise.all([
+            const [summary, invoiceResponse, draftResponse, preview, calculationPreview, reimbursementBalance] = await Promise.all([
                 fetchPathRewardConfirmation(month, selfMemberId, { signal }),
                 fetchMyMemberInvoices({ signal }),
                 fetchMemberInvoiceDrafts({ signal }).catch(() => ({ drafts: [] })),
                 fetchPathV33MonthlyPreview(selfMemberId, month, { signal }).catch(() => null),
+                previewPathV32SimpleMonthlyDistribution(month).catch(() => null),
                 fetchMemberReimbursementBalance(selfMemberId, month, { signal }),
             ]);
 
@@ -157,6 +159,7 @@ export function OwnPayoutModal({
                 invoices: invoiceResponse.invoices,
                 drafts: draftResponse.drafts,
                 preview,
+                calculationPreview,
                 reimbursementBalance,
             });
         } catch (err) {
@@ -282,87 +285,26 @@ export function OwnPayoutModal({
                                 reimbursementCarryOver={data.reimbursementBalance.carry_over_amount ?? 0}
                             />
 
-                            <section className={styles.section} aria-labelledby="own-reward-breakdown">
-                                <h3 id="own-reward-breakdown" className={styles.sectionTitle}>
-                                    計算根拠
-                                </h3>
-                                <div className={styles.breakdown}>
-                                    <div className={styles.row}>
-                                        <span className={styles.rowLabel}>レベル</span>
-                                        <span className={styles.rowValue}>
-                                            {data.preview?.current.level ?? "-"}
-                                        </span>
-                                    </div>
-                                    <div className={styles.row}>
-                                        <span className={styles.rowLabel}>出勤日数</span>
-                                        <span className={styles.rowValue}>
-                                            {data.preview ? `${data.preview.current.total_work_days}日` : "-"}
-                                        </span>
-                                    </div>
-                                    <div className={styles.row}>
-                                        <span className={styles.rowLabel}>基本給</span>
-                                        <span className={styles.rowValue}>
-                                            {formatYen(data.summary.base_amount)}
-                                        </span>
-                                    </div>
-                                    <div className={styles.row}>
-                                        <span className={styles.rowLabel}>加算</span>
-                                        <span className={styles.rowValue}>
-                                            {signedYen(data.summary.estimated_amount - data.summary.base_amount)}
-                                        </span>
-                                    </div>
-                                </div>
-                            </section>
+                            <PayoutCalculationSection
+                                memberId={selfMemberId}
+                                summary={data.summary}
+                                preview={data.calculationPreview}
+                                isFinalized={data.summary.status === "確定済み"}
+                                subjectLabel="あなた"
+                            />
+
+                            <PayoutMovingFactorsSection
+                                summary={data.summary}
+                                preview={data.calculationPreview}
+                            />
+
+                            <PayoutReimbursementSection balance={data.reimbursementBalance} />
 
                             <section className={styles.section} aria-labelledby="own-reward-invoice">
                                 <h3 id="own-reward-invoice" className={styles.sectionTitle}>
                                     請求書
                                 </h3>
                                 <InvoiceStateBox state={invoiceState} invoice={activeInvoice} />
-                            </section>
-
-                            <section className={styles.section} aria-labelledby="own-reward-path-detail">
-                                <h3 id="own-reward-path-detail" className={styles.sectionTitle}>
-                                    PATH計算
-                                </h3>
-                                <div className={styles.breakdown}>
-                                    <div className={styles.row}>
-                                        <span className={styles.rowLabel}>結果分</span>
-                                        <span className={styles.rowValue}>
-                                            {formatYen(data.summary.result_amount)}
-                                        </span>
-                                    </div>
-                                    <div className={styles.row}>
-                                        <span className={styles.rowLabel}>補正</span>
-                                        <span className={styles.rowValue}>
-                                            {signedYen(data.summary.correction_amount)}
-                                        </span>
-                                    </div>
-                                    <div className={styles.row}>
-                                        <span className={styles.rowLabel}>状態</span>
-                                        <span className={styles.rowValue}>{data.summary.status}</span>
-                                    </div>
-                                </div>
-                                {data.summary.top_reasons.length > 0 && (
-                                    <ul className={styles.reasonList}>
-                                        {data.summary.top_reasons.slice(0, 3).map((reason) => (
-                                            <li key={reason.key} className={styles.reasonItem}>
-                                                <span>{reason.label}</span>
-                                                <strong>{reason.summary}</strong>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
-                                {data.summary.site_breakdown.length > 0 && (
-                                    <div className={styles.siteList}>
-                                        {data.summary.site_breakdown.slice(0, 4).map((site) => (
-                                            <div key={site.site_id} className={styles.siteRow}>
-                                                <span>{site.site_name}</span>
-                                                <strong>{formatYen(site.amount)}</strong>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
                             </section>
 
                             {notice && <p className={styles.notice}>{notice}</p>}
