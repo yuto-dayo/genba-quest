@@ -1,6 +1,7 @@
 import "./loadEnv";
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
 import fs from "node:fs";
 import path from "node:path";
 import { authMiddleware } from "./middleware/authMiddleware";
@@ -59,6 +60,37 @@ const defaultAllowedOrigins = ["http://localhost:5173"];
 function isLocalDevOrigin(origin: string): boolean {
     return /^http:\/\/localhost:\d+$/.test(origin) || /^http:\/\/127\.0\.0\.1:\d+$/.test(origin);
 }
+
+const supabaseConnectSrc: string[] = [];
+const rawSupabaseUrl = process.env.SUPABASE_URL?.trim();
+if (rawSupabaseUrl) {
+    try {
+        supabaseConnectSrc.push(new URL(rawSupabaseUrl).origin);
+    } catch {
+        // ignore malformed SUPABASE_URL — CSP will fall back to 'self'
+    }
+}
+
+app.use(helmet({
+    contentSecurityPolicy: {
+        useDefaults: false,
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+            fontSrc: ["'self'", "https://fonts.gstatic.com"],
+            connectSrc: ["'self'", ...supabaseConnectSrc],
+            imgSrc: ["'self'", "data:", "blob:", "https:"],
+            frameSrc: ["'none'"],
+            frameAncestors: ["'none'"],
+            baseUri: ["'self'"],
+            formAction: ["'self'"],
+            objectSrc: ["'none'"],
+        },
+    },
+    crossOriginEmbedderPolicy: false,
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+}));
 
 app.use(cors({
     origin(origin, callback) {
