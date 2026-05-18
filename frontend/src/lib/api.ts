@@ -2931,11 +2931,20 @@ export const fetchInvoiceCandidates = (params?: {
 
 export const downloadInvoicePdf = async (invoiceId: string): Promise<{ blob: Blob; filename: string }> => {
     const token = await getAuthToken();
+    const activeOrgId = getActiveOrgId();
+    const devAuthUserKey = getDevAuthUserKey();
+    const headers: Record<string, string> = {
+        Authorization: `Bearer ${token}`,
+    };
+    if (activeOrgId) {
+        headers["x-org-id"] = activeOrgId;
+    }
+    if (devAuthUserKey) {
+        headers["x-dev-user-key"] = devAuthUserKey;
+    }
     const response = await fetch(`${API_BASE}/api/v1/accounting/invoices/${invoiceId}/download`, {
         cache: "no-store",
-        headers: {
-            Authorization: `Bearer ${token}`,
-        },
+        headers,
     });
 
     if (!response.ok) {
@@ -2950,6 +2959,119 @@ export const downloadInvoicePdf = async (invoiceId: string): Promise<{ blob: Blo
         filename,
     };
 };
+
+export interface LegalRecordSubmission {
+    id: string;
+    org_id: string;
+    fiscal_year: number;
+    member_id: string;
+    payout_total: number;
+    reward_total: number;
+    correction_total: number;
+    withholding_total: number;
+    reimbursement_total: number;
+    snapshot_trade_name: string | null;
+    snapshot_invoice_registration_no: string | null;
+    snapshot_address: {
+        postal_code?: string | null;
+        prefecture?: string | null;
+        city?: string | null;
+        address_line1?: string | null;
+        address_line2?: string | null;
+    };
+    snapshot_bank: {
+        bank_name?: string | null;
+        branch_name?: string | null;
+        account_type?: string | null;
+        account_number?: string | null;
+        account_holder_kana?: string | null;
+    };
+    snapshot_withholding_decision: Record<string, unknown>;
+    monthly_breakdown: Array<{
+        month: string;
+        reward_total: number;
+        correction_total: number;
+        withholding_total: number;
+        reimbursement_total: number;
+    }>;
+    submission_file_path: string | null;
+    member_copy_path: string | null;
+    submitted_at: string | null;
+    generated_at: string;
+    updated_at: string;
+}
+
+export const fetchLegalRecords = (year: number) =>
+    api<{ fiscal_year: number; submissions: LegalRecordSubmission[] }>(
+        `/api/v1/legal-records?year=${encodeURIComponent(String(year))}`,
+    );
+
+export const compileLegalRecords = (year: number) =>
+    api<{ fiscal_year: number; submissions: LegalRecordSubmission[] }>(
+        "/api/v1/legal-records/compile",
+        {
+            method: "POST",
+            body: JSON.stringify({ year }),
+        },
+    );
+
+async function downloadAuthenticated(endpoint: string, fallbackFilename: string): Promise<{ blob: Blob; filename: string }> {
+    const token = await getAuthToken();
+    const activeOrgId = getActiveOrgId();
+    const devAuthUserKey = getDevAuthUserKey();
+    const headers: Record<string, string> = {
+        Authorization: `Bearer ${token}`,
+    };
+    if (activeOrgId) {
+        headers["x-org-id"] = activeOrgId;
+    }
+    if (devAuthUserKey) {
+        headers["x-dev-user-key"] = devAuthUserKey;
+    }
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+        cache: "no-store",
+        headers,
+    });
+
+    if (!response.ok) {
+        throw new Error(await getErrorMessageFromResponse(response));
+    }
+
+    return {
+        blob: await response.blob(),
+        filename: parseFilenameFromDisposition(response.headers.get("Content-Disposition")) || fallbackFilename,
+    };
+}
+
+export const downloadLegalRecordCsv = (year: number) =>
+    downloadAuthenticated(
+        `/api/v1/legal-records/submission-file?year=${encodeURIComponent(String(year))}`,
+        `legal-records-${year}.csv`,
+    );
+
+export const downloadLegalRecordMemberCopy = (year: number, memberId: string) =>
+    downloadAuthenticated(
+        `/api/v1/legal-records/members/${encodeURIComponent(memberId)}/member-copy?year=${encodeURIComponent(String(year))}`,
+        `legal-record-${year}-${memberId}.pdf`,
+    );
+
+export const downloadLegalRecordMemberCopiesZip = (year: number) =>
+    downloadAuthenticated(
+        `/api/v1/legal-records/member-copies.zip?year=${encodeURIComponent(String(year))}`,
+        `legal-record-member-copies-${year}.zip`,
+    );
+
+export const markLegalRecordSubmitted = (year: number, memberId: string, submittedAt?: string | null) =>
+    api<{ submission: LegalRecordSubmission }>(
+        `/api/v1/legal-records/members/${encodeURIComponent(memberId)}/submitted`,
+        {
+            method: "PATCH",
+            body: JSON.stringify({
+                year,
+                submitted_at: submittedAt ?? null,
+            }),
+        },
+    );
 
 // 取消（逆仕訳）
 export const voidTransaction = (id: string, reason: string) =>

@@ -67,6 +67,7 @@ import { TaxMappingPanel } from "../components/settings/TaxMappingPanel";
 import { ClassificationPanel } from "../components/settings/ClassificationPanel";
 import { RecurringExpensePanel } from "../components/settings/RecurringExpensePanel";
 import { DepreciablePanel } from "../components/settings/DepreciablePanel";
+import { LegalRecordsPanel } from "../components/settings/LegalRecordsPanel";
 import styles from "./Settings.module.css";
 
 function getAvatarErrorMessage(error: unknown): string {
@@ -110,6 +111,7 @@ type SettingPanel =
     | "classification"
     | "depreciableAssets"
     | "electronicDocs"
+    | "legalRecords"
     | "taxMapping";
 
 type ProfileFormState = {
@@ -937,6 +939,13 @@ export function Settings() {
                     title: "勘定科目マッピング",
                     summary: "表示語と帳簿科目",
                     icon: <ReceiptText size={20} />,
+                },
+                {
+                    id: "legalRecords" as const,
+                    group: "組織",
+                    title: "法定調書",
+                    summary: "年次集計 / CSV / PDF",
+                    icon: <FileText size={20} />,
                 },
             ]
             : []),
@@ -2191,6 +2200,10 @@ export function Settings() {
 
                         {selectedSetting === "taxMapping" && (
                             <TaxMappingPanel isAdmin={isCurrentUserAdmin} />
+                        )}
+
+                        {selectedSetting === "legalRecords" && isCurrentUserAdmin && (
+                            <LegalRecordsPanel />
                         )}
                     </motion.section>
                 )}
