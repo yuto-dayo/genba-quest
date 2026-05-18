@@ -343,6 +343,10 @@ describe("OwnPayoutModal", () => {
         expect(screen.getAllByText("￥32,500").length).toBeGreaterThan(0);
         expect(screen.getByText("報酬の計算（持ち分按分）")).toBeInTheDocument();
         expect(screen.getByText("配るお金")).toBeInTheDocument();
+        expect(screen.getByText("稼働日数")).toBeInTheDocument();
+        expect(screen.getByText("18日")).toBeInTheDocument();
+        expect(screen.getByText("レベル")).toBeInTheDocument();
+        expect(screen.getByText("L3")).toBeInTheDocument();
         expect(screen.getByText("あなたの持ち分")).toBeInTheDocument();
         expect(screen.getByText("あなたの取り分 %")).toBeInTheDocument();
         expect(screen.getByText("報酬の素")).toBeInTheDocument();
@@ -353,8 +357,6 @@ describe("OwnPayoutModal", () => {
         expect(screen.getByText("定期分")).toBeInTheDocument();
         expect(screen.getByText("税務判定の根拠")).toBeInTheDocument();
         expect(screen.getByText("2026/05/02 / YES 5")).toBeInTheDocument();
-        expect(screen.getByText(/L3/)).toBeInTheDocument();
-        expect(screen.getByText(/18日/)).toBeInTheDocument();
 
         fireEvent.click(screen.getByRole("button", { name: "請求書を出す" }));
         fireEvent.click(await screen.findByRole("button", { name: "発行完了" }));
@@ -385,7 +387,10 @@ describe("OwnPayoutModal", () => {
 
         expect(await screen.findByText("月確定後に発行できます")).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "請求書を出す" })).not.toBeInTheDocument();
-        expect(screen.queryByText(/L3/)).not.toBeInTheDocument();
+        expect(screen.getByText("稼働日数")).toBeInTheDocument();
+        expect(screen.getByText("18日")).toBeInTheDocument();
+        expect(screen.getByText("レベル")).toBeInTheDocument();
+        expect(screen.getByText("L3")).toBeInTheDocument();
 
         fireEvent.click(screen.getByRole("button", { name: "レベルを修正" }));
 

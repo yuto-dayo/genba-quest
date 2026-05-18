@@ -317,7 +317,6 @@ export function OtherPayoutModal({ memberId, selfUserId, month, onClose }: Other
                                 memberId={memberId}
                                 summary={data.summary}
                                 preview={data.calculationPreview}
-                                isFinalized={data.summary.status === "確定済み"}
                                 subjectLabel={`${data.summary.member_name}さん`}
                             />
 

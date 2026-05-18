@@ -11,7 +11,6 @@ interface PayoutCalculationSectionProps {
     memberId: string;
     summary: PathRewardConfirmationSummary;
     preview: PathV32SimpleMonthlyDistributionPreview | null;
-    isFinalized: boolean;
     subjectLabel: string;
 }
 
@@ -33,6 +32,16 @@ function formatPercent(value: number | null): string {
     return `${(value / 100).toFixed(1)}%`;
 }
 
+function formatWorkDays(value: number | null): string {
+    if (value === null) return "-";
+    return `${new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 1 }).format(value)}日`;
+}
+
+function formatLevel(member: PreviewMember | null): string {
+    if (!member) return "-";
+    return member.level ?? "未設定";
+}
+
 function readNumber(record: Record<string, unknown> | null, key: string): number | null {
     const value = record?.[key];
     return typeof value === "number" && Number.isFinite(value) ? value : null;
@@ -49,7 +58,6 @@ export function PayoutCalculationSection({
     memberId,
     summary,
     preview,
-    isFinalized,
     subjectLabel,
 }: PayoutCalculationSectionProps) {
     const titleId = useId();
@@ -65,12 +73,6 @@ export function PayoutCalculationSection({
         memberRecord,
         `final_share_${String.fromCharCode(98, 112)}`,
     );
-    const showLevelDetail = Boolean(
-        isFinalized
-        && member
-        && member.level_source === "history"
-        && member.level !== null,
-    );
 
     return (
         <section className={styles.section} aria-labelledby={titleId}>
@@ -83,14 +85,17 @@ export function PayoutCalculationSection({
                     <strong className={styles.value}>{formatYen(preview?.monthly_pool ?? 0)}</strong>
                 </div>
                 <div className={styles.row}>
-                    <span className={styles.label}>
-                        {subjectLabel}の持ち分
-                        {showLevelDetail && (
-                            <span className={styles.detailText}>
-                                {member?.level} + {member?.confirmed_work_days ?? 0}日
-                            </span>
-                        )}
-                    </span>
+                    <span className={styles.label}>稼働日数</span>
+                    <strong className={styles.value}>
+                        {formatWorkDays(member?.confirmed_work_days ?? null)}
+                    </strong>
+                </div>
+                <div className={styles.row}>
+                    <span className={styles.label}>レベル</span>
+                    <strong className={styles.value}>{formatLevel(member)}</strong>
+                </div>
+                <div className={styles.row}>
+                    <span className={styles.label}>{subjectLabel}の持ち分</span>
                     <strong className={styles.value}>{formatPoints(points)}</strong>
                 </div>
                 <div className={styles.row}>
