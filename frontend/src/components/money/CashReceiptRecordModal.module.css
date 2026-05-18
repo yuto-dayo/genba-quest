@@ -1,0 +1,353 @@
+.scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: var(--md-sys-spacing-md);
+    background: color-mix(in srgb, var(--md-sys-color-scrim) 72%, transparent);
+}
+
+.dialog {
+    width: min(100%, calc(var(--md-sys-spacing-2xl) * 11));
+    max-height: calc(100dvh - (var(--md-sys-spacing-md) * 2));
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: var(--md-sys-focus-outline-width) solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-extra-large);
+    background: var(--md-sys-color-surface-container-lowest);
+    box-shadow: var(--md-sys-elevation-level4);
+    color: var(--md-sys-color-on-surface);
+    padding: 0;
+}
+
+.dialog::backdrop {
+    background: transparent;
+}
+
+.header,
+.actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--md-sys-spacing-md);
+    padding: var(--md-sys-spacing-md) var(--md-sys-spacing-lg);
+    border-color: var(--md-sys-color-outline-variant);
+}
+
+.header {
+    border-bottom: var(--md-sys-focus-outline-width) solid var(--md-sys-color-outline-variant);
+}
+
+.actions {
+    justify-content: flex-end;
+    border-top: var(--md-sys-focus-outline-width) solid var(--md-sys-color-outline-variant);
+}
+
+.eyebrow,
+.title,
+.allocationHead h3,
+.allocationHead p {
+    margin: 0;
+    letter-spacing: 0;
+}
+
+.eyebrow {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-medium);
+}
+
+.title {
+    font: var(--md-sys-typescale-title-large);
+}
+
+.iconButton,
+.secondaryButton,
+.primaryButton,
+.addButton,
+.removeButton {
+    min-height: var(--md-sys-tap-target-min);
+    border: var(--md-sys-focus-outline-width) solid transparent;
+    border-radius: var(--md-sys-shape-corner-full);
+    font: var(--md-sys-typescale-label-large);
+    cursor: pointer;
+}
+
+.iconButton,
+.removeButton {
+    width: var(--md-sys-tap-target-min);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--md-sys-color-surface-container);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--md-sys-spacing-md);
+    padding: var(--md-sys-spacing-lg);
+    overflow-y: auto;
+}
+
+.amountPanel,
+.reasonGroup,
+.allocations {
+    border: var(--md-sys-focus-outline-width) solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-large);
+    background: var(--md-sys-color-surface-container-low);
+}
+
+.amountPanel {
+    display: grid;
+    gap: var(--md-sys-spacing-sm);
+    padding: var(--md-sys-spacing-md);
+}
+
+.amountRow,
+.amountInputRow,
+.varianceRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--md-sys-spacing-md);
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.amountRow strong,
+.varianceRow strong {
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-title-medium);
+    font-variant-numeric: tabular-nums;
+}
+
+.moneyInputWrap,
+.allocationInput {
+    min-height: var(--md-sys-tap-target-min);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-xs);
+    border: var(--md-sys-focus-outline-width) solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-medium);
+    background: var(--md-sys-color-surface-container-lowest);
+    color: var(--md-sys-color-on-surface);
+    padding-inline: var(--md-sys-spacing-md);
+    font: var(--md-sys-typescale-title-medium);
+    font-variant-numeric: tabular-nums;
+}
+
+.moneyInputWrap input,
+.allocationInput input,
+.field input,
+.field textarea {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    color: var(--md-sys-color-on-surface);
+    font: inherit;
+    font-variant-numeric: tabular-nums;
+}
+
+.moneyInputWrap input {
+    width: min(40vw, calc(var(--md-sys-spacing-2xl) * 3));
+    text-align: right;
+}
+
+.field input,
+.field textarea {
+    min-height: var(--md-sys-tap-target-min);
+    padding: var(--md-sys-spacing-sm) var(--md-sys-spacing-md);
+    border: var(--md-sys-focus-outline-width) solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-medium);
+    background: var(--md-sys-color-surface-container-lowest);
+}
+
+.field textarea {
+    resize: vertical;
+}
+
+.reasonGroup {
+    display: grid;
+    gap: var(--md-sys-spacing-xs);
+    margin: 0;
+    padding: var(--md-sys-spacing-md);
+}
+
+.reasonGroup legend,
+.field span,
+.allocationHead h3 {
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-large);
+}
+
+.radioRow {
+    min-height: var(--md-sys-tap-target-min);
+    display: flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-sm);
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.field,
+.fieldGrid {
+    display: grid;
+    gap: var(--md-sys-spacing-xs);
+}
+
+.fieldGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--md-sys-spacing-md);
+}
+
+.allocations {
+    display: grid;
+    gap: var(--md-sys-spacing-md);
+    padding: var(--md-sys-spacing-md);
+}
+
+.allocationHead {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--md-sys-spacing-md);
+}
+
+.allocationHead p {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+    font-variant-numeric: tabular-nums;
+}
+
+.addButton,
+.secondaryButton,
+.primaryButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--md-sys-spacing-xs);
+    padding: 0 var(--md-sys-spacing-lg);
+}
+
+.addButton,
+.secondaryButton {
+    border-color: var(--md-sys-color-outline-variant);
+    background: var(--md-sys-color-surface-container-lowest);
+    color: var(--md-sys-color-on-surface);
+}
+
+.primaryButton {
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+}
+
+.allocationList {
+    display: grid;
+    gap: var(--md-sys-spacing-sm);
+}
+
+.allocationRow {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(calc(var(--md-sys-spacing-2xl) * 2), auto) var(--md-sys-tap-target-min);
+    align-items: center;
+    gap: var(--md-sys-spacing-sm);
+}
+
+.allocationMeta {
+    min-width: 0;
+    display: grid;
+    gap: var(--md-sys-spacing-2xs);
+}
+
+.allocationMeta span {
+    overflow: hidden;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-medium);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.allocationMeta small {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+    font-variant-numeric: tabular-nums;
+}
+
+.allocationInput input {
+    width: calc(var(--md-sys-spacing-2xl) * 2);
+    text-align: right;
+}
+
+.errorPanel {
+    display: flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-sm);
+    padding: var(--md-sys-spacing-md);
+    border-radius: var(--md-sys-shape-corner-large);
+    background: var(--md-sys-color-error-container);
+    color: var(--md-sys-color-on-error-container);
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.srOnly {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+}
+
+.iconButton:focus-visible,
+.secondaryButton:focus-visible,
+.primaryButton:focus-visible,
+.addButton:focus-visible,
+.removeButton:focus-visible,
+.moneyInputWrap:focus-within,
+.allocationInput:focus-within,
+.field input:focus-visible,
+.field textarea:focus-visible,
+.radioRow input:focus-visible {
+    outline: 2px solid var(--md-sys-color-primary);
+    outline-offset: var(--md-sys-spacing-2xs);
+}
+
+.secondaryButton:disabled,
+.primaryButton:disabled,
+.addButton:disabled,
+.removeButton:disabled {
+    cursor: not-allowed;
+    opacity: 0.56;
+}
+
+@media (min-width: 720px) {
+    .scrim {
+        align-items: center;
+    }
+}
+
+@media (max-width: 560px) {
+    .header,
+    .body,
+    .actions {
+        padding-inline: var(--md-sys-spacing-md);
+    }
+
+    .fieldGrid,
+    .allocationRow {
+        grid-template-columns: 1fr;
+    }
+
+    .allocationHead {
+        display: grid;
+    }
+
+    .moneyInputWrap input,
+    .allocationInput input {
+        width: 100%;
+    }
+}

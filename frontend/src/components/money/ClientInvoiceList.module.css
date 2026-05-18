@@ -1,0 +1,192 @@
+.listRoot {
+    display: grid;
+    gap: var(--md-sys-spacing-lg);
+}
+
+.section {
+    display: grid;
+    gap: var(--md-sys-spacing-sm);
+}
+
+.sectionHead {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--md-sys-spacing-md);
+    padding-inline: var(--md-sys-spacing-xs);
+}
+
+.sectionTitle,
+.sectionHead p {
+    margin: 0;
+    letter-spacing: 0;
+}
+
+.sectionTitle {
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-title-small);
+    font-weight: 800;
+}
+
+.sectionTitle.danger {
+    color: var(--money-status-overdue);
+}
+
+.sectionHead p {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-medium);
+    font-variant-numeric: tabular-nums;
+}
+
+.invoiceRows {
+    display: grid;
+    gap: var(--md-sys-spacing-sm);
+}
+
+.invoiceRow {
+    width: 100%;
+    min-height: calc(var(--md-sys-tap-target-min) + var(--md-sys-spacing-lg));
+    display: grid;
+    grid-template-columns: var(--md-sys-tap-target-min) minmax(0, 1fr) auto var(--md-sys-spacing-lg);
+    align-items: center;
+    gap: var(--md-sys-spacing-sm);
+    border: var(--md-sys-focus-outline-width) solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-large);
+    background: var(--md-sys-color-surface-container-lowest);
+    color: var(--md-sys-color-on-surface);
+    padding: var(--md-sys-spacing-sm) var(--md-sys-spacing-md);
+    text-align: left;
+    cursor: pointer;
+    transition:
+        border-color var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+        background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.invoiceRow:hover {
+    border-color: var(--md-sys-color-outline);
+    background: var(--md-sys-color-surface-container-low);
+}
+
+.overdueRow {
+    border-left: var(--md-sys-spacing-2xs) solid var(--money-status-overdue);
+}
+
+.leadingIcon {
+    width: var(--md-sys-tap-target-min);
+    height: var(--md-sys-tap-target-min);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--md-sys-shape-corner-full);
+    background: var(--md-sys-color-surface-container);
+    color: var(--md-sys-color-primary);
+}
+
+.invoiceMain {
+    min-width: 0;
+    display: grid;
+    gap: var(--md-sys-spacing-2xs);
+}
+
+.invoiceTitle,
+.invoiceMeta {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.invoiceTitle {
+    font: var(--md-sys-typescale-title-small);
+    font-weight: 800;
+}
+
+.invoiceMeta {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+    font-variant-numeric: tabular-nums;
+}
+
+.invoiceSide {
+    display: grid;
+    justify-items: end;
+    gap: var(--md-sys-spacing-xs);
+}
+
+.invoiceAmount {
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-title-small);
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.chevron {
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.empty,
+.statePanel,
+.errorPanel {
+    min-height: var(--md-sys-tap-target-min);
+    display: flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-sm);
+    border-radius: var(--md-sys-shape-corner-large);
+    padding: var(--md-sys-spacing-md);
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.empty,
+.statePanel {
+    border: var(--md-sys-focus-outline-width) dashed var(--md-sys-color-outline-variant);
+    background: var(--md-sys-color-surface-container-low);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.errorPanel {
+    background: var(--md-sys-color-error-container);
+    color: var(--md-sys-color-on-error-container);
+}
+
+.spinIcon {
+    animation: spin 1s linear infinite;
+}
+
+.invoiceRow:focus-visible {
+    outline: 2px solid var(--md-sys-color-primary);
+    outline-offset: var(--md-sys-spacing-2xs);
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (max-width: 560px) {
+    .invoiceRow {
+        grid-template-columns: var(--md-sys-tap-target-min) minmax(0, 1fr) var(--md-sys-spacing-lg);
+    }
+
+    .invoiceSide {
+        grid-column: 2 / 3;
+        justify-items: start;
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .chevron {
+        grid-column: 3 / 4;
+        grid-row: 1 / 3;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .invoiceRow {
+        transition-duration: 0ms;
+    }
+
+    .spinIcon {
+        animation: none;
+    }
+}
