@@ -1646,6 +1646,76 @@ export interface PartnersSummary {
 export const fetchPartnersSummary = (month: string) =>
     api<PartnersSummary>(`/api/v1/accounting/partners/summary?month=${encodeURIComponent(month)}`);
 
+// ============================================================
+// 取引先 与信モニタリング (PR-31)
+// ============================================================
+
+export type CreditTier = "healthy" | "caution" | "warning" | "blocked";
+
+export interface ClientCreditSummary {
+    org_id: string;
+    client_id: string;
+    client_name: string;
+    as_of_date: string;
+    accounts_receivable_balance: number;
+    overdue_count: number;
+    sales_90_days: number;
+    dso_days: number | null;
+    credit_tier: CreditTier;
+    credit_tier_sort?: number;
+}
+
+export interface CreditMonthlyTrendPoint {
+    month: string;
+    dso_days: number | null;
+    accounts_receivable_balance: number;
+}
+
+export interface CreditOverdueInvoice {
+    invoice_id: string;
+    invoice_no: string;
+    issue_date: string;
+    due_date: string | null;
+    amount: number;
+    outstanding_amount: number;
+    overdue_days: number;
+}
+
+export interface CreditRecentInvoice {
+    invoice_id: string;
+    invoice_no: string;
+    issue_date: string;
+    due_date: string | null;
+    amount: number;
+    outstanding_amount: number;
+}
+
+export interface CreditRecentCashReceipt {
+    receipt_id: string;
+    received_date: string;
+    received_amount: number;
+    allocated_amount: number;
+    status: string;
+    bank_txn_ref: string | null;
+}
+
+export interface ClientCreditMetrics extends ClientCreditSummary {
+    monthly_trends: CreditMonthlyTrendPoint[];
+    overdue_history: CreditOverdueInvoice[];
+    recent_invoices: CreditRecentInvoice[];
+    recent_cash_receipts: CreditRecentCashReceipt[];
+}
+
+export const fetchClientCreditSummaries = () =>
+    api<{ clients: ClientCreditSummary[] }>("/api/v1/accounting/credit-monitoring/clients");
+
+export const fetchClientCreditMetrics = (clientId: string, asOf?: string) => {
+    const query = asOf ? `?as_of=${encodeURIComponent(asOf)}` : "";
+    return api<ClientCreditMetrics>(
+        `/api/v1/accounting/credit-monitoring/clients/${encodeURIComponent(clientId)}${query}`,
+    );
+};
+
 export type CashReceiptVarianceReason =
     | "fee_deduction"
     | "overpayment"
