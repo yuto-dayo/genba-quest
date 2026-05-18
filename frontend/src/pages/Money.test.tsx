@@ -186,8 +186,8 @@ vi.mock("../components/PartnerCard", () => ({
     DonePartnerCard: () => null,
 }));
 
-vi.mock("../components/money/OwnRewardModal", () => ({
-    OwnRewardModal: ({
+vi.mock("../components/money/OwnPayoutModal", () => ({
+    OwnPayoutModal: ({
         selfMemberId,
         month,
         onClose,
@@ -205,8 +205,8 @@ vi.mock("../components/money/OwnRewardModal", () => ({
     ),
 }));
 
-vi.mock("../components/money/OtherRewardModal", () => ({
-    OtherRewardModal: ({
+vi.mock("../components/money/OtherPayoutModal", () => ({
+    OtherPayoutModal: ({
         memberId,
         month,
         onClose,

@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { AlertCircle, ChevronRight, Loader2, X } from "lucide-react";
 import { fetchTeamRewardSummary, type TeamRewardSummary } from "../../lib/api";
 import { getErrorMessage } from "../../lib/error";
-import { OtherRewardModal } from "./OtherRewardModal";
-import { OwnRewardModal } from "./OwnRewardModal";
-import styles from "./OtherRewardModal.module.css";
+import { OtherPayoutModal } from "./OtherPayoutModal";
+import { OwnPayoutModal } from "./OwnPayoutModal";
+import styles from "./OtherPayoutModal.module.css";
 
 interface TeamSummaryModalProps {
     month: string;
@@ -58,7 +58,7 @@ export function TeamSummaryModal({
 
     if (selectedMemberId && selectedMemberId === data?.self_member_id) {
         return (
-            <OwnRewardModal
+            <OwnPayoutModal
                 selfMemberId={selectedMemberId}
                 selfUserId={selfUserId}
                 month={month}
@@ -70,7 +70,7 @@ export function TeamSummaryModal({
 
     if (selectedMemberId) {
         return (
-            <OtherRewardModal
+            <OtherPayoutModal
                 memberId={selectedMemberId}
                 month={month}
                 onClose={() => setSelectedMemberId(null)}

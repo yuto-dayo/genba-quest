@@ -12,9 +12,9 @@ import {
 } from "../../lib/api";
 import { getErrorMessage } from "../../lib/error";
 import { ObjectionSubmitSheet } from "../ObjectionSubmitSheet";
-import styles from "./OtherRewardModal.module.css";
+import styles from "./OtherPayoutModal.module.css";
 
-interface OtherRewardModalProps {
+interface OtherPayoutModalProps {
     memberId: string;
     month: string;
     onClose: () => void;
@@ -136,7 +136,7 @@ async function loadTrend(month: string, memberId: string, current: PathRewardCon
         }));
 }
 
-export function OtherRewardModal({ memberId, month, onClose }: OtherRewardModalProps) {
+export function OtherPayoutModal({ memberId, month, onClose }: OtherPayoutModalProps) {
     const [data, setData] = useState<ModalData | null>(null);
     const [loading, setLoading] = useState(true);
     const [empty, setEmpty] = useState(false);

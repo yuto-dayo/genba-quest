@@ -16,11 +16,11 @@ import { getErrorMessage } from "../../lib/error";
 import { track } from "../../lib/telemetry";
 import { LevelRevisionSheet } from "../LevelRevisionSheet";
 import { MemberInvoiceIssueModal } from "../MemberInvoiceIssueModal";
-import styles from "./OwnRewardModal.module.css";
+import styles from "./OwnPayoutModal.module.css";
 
 type InvoiceState = "before_close" | "unissued" | "issued" | "paid";
 
-interface OwnRewardModalProps {
+interface OwnPayoutModalProps {
     selfMemberId: string;
     selfUserId?: string | null;
     month: string;
@@ -113,13 +113,13 @@ function pickRevisionDraft(preview: PathV33MonthlyPreview | null): PathV33LevelD
         ?? null;
 }
 
-export function OwnRewardModal({
+export function OwnPayoutModal({
     selfMemberId,
     selfUserId,
     month,
     onClose,
     onInvoiceChanged,
-}: OwnRewardModalProps) {
+}: OwnPayoutModalProps) {
     const [data, setData] = useState<ModalData | null>(null);
     const [loading, setLoading] = useState(true);
     const [empty, setEmpty] = useState(false);
