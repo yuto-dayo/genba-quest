@@ -5,6 +5,11 @@ import helmet from "helmet";
 import fs from "node:fs";
 import path from "node:path";
 import { authMiddleware } from "./middleware/authMiddleware";
+import {
+    globalAuthLimiter,
+    heavyUploadLimiter,
+    sherpaLimiter,
+} from "./middleware/rateLimiters";
 import sitesRouter from "./routes/sites";
 import perksRouter from "./routes/perks";
 import partyRouter from "./routes/party";
@@ -159,6 +164,11 @@ if (frontendDistPath) {
 
 // 認証ミドルウェア
 app.use(authMiddleware);
+app.use("/api/v1", globalAuthLimiter);
+app.use("/api/v1/sherpa", sherpaLimiter);
+app.use("/api/v1/accounting/ocr", heavyUploadLimiter);
+app.use("/api/v1/sites/clients/scan-business-card", heavyUploadLimiter);
+app.use("/api/v1/documents/office-processing-rules", heavyUploadLimiter);
 
 // ルーター登録
 app.use("/api/v1/sites", sitesRouter);
