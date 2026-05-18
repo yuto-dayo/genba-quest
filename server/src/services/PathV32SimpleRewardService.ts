@@ -2,6 +2,10 @@ import { supabaseAdmin } from "../lib/supabaseAdmin";
 import { DEV_AUTH_USERS, isDevAuthMode } from "../config/devAuthUsers";
 import { hashStableRecord } from "./PathPolicyBundleService";
 import { ActorRef, Proposal } from "./PolicyEngine";
+import {
+  buildWithholdingDecisionSnapshotPayload,
+  WithholdingDecisionSnapshotService,
+} from "./WithholdingDecisionSnapshotService";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -149,7 +153,11 @@ function roundBpToTotal(rawBps: number[], target = 10000): number[] {
 }
 
 export class PathV32SimpleRewardService {
-  constructor(private readonly orgId: string) {}
+  private readonly withholdingSnapshotService: WithholdingDecisionSnapshotService;
+
+  constructor(private readonly orgId: string) {
+    this.withholdingSnapshotService = new WithholdingDecisionSnapshotService(orgId);
+  }
 
   async previewMonthlyDistribution(monthInput: string): Promise<PathV32Preview> {
     const month = ensureMonth(monthInput);
@@ -278,6 +286,45 @@ export class PathV32SimpleRewardService {
 
     const rule = await this.resolveActiveRuleVersion(preview.month);
     const canonicalMonthCloseId = await this.ensureCanonicalMonthClose(preview.month, rule.id);
+    const memberSnapshots = await this.withholdingSnapshotService.buildMemberSnapshots(
+      preview.members.map((member) => member.member_id),
+      preview.month,
+    );
+    const snapshotByMember = new Map(memberSnapshots.map((row) => [row.member_id, row.snapshot]));
+    const withholdingPayload = buildWithholdingDecisionSnapshotPayload(memberSnapshots);
+    const memberPayouts = preview.members.map((member) => ({
+      member_id: member.member_id,
+      member_name: member.member_name,
+      level: member.level,
+      level_source: member.level_source,
+      level_weight_milli: member.level_weight_milli,
+      month_total_days: member.month_total_days,
+      confirmed_work_days: member.confirmed_work_days,
+      work_presence_bp: member.work_presence_bp,
+      monthly_weight_num: member.monthly_weight_num,
+      total_weight_num_snapshot: member.total_weight_num_snapshot,
+      final_share_bp: member.final_share_bp,
+      raw_amount: member.raw_amount,
+      rounded_amount: member.rounded_amount,
+      member_correction_amount: member.member_correction_amount,
+      total_pay_amount: member.total_pay_amount,
+      floor_units: member.confirmed_work_days,
+      floor_amount: member.rounded_amount,
+      result_amount: 0,
+      correction_amount: member.member_correction_amount,
+      final_pay: member.total_pay_amount,
+      tax_withholding_decision_snapshot: snapshotByMember.get(member.member_id),
+      calculation_snapshot: {
+        ...member.calculation_snapshot,
+        tax_withholding_decision_snapshot: snapshotByMember.get(member.member_id),
+      },
+    }));
+    const calculationSnapshot = {
+      ...preview.calculation_snapshot,
+      tax_withholding_decision_snapshots: memberSnapshots,
+      members: memberPayouts,
+    };
+
     return {
       path_module_version: "v3.2-simple",
       calculation_system: PATH_V32_SIMPLE_CALCULATION_SYSTEM,
@@ -291,32 +338,11 @@ export class PathV32SimpleRewardService {
       member_correction_total: preview.member_correction_total,
       total_weight_num: preview.total_weight_num,
       month_total_days: preview.month_total_days,
-      member_payouts: preview.members.map((member) => ({
-        member_id: member.member_id,
-        member_name: member.member_name,
-        level: member.level,
-        level_source: member.level_source,
-        level_weight_milli: member.level_weight_milli,
-        month_total_days: member.month_total_days,
-        confirmed_work_days: member.confirmed_work_days,
-        work_presence_bp: member.work_presence_bp,
-        monthly_weight_num: member.monthly_weight_num,
-        total_weight_num_snapshot: member.total_weight_num_snapshot,
-        final_share_bp: member.final_share_bp,
-        raw_amount: member.raw_amount,
-        rounded_amount: member.rounded_amount,
-        member_correction_amount: member.member_correction_amount,
-        total_pay_amount: member.total_pay_amount,
-        floor_units: member.confirmed_work_days,
-        floor_amount: member.rounded_amount,
-        result_amount: 0,
-        correction_amount: member.member_correction_amount,
-        final_pay: member.total_pay_amount,
-        calculation_snapshot: member.calculation_snapshot,
-      })),
-      calculation_snapshot: preview.calculation_snapshot,
+      member_payouts: memberPayouts,
+      calculation_snapshot: calculationSnapshot,
+      ...withholdingPayload,
       created_by_actor: actor,
-      input_hash: hashStableRecord(preview.calculation_snapshot),
+      input_hash: hashStableRecord(calculationSnapshot),
     };
   }
 
@@ -340,7 +366,7 @@ export class PathV32SimpleRewardService {
     };
   }
 
-  buildMemberAdjustmentProposalPayload(
+  async buildMemberAdjustmentProposalPayload(
     input: {
       target_month: string;
       member_id: string;
@@ -349,24 +375,29 @@ export class PathV32SimpleRewardService {
       evidence_snapshot?: Record<string, unknown>;
     },
     actor: ActorRef,
-  ): Record<string, unknown> {
+  ): Promise<Record<string, unknown>> {
+    const memberId = ensureUuid(input.member_id, "INVALID_MEMBER_ID");
+    const snapshot = await this.withholdingSnapshotService.buildSnapshot(memberId, input.target_month);
     return {
       path_module_version: "v3.2-simple",
       calculation_system: PATH_V32_SIMPLE_CALCULATION_SYSTEM,
       type: "reward.adjust",
       adjustment_kind: "member",
       target_month: ensureMonth(input.target_month),
-      member_id: ensureUuid(input.member_id, "INVALID_MEMBER_ID"),
+      member_id: memberId,
       amount: normalizeMoney(input.amount),
       reason: input.reason,
       evidence_snapshot: input.evidence_snapshot ?? {},
       member_adjustments: [
         {
-          member_id: input.member_id,
+          member_id: memberId,
           amount: normalizeMoney(input.amount),
+          tax_withholding_decision_snapshot: snapshot,
           explanation: input.evidence_snapshot ?? {},
         },
       ],
+      tax_withholding_decision_snapshot: snapshot,
+      tax_withholding_decision_snapshots: [{ member_id: memberId, snapshot }],
       created_by_actor: actor,
       input_hash: hashStableRecord(input),
       total_amount: Math.abs(normalizeMoney(input.amount)),

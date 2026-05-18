@@ -728,7 +728,7 @@ router.post("/reward-pool-adjustment-proposals", async (req: AuthenticatedReques
 router.post("/reward-member-adjustment-v32-proposals", async (req: AuthenticatedRequest, res: Response) => {
   try {
     const actor = buildHumanActor(req);
-    const payload = getPathV32SimpleRewardService(req).buildMemberAdjustmentProposalPayload(req.body, actor);
+    const payload = await getPathV32SimpleRewardService(req).buildMemberAdjustmentProposalPayload(req.body, actor);
     const result = await getProposalService(req).createAndSubmit({
       type: "reward.adjust",
       description: `${payload.target_month} PATH member correction`,

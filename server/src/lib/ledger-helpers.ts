@@ -12,6 +12,7 @@ export interface BookLedgerEntryContext {
     org_id: string;
     proposal_id: string;
     actor: ActorRef;
+    payload?: Record<string, unknown>;
 }
 
 function toCents(amount: number | undefined): number {
@@ -76,7 +77,7 @@ export async function bookLedgerEntry(
             org_id: context.org_id,
             event_type: normalizedEventType,
             proposal_id: context.proposal_id,
-            payload: { entries_count: entries.length },
+            payload: context.payload ?? { entries_count: entries.length },
             actor: context.actor,
         })
         .select("id,created_at")
