@@ -9,6 +9,7 @@ interface CompanySummaryCardProps {
     completedCogs: number;
     overhead: number;
     workInProgress: number;
+    depreciationExpense?: number;
     sparkline: number[];
     overdueCount: number;
     pendingCount: number;
@@ -48,6 +49,7 @@ export function CompanySummaryCard({
     completedCogs,
     overhead,
     workInProgress,
+    depreciationExpense = 0,
     sparkline,
     overdueCount,
     pendingCount,
@@ -99,6 +101,10 @@ export function CompanySummaryCard({
                 <span>
                     <small>未成工事支出金</small>
                     <b>{formatYen(workInProgress)}</b>
+                </span>
+                <span>
+                    <small>今月の減価償却費</small>
+                    <b>{formatYen(depreciationExpense)}</b>
                 </span>
             </div>
 

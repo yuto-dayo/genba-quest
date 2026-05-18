@@ -28,6 +28,7 @@ import { getErrorMessage } from "../lib/error";
 import { OcrHighlight } from "./OcrHighlight";
 import { JournalPreview } from "./JournalPreview";
 import { generateExpenseJournalLines, normalizeNetSubtotal, type ExpenseCategory } from "./journalLines";
+import { AssetRegistrationModal } from "./expense/AssetRegistrationModal";
 import styles from "./ExpenseModal.module.css";
 
 interface ExpenseModalProps {
@@ -170,6 +171,7 @@ export function ExpenseModal({
     // 現場リスト
     const [sites, setSites] = useState<Site[]>([]);
     const [members, setMembers] = useState<Member[]>([]);
+    const [assetCandidateTransaction, setAssetCandidateTransaction] = useState<AccountingTransaction | null>(null);
 
     // 初期データ取得
     useEffect(() => {
@@ -492,7 +494,7 @@ export function ExpenseModal({
         setError(null);
 
         try {
-            await createExpense({
+            const createdTransaction = await createExpense({
                 vendor_name: formData.vendor_name || undefined,
                 recorded_date: formData.recorded_date,
                 amount_subtotal: formData.amount_subtotal
@@ -520,6 +522,11 @@ export function ExpenseModal({
                 input_sources: inputSources,
             });
 
+            if (Number(createdTransaction.amount_total) >= 100000) {
+                setAssetCandidateTransaction(createdTransaction);
+                return;
+            }
+
             onSuccess();
         } catch (err: unknown) {
             setError(getErrorMessage(err));
@@ -545,8 +552,9 @@ export function ExpenseModal({
     };
 
     return (
-        <BottomSheet open={open} onClose={onClose} ariaLabel="経費登録">
-            <div className={styles.modal}>
+        <>
+            <BottomSheet open={open} onClose={onClose} ariaLabel="経費登録">
+                <div className={styles.modal}>
                 <header className={styles.header}>
                     <h2 id="expense-modal-title" className={styles.title}>経費登録</h2>
                     <button className={styles.closeButton} onClick={onClose} aria-label="閉じる">
@@ -1069,7 +1077,22 @@ export function ExpenseModal({
                         </div>
                     </form>
                 </div>
-            </div>
-        </BottomSheet>
+                </div>
+            </BottomSheet>
+            {assetCandidateTransaction && (
+                <AssetRegistrationModal
+                    open={Boolean(assetCandidateTransaction)}
+                    transaction={assetCandidateTransaction}
+                    onRegistered={() => {
+                        setAssetCandidateTransaction(null);
+                        onSuccess();
+                    }}
+                    onSkip={() => {
+                        setAssetCandidateTransaction(null);
+                        onSuccess();
+                    }}
+                />
+            )}
+        </>
     );
 }

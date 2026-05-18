@@ -40,6 +40,8 @@ import membersRouter from "./routes/members";
 import recurringExpensesRouter from "./routes/recurring-expenses";
 import { assertDevAuthRemoteSafety } from "./config/devAuthUsers";
 import { requireCronAuth } from "./middleware/cronAuth";
+import depreciationRouter from "./routes/depreciation";
+import { handleMonthlyDepreciation } from "./cron/monthly-depreciation";
 
 assertDevAuthRemoteSafety();
 
@@ -154,6 +156,7 @@ app.get("/health", (_req, res) => {
 app.use("/api/v1/webhooks", webhooksRouter);
 
 app.post("/api/v1/path/month/_remind-close", requireCronAuth, handleMonthCloseReminder);
+app.post("/api/v1/depreciation/_cron/monthly", requireCronAuth, handleMonthlyDepreciation);
 
 // 開発用プレビュー（認証不要・NODE_ENV!=productionでのみ動作）
 app.use("/api/v1/dev", devPreviewRouter);
@@ -197,6 +200,7 @@ app.use("/api/v1/focus-items", focusItemsRouter);
 app.use("/api/v1/calendar", calendarRouter);
 app.use("/api/v1/members", membersRouter);
 app.use("/api/v1/recurring-expenses", recurringExpensesRouter);
+app.use("/api/v1/depreciation", depreciationRouter);
 app.use("/api/v1", profileViewConsentRouter);
 app.use("/api/v1", memberInvoicesRouter);
 app.use("/api/v1/documents", documentsRouter);

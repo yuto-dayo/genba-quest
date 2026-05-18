@@ -1168,6 +1168,7 @@ export function Money() {
                                     completedCogs={pl.completed_cogs}
                                     overhead={pl.overhead}
                                     workInProgress={pl.work_in_progress}
+                                    depreciationExpense={pl.depreciation_expense ?? 0}
                                     sparkline={companyTrend.length > 0 ? companyTrend : [pl.profit]}
                                     overdueCount={0}
                                     pendingCount={pendingProposals.length}

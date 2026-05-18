@@ -90,6 +90,7 @@ type PlSummary = {
     completed_cogs: number;
     overhead: number;
     work_in_progress: number;
+    depreciation_expense: number;
     profit: number;
     distributable: number;
     transaction_count?: number;
@@ -660,6 +661,7 @@ function completePlSummary(input: {
     completedCogs?: number;
     overhead?: number;
     workInProgress?: number;
+    depreciationExpense?: number;
     transactionCount?: number;
     journalEntryCount?: number;
     journalLineCount?: number;
@@ -668,6 +670,7 @@ function completePlSummary(input: {
     const completedCogs = roundMoney(input.completedCogs ?? input.expenses ?? 0);
     const overhead = roundMoney(input.overhead ?? 0);
     const workInProgress = roundMoney(input.workInProgress ?? 0);
+    const depreciationExpense = roundMoney(input.depreciationExpense ?? 0);
     const expenses = roundMoney(input.expenses ?? completedCogs + overhead);
     const profit = roundMoney(sales - expenses);
     const distributable = roundMoney(Math.max(profit, 0) * 0.7);
@@ -678,12 +681,49 @@ function completePlSummary(input: {
         completed_cogs: completedCogs,
         overhead,
         work_in_progress: workInProgress,
+        depreciation_expense: depreciationExpense,
         profit,
         distributable,
         ...(input.transactionCount !== undefined ? { transaction_count: input.transactionCount } : {}),
         ...(input.journalEntryCount !== undefined ? { journal_entry_count: input.journalEntryCount } : {}),
         ...(input.journalLineCount !== undefined ? { journal_line_count: input.journalLineCount } : {}),
     };
+}
+
+function withDepreciationExpense(summary: PlSummary, depreciationExpense: number): PlSummary {
+    const depreciation = roundMoney(depreciationExpense);
+    const expenses = roundMoney(summary.expenses + depreciation);
+    const overhead = roundMoney(summary.overhead + depreciation);
+    const profit = roundMoney(summary.sales - expenses);
+    return {
+        ...summary,
+        expenses,
+        overhead,
+        depreciation_expense: depreciation,
+        profit,
+        distributable: roundMoney(Math.max(profit, 0) * 0.7),
+    };
+}
+
+async function getMonthlyDepreciationExpense(orgId: string, month: string): Promise<number> {
+    const { data, error } = await supabaseAdmin
+        .from("depreciation_schedule")
+        .select("amount, asset:depreciable_assets!inner(org_id)")
+        .eq("scheduled_month", month)
+        .eq("status", "posted")
+        .eq("asset.org_id", orgId);
+
+    if (error) {
+        if (error.message.includes("Could not find the table") || error.message.includes("schema cache")) {
+            return 0;
+        }
+        throw error;
+    }
+
+    return roundMoney((data ?? []).reduce((sum, row) => {
+        const record = row as Record<string, unknown>;
+        return sum + toMoneyNumber(record.amount);
+    }, 0));
 }
 
 function summarizeLegacyPlRows(rows: Array<Record<string, unknown>>): PlSummary {
@@ -5159,10 +5199,11 @@ router.get("/pl", async (req: AuthenticatedRequest, res: Response) => {
         }
 
         if (plSource === "legacy") {
+            const depreciationExpense = await getMonthlyDepreciationExpense(req.orgId!, targetMonth);
             res.json({
                 month: targetMonth,
                 source: "legacy",
-                ...legacySummary!,
+                ...withDepreciationExpense(legacySummary!, depreciationExpense),
             });
             return;
         }
@@ -5186,13 +5227,17 @@ router.get("/pl", async (req: AuthenticatedRequest, res: Response) => {
 
         if (journalError) throw journalError;
 
-        const journalSummary = summarizeJournalPlRows(
-            (journalRows || []) as Array<Record<string, unknown>>,
-            {
-                siteId: site_id,
-                costCenter: cost_center,
-            },
-            "net_accounting"
+        const depreciationExpense = await getMonthlyDepreciationExpense(req.orgId!, targetMonth);
+        const journalSummary = withDepreciationExpense(
+            summarizeJournalPlRows(
+                (journalRows || []) as Array<Record<string, unknown>>,
+                {
+                    siteId: site_id,
+                    costCenter: cost_center,
+                },
+                "net_accounting"
+            ),
+            depreciationExpense,
         );
 
         if (plSource === "journal") {
@@ -5205,15 +5250,19 @@ router.get("/pl", async (req: AuthenticatedRequest, res: Response) => {
             return;
         }
 
-        const journalGrossCompatSummary = summarizeJournalPlRows(
-            (journalRows || []) as Array<Record<string, unknown>>,
-            {
-                siteId: site_id,
-                costCenter: cost_center,
-            },
-            "gross_compat"
+        const journalGrossCompatSummary = withDepreciationExpense(
+            summarizeJournalPlRows(
+                (journalRows || []) as Array<Record<string, unknown>>,
+                {
+                    siteId: site_id,
+                    costCenter: cost_center,
+                },
+                "gross_compat"
+            ),
+            depreciationExpense,
         );
-        const diff = buildPlDiff(legacySummary!, journalGrossCompatSummary);
+        const legacySummaryWithDepreciation = withDepreciationExpense(legacySummary!, depreciationExpense);
+        const diff = buildPlDiff(legacySummaryWithDepreciation, journalGrossCompatSummary);
         const mismatches = Object.entries(diff)
             .filter(([, amount]) => amount !== 0)
             .map(([field, amount]) => ({
@@ -5231,7 +5280,7 @@ router.get("/pl", async (req: AuthenticatedRequest, res: Response) => {
                 diff: "gross_compat",
             },
             tax_basis_warning: true,
-            legacy: legacySummary!,
+            legacy: legacySummaryWithDepreciation,
             journal: journalSummary,
             journal_gross_compat: journalGrossCompatSummary,
             diff,

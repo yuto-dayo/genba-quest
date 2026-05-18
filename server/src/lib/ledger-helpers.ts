@@ -10,7 +10,7 @@ export interface DisplayLabelLedgerEntry {
 
 export interface BookLedgerEntryContext {
     org_id: string;
-    proposal_id: string;
+    proposal_id?: string | null;
     actor: ActorRef;
     payload?: Record<string, unknown>;
 }

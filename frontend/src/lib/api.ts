@@ -1218,6 +1218,82 @@ export interface MonthlyDeductibleAmount {
     member_count: number;
 }
 
+export type DepreciableAssetClassification =
+    | "expense_immediate"
+    | "three_year_special"
+    | "small_amount_special"
+    | "standard_depreciation";
+
+export type DepreciationMethod = "straight_line" | "declining_balance";
+
+export interface DepreciableAsset {
+    id: string;
+    org_id: string;
+    member_id: string | null;
+    category: string;
+    title: string;
+    acquisition_amount: number;
+    acquisition_date: string;
+    classification: DepreciableAssetClassification;
+    useful_life_years: number | null;
+    depreciation_method: DepreciationMethod | null;
+    residual_value: number | null;
+    is_active: boolean;
+    source_transaction_id: string | null;
+    proposal_id: string | null;
+    created_at: string;
+    updated_at?: string;
+    schedule_count?: number;
+}
+
+export interface DepreciationSchedule {
+    id: string;
+    asset_id: string;
+    scheduled_month: string;
+    amount: number;
+    status: "pending" | "posted" | "cancelled";
+    posted_at: string | null;
+    ledger_event_id: string | null;
+    created_at?: string;
+}
+
+export interface SpecialDepreciationUsage {
+    org_id: string;
+    fiscal_year: number;
+    asset_count: number;
+    used_amount: number;
+    remaining_amount: number;
+    annual_limit_amount: number;
+}
+
+export interface RegisterDepreciableAssetRequest {
+    member_id?: string | null;
+    category: string;
+    title: string;
+    acquisition_amount: number;
+    acquisition_date: string;
+    useful_life_years?: number | null;
+    depreciation_method?: DepreciationMethod | null;
+    residual_value?: number | null;
+    source_transaction_id?: string | null;
+    proposal_id?: string | null;
+    requested_classification?: DepreciableAssetClassification | null;
+}
+
+export interface RegisterDepreciableAssetResponse {
+    asset: DepreciableAsset;
+    schedules: DepreciationSchedule[];
+    classification: DepreciableAssetClassification;
+    fiscal_year: number;
+    special_limit: {
+        annual_limit_amount: number;
+        used_before: number;
+        remaining_before: number;
+        remaining_after: number;
+    };
+    warnings: string[];
+}
+
 export const fetchMemberTaxClassification = (memberId: string, asOf?: string, options?: RequestInit) => {
     const params = new URLSearchParams();
     if (asOf) {
@@ -2905,6 +2981,20 @@ export function fetchPL(params?: FetchPLParams & { source?: PLSource }) {
 export const fetchMonthlyDeductible = (month: string) =>
     api<MonthlyDeductibleAmount>(`/api/v1/accounting/monthly-deductible?month=${encodeURIComponent(month)}`);
 
+export const fetchDepreciableAssets = () =>
+    api<{ assets: DepreciableAsset[] }>("/api/v1/depreciation/assets");
+
+export const fetchSpecialDepreciationUsage = (fiscalYear: number) =>
+    api<SpecialDepreciationUsage>(
+        `/api/v1/depreciation/special-usage?fiscal_year=${encodeURIComponent(String(fiscalYear))}`,
+    );
+
+export const registerDepreciableAsset = (data: RegisterDepreciableAssetRequest) =>
+    api<RegisterDepreciableAssetResponse>("/api/v1/depreciation/assets", {
+        method: "POST",
+        body: JSON.stringify(data),
+    });
+
 // キャッシュフローサマリ (PR #10)
 export interface CashflowSummary {
     month: string;
@@ -3269,6 +3359,7 @@ export interface AccountingTransaction extends AccountingCommandEnvelope {
     settlement_type?: "paid" | "unpaid";
     payment_account?: "cash" | "bank" | null;
     reimbursement_status?: "unsubmitted" | "submitted" | "approved" | "reimbursed" | null;
+    depreciable_asset_id?: string | null;
 }
 
 export interface AccountingTransactionItem {
@@ -3450,6 +3541,7 @@ export interface PLSummary {
     completed_cogs: number;
     overhead: number;
     work_in_progress: number;
+    depreciation_expense?: number;
     profit: number;
     distributable: number;
     transaction_count?: number;
