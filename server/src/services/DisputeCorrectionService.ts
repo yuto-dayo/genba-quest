@@ -1,6 +1,10 @@
 import { supabaseAdmin } from "../lib/supabaseAdmin";
 import { bookLedgerEntry, type DisplayLabelLedgerEntry } from "../lib/ledger-helpers";
 import type { ActorRef, Proposal } from "./PolicyEngine";
+import {
+    buildWithholdingDecisionSnapshotPayload,
+    WithholdingDecisionSnapshotService,
+} from "./WithholdingDecisionSnapshotService";
 
 export const DISPUTE_CORRECTION_KINDS = [
     "reward_amount",
@@ -145,6 +149,7 @@ async function ensureLedgerEvent(input: {
             org_id: input.proposal.org_id,
             proposal_id: input.proposal.id,
             actor: input.actor,
+            payload: input.proposal.payload,
         },
         supabaseAdmin,
     );
@@ -169,6 +174,11 @@ export class DisputeCorrectionService {
         const toAmount = normalizeAmount(input.toAmount, "DISPUTE_CORRECTION_TO_AMOUNT_INVALID");
         const reason = assertReason(input.reason);
         const deltaAmount = Number((toAmount - fromAmount).toFixed(2));
+        const snapshotMemberId = input.rewardMemberId ?? input.targetMemberId;
+        const memberSnapshots = await new WithholdingDecisionSnapshotService(input.orgId).buildMemberSnapshots(
+            [snapshotMemberId],
+            input.month,
+        );
 
         const evidenceDocumentIds = await this.registerEvidenceDocuments({
             orgId: input.orgId,
@@ -192,6 +202,7 @@ export class DisputeCorrectionService {
             evidence_document_ids: evidenceDocumentIds,
             source_document_ids: input.sourceDocumentIds ?? [],
             ledger_strategy: "append_reversal_and_adjustment",
+            ...buildWithholdingDecisionSnapshotPayload(memberSnapshots),
         };
 
         const description = `計算修正申立: ${input.month} ${this.labelForDescription(input.correctionKind)} ${deltaAmount >= 0 ? "+" : ""}${deltaAmount.toLocaleString()}円`;

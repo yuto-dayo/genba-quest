@@ -3,6 +3,11 @@ import { bookLedgerEntry, type DisplayLabelLedgerEntry } from "../lib/ledger-hel
 import type { ActorRef, Proposal } from "./PolicyEngine";
 import type { CreateProposalInput, SubmitResult } from "./ProposalService";
 import { PayoutAllocationService, type AllocationLine, type PayoutBalance } from "./PayoutAllocationService";
+import {
+  buildWithholdingDecisionSnapshotPayload,
+  TaxWithholdingDecisionSnapshot,
+  WithholdingDecisionSnapshotService,
+} from "./WithholdingDecisionSnapshotService";
 
 type ProposalCreator = {
   createAndSubmit(input: CreateProposalInput): Promise<SubmitResult>;
@@ -23,6 +28,11 @@ type PayoutScheduleRow = {
   carry_over_amount: number | string;
   reward_amount: number | string;
   withholding_amount: number | string;
+  tax_withholding_decision_snapshot?: TaxWithholdingDecisionSnapshot | Record<string, unknown>;
+};
+
+type AllocationLineWithSnapshot = AllocationLine & {
+  tax_withholding_decision_snapshot?: TaxWithholdingDecisionSnapshot;
 };
 
 const SYSTEM_ACTOR: ActorRef = {
@@ -39,7 +49,7 @@ function toYen(value: unknown): number {
   return Math.round(amount);
 }
 
-function getLines(payload: Record<string, unknown>): AllocationLine[] {
+function getLines(payload: Record<string, unknown>): AllocationLineWithSnapshot[] {
   const raw = payload.allocation_lines;
   if (!Array.isArray(raw)) {
     throw new Error("PAYOUT_ALLOCATION_LINES_REQUIRED");
@@ -54,15 +64,27 @@ function getLines(payload: Record<string, unknown>): AllocationLine[] {
       member_id: memberId,
       allocated: toYen(row.allocated),
       unsettled_after: toYen(row.unsettled_after),
+      tax_withholding_decision_snapshot: row.tax_withholding_decision_snapshot as TaxWithholdingDecisionSnapshot | undefined,
     };
   });
 }
 
+function hasFrozenSnapshot(value: unknown): value is TaxWithholdingDecisionSnapshot {
+  return Boolean(value)
+    && typeof value === "object"
+    && !Array.isArray(value)
+    && typeof (value as Record<string, unknown>).classification_id_used === "string";
+}
+
 export class PayoutSchedulingService {
+  private readonly withholdingSnapshotService: WithholdingDecisionSnapshotService;
+
   constructor(
     private readonly orgId: string,
     private readonly proposalCreator?: ProposalCreator,
-  ) {}
+  ) {
+    this.withholdingSnapshotService = new WithholdingDecisionSnapshotService(orgId);
+  }
 
   async onCashReceiptExecuted(receiptId: string): Promise<SubmitResult | null> {
     if (!this.proposalCreator) {
@@ -87,6 +109,15 @@ export class PayoutSchedulingService {
     if (allocationLines.length === 0) {
       return null;
     }
+    const memberSnapshots = await this.withholdingSnapshotService.buildMemberSnapshots(
+      allocationLines.map((line) => line.member_id),
+      receipt.received_date,
+    );
+    const snapshotByMember = new Map(memberSnapshots.map((row) => [row.member_id, row.snapshot]));
+    const allocationLinesWithSnapshots = allocationLines.map((line) => ({
+      ...line,
+      tax_withholding_decision_snapshot: snapshotByMember.get(line.member_id),
+    }));
 
     return this.proposalCreator.createAndSubmit({
       type: "payout.scheduled",
@@ -99,12 +130,9 @@ export class PayoutSchedulingService {
         received_amount: toYen(receipt.received_amount),
         received_date: receipt.received_date,
         bank_txn_ref: receipt.bank_txn_ref,
-        allocation_lines: allocationLines,
+        allocation_lines: allocationLinesWithSnapshots,
         rounding_method: "largest_remainder",
-        tax_withholding_decision_snapshot: {
-          status: "placeholder",
-          reason: "PR-34で源泉徴収判定を実装予定",
-        },
+        ...buildWithholdingDecisionSnapshotPayload(memberSnapshots),
       },
     });
   }
@@ -136,7 +164,7 @@ export class PayoutSchedulingService {
       withholding_amount: 0,
       status: "scheduled",
       tax_withholding_decision_snapshot:
-        payload.tax_withholding_decision_snapshot ?? { status: "placeholder" },
+        line.tax_withholding_decision_snapshot ?? payload.tax_withholding_decision_snapshot,
     }));
 
     const { error } = await supabaseAdmin
@@ -163,7 +191,7 @@ export class PayoutSchedulingService {
 
     const { data, error } = await supabaseAdmin
       .from("payout_schedule")
-      .select("id,member_id,reimbursement_amount,carry_over_amount,reward_amount,withholding_amount")
+      .select("id,member_id,reimbursement_amount,carry_over_amount,reward_amount,withholding_amount,tax_withholding_decision_snapshot")
       .eq("org_id", proposal.org_id)
       .in("id", scheduleIds)
       .eq("status", "scheduled");
@@ -176,6 +204,27 @@ export class PayoutSchedulingService {
     if (rows.length !== scheduleIds.length) {
       throw new Error("PAYOUT_SCHEDULE_NOT_FOUND_OR_NOT_SCHEDULED");
     }
+    const memberSnapshots = await Promise.all(
+      rows.map(async (row) => ({
+        member_id: row.member_id,
+        snapshot: hasFrozenSnapshot(row.tax_withholding_decision_snapshot)
+          ? row.tax_withholding_decision_snapshot
+          : await this.withholdingSnapshotService.buildSnapshot(row.member_id),
+      })),
+    );
+    const eventPayload = {
+      ...proposal.payload,
+      payout_schedule_rows: rows.map((row) => ({
+        id: row.id,
+        member_id: row.member_id,
+        reimbursement_amount: toYen(row.reimbursement_amount),
+        carry_over_amount: toYen(row.carry_over_amount),
+        reward_amount: toYen(row.reward_amount),
+        withholding_amount: toYen(row.withholding_amount),
+        tax_withholding_decision_snapshot: row.tax_withholding_decision_snapshot ?? null,
+      })),
+      ...buildWithholdingDecisionSnapshotPayload(memberSnapshots),
+    };
 
     const entries = this.buildPayoutLedgerEntries(rows);
     const ledger = await bookLedgerEntry(
@@ -185,6 +234,7 @@ export class PayoutSchedulingService {
         org_id: proposal.org_id,
         proposal_id: proposal.id,
         actor: executor,
+        payload: eventPayload,
       },
       supabaseAdmin,
     );

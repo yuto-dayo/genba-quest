@@ -39,6 +39,11 @@ import { RecurringExpenseService } from "./RecurringExpenseService";
 import { CashReceiptService } from "./CashReceiptService";
 import { PayoutSchedulingService } from "./PayoutSchedulingService";
 import { DisputeCorrectionService } from "./DisputeCorrectionService";
+import {
+  buildWithholdingDecisionSnapshotPayload,
+  TaxWithholdingDecisionSnapshot,
+  WithholdingDecisionSnapshotService,
+} from "./WithholdingDecisionSnapshotService";
 
 // ============================================================
 // Types
@@ -173,6 +178,13 @@ function readUuidLike(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
 }
 
+function isTaxWithholdingDecisionSnapshot(value: unknown): value is TaxWithholdingDecisionSnapshot {
+  return Boolean(value)
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && typeof (value as Record<string, unknown>).classification_id_used === 'string';
+}
+
 function resolveProposalAnchorFields(
   payload: Record<string, unknown>,
 ): Pick<
@@ -210,6 +222,7 @@ export class ProposalService {
   private cashReceiptService: CashReceiptService;
   private payoutSchedulingService: PayoutSchedulingService;
   private disputeCorrectionService: DisputeCorrectionService;
+  private withholdingDecisionSnapshotService: WithholdingDecisionSnapshotService;
 
   constructor(orgId: string) {
     if (!orgId || typeof orgId !== 'string' || orgId.trim() === '') {
@@ -228,6 +241,7 @@ export class ProposalService {
     this.cashReceiptService = new CashReceiptService(orgId);
     this.payoutSchedulingService = new PayoutSchedulingService(orgId, this);
     this.disputeCorrectionService = new DisputeCorrectionService();
+    this.withholdingDecisionSnapshotService = new WithholdingDecisionSnapshotService(orgId);
     const fallbackMode = (process.env.PROPOSAL_RPC_FALLBACK_MODE || 'allow').toLowerCase();
     this.disableRpcFallback = ['disabled', 'deny', 'off'].includes(fallbackMode);
   }
@@ -239,17 +253,189 @@ export class ProposalService {
     return null;
   }
 
+  private async withWithholdingDecisionSnapshotPayload(
+    type: ProposalType,
+    payload: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    if (
+      ![
+        'reward.calculate',
+        'reward.adjust',
+        'payout.scheduled',
+        'payout.executed',
+        'reward.dispute_correction',
+      ].includes(type)
+    ) {
+      return payload;
+    }
+    if (payload.tax_withholding_decision_snapshot) {
+      return payload;
+    }
+
+    const asOf = this.resolveWithholdingSnapshotAsOf(payload);
+    if (type === 'payout.executed') {
+      return this.withPayoutExecutedSnapshots(payload);
+    }
+
+    const rows = this.extractWithholdingSnapshotRows(type, payload);
+    if (rows.length === 0) {
+      throw new Error('WITHHOLDING_SNAPSHOT_MEMBER_REQUIRED');
+    }
+
+    const memberSnapshots = await this.withholdingDecisionSnapshotService.buildMemberSnapshots(
+      rows.map((row) => row.memberId),
+      asOf,
+    );
+    const snapshotByMember = new Map(memberSnapshots.map((row) => [row.member_id, row.snapshot]));
+    const nextPayload: Record<string, unknown> = {
+      ...payload,
+      ...buildWithholdingDecisionSnapshotPayload(memberSnapshots),
+    };
+
+    if (Array.isArray(payload.member_payouts)) {
+      nextPayload.member_payouts = payload.member_payouts.map((row) =>
+        this.attachSnapshotToRecord(row, snapshotByMember),
+      );
+    }
+    if (Array.isArray(payload.member_adjustments)) {
+      nextPayload.member_adjustments = payload.member_adjustments.map((row) =>
+        this.attachSnapshotToRecord(row, snapshotByMember),
+      );
+    }
+    if (Array.isArray(payload.allocation_lines)) {
+      nextPayload.allocation_lines = payload.allocation_lines.map((row) =>
+        this.attachSnapshotToRecord(row, snapshotByMember),
+      );
+    }
+
+    return nextPayload;
+  }
+
+  private resolveWithholdingSnapshotAsOf(payload: Record<string, unknown>): string | null {
+    for (const key of ['month', 'target_month', 'correction_month', 'received_date', 'date', 'transaction_date']) {
+      const value = payload[key];
+      if (typeof value === 'string' && value.trim().length > 0) {
+        return value.trim();
+      }
+    }
+    return null;
+  }
+
+  private extractWithholdingSnapshotRows(
+    type: ProposalType,
+    payload: Record<string, unknown>,
+  ): Array<{ memberId: string }> {
+    const rows: Array<{ memberId: string }> = [];
+    const pushMember = (value: unknown): void => {
+      if (typeof value === 'string' && value.trim().length > 0) {
+        rows.push({ memberId: value.trim() });
+      }
+    };
+
+    if (Array.isArray(payload.member_payouts)) {
+      payload.member_payouts.forEach((row) => {
+        if (row && typeof row === 'object') {
+          pushMember((row as Record<string, unknown>).member_id);
+        }
+      });
+    }
+    if (Array.isArray(payload.member_adjustments)) {
+      payload.member_adjustments.forEach((row) => {
+        if (row && typeof row === 'object') {
+          pushMember((row as Record<string, unknown>).member_id);
+        }
+      });
+    }
+    if (Array.isArray(payload.allocation_lines)) {
+      payload.allocation_lines.forEach((row) => {
+        if (row && typeof row === 'object') {
+          pushMember((row as Record<string, unknown>).member_id);
+        }
+      });
+    }
+
+    if (type === 'reward.dispute_correction') {
+      pushMember(payload.reward_member_id ?? payload.target_member_id);
+    } else {
+      pushMember(payload.member_id);
+    }
+
+    const seen = new Set<string>();
+    return rows.filter((row) => {
+      if (seen.has(row.memberId)) {
+        return false;
+      }
+      seen.add(row.memberId);
+      return true;
+    });
+  }
+
+  private attachSnapshotToRecord(
+    value: unknown,
+    snapshotByMember: Map<string, TaxWithholdingDecisionSnapshot>,
+  ): unknown {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return value;
+    }
+    const row = value as Record<string, unknown>;
+    const memberId = typeof row.member_id === 'string' ? row.member_id : null;
+    const snapshot = memberId ? snapshotByMember.get(memberId) : null;
+    return snapshot ? { ...row, tax_withholding_decision_snapshot: snapshot } : row;
+  }
+
+  private async withPayoutExecutedSnapshots(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const scheduleIds = Array.isArray(payload.schedule_ids)
+      ? payload.schedule_ids.filter((value): value is string => typeof value === 'string' && value.length > 0)
+      : [];
+    if (scheduleIds.length === 0) {
+      throw new Error('PAYOUT_SCHEDULE_IDS_REQUIRED');
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('payout_schedule')
+      .select('id,member_id,tax_withholding_decision_snapshot')
+      .eq('org_id', this.orgId)
+      .in('id', scheduleIds);
+
+    if (error) {
+      throw new Error(`WITHHOLDING_SNAPSHOT_PAYOUT_SCHEDULE_LOAD_FAILED: ${error.message}`);
+    }
+
+    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    if (rows.length !== scheduleIds.length) {
+      throw new Error('PAYOUT_SCHEDULE_NOT_FOUND');
+    }
+
+    const memberSnapshots = await Promise.all(
+      rows.map(async (row) => {
+        const memberId = String(row.member_id ?? '');
+        return {
+          member_id: memberId,
+          snapshot: isTaxWithholdingDecisionSnapshot(row.tax_withholding_decision_snapshot)
+            ? row.tax_withholding_decision_snapshot
+            : await this.withholdingDecisionSnapshotService.buildSnapshot(memberId, this.resolveWithholdingSnapshotAsOf(payload)),
+        };
+      }),
+    );
+    return {
+      ...payload,
+      payout_schedule_rows: rows,
+      ...buildWithholdingDecisionSnapshotPayload(memberSnapshots),
+    };
+  }
+
   /**
    * Proposal作成（draft状態）
    */
   async create(input: CreateProposalInput): Promise<Proposal> {
-    if (shouldLockAssignmentPastDate(input.type, input.payload)) {
+    const payload = await this.withWithholdingDecisionSnapshotPayload(input.type, input.payload);
+    if (shouldLockAssignmentPastDate(input.type, payload)) {
       throw new Error('ASSIGNMENT_PAST_DATE_LOCKED');
     }
 
     if (input.type === 'luqo.reward.calculate') {
-      const breakdown = Array.isArray(input.payload.breakdown)
-        ? input.payload.breakdown
+      const breakdown = Array.isArray(payload.breakdown)
+        ? payload.breakdown
         : [];
       await new LUQOService(input.org_id || this.orgId).assertLegacyRewardMembers(
         breakdown as Array<{ member_id: string; name: string }>,
@@ -258,7 +444,7 @@ export class ProposalService {
 
     const evaluation = await this.engine.evaluateProposal({
       type: input.type,
-      payload: input.payload,
+      payload,
       created_by: input.created_by,
     });
 
@@ -269,13 +455,13 @@ export class ProposalService {
       document_id: input.document_id || null,
       site_id: input.site_id || null,
       created_by: input.created_by,
-      payload: input.payload,
+      payload,
       description: input.description,
       policy_ref: evaluation.policy.name,
       required_approvals: evaluation.requiredApprovals,
       approvals: [],
       idempotency_key: input.idempotency_key ?? null,
-      ...resolveProposalAnchorFields(input.payload),
+      ...resolveProposalAnchorFields(payload),
     };
     if (input.id) {
       insertPayload.id = input.id;
