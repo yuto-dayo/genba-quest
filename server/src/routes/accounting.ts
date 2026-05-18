@@ -5394,11 +5394,24 @@ router.get("/member/:memberId/reimbursement-balance", async (req: AuthenticatedR
             return;
         }
 
+        // Resolve the membership by either membership.id OR user_id. Reward-side
+        // endpoints (team-reward-summary, path/*, /members/:memberId/...) all
+        // return user_id in their member_id field, but accounting transactions
+        // store claimant_member_id as org_memberships.id. Accepting both keeps
+        // the modal that joins reward + reimbursement data working without a
+        // FE-side ID translation table.
+        // PostgREST `.or()` takes a raw filter string and does not escape values,
+        // so we require a strict UUID format here to prevent predicate injection.
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(memberId)) {
+            res.status(400).json({ error: "invalid member id" });
+            return;
+        }
+
         const { data: member, error: memberError } = await supabaseAdmin
             .from("org_memberships")
             .select("id")
             .eq("org_id", orgId)
-            .eq("id", memberId)
+            .or(`id.eq.${memberId},user_id.eq.${memberId}`)
             .eq("status", "active")
             .is("suspended_at", null)
             .maybeSingle();
@@ -5410,6 +5423,7 @@ router.get("/member/:memberId/reimbursement-balance", async (req: AuthenticatedR
             res.status(403).json({ error: "member not in org" });
             return;
         }
+        const membershipId = (member as { id: string }).id;
 
         const { data, error } = await supabaseAdmin
             .from("accounting_transactions")
@@ -5418,7 +5432,7 @@ router.get("/member/:memberId/reimbursement-balance", async (req: AuthenticatedR
             .eq("kind", "expense")
             .eq("paid_by", "member")
             .eq("settlement_type", "unpaid")
-            .eq("claimant_member_id", memberId)
+            .eq("claimant_member_id", membershipId)
             .in("status", [...REIMBURSEMENT_ACTIVE_TRANSACTION_STATUSES])
             .gte("recorded_date", monthValidation.startDate)
             .lt("recorded_date", monthValidation.endDateExclusive)

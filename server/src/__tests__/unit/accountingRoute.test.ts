@@ -814,15 +814,16 @@ describe("accounting router", () => {
   it("GET /member/:memberId/reimbursement-balance returns sanitized recent items", async () => {
     const now = new Date();
     const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-    const memberChain = createChain({ data: { id: "membership-2" }, error: null });
+    const membershipId = "22222222-3333-4444-8555-666666666666";
+    const memberChain = createChain({ data: { id: membershipId }, error: null });
     const txChain = createChain({
       data: [
-        { id: "tx-1", recorded_date: `${month}-06`, category: "fuel", amount_total: 1000, claimant_member_id: "membership-2", reimbursement_status: "submitted" },
-        { id: "tx-2", recorded_date: `${month}-05`, category: "travel", amount_total: 2000, claimant_member_id: "membership-2", reimbursement_status: "approved" },
-        { id: "tx-3", recorded_date: `${month}-04`, category: "material", amount_total: 3000, claimant_member_id: "membership-2", reimbursement_status: "reimbursed" },
-        { id: "tx-4", recorded_date: `${month}-03`, category: null, amount_total: 4000, claimant_member_id: "membership-2", reimbursement_status: "unsubmitted" },
-        { id: "tx-5", recorded_date: `${month}-02`, category: "tool", amount_total: 5000, claimant_member_id: "membership-2", reimbursement_status: "submitted" },
-        { id: "tx-6", recorded_date: `${month}-01`, category: "food", amount_total: 6000, claimant_member_id: "membership-2", reimbursement_status: "submitted" },
+        { id: "tx-1", recorded_date: `${month}-06`, category: "fuel", amount_total: 1000, claimant_member_id: membershipId, reimbursement_status: "submitted" },
+        { id: "tx-2", recorded_date: `${month}-05`, category: "travel", amount_total: 2000, claimant_member_id: membershipId, reimbursement_status: "approved" },
+        { id: "tx-3", recorded_date: `${month}-04`, category: "material", amount_total: 3000, claimant_member_id: membershipId, reimbursement_status: "reimbursed" },
+        { id: "tx-4", recorded_date: `${month}-03`, category: null, amount_total: 4000, claimant_member_id: membershipId, reimbursement_status: "unsubmitted" },
+        { id: "tx-5", recorded_date: `${month}-02`, category: "tool", amount_total: 5000, claimant_member_id: membershipId, reimbursement_status: "submitted" },
+        { id: "tx-6", recorded_date: `${month}-01`, category: "food", amount_total: 6000, claimant_member_id: membershipId, reimbursement_status: "submitted" },
       ],
       error: null,
     });
@@ -830,17 +831,17 @@ describe("accounting router", () => {
 
     const req = {
       orgId: "org-1",
-      params: { memberId: "membership-2" },
+      params: { memberId: membershipId },
       query: { month },
     } as any;
     const res = createMockRes();
 
     await getMemberReimbursementBalanceHandler(req, res);
 
-    expect(memberChain.eq).toHaveBeenCalledWith("id", "membership-2");
-    expect(txChain.eq).toHaveBeenCalledWith("claimant_member_id", "membership-2");
+    expect(memberChain.or).toHaveBeenCalledWith(`id.eq.${membershipId},user_id.eq.${membershipId}`);
+    expect(txChain.eq).toHaveBeenCalledWith("claimant_member_id", membershipId);
     expect(res.json).toHaveBeenCalledWith({
-      member_id: "membership-2",
+      member_id: membershipId,
       month,
       total_advanced: 21000,
       unsettled: 18000,
@@ -871,7 +872,7 @@ describe("accounting router", () => {
 
     const req = {
       orgId: "org-1",
-      params: { memberId: "foreign-membership" },
+      params: { memberId: "deadbeef-dead-4dea-bdea-deadbeefdead" },
       query: { month },
     } as any;
     const res = createMockRes();
@@ -880,6 +881,62 @@ describe("accounting router", () => {
 
     expect(res.status).toHaveBeenCalledWith(403);
     expect(res.json).toHaveBeenCalledWith({ error: "member not in org" });
+  });
+
+  it("GET /member/:memberId/reimbursement-balance resolves a user_id input to the membership.id", async () => {
+    // Reward-side endpoints (team-reward-summary, /members/:memberId/*) return
+    // user_id in their member_id field; OtherPayoutModal then forwards that
+    // user_id here. The handler must look up the membership by either id or
+    // user_id and use the resolved membership.id for the tx query.
+    const now = new Date();
+    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const userId = "11111111-2222-4333-8444-555555555555";
+    const resolvedMembershipId = "99999999-8888-4777-b666-555555555555";
+    const memberChain = createChain({ data: { id: resolvedMembershipId }, error: null });
+    const txChain = createChain({
+      data: [
+        { id: "tx-a", recorded_date: `${month}-10`, category: "fuel", amount_total: 800, claimant_member_id: resolvedMembershipId, reimbursement_status: "submitted" },
+      ],
+      error: null,
+    });
+    setupMockFromSequence(mockFrom, [memberChain, txChain]);
+
+    const req = {
+      orgId: "org-1",
+      params: { memberId: userId },
+      query: { month },
+    } as any;
+    const res = createMockRes();
+
+    await getMemberReimbursementBalanceHandler(req, res);
+
+    expect(memberChain.or).toHaveBeenCalledWith(`id.eq.${userId},user_id.eq.${userId}`);
+    // Critical: tx lookup must use the resolved membership.id, NOT the input user_id.
+    expect(txChain.eq).toHaveBeenCalledWith("claimant_member_id", resolvedMembershipId);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      member_id: userId,
+      total_advanced: 800,
+    }));
+  });
+
+  it("GET /member/:memberId/reimbursement-balance rejects non-UUID memberId to block predicate injection", async () => {
+    // `.or()` takes a raw PostgREST filter string. Letting commas or parens
+    // through would let a caller inject extra predicates. The handler must
+    // reject any input that does not match the UUID shape.
+    setupMockFromSequence(mockFrom, []);
+
+    const req = {
+      orgId: "org-1",
+      params: { memberId: "aa,user_id.eq.bb" },
+      query: { month: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}` },
+    } as any;
+    const res = createMockRes();
+
+    await getMemberReimbursementBalanceHandler(req, res);
+
+    expect(mockFrom).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: "invalid member id" });
   });
 
   it("POST /expenses stores misc expenses as tax-free when selected", async () => {
