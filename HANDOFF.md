@@ -1,36 +1,166 @@
-# Project Handoff Profile / Domain Index - 2026-05-18
+# Session Handoff - 2026-05-19
 
-## Active Domains
+## 0. Quick Resume (AI)
 
-| Domain | File | Last Updated | Status |
-| ------ | ---- | ------------ | ------ |
-| local | `handoff/local.md` | 2026-05-17 | active |
-| frontend/payout-modal-rename | `handoff/frontend/payout-modal-rename.md` | 2026-05-18 | Prepare rename-only commit and PR; note full npm test bas... |
-| server/level-fallback | `handoff/server/level-fallback.md` | 2026-05-18 | Run final validation summary, commit product files only, ... |
-| server/recurring-expenses | `handoff/server/recurring-expenses.md` | 2026-05-18 | Review PR, then fix existing migration duplicate 20260515... |
-| server/cash-receipts | `handoff/server/cash-receipts.md` | 2026-05-18 | commit product files and create PR |
-| server/invoice-registration | `handoff/server/invoice-registration.md` | 2026-05-18 | PR #87 is open; address CI/review, then run Supabase db r... |
-| server/payout-allocation | `handoff/server/payout-allocation.md` | 2026-05-18 | Push branch and create PR |
-| frontend/payout-hero-card | `handoff/frontend/payout-hero-card.md` | 2026-05-18 | Commit changes, create PR with required Human Need Contra... |
-| frontend/cash-receipt-modal | `handoff/frontend/cash-receipt-modal.md` | 2026-05-18 | Commit, push branch, create PR against master |
-| frontend/payout-breakdown | `handoff/frontend/payout-breakdown.md` | 2026-05-18 | Force-push rebased branch and confirm PR #96 mergeability |
-| frontend/readonly-guard | `handoff/frontend/readonly-guard.md` | 2026-05-18 | active |
-| frontend/credit-monitoring | `handoff/frontend/credit-monitoring.md` | 2026-05-18 | commit product diff, create PR to master, mention baselin... |
-| frontend/payout-calculation | `handoff/frontend/payout-calculation.md` | 2026-05-18 | Create PR with frontend-only product changes; keep HANDOF... |
-| server/dispute-correction | `handoff/server/dispute-correction.md` | 2026-05-18 | Create PR after commit/push; manual smoke needs local DB ... |
-| frontend/payout-badges | `handoff/frontend/payout-badges.md` | 2026-05-18 | PR #101 created; monitor review/CI |
-| server/withholding-snapshot | `handoff/server/withholding-snapshot.md` | 2026-05-18 | Stage product files, commit, push, create PR; leave hando... |
-| server/depreciation | `handoff/server/depreciation.md` | 2026-05-18 | Commit, push, create PR; full server npm test and supabas... |
-| server/legal-records | `handoff/server/legal-records.md` | 2026-05-18 | Publish PR-28 to GitHub; CI should cover DB reset because... |
+- NEXT_CMD: `Backport 4 migration source bugs`
+- SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
+- HOTSET:
+  - `/Users/yutoyoshino/Documents/genba-quest-fix-payout-403/HANDOFF.md`
+  - `/Users/yutoyoshino/Documents/genba-quest-fix-payout-403/docs/DESIGN_PHILOSOPHY.md`
+- DO_NOT_READ:
+  - `docs/DESIGN_PHILOSOPHY.md` (full)
+- VERIFY_FIRST:
+  - `sed -n '1,120p' docs/DESIGN_PHILOSOPHY.md`
+- STATE:
+  - Branch: `fix/reimbursement-balance-accept-user-id`
+  - Uncommitted: `2 files`
+  - DB migrations: `latest local: none found`
+  - Tests: `not run yet`
+  - Lint: `not run yet`
 
-## Domain Selection Guide
+  - HEAD: `98e89a8`
+  - Updated: `2026-05-19T01:53:07+0900`
+<!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
-- Standard local profile: `--profile local` -> `handoff/local.md`
-- Standard production profile: `--profile production` -> `handoff/deploy/production.md`
-- Server work (API, DB, SQL, services): `handoff/server.md`
-- Frontend shared work (routing/design system): `handoff/frontend.md`
-- Frontend page scope: `--domain frontend/today` -> `handoff/frontend/today.md`
-- Server feature scope: `--domain server/proposals` -> `handoff/server/proposals.md`
-- Integration scope: `--domain integration/gmail` -> `handoff/integration/gmail.md`
-- Active session details: see `.session/active_session`
-- Legacy single-file mode: omit both `--profile` and `--domain` to write `HANDOFF.md`
+## Session Events (audit log)
+
+<!-- HANDOFF_SESSION_EVENTS_START -->
+- 2026-05-19 01:53:07 +0900 — started by claude
+<!-- HANDOFF_SESSION_EVENTS_END -->
+
+---
+
+## L1. Session Summary (Compacted)
+
+<!-- HANDOFF_L1_START -->
+- [focus] NEXT_CMD: `Backport 4 migration source bugs`. Source: realtime
+- [H0001] Completed: Accept user_id in reimbursement-balance route
+- [H0001] Remaining: Backport 4 migration source bugs
+<!-- HANDOFF_L1_END -->
+
+## L2. Project Continuity (Compacted)
+
+### Decisions
+<!-- HANDOFF_L2_DECISIONS_START -->
+- [H0001] Auto-captured decision: Accept user_id in reimbursement-balance route
+<!-- HANDOFF_L2_DECISIONS_END -->
+
+### Landmines
+<!-- HANDOFF_L2_LANDMINES_START -->
+- [H0001] No new landmines reported in this chunk.
+<!-- HANDOFF_L2_LANDMINES_END -->
+
+### Open Threads
+<!-- HANDOFF_L2_THREADS_START -->
+- [H0001] Backport 4 migration source bugs
+<!-- HANDOFF_L2_THREADS_END -->
+
+### Compaction State
+<!-- HANDOFF_L2_STATE_START -->
+- threshold: `20`
+- keep_recent: `12`
+- current_l3_entries: `1`
+- last_compacted_at: `never`
+- archived_entries: `0`
+<!-- HANDOFF_L2_STATE_END -->
+
+---
+
+## 1. Resume（次の1手）
+
+```text
+Agent: 未定（Claude Code / Codex）
+Branch: fix/reimbursement-balance-accept-user-id
+Phase: A-0/A-1
+```
+
+> [carryover] Working tree was dirty at session start (3 files). Prior session may have unfinished work — verify NEXT_CMD before executing.
+
+1. `docs/DESIGN_PHILOSOPHY.md` の冒頭を確認
+2. このファイルを更新しながら実装を進める
+
+---
+
+## 2. Goal（このセッションの目的）
+
+**Ticket**: 未設定
+現セッションでの目的を記載
+
+---
+
+## 3. Completed
+
+- [x] Accept user_id in reimbursement-balance route
+---
+
+## 4. Remaining（優先順位順）
+
+- [ ] **P0**: Backport 4 migration source bugs
+---
+
+## 5. Changed Files
+
+| File | What Changed |
+| ---- | ------------ |
+| `(not recorded)` | No file list provided (use --file "path - semantic description") |
+---
+
+## 6. Locked Files（編集中 - 他エージェント触らない）
+
+> なし
+---
+
+## 7. Quality Gate
+
+```bash
+cd server && npx tsc --noEmit
+cd frontend && npx tsc --noEmit
+cd frontend && npx eslint src/
+```
+
+| Check | Result | Notes |
+| ----- | ------ | ----- |
+| server typecheck | SKIP | not run yet |
+| frontend typecheck | SKIP | not run yet |
+| lint | SKIP | not run yet |
+| test | SKIP | optional |
+
+---
+
+## 8. Key Decisions
+
+| Decision | Rationale |
+| -------- | --------- |
+| `docs/DESIGN_PHILOSOPHY.md` を作業前に参照 | 設計逸脱を防ぐため |
+
+---
+
+## 9. Risks / Blockers
+
+- 新規の blocker は未記録
+---
+
+## 10. References
+
+- `docs/DESIGN_PHILOSOPHY.md` - 作業前に必ず参照
+- `docs/AGENT_OPS.md` - セッション運用手順
+
+---
+
+## 11. Incremental Updates
+
+### 2026-05-19 01:53:07 +0900
+
+- Entry-ID: `H0001`
+- Completed:
+  - [x] Accept user_id in reimbursement-balance route
+- Remaining:
+  - [ ] Backport 4 migration source bugs
+- Changed Files:
+  - No file list provided (use --file "path - semantic description")
+- Working Context:
+  - Auto-captured decision: Accept user_id in reimbursement-balance route
+- Validation:
+  - `jest accountingRoute.test.ts (4/4 reimbursement tests pass)`
+- Landmines:
+  - No new landmines reported in this chunk.
