@@ -2679,7 +2679,8 @@ export interface MemberReimbursementBalance {
 export interface TeamMemberReward {
     member_id: string;
     nickname: string;
-    level: "L1" | "L2" | "L3" | "L4" | "L5";
+    level: PathLevelOrNull;
+    level_source?: PathLevelSource;
     attendance_days: number;
     amount: number;
     status: "finalized" | "preview" | "pending";
@@ -3143,6 +3144,8 @@ export const PATH_CERTIFICATION_STATUS_OPTIONS = [
 export type PathBigSkillKey = (typeof PATH_BIG_SKILL_KEYS)[number];
 export type PathBigSkillState = (typeof PATH_BIG_SKILL_STATE_OPTIONS)[number];
 export type PathLevel = (typeof PATH_LEVEL_OPTIONS)[number];
+export type PathLevelOrNull = PathLevel | null;
+export type PathLevelSource = "history" | "profile" | "unset";
 export type PathTradeFamily = (typeof PATH_TRADE_FAMILY_OPTIONS)[number];
 export type PathDifficultyBand = (typeof PATH_DIFFICULTY_BAND_OPTIONS)[number];
 export type PathRoleType = (typeof PATH_ROLE_TYPE_OPTIONS)[number];
@@ -4008,8 +4011,8 @@ export interface PathV32SimpleMonthlyDistributionPreview {
     members: Array<{
         member_id: string;
         member_name: string;
-        level: PathLevel;
-        level_source: "history" | "profile" | "default";
+        level: PathLevelOrNull;
+        level_source: PathLevelSource;
         level_weight_milli: number;
         month_total_days: number;
         confirmed_work_days: number;

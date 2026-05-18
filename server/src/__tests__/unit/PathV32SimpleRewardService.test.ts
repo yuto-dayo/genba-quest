@@ -44,7 +44,12 @@ describe("PathV32SimpleRewardService", () => {
     jest.clearAllMocks();
   });
 
-  function setupPreviewTables(extra?: { units?: Array<Record<string, unknown>>; proposals?: Array<Record<string, unknown>> }) {
+  function setupPreviewTables(extra?: {
+    units?: Array<Record<string, unknown>>;
+    proposals?: Array<Record<string, unknown>>;
+    levelHistory?: Array<Record<string, unknown>>;
+    skillProfiles?: Array<Record<string, unknown>>;
+  }) {
     setupMockFrom(mockFrom, {
       site_closes: createChain({
         data: [
@@ -79,7 +84,7 @@ describe("PathV32SimpleRewardService", () => {
         error: null,
       }),
       path_member_level_history: createChain({
-        data: [
+        data: extra?.levelHistory ?? [
           { member_id: memberA, level: "L5", effective_month: "2026-06" },
           { member_id: memberB, level: "L3", effective_month: "2026-06" },
           { member_id: memberC, level: "L3", effective_month: "2026-06" },
@@ -87,7 +92,7 @@ describe("PathV32SimpleRewardService", () => {
         ],
         error: null,
       }),
-      member_skill_profiles: createChain({ data: [], error: null }),
+      member_skill_profiles: createChain({ data: extra?.skillProfiles ?? [], error: null }),
       proposals: createChain({ data: extra?.proposals ?? [], error: null }),
       site_close_member_units: createChain({
         data:
@@ -144,6 +149,76 @@ describe("PathV32SimpleRewardService", () => {
         confirmed_work_days: 0,
         monthly_weight_num: 0,
         rounded_amount: 0,
+      }),
+    );
+  });
+
+  it("sets unset member level to null with zero weight and warning", async () => {
+    setupPreviewTables({
+      levelHistory: [
+        { member_id: memberA, level: "L5", effective_month: "2026-06" },
+        { member_id: memberB, level: "L3", effective_month: "2026-06" },
+        { member_id: memberD, level: "L2", effective_month: "2026-06" },
+      ],
+      units: [...workRows(memberA, 10), ...workRows(memberC, 10)],
+    });
+
+    const preview = await new PathV32SimpleRewardService(orgId).previewMonthlyDistribution("2026-06");
+    const unsetMember = preview.members.find((member) => member.member_id === memberC);
+
+    expect(preview.warnings).toContain("PATH_V32_MEMBER_LEVEL_UNSET");
+    expect(unsetMember).toEqual(
+      expect.objectContaining({
+        level: null,
+        level_source: "unset",
+        level_weight_milli: 0,
+        monthly_weight_num: 0,
+        rounded_amount: 0,
+      }),
+    );
+    expect(unsetMember?.calculation_snapshot).toEqual(
+      expect.objectContaining({ level_source: "unset" }),
+    );
+  });
+
+  it("uses history level before profile level", async () => {
+    setupPreviewTables({
+      levelHistory: [
+        { member_id: memberA, level: "L4", effective_month: "2026-06" },
+      ],
+      skillProfiles: [
+        { member_id: memberA, current_level: "L2" },
+      ],
+      units: workRows(memberA, 1),
+    });
+
+    const preview = await new PathV32SimpleRewardService(orgId).previewMonthlyDistribution("2026-06");
+
+    expect(preview.members.find((member) => member.member_id === memberA)).toEqual(
+      expect.objectContaining({
+        level: "L4",
+        level_source: "history",
+        level_weight_milli: PATH_V32_LEVEL_WEIGHT_MILLI.L4,
+      }),
+    );
+  });
+
+  it("uses profile level when history is missing", async () => {
+    setupPreviewTables({
+      levelHistory: [],
+      skillProfiles: [
+        { member_id: memberA, current_level: "L2" },
+      ],
+      units: workRows(memberA, 1),
+    });
+
+    const preview = await new PathV32SimpleRewardService(orgId).previewMonthlyDistribution("2026-06");
+
+    expect(preview.members.find((member) => member.member_id === memberA)).toEqual(
+      expect.objectContaining({
+        level: "L2",
+        level_source: "profile",
+        level_weight_milli: PATH_V32_LEVEL_WEIGHT_MILLI.L2,
       }),
     );
   });

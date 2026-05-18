@@ -15,6 +15,8 @@ import { PathV31Service } from "./PathV31Service";
 import {
   PATH_V32_SIMPLE_RULE_VERSION,
   PathV32SimpleRewardService,
+  type PathV32LevelOrNull,
+  type PathV32LevelSource,
 } from "./PathV32SimpleRewardService";
 import {
   PathRewardAnalysisService,
@@ -381,7 +383,8 @@ export interface PathRewardConfirmationSummary {
 export interface PathTeamRewardSummaryMember {
   member_id: string;
   nickname: string;
-  level: "L1" | "L2" | "L3" | "L4" | "L5";
+  level: PathV32LevelOrNull;
+  level_source: PathV32LevelSource;
   attendance_days: number;
   amount: number;
   status: "finalized" | "preview" | "pending";
@@ -553,10 +556,14 @@ function normalizeMoney(value: number, code = "INVALID_MONEY_VALUE"): number {
   return Math.round(value);
 }
 
-function normalizeTeamRewardLevel(value: unknown): PathTeamRewardSummaryMember["level"] {
+function normalizeTeamRewardLevel(value: unknown): PathV32LevelOrNull {
   return value === "L1" || value === "L2" || value === "L3" || value === "L4" || value === "L5"
     ? value
-    : "L3";
+    : null;
+}
+
+function normalizeTeamRewardLevelSource(value: unknown): PathV32LevelSource {
+  return value === "history" || value === "profile" || value === "unset" ? value : "unset";
 }
 
 function toShortNickname(value: unknown, fallback: string): string {
@@ -3921,6 +3928,7 @@ export class PathGovernedModuleService {
             member_id: member.member_id,
             nickname: toShortNickname(memberNameMap.get(member.member_id) ?? member.member_name, member.member_id),
             level: normalizeTeamRewardLevel(member.level),
+            level_source: normalizeTeamRewardLevelSource(member.level_source),
             attendance_days: Number(member.confirmed_work_days ?? 0),
             amount: normalizeMoney(Number(member.total_pay_amount ?? member.rounded_amount ?? 0)),
             status: "preview" as const,
@@ -3996,7 +4004,7 @@ export class PathGovernedModuleService {
     const closeIds = closeRows.map((row) => String(row.id));
     const { data: lineData, error: lineError } = await supabaseAdmin
       .from("monthly_distribution_lines")
-      .select("monthly_distribution_close_id,member_id,floor_units,floor_pay,result_pay,total_pay,total_pay_amount,level,confirmed_work_days,rounded_amount")
+      .select("monthly_distribution_close_id,member_id,floor_units,floor_pay,result_pay,total_pay,total_pay_amount,level,level_source,confirmed_work_days,rounded_amount")
       .eq("org_id", this.orgId)
       .in("monthly_distribution_close_id", closeIds);
 
@@ -4043,6 +4051,7 @@ export class PathGovernedModuleService {
               member_id: memberId,
               nickname: toShortNickname(memberNameMap.get(memberId), memberId),
               level: normalizeTeamRewardLevel(line.level),
+              level_source: normalizeTeamRewardLevelSource(line.level_source),
               attendance_days: Number(line.confirmed_work_days ?? line.floor_units ?? 0),
               amount: normalizeMoney(
                 Number(line.total_pay_amount ?? line.total_pay ?? line.result_pay ?? line.rounded_amount ?? line.floor_pay ?? 0),

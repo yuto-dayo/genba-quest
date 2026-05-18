@@ -95,7 +95,7 @@ describe("PathGovernedModuleService", () => {
           member_id: "11111111-1111-4111-8111-111111111111",
           member_name: "田中 太郎",
           level: "L3",
-          level_source: "default",
+          level_source: "history",
           level_weight_milli: 1000,
           month_total_days: 30,
           confirmed_work_days: 12,
@@ -802,7 +802,7 @@ describe("PathGovernedModuleService", () => {
             member_id: "11111111-1111-4111-8111-111111111111",
             member_name: "田中 太郎",
             level: "L3",
-            level_source: "default",
+            level_source: "history",
             level_weight_milli: 1000,
             month_total_days: 30,
             confirmed_work_days: 12,
@@ -840,7 +840,7 @@ describe("PathGovernedModuleService", () => {
             member_id: "11111111-1111-4111-8111-111111111111",
             member_name: "田中 太郎",
             level: "L3",
-            level_source: "default",
+            level_source: "history",
             level_weight_milli: 1000,
             month_total_days: 31,
             confirmed_work_days: 0,
@@ -1085,6 +1085,98 @@ describe("PathGovernedModuleService", () => {
     );
     expect(mockPreviewV32MonthlyDistribution).toHaveBeenCalledWith("2026-05");
     expect(mockPreviewMonthlyDistribution).not.toHaveBeenCalled();
+  });
+
+  it("exposes null level and level_source in preview team reward summary", async () => {
+    const unsetMember = "11111111-1111-4111-8111-111111111111";
+    const historyMember = "22222222-2222-4222-8222-222222222222";
+
+    mockPreviewV32MonthlyDistribution.mockResolvedValueOnce({
+      month: "2026-05",
+      calculation_system: "path_v32_simple",
+      path_rule_version: "3.2.0-simple",
+      monthly_pool: 100000,
+      site_profit_total: 100000,
+      pool_adjustment_total: 0,
+      member_correction_total: 0,
+      total_weight_num: 15840,
+      month_total_days: 31,
+      active_member_count: 2,
+      warnings: ["PATH_V32_MEMBER_LEVEL_UNSET"],
+      calculation_snapshot: {},
+      members: [
+        {
+          member_id: unsetMember,
+          member_name: "未設定 太郎",
+          level: null,
+          level_source: "unset",
+          level_weight_milli: 0,
+          month_total_days: 31,
+          confirmed_work_days: 0,
+          work_presence_bp: 0,
+          monthly_weight_num: 0,
+          total_weight_num_snapshot: 15840,
+          final_share_bp: 0,
+          raw_amount: 0,
+          rounded_amount: 0,
+          member_correction_amount: 0,
+          total_pay_amount: 0,
+          calculation_snapshot: { level_source: "unset" },
+        },
+        {
+          member_id: historyMember,
+          member_name: "履歴 花子",
+          level: "L4",
+          level_source: "history",
+          level_weight_milli: 1320,
+          month_total_days: 31,
+          confirmed_work_days: 12,
+          work_presence_bp: 3871,
+          monthly_weight_num: 15840,
+          total_weight_num_snapshot: 15840,
+          final_share_bp: 10000,
+          raw_amount: 100000,
+          rounded_amount: 100000,
+          member_correction_amount: 0,
+          total_pay_amount: 100000,
+          calculation_snapshot: { level_source: "history" },
+        },
+      ],
+    });
+
+    setupMockFrom((supabaseAdmin.from as jest.Mock), {
+      org_memberships: createChain({
+        data: [unsetMember, historyMember].map((user_id) => ({ user_id })),
+        error: null,
+      }),
+      profiles: createChain({
+        data: [
+          { id: unsetMember, full_name: "未設定 太郎", username: "unset" },
+          { id: historyMember, full_name: "履歴 花子", username: "history" },
+        ],
+        error: null,
+      }),
+      member_invoices: createChain({ data: [], error: null }),
+      monthly_distribution_closes: createChain({ data: [], error: null }),
+    });
+
+    const result = await service.getTeamRewardSummary("2026-05");
+
+    expect(result.is_finalized).toBe(false);
+    expect(result.members).toEqual([
+      expect.objectContaining({
+        member_id: historyMember,
+        level: "L4",
+        level_source: "history",
+        amount: 100000,
+      }),
+      expect.objectContaining({
+        member_id: unsetMember,
+        level: null,
+        level_source: "unset",
+        amount: 0,
+      }),
+    ]);
   });
 
   it("returns grounded QA output for correction questions", async () => {

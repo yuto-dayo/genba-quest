@@ -29,6 +29,10 @@ function formatMonthLabel(month: string): string {
         : `${month}のチーム報酬`;
 }
 
+function formatRewardLevel(member: TeamRewardSummary["members"][number], isFinalized: boolean): string {
+    return member.level !== null && member.level_source === "history" && isFinalized ? member.level : "-";
+}
+
 export function TeamSummaryModal({
     month,
     onClose,
@@ -133,7 +137,7 @@ export function TeamSummaryModal({
                                             {member.member_id === data.self_member_id ? "自分" : member.nickname}
                                         </span>
                                         <span className={styles.memberMeta}>
-                                            <span className={styles.memberSub}>{member.level}</span>
+                                            <span className={styles.memberSub}>{formatRewardLevel(member, data.is_finalized)}</span>
                                             <span className={styles.memberSub}>{member.attendance_days}日</span>
                                         </span>
                                     </span>
