@@ -12,6 +12,7 @@
 
 import { Router, Response } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
+import { requireOrgMembership } from "../middleware/orgMembership";
 import { resolveActiveOrgMembership } from "../lib/orgAccess";
 import { ActorRef } from "../services/PolicyEngine";
 import { ProposalService } from "../services/ProposalService";
@@ -21,6 +22,7 @@ import {
 } from "../services/MemberInvoiceService";
 
 const router = Router();
+router.use(requireOrgMembership("member"));
 
 function buildActor(req: AuthenticatedRequest): ActorRef {
     return {

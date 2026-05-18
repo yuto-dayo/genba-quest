@@ -1,5 +1,6 @@
 import { Router, Response } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
+import { requireOrgMembership } from "../middleware/orgMembership";
 import { supabaseAdmin } from "../lib/supabaseClient";
 import { GoogleGenerativeAI, Part, Content } from "@google/generative-ai";
 import Anthropic from "@anthropic-ai/sdk";
@@ -7,13 +8,13 @@ import { ProposalService } from "../services/ProposalService";
 import { ActorRef, ProposalType } from "../services/PolicyEngine";
 
 const router = Router();
+router.use(requireOrgMembership("member"));
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || "" });
 
 // AI Provider設定（gemini / anthropic）
 const AI_PROVIDER = process.env.AI_PROVIDER || "anthropic";
-const DEFAULT_ORG_ID = process.env.DEFAULT_ORG_ID || "00000000-0000-0000-0000-000000000001";
 const SHERPA_ACTOR_ID = process.env.SHERPA_ACTOR_ID || "sherpa";
 const SHERPA_ACTOR_NAME = process.env.SHERPA_ACTOR_NAME || "Sherpa";
 const SHERPA_ALLOWED_PROPOSAL_TYPES: ReadonlySet<ProposalType> = new Set([
@@ -856,13 +857,13 @@ router.post("/proposals", async (req: AuthenticatedRequest, res: Response) => {
             return;
         }
 
-        const service = new ProposalService(req.orgId || DEFAULT_ORG_ID);
+        const service = new ProposalService(req.orgId!);
         const input = {
             type,
             payload,
             description: description.trim(),
             created_by: buildSherpaActor(),
-            org_id: req.orgId || DEFAULT_ORG_ID,
+            org_id: req.orgId!,
         };
 
         if (input.description.length === 0) {

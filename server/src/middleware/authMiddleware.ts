@@ -16,26 +16,6 @@ export interface AuthenticatedRequest extends Request {
     orgMembershipId?: string | null;
 }
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-function resolveOrgIdFromUser(user: {
-    app_metadata?: Record<string, unknown>;
-    user_metadata?: Record<string, unknown>;
-}): string {
-    const candidates = [
-        user.app_metadata?.org_id,
-        user.user_metadata?.org_id,
-    ];
-
-    for (const candidate of candidates) {
-        if (typeof candidate === "string" && UUID_REGEX.test(candidate)) {
-            return candidate;
-        }
-    }
-
-    return getDevDefaultOrgId();
-}
-
 function readFirstHeaderValue(value: string | string[] | undefined): string | null {
     if (Array.isArray(value)) {
         return value[0] ?? null;
@@ -94,7 +74,7 @@ export const authMiddleware = async (
         req.userId = user.id;
         req.userName = user.user_metadata?.name || user.email || "Unknown User";
         req.userEmail = user.email ?? null;
-        req.orgId = resolveOrgIdFromUser(user);
+        // org is resolved downstream by requireOrgMembership against org_memberships.
         next();
     } catch (err) {
         return res.status(500).json({ error: "Auth error" });

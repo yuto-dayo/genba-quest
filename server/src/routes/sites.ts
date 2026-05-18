@@ -1,8 +1,8 @@
 import { Router, Response } from "express";
 import { resolveActiveOrgMembership } from "../lib/orgAccess";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
+import { requireOrgMembership } from "../middleware/orgMembership";
 import { supabaseAdmin } from "../lib/supabaseClient";
-import { resolveOrgId } from "../lib/org";
 import { listOrgMembers } from "../services/OrgMemberDirectoryService";
 import {
     assertActiveClientForOrg,
@@ -29,6 +29,8 @@ import { composeStructuredAddress, normalizePostalCode } from "../services/clien
 import { extractSiteDraftFromText } from "../services/SiteDraftTextService";
 
 const router = Router();
+router.use(requireOrgMembership("member"));
+
 const SITE_SELECT = `
     *,
     client:clients(id, name, contact_person, phone)
@@ -588,7 +590,7 @@ function handleSiteCompletionError(res: Response, error: unknown) {
 // 現場一覧取得
 router.get("/", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = resolveOrgId(req.orgId);
+        const orgId = req.orgId!;
         const { data, error } = await supabaseAdmin
             .from("sites")
             .select(SITE_SELECT)
@@ -645,7 +647,7 @@ router.get("/clients", async (req: AuthenticatedRequest, res: Response) => {
             req.query.status === "deleted" || req.query.status === "all"
                 ? req.query.status
                 : "active";
-        const data = await listClientsForOrg(resolveOrgId(req.orgId), normalizedStatus);
+        const data = await listClientsForOrg(req.orgId!, normalizedStatus);
         res.json(data);
     } catch (err: any) {
         res.status(500).json({ error: "Internal server error" });
@@ -698,7 +700,7 @@ router.post("/clients", async (req: AuthenticatedRequest, res: Response) => {
 
         const data = await insertClientWithCompatibility({
             ...payload,
-            org_id: resolveOrgId(req.orgId),
+            org_id: req.orgId!,
             billing_name: payload.billing_name || payload.name,
         });
         res.status(201).json(data);
@@ -725,7 +727,7 @@ router.put("/clients/:id", async (req: AuthenticatedRequest, res: Response) => {
 
         const data = await updateClientWithCompatibility(
             clientId,
-            resolveOrgId(req.orgId),
+            req.orgId!,
             {
                 ...payload,
                 billing_name: payload.billing_name || payload.name,
@@ -754,7 +756,7 @@ router.delete("/clients/:id", async (req: AuthenticatedRequest, res: Response) =
                 deletion_reason: reason,
             })
             .eq("id", req.params.id)
-            .eq("org_id", resolveOrgId(req.orgId))
+            .eq("org_id", req.orgId!)
             .is("deleted_at", null)
             .select("*")
             .single();
@@ -770,7 +772,7 @@ router.post("/clients/:id/restore", async (req: AuthenticatedRequest, res: Respo
     try {
         const clientId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
 
-        await assertRestorableClientForOrg(clientId, resolveOrgId(req.orgId));
+        await assertRestorableClientForOrg(clientId, req.orgId!);
 
         const { data, error } = await supabaseAdmin
             .from("clients")
@@ -780,7 +782,7 @@ router.post("/clients/:id/restore", async (req: AuthenticatedRequest, res: Respo
                 deletion_reason: null,
             })
             .eq("id", clientId)
-            .eq("org_id", resolveOrgId(req.orgId))
+            .eq("org_id", req.orgId!)
             .not("deleted_at", "is", null)
             .select("*")
             .single();
@@ -830,7 +832,7 @@ router.get("/clients/:id/billing-rules", async (req: AuthenticatedRequest, res: 
             res.status(400).json({ error: "client id is required" });
             return;
         }
-        const orgId = resolveOrgId(req.orgId);
+        const orgId = req.orgId!;
         await assertActiveClientForOrg(clientId, orgId);
         const rules = await listBillingRules(orgId, clientId);
         res.json(rules);
@@ -846,7 +848,7 @@ router.get("/clients/:id/billing-rules/active", async (req: AuthenticatedRequest
             res.status(400).json({ error: "client id is required" });
             return;
         }
-        const orgId = resolveOrgId(req.orgId);
+        const orgId = req.orgId!;
         await assertActiveClientForOrg(clientId, orgId);
         const onParam = typeof req.query.on === "string" ? req.query.on : undefined;
         const result = await getActiveBillingRuleWithPreview(orgId, clientId, onParam);
@@ -863,7 +865,7 @@ router.post("/clients/:id/billing-rules", async (req: AuthenticatedRequest, res:
             res.status(400).json({ error: "client id is required" });
             return;
         }
-        const orgId = resolveOrgId(req.orgId);
+        const orgId = req.orgId!;
         await assertActiveClientForOrg(clientId, orgId);
 
         const body = (req.body ?? {}) as Record<string, unknown>;
@@ -916,7 +918,7 @@ router.post("/draft-from-text", async (req: AuthenticatedRequest, res: Response)
 // 現場詳細取得
 router.get("/:id", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = resolveOrgId(req.orgId);
+        const orgId = req.orgId!;
         const { data, error } = await supabaseAdmin
             .from("sites")
             .select(SITE_SELECT)
@@ -940,7 +942,7 @@ router.get("/:id", async (req: AuthenticatedRequest, res: Response) => {
 // 現場に紐づくドキュメント一覧
 router.get("/:id/documents", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = resolveOrgId(req.orgId);
+        const orgId = req.orgId!;
         const siteId = readParamId(req.params.id);
         if (!siteId) {
             res.status(400).json({ error: "site id is required" });
@@ -983,7 +985,7 @@ router.get("/:id/documents", async (req: AuthenticatedRequest, res: Response) =>
 // 現場にドキュメントをアップロード
 router.post("/:id/documents", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = resolveOrgId(req.orgId);
+        const orgId = req.orgId!;
         const siteId = readParamId(req.params.id);
         if (!siteId) {
             res.status(400).json({ error: "site id is required" });
@@ -1054,7 +1056,7 @@ router.post("/:id/documents", async (req: AuthenticatedRequest, res: Response) =
 // 現場に紐づく図面一覧
 router.get("/:id/drawings", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = resolveOrgId(req.orgId);
+        const orgId = req.orgId!;
         const siteId = readParamId(req.params.id);
         if (!siteId) {
             res.status(400).json({ error: "site id is required" });
@@ -1077,7 +1079,7 @@ router.get("/:id/drawings", async (req: AuthenticatedRequest, res: Response) => 
 // 現場図面を新規作成、または既存図面に新しい版を追加
 router.post("/:id/drawings", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = resolveOrgId(req.orgId);
+        const orgId = req.orgId!;
         const siteId = readParamId(req.params.id);
         if (!siteId) {
             res.status(400).json({ error: "site id is required" });
@@ -1143,7 +1145,7 @@ router.post("/:id/drawings", async (req: AuthenticatedRequest, res: Response) =>
 // 現場登録
 router.post("/", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = resolveOrgId(req.orgId);
+        const orgId = req.orgId!;
         const {
             name,
             address,
@@ -1253,7 +1255,7 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
 // 現場更新
 router.put("/:id", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = resolveOrgId(req.orgId);
+        const orgId = req.orgId!;
         const {
             name,
             address,
@@ -1379,7 +1381,7 @@ router.put("/:id", async (req: AuthenticatedRequest, res: Response) => {
 // 現場担当のON/OFF（カレンダーの軽い担当切替用）
 router.put("/:id/assigned-users", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = resolveOrgId(req.orgId);
+        const orgId = req.orgId!;
         const siteId = readParamId(req.params.id);
         if (!siteId) {
             res.status(400).json({ error: "site id is required" });
@@ -1453,7 +1455,7 @@ router.put("/:id/assigned-users", async (req: AuthenticatedRequest, res: Respons
 // 現場削除（論理削除）
 router.delete("/:id", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = resolveOrgId(req.orgId);
+        const orgId = req.orgId!;
         const { reason } = req.body;
 
         if (!reason || !reason.trim()) {
@@ -1488,7 +1490,7 @@ router.delete("/:id", async (req: AuthenticatedRequest, res: Response) => {
 // 現場の工事項目一覧取得
 router.get("/:id/line-items", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = resolveOrgId(req.orgId);
+        const orgId = req.orgId!;
         const siteId = readParamId(req.params.id);
         if (!siteId) {
             res.status(400).json({ error: "site id is required" });
@@ -1523,7 +1525,7 @@ router.get("/:id/line-items", async (req: AuthenticatedRequest, res: Response) =
 // 現場の工事項目一括保存（upsert + 不要分削除）
 router.put("/:id/line-items", async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const orgId = resolveOrgId(req.orgId);
+        const orgId = req.orgId!;
         const { items } = req.body as {
             items: Array<{
                 id?: string;

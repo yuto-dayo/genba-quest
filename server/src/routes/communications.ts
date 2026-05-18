@@ -1,7 +1,7 @@
 import { Router, Response } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
+import { requireOrgMembership } from "../middleware/orgMembership";
 import { supabaseAdmin } from "../lib/supabaseAdmin";
-import { resolveOrgId } from "../lib/org";
 import {
   getCommunicationContactDetail,
   getCommunicationInsightsSummary,
@@ -12,6 +12,7 @@ import {
 } from "../services/communication-contact-read-model";
 
 const router = Router();
+router.use(requireOrgMembership("member"));
 const COMMUNICATIONS_MIGRATION_ERROR =
   "communication_* テーブルが未適用です。Supabase に `server/sql/040_communication_conversations.sql` を適用してください。";
 
@@ -921,7 +922,7 @@ async function insertLog(input: {
 
 router.get("/contacts", async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const orgId = resolveOrgId(req.orgId);
+    const orgId = req.orgId!;
     const statuses = normalizeContactStatuses(req.query.status);
     const riskFlags = normalizeContactRiskFlags(req.query.risk);
     const sort = normalizeContactSort(req.query.sort);
@@ -964,7 +965,7 @@ router.get("/contacts", async (req: AuthenticatedRequest, res: Response) => {
 
 router.get("/contacts/:contactKey", async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const orgId = resolveOrgId(req.orgId);
+    const orgId = req.orgId!;
     const contactKey = normalizeString(req.params.contactKey);
 
     if (!contactKey) {
@@ -991,7 +992,7 @@ router.get("/contacts/:contactKey", async (req: AuthenticatedRequest, res: Respo
 
 router.get("/insights/summary", async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const orgId = resolveOrgId(req.orgId);
+    const orgId = req.orgId!;
     const summary = await getCommunicationInsightsSummary(orgId);
     res.json(summary);
   } catch (err) {
@@ -1006,7 +1007,7 @@ router.get("/insights/summary", async (req: AuthenticatedRequest, res: Response)
 
 router.get("/", async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const orgId = resolveOrgId(req.orgId);
+    const orgId = req.orgId!;
     const limit = normalizeLimit(req.query.limit);
     const offset = normalizeOffset(req.query.offset);
     const statusParam = req.query.status;
@@ -1047,7 +1048,7 @@ router.get("/", async (req: AuthenticatedRequest, res: Response) => {
 
 router.get("/:conversationId", async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const orgId = resolveOrgId(req.orgId);
+    const orgId = req.orgId!;
     const conversationId = normalizeString(req.params.conversationId);
 
     if (!conversationId) {
@@ -1074,7 +1075,7 @@ router.get("/:conversationId", async (req: AuthenticatedRequest, res: Response) 
 
 router.post("/", async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const orgId = resolveOrgId(req.orgId);
+    const orgId = req.orgId!;
     const title = normalizeString(req.body?.title);
     const channel = normalizeChannel(req.body?.channel);
     const direction = normalizeDirection(req.body?.direction);
@@ -1229,7 +1230,7 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
 
 router.post("/:conversationId/logs", async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const orgId = resolveOrgId(req.orgId);
+    const orgId = req.orgId!;
     const conversationId = normalizeString(req.params.conversationId);
     const channel = normalizeChannel(req.body?.channel);
     const direction = normalizeDirection(req.body?.direction);
@@ -1342,7 +1343,7 @@ router.post("/:conversationId/logs", async (req: AuthenticatedRequest, res: Resp
 
 router.patch("/:conversationId", async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const orgId = resolveOrgId(req.orgId);
+    const orgId = req.orgId!;
     const conversationId = normalizeString(req.params.conversationId);
 
     if (!conversationId) {

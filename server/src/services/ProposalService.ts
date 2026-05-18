@@ -203,7 +203,10 @@ export class ProposalService {
   private invoiceReviewerAssignmentService: InvoiceReviewerAssignmentService;
   private memberTaxClassificationService: MemberTaxClassificationService;
 
-  constructor(orgId: string = '00000000-0000-0000-0000-000000000001') {
+  constructor(orgId: string) {
+    if (!orgId || typeof orgId !== 'string' || orgId.trim() === '') {
+      throw new Error('PROPOSAL_SERVICE_ORG_ID_REQUIRED');
+    }
     this.orgId = orgId;
     this.engine = new PolicyEngine(orgId);
     this.pathGovernedModuleService = new PathGovernedModuleService(orgId);
@@ -2324,5 +2327,3 @@ export class ProposalService {
   }
 }
 
-// シングルトンエクスポート
-export const proposalService = new ProposalService();

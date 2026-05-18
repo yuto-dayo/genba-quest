@@ -1,10 +1,12 @@
 import { Router, Response } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
+import { requireOrgMembership } from "../middleware/orgMembership";
 import { ProposalService } from "../services/ProposalService";
 import { ActorRef } from "../services/PolicyEngine";
 import { PathRewardService } from "../services/PathRewardService";
 
 const router = Router();
+router.use(requireOrgMembership("member"));
 
 const PATH_REWARD_ERROR_STATUS_MAP: Record<string, number> = {
   INVALID_MONTH_FORMAT: 400,

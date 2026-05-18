@@ -6,14 +6,15 @@
 
 import { Router, Response } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
+import { requireOrgMembership } from "../middleware/orgMembership";
 import { PrincipleService, PrincipleStatus } from "../services/PrincipleService";
 import { ActorRef } from "../services/PolicyEngine";
 
 const router = Router();
-const DEFAULT_ORG_ID = process.env.DEFAULT_ORG_ID || '00000000-0000-0000-0000-000000000001';
+router.use(requireOrgMembership("member"));
 
 function getPrincipleService(req: AuthenticatedRequest): PrincipleService {
-  return new PrincipleService(req.orgId || DEFAULT_ORG_ID);
+  return new PrincipleService(req.orgId!);
 }
 
 function normalizeParam(value: string | string[] | undefined): string | null {

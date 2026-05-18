@@ -1,9 +1,11 @@
 import { Router, Response } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
+import { requireOrgMembership } from "../middleware/orgMembership";
 import { resolveActiveOrgMembership } from "../lib/orgAccess";
 import { electronicDocumentService } from "../services/ElectronicDocumentService";
 
 const router = Router();
+router.use(requireOrgMembership("member"));
 
 function parseAmount(value: unknown): number | null {
     if (value === undefined || value === null || value === "") {
@@ -47,18 +49,6 @@ function sendDocumentError(res: Response, error: unknown): void {
     }
     res.status(status).json({ error: message });
 }
-
-router.use(async (req: AuthenticatedRequest, res, next) => {
-    try {
-        const membership = await resolveActiveOrgMembership(req, "member");
-        req.orgId = membership.org_id;
-        req.orgMembershipId = membership.id ?? null;
-        next();
-    } catch (error) {
-        const message = error instanceof Error ? error.message : "ORG_ACCESS_ERROR";
-        res.status(message === "INVALID_ORG_ID" ? 400 : 403).json({ error: message });
-    }
-});
 
 router.get("/search", async (req: AuthenticatedRequest, res: Response) => {
     try {

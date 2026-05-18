@@ -1,6 +1,7 @@
 import { Router, Response } from "express";
 import { createHash } from "crypto";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
+import { requireOrgMembership } from "../middleware/orgMembership";
 import { supabaseAdmin } from "../lib/supabaseClient";
 import { resolveActiveOrgMembership } from "../lib/orgAccess";
 import { validateReportingMonth } from "../lib/reportingMonth";
@@ -206,18 +207,7 @@ function buildMemberInvoicePaymentSummary(invoice: Awaited<ReturnType<typeof mem
     };
 }
 
-router.use(async (req: AuthenticatedRequest, res, next) => {
-    try {
-        const membership = await resolveActiveOrgMembership(req, "member");
-        req.orgId = membership.org_id;
-        req.orgMembershipId = membership.id ?? null;
-        next();
-    } catch (err) {
-        const message = err instanceof Error ? err.message : "ORG_ACCESS_ERROR";
-        const status = message === "INVALID_ORG_ID" ? 400 : 403;
-        res.status(status).json({ error: message });
-    }
-});
+router.use(requireOrgMembership("member"));
 
 function isDevAuthBypassEnabled(): boolean {
     return process.env.NODE_ENV === "development" && process.env.DEV_SKIP_AUTH === "true";

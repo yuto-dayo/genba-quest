@@ -2,9 +2,11 @@ import { Router, Response } from "express";
 import { resolveActiveOrgMembership } from "../lib/orgAccess";
 import { supabaseAdmin } from "../lib/supabaseClient";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
+import { requireOrgMembership } from "../middleware/orgMembership";
 import { listOrgMembers } from "../services/OrgMemberDirectoryService";
 
 const router = Router();
+router.use(requireOrgMembership("member"));
 
 const ORG_ERROR_STATUS_MAP: Record<string, number> = {
     USER_CONTEXT_REQUIRED: 403,

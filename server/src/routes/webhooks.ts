@@ -5,6 +5,7 @@
 
 import { createHash } from "crypto";
 import express, { Request, Response } from 'express';
+import { requireGmailWebhookAuth } from "../middleware/webhookAuth";
 import { createGmailWatcher } from '../services/GmailWatcher';
 import { analyzeDocument, OcrResult } from '../services/ocrService';
 import {
@@ -202,7 +203,7 @@ const llmRequestTimestamps: number[] = [];
  * Gmail Pub/Sub通知エンドポイント
  * POST /api/v1/webhooks/gmail-notification
  */
-router.post('/gmail-notification', async (req: Request, res: Response) => {
+router.post('/gmail-notification', requireGmailWebhookAuth, async (req: Request, res: Response) => {
   try {
     // 1. Pub/Subメッセージをデコード
     const message = req.body.message;

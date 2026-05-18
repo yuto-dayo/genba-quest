@@ -7,6 +7,7 @@
 import { createHash } from "crypto";
 import { Router, Response } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
+import { requireOrgMembership } from "../middleware/orgMembership";
 import { ProposalService } from "../services/ProposalService";
 import { ActorRef, ProposalType, ProposalStatus } from "../services/PolicyEngine";
 import {
@@ -16,7 +17,7 @@ import {
 import { supabaseAdmin } from "../lib/supabaseAdmin";
 
 const router = Router();
-const DEFAULT_ORG_ID = process.env.DEFAULT_ORG_ID || '00000000-0000-0000-0000-000000000001';
+router.use(requireOrgMembership("member"));
 type ProposalErrorMap = Record<string, { status: number; message: string }>;
 
 const HUMAN_PROPOSAL_ERROR_MAP: ProposalErrorMap = {
@@ -102,7 +103,7 @@ const CANONICAL_ROUTE_REQUIRED_ERROR_MAP: ProposalErrorMap = {
 };
 
 function getProposalService(req: AuthenticatedRequest): ProposalService {
-  return new ProposalService(req.orgId || DEFAULT_ORG_ID);
+  return new ProposalService(req.orgId!);
 }
 
 function requireHumanProposalOrgId(req: AuthenticatedRequest): string {
@@ -303,7 +304,7 @@ router.post("/integration", async (req: AuthenticatedRequest, res: Response) => 
       return;
     }
 
-    const orgId = req.orgId || DEFAULT_ORG_ID;
+    const orgId = req.orgId!;
     const proposalId = buildDeterministicUuid(`${orgId}:${normalizedSource}:${normalizedExternalId}`);
     const integrationActorId = `integration:${normalizedSource}`;
     const integrationActorName = normalizedIntegrationName || `Integration(${normalizedSource})`;
@@ -359,7 +360,7 @@ router.post("/integration", async (req: AuthenticatedRequest, res: Response) => 
     };
     const normalizedSource = normalizeString(source);
     const normalizedExternalId = normalizeString(external_id);
-    const orgId = req.orgId || DEFAULT_ORG_ID;
+    const orgId = req.orgId!;
 
     if (normalizedSource && normalizedExternalId && isDuplicateKeyError(err)) {
       const proposalId = buildDeterministicUuid(`${orgId}:${normalizedSource}:${normalizedExternalId}`);
@@ -441,7 +442,7 @@ router.get("/assigned-to-me", async (req: AuthenticatedRequest, res: Response) =
       res.status(401).json({ error: "Authentication required" });
       return;
     }
-    const orgId = req.orgId || DEFAULT_ORG_ID;
+    const orgId = req.orgId!;
     const list = await listProposalsAssignedToUser(orgId, req.userId);
     res.json(list);
   } catch (err: any) {
@@ -461,7 +462,7 @@ router.post("/:id/reassign", async (req: AuthenticatedRequest, res: Response) =>
       return;
     }
     const proposalId = req.params.id as string;
-    const orgId = req.orgId || DEFAULT_ORG_ID;
+    const orgId = req.orgId!;
 
     const { data: proposal, error: fetchErr } = await supabaseAdmin
       .from("proposals")
