@@ -41,6 +41,7 @@ import {
     reverseCanonicalSale,
 } from "../services/AccountingCommandService";
 import { getPartnersSummary } from "../services/PartnersSummaryService";
+import { clientCreditMonitoringService } from "../services/ClientCreditMonitoringService";
 import { ConstructionAccountingService } from "../services/ConstructionAccountingService";
 import {
     buildDefaultInvoiceSettings,
@@ -5515,6 +5516,43 @@ router.get("/transactions", async (req: AuthenticatedRequest, res: Response) => 
         res.json(data);
     } catch (err: any) {
         console.error("Transactions error:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+// 取引先 与信モニタリング (PR-31)
+router.get("/credit-monitoring/clients", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const clients = await clientCreditMonitoringService.listAllClientsCreditSummary(req.orgId!);
+        res.json({ clients });
+    } catch (err: any) {
+        console.error("[accounting] credit monitoring clients error:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+router.get("/credit-monitoring/clients/:clientId", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const clientId = Array.isArray(req.params.clientId) ? req.params.clientId[0] : req.params.clientId;
+        const asOf = typeof req.query.as_of === "string" && req.query.as_of.trim()
+            ? req.query.as_of.trim()
+            : undefined;
+        const metrics = await clientCreditMonitoringService.getClientCreditMetrics(
+            req.orgId!,
+            clientId,
+            asOf,
+        );
+        res.json(metrics);
+    } catch (err: any) {
+        if (err instanceof Error && err.message === "ERR_INVALID_AS_OF") {
+            res.status(400).json({ error: "as_of must be YYYY-MM-DD" });
+            return;
+        }
+        if (err instanceof Error && err.message === "ERR_CLIENT_NOT_FOUND") {
+            res.status(404).json({ error: "client not found" });
+            return;
+        }
+        console.error("[accounting] credit monitoring detail error:", err);
         res.status(500).json({ error: "Internal server error" });
     }
 });

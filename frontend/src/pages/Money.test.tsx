@@ -13,6 +13,8 @@ const fetchExpenseBuckets = vi.fn();
 const fetchCashflowSummary = vi.fn();
 const fetchMonthlyDeductible = vi.fn();
 const fetchPartnersSummary = vi.fn();
+const fetchClientCreditSummaries = vi.fn();
+const fetchClientCreditMetrics = vi.fn();
 const fetchPLTrend = vi.fn();
 const fetchPendingApprovals = vi.fn();
 const fetchPendingProposals = vi.fn();
@@ -65,6 +67,8 @@ vi.mock("../lib/api", () => ({
     fetchCashflowSummary: (...args: unknown[]) => fetchCashflowSummary(...args),
     fetchMonthlyDeductible: (...args: unknown[]) => fetchMonthlyDeductible(...args),
     fetchPartnersSummary: (...args: unknown[]) => fetchPartnersSummary(...args),
+    fetchClientCreditSummaries: (...args: unknown[]) => fetchClientCreditSummaries(...args),
+    fetchClientCreditMetrics: (...args: unknown[]) => fetchClientCreditMetrics(...args),
     fetchPLTrend: (...args: unknown[]) => fetchPLTrend(...args),
     fetchPendingApprovals: (...args: unknown[]) => fetchPendingApprovals(...args),
     fetchPendingProposals: (...args: unknown[]) => fetchPendingProposals(...args),
@@ -116,6 +120,14 @@ vi.mock("../components/MemberInvoiceDraftBanner", () => ({
 
 vi.mock("../components/MyMemberInvoicesList", () => ({
     MyMemberInvoicesList: () => null,
+}));
+
+vi.mock("../components/money/ClientCreditStatusSection", () => ({
+    ClientCreditStatusSection: () => null,
+}));
+
+vi.mock("../components/money/ClientCreditDetailModal", () => ({
+    ClientCreditDetailModal: () => null,
 }));
 
 vi.mock("../components/OutstandingInvoicesCard", () => ({
@@ -323,6 +335,8 @@ describe("Money PATH proposal queue", () => {
             member_count: 0,
         });
         fetchPartnersSummary.mockResolvedValue({ month: "2026-05", receive: [], pay: [], done: [] });
+        fetchClientCreditSummaries.mockResolvedValue({ clients: [] });
+        fetchClientCreditMetrics.mockResolvedValue(null);
         fetchPLTrend.mockResolvedValue({ months: [], basis: "legacy" });
         fetchPendingApprovals.mockResolvedValue([]);
         fetchPendingProposals.mockResolvedValue([]);

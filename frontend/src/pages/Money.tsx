@@ -29,6 +29,8 @@ import {
     fetchClients,
     fetchMonthlyDeductible,
     fetchClientInvoicesWithReceipts,
+    fetchClientCreditSummaries,
+    fetchClientCreditMetrics,
     instructProposal,
     rejectProposal,
     searchTransactions,
@@ -43,6 +45,8 @@ import {
     type MonthlyDeductibleAmount,
     type NotificationRecord,
     type ClientInvoiceWithReceipts,
+    type ClientCreditSummary,
+    type ClientCreditMetrics,
 } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
 import { supabase } from "../lib/supabase";
@@ -71,6 +75,8 @@ import { TeamExpenseSummaryModal } from "../components/money/TeamExpenseSummaryM
 import { MonthCloseModal } from "../components/money/MonthCloseModal";
 import { InvoicePayModal } from "../components/money/InvoicePayModal";
 import { ClientInvoiceList } from "../components/money/ClientInvoiceList";
+import { ClientCreditStatusSection } from "../components/money/ClientCreditStatusSection";
+import { ClientCreditDetailModal } from "../components/money/ClientCreditDetailModal";
 import { ReadOnlyBanner } from "../components/common/ReadOnlyBanner";
 import styles from "./Money.module.css";
 
@@ -286,6 +292,13 @@ export function Money() {
     const [clientInvoicesLoading, setClientInvoicesLoading] = useState(false);
     const [clientInvoicesError, setClientInvoicesError] = useState<string | null>(null);
     const [invoiceRefreshKey, setInvoiceRefreshKey] = useState(0);
+    const [clientCreditSummaries, setClientCreditSummaries] = useState<ClientCreditSummary[]>([]);
+    const [clientCreditLoading, setClientCreditLoading] = useState(false);
+    const [clientCreditError, setClientCreditError] = useState<string | null>(null);
+    const [selectedCreditClient, setSelectedCreditClient] = useState<ClientCreditSummary | null>(null);
+    const [selectedCreditMetrics, setSelectedCreditMetrics] = useState<ClientCreditMetrics | null>(null);
+    const [selectedCreditLoading, setSelectedCreditLoading] = useState(false);
+    const [selectedCreditError, setSelectedCreditError] = useState<string | null>(null);
 
     // 取引先一覧 — フィルタシート (取引先 chips) でマウント時にロード
     const [clients, setClients] = useState<Client[] | null>(null);
@@ -323,6 +336,52 @@ export function Money() {
             cancelled = true;
         };
     }, [activeTab, invoiceRefreshKey]);
+
+    useEffect(() => {
+        if (activeTab !== "vendors") return;
+        let cancelled = false;
+        setClientCreditLoading(true);
+        setClientCreditError(null);
+        fetchClientCreditSummaries()
+            .then((result) => {
+                if (!cancelled) setClientCreditSummaries(result.clients ?? []);
+            })
+            .catch((err: unknown) => {
+                if (!cancelled) setClientCreditError(getErrorMessage(err));
+            })
+            .finally(() => {
+                if (!cancelled) setClientCreditLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [activeTab, invoiceRefreshKey]);
+
+    useEffect(() => {
+        if (!selectedCreditClient) {
+            setSelectedCreditMetrics(null);
+            setSelectedCreditError(null);
+            return;
+        }
+
+        let cancelled = false;
+        setSelectedCreditLoading(true);
+        setSelectedCreditError(null);
+        fetchClientCreditMetrics(selectedCreditClient.client_id)
+            .then((metrics) => {
+                if (!cancelled) setSelectedCreditMetrics(metrics);
+            })
+            .catch((err: unknown) => {
+                if (!cancelled) setSelectedCreditError(getErrorMessage(err));
+            })
+            .finally(() => {
+                if (!cancelled) setSelectedCreditLoading(false);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [selectedCreditClient]);
 
     // 承認モーダル (バッチ操作用、ベルから個別カードと別に開ける)
     const [showApprovalsModal, setShowApprovalsModal] = useState(false);
@@ -1494,6 +1553,13 @@ export function Money() {
                                 </span>
                             </div>
 
+                            <ClientCreditStatusSection
+                                clients={clientCreditSummaries}
+                                loading={clientCreditLoading}
+                                error={clientCreditError}
+                                onOpenClient={setSelectedCreditClient}
+                            />
+
                             <ClientInvoiceList
                                 invoices={clientInvoices}
                                 loading={clientInvoicesLoading}
@@ -1574,6 +1640,15 @@ export function Money() {
                             window.dispatchEvent(new CustomEvent("invoice-pay-notification-updated"));
                             void loadData({ keepCurrentView: true, suppressPageError: true });
                         }}
+                    />
+                )}
+                {selectedCreditClient && (
+                    <ClientCreditDetailModal
+                        client={selectedCreditClient}
+                        metrics={selectedCreditMetrics}
+                        loading={selectedCreditLoading}
+                        error={selectedCreditError}
+                        onClose={() => setSelectedCreditClient(null)}
                     />
                 )}
                 {selectedTransaction && (
