@@ -1,0 +1,823 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`tax badge combination matrix > covers contract_type 3 x invoice_status 4 without expanding modal tests 1`] = `
+<div>
+  <table>
+    <tbody>
+      <tr>
+        <td>
+          subcontract
+        </td>
+        <td>
+          <span
+            aria-label="インボイス登録状況 適格"
+            class="_badge_d05fcd _registered_d05fcd _small_d05fcd"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-shield-check"
+              fill="none"
+              height="12"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="12"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"
+              />
+              <path
+                d="m9 12 2 2 4-4"
+              />
+            </svg>
+            <span
+              class="_number_d05fcd"
+            >
+              適格
+            </span>
+          </span>
+        </td>
+        <td />
+      </tr>
+      <tr>
+        <td>
+          subcontract
+        </td>
+        <td>
+          <span
+            aria-label="インボイス登録状況 経過措置 80%"
+            class="_badge_d05fcd _exempt_d05fcd _small_d05fcd"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-circle-question-mark"
+              fill="none"
+              height="12"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="12"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="10"
+              />
+              <path
+                d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"
+              />
+              <path
+                d="M12 17h.01"
+              />
+            </svg>
+            <span
+              class="_number_d05fcd"
+            >
+              経過措置 80%
+            </span>
+          </span>
+        </td>
+        <td />
+      </tr>
+      <tr>
+        <td>
+          subcontract
+        </td>
+        <td>
+          <span
+            aria-label="インボイス登録状況 経過措置"
+            class="_badge_d05fcd _transitional_d05fcd _small_d05fcd"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-circle-question-mark"
+              fill="none"
+              height="12"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="12"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="10"
+              />
+              <path
+                d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"
+              />
+              <path
+                d="M12 17h.01"
+              />
+            </svg>
+            <span
+              class="_number_d05fcd"
+            >
+              経過措置
+            </span>
+          </span>
+        </td>
+        <td />
+      </tr>
+      <tr>
+        <td>
+          subcontract
+        </td>
+        <td>
+          <span
+            aria-label="インボイス登録状況 未確認"
+            class="_badge_d05fcd _unknown_d05fcd _small_d05fcd"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-circle-question-mark"
+              fill="none"
+              height="12"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="12"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="10"
+              />
+              <path
+                d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"
+              />
+              <path
+                d="M12 17h.01"
+              />
+            </svg>
+            <span
+              class="_number_d05fcd"
+            >
+              未確認
+            </span>
+          </span>
+        </td>
+        <td />
+      </tr>
+      <tr>
+        <td>
+          employee_like
+        </td>
+        <td>
+          <span
+            aria-label="インボイス登録状況 適格"
+            class="_badge_d05fcd _registered_d05fcd _small_d05fcd"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-shield-check"
+              fill="none"
+              height="12"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="12"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"
+              />
+              <path
+                d="m9 12 2 2 4-4"
+              />
+            </svg>
+            <span
+              class="_number_d05fcd"
+            >
+              適格
+            </span>
+          </span>
+        </td>
+        <td>
+          <div
+            class="_banner_950f81 _warning_950f81"
+            role="alert"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-triangle-alert _icon_950f81"
+              fill="none"
+              height="18"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"
+              />
+              <path
+                d="M12 9v4"
+              />
+              <path
+                d="M12 17h.01"
+              />
+            </svg>
+            <div
+              class="_content_950f81"
+            >
+              <span
+                class="_message_950f81"
+              >
+                契約区分の見直しを推奨（給与扱いリスク）
+              </span>
+            </div>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          employee_like
+        </td>
+        <td>
+          <span
+            aria-label="インボイス登録状況 経過措置 80%"
+            class="_badge_d05fcd _exempt_d05fcd _small_d05fcd"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-circle-question-mark"
+              fill="none"
+              height="12"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="12"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="10"
+              />
+              <path
+                d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"
+              />
+              <path
+                d="M12 17h.01"
+              />
+            </svg>
+            <span
+              class="_number_d05fcd"
+            >
+              経過措置 80%
+            </span>
+          </span>
+        </td>
+        <td>
+          <div
+            class="_banner_950f81 _warning_950f81"
+            role="alert"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-triangle-alert _icon_950f81"
+              fill="none"
+              height="18"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"
+              />
+              <path
+                d="M12 9v4"
+              />
+              <path
+                d="M12 17h.01"
+              />
+            </svg>
+            <div
+              class="_content_950f81"
+            >
+              <span
+                class="_message_950f81"
+              >
+                契約区分の見直しを推奨（給与扱いリスク）
+              </span>
+            </div>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          employee_like
+        </td>
+        <td>
+          <span
+            aria-label="インボイス登録状況 経過措置"
+            class="_badge_d05fcd _transitional_d05fcd _small_d05fcd"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-circle-question-mark"
+              fill="none"
+              height="12"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="12"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="10"
+              />
+              <path
+                d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"
+              />
+              <path
+                d="M12 17h.01"
+              />
+            </svg>
+            <span
+              class="_number_d05fcd"
+            >
+              経過措置
+            </span>
+          </span>
+        </td>
+        <td>
+          <div
+            class="_banner_950f81 _warning_950f81"
+            role="alert"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-triangle-alert _icon_950f81"
+              fill="none"
+              height="18"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"
+              />
+              <path
+                d="M12 9v4"
+              />
+              <path
+                d="M12 17h.01"
+              />
+            </svg>
+            <div
+              class="_content_950f81"
+            >
+              <span
+                class="_message_950f81"
+              >
+                契約区分の見直しを推奨（給与扱いリスク）
+              </span>
+            </div>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          employee_like
+        </td>
+        <td>
+          <span
+            aria-label="インボイス登録状況 未確認"
+            class="_badge_d05fcd _unknown_d05fcd _small_d05fcd"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-circle-question-mark"
+              fill="none"
+              height="12"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="12"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="10"
+              />
+              <path
+                d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"
+              />
+              <path
+                d="M12 17h.01"
+              />
+            </svg>
+            <span
+              class="_number_d05fcd"
+            >
+              未確認
+            </span>
+          </span>
+        </td>
+        <td>
+          <div
+            class="_banner_950f81 _warning_950f81"
+            role="alert"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-triangle-alert _icon_950f81"
+              fill="none"
+              height="18"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"
+              />
+              <path
+                d="M12 9v4"
+              />
+              <path
+                d="M12 17h.01"
+              />
+            </svg>
+            <div
+              class="_content_950f81"
+            >
+              <span
+                class="_message_950f81"
+              >
+                契約区分の見直しを推奨（給与扱いリスク）
+              </span>
+            </div>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          undetermined
+        </td>
+        <td>
+          <span
+            aria-label="インボイス登録状況 適格"
+            class="_badge_d05fcd _registered_d05fcd _small_d05fcd"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-shield-check"
+              fill="none"
+              height="12"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="12"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"
+              />
+              <path
+                d="m9 12 2 2 4-4"
+              />
+            </svg>
+            <span
+              class="_number_d05fcd"
+            >
+              適格
+            </span>
+          </span>
+        </td>
+        <td>
+          <div
+            class="_banner_950f81 _neutral_950f81"
+            role="status"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-circle-question-mark _icon_950f81"
+              fill="none"
+              height="18"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="10"
+              />
+              <path
+                d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"
+              />
+              <path
+                d="M12 17h.01"
+              />
+            </svg>
+            <div
+              class="_content_950f81"
+            >
+              <span
+                class="_message_950f81"
+              >
+                契約区分が未設定です
+              </span>
+            </div>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          undetermined
+        </td>
+        <td>
+          <span
+            aria-label="インボイス登録状況 経過措置 80%"
+            class="_badge_d05fcd _exempt_d05fcd _small_d05fcd"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-circle-question-mark"
+              fill="none"
+              height="12"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="12"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="10"
+              />
+              <path
+                d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"
+              />
+              <path
+                d="M12 17h.01"
+              />
+            </svg>
+            <span
+              class="_number_d05fcd"
+            >
+              経過措置 80%
+            </span>
+          </span>
+        </td>
+        <td>
+          <div
+            class="_banner_950f81 _neutral_950f81"
+            role="status"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-circle-question-mark _icon_950f81"
+              fill="none"
+              height="18"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="10"
+              />
+              <path
+                d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"
+              />
+              <path
+                d="M12 17h.01"
+              />
+            </svg>
+            <div
+              class="_content_950f81"
+            >
+              <span
+                class="_message_950f81"
+              >
+                契約区分が未設定です
+              </span>
+            </div>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          undetermined
+        </td>
+        <td>
+          <span
+            aria-label="インボイス登録状況 経過措置"
+            class="_badge_d05fcd _transitional_d05fcd _small_d05fcd"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-circle-question-mark"
+              fill="none"
+              height="12"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="12"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="10"
+              />
+              <path
+                d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"
+              />
+              <path
+                d="M12 17h.01"
+              />
+            </svg>
+            <span
+              class="_number_d05fcd"
+            >
+              経過措置
+            </span>
+          </span>
+        </td>
+        <td>
+          <div
+            class="_banner_950f81 _neutral_950f81"
+            role="status"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-circle-question-mark _icon_950f81"
+              fill="none"
+              height="18"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="10"
+              />
+              <path
+                d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"
+              />
+              <path
+                d="M12 17h.01"
+              />
+            </svg>
+            <div
+              class="_content_950f81"
+            >
+              <span
+                class="_message_950f81"
+              >
+                契約区分が未設定です
+              </span>
+            </div>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          undetermined
+        </td>
+        <td>
+          <span
+            aria-label="インボイス登録状況 未確認"
+            class="_badge_d05fcd _unknown_d05fcd _small_d05fcd"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-circle-question-mark"
+              fill="none"
+              height="12"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="12"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="10"
+              />
+              <path
+                d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"
+              />
+              <path
+                d="M12 17h.01"
+              />
+            </svg>
+            <span
+              class="_number_d05fcd"
+            >
+              未確認
+            </span>
+          </span>
+        </td>
+        <td>
+          <div
+            class="_banner_950f81 _neutral_950f81"
+            role="status"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-circle-question-mark _icon_950f81"
+              fill="none"
+              height="18"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="10"
+              />
+              <path
+                d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"
+              />
+              <path
+                d="M12 17h.01"
+              />
+            </svg>
+            <div
+              class="_content_950f81"
+            >
+              <span
+                class="_message_950f81"
+              >
+                契約区分が未設定です
+              </span>
+            </div>
+          </div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+`;

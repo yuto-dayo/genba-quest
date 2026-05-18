@@ -111,6 +111,43 @@
     font: var(--md-sys-typescale-label-medium);
 }
 
+.taxLine,
+.nameLine {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-xs);
+    min-width: 0;
+}
+
+.taxLine {
+    flex-wrap: wrap;
+}
+
+.nameStack {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--md-sys-spacing-2xs);
+    min-width: 0;
+}
+
+.taxRisk {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-2xs);
+    color: var(--md-sys-color-on-warning-container);
+    font: var(--md-sys-typescale-label-small);
+}
+
+.taxDot {
+    width: var(--md-sys-spacing-sm);
+    height: var(--md-sys-spacing-sm);
+    flex: 0 0 var(--md-sys-spacing-sm);
+    border-radius: var(--md-sys-shape-corner-full);
+    background: var(--md-sys-color-warning);
+    box-shadow: 0 0 0 var(--md-sys-focus-outline-width) var(--md-sys-color-warning-container);
+}
+
 .inlineBadge,
 .disputeBadge {
     display: inline-flex;

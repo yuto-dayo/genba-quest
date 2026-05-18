@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertCircle, Loader2, ShieldCheck, X } from "lucide-react";
 import {
+    fetchMemberTaxClassification,
     fetchMemberReimbursementBalance,
     fetchPathRewardConfirmation,
     fetchPathV33MonthlyPreview,
@@ -17,10 +18,22 @@ import {
 import { getErrorMessage } from "../../lib/error";
 import { ObjectionSubmitSheet } from "../ObjectionSubmitSheet";
 import { DisputeCorrectionModal } from "./DisputeCorrectionModal";
+import { ContractClassificationBanner } from "./ContractClassificationBanner";
+import { InvoiceRegistrationBadge } from "./InvoiceRegistrationBadge";
 import { PayoutBreakdownSection } from "./PayoutBreakdownSection";
 import { PayoutCalculationSection } from "./PayoutCalculationSection";
 import { PayoutMovingFactorsSection } from "./PayoutMovingFactorsSection";
 import { PayoutReimbursementSection } from "./PayoutReimbursementSection";
+import { TaxClassificationRationale } from "./TaxClassificationRationale";
+import {
+    asOfDateFromMonth,
+    calculateWithholdingAmount,
+    getClassificationCheckStatus,
+    getContractType,
+    getInvoiceStatus,
+    isWithholdingApplicable,
+    type PayoutTaxClassification,
+} from "./payoutTaxUtils";
 import styles from "./OtherPayoutModal.module.css";
 
 interface OtherPayoutModalProps {
@@ -37,6 +50,7 @@ interface ModalData {
     calculationPreview: PathV32SimpleMonthlyDistributionPreview | null;
     reimbursementBalance: MemberReimbursementBalance;
     objectionTarget: PathV33TeamFeedTimelineEntry | null;
+    classification: PayoutTaxClassification;
 }
 
 function isAbortError(error: unknown): boolean {
@@ -101,6 +115,10 @@ function pickObjectionTarget(
     };
 }
 
+function settingsHref(memberId: string): string {
+    return `/settings?setting=classification&member=${encodeURIComponent(memberId)}`;
+}
+
 export function OtherPayoutModal({ memberId, selfUserId, month, onClose }: OtherPayoutModalProps) {
     const [data, setData] = useState<ModalData | null>(null);
     const [loading, setLoading] = useState(true);
@@ -121,9 +139,11 @@ export function OtherPayoutModal({ memberId, selfUserId, month, onClose }: Other
 
         const requestSignal = signal ?? new AbortController().signal;
         try {
-            const [summary, reimbursementBalance] = await Promise.all([
+            const [summary, reimbursementBalance, classificationResponse] = await Promise.all([
                 fetchPathRewardConfirmation(month, memberId, { signal: requestSignal }),
                 fetchMemberReimbursementBalance(memberId, month, { signal: requestSignal }),
+                fetchMemberTaxClassification(memberId, asOfDateFromMonth(month), { signal: requestSignal })
+                    .catch(() => ({ active: null, history: [] })),
             ]);
             const [preview, calculationPreview, feed] = await Promise.all([
                 fetchPathV33MonthlyPreview(memberId, month, { signal: requestSignal }).catch(() => null),
@@ -142,6 +162,7 @@ export function OtherPayoutModal({ memberId, selfUserId, month, onClose }: Other
                     feed?.timeline ?? [],
                     preview,
                 ),
+                classification: classificationResponse.active,
             });
         } catch (err) {
             if (isAbortError(err)) return;
@@ -194,8 +215,15 @@ export function OtherPayoutModal({ memberId, selfUserId, month, onClose }: Other
     }
 
     const payoutAmount = data
-        ? data.summary.estimated_amount + data.reimbursementBalance.unsettled
+        ? data.summary.estimated_amount
+            + data.reimbursementBalance.unsettled
+            - calculateWithholdingAmount(data.summary.estimated_amount, data.classification)
         : 0;
+    const withholdingAmount = data
+        ? calculateWithholdingAmount(data.summary.estimated_amount, data.classification)
+        : 0;
+    const withholdingApplicable = data ? isWithholdingApplicable(data.classification) : false;
+    const classificationAsOf = new Date(asOfDateFromMonth(month));
     const title = data
         ? `${data.summary.member_name}さんの${formatMonthLabel(month)}`
         : formatMonthLabel(month);
@@ -210,9 +238,19 @@ export function OtherPayoutModal({ memberId, selfUserId, month, onClose }: Other
                 onClick={(event) => event.stopPropagation()}
             >
                 <header className={styles.header}>
-                    <h2 id="other-reward-modal-title" className={styles.title}>
-                        {title}
-                    </h2>
+                    <div className={styles.titleGroup}>
+                        <h2 id="other-reward-modal-title" className={styles.title}>
+                            {title}
+                        </h2>
+                        {data && (
+                            <InvoiceRegistrationBadge
+                                status={getInvoiceStatus(data.classification)}
+                                registrationNumber={data.classification?.invoice_registration_number}
+                                asOf={classificationAsOf}
+                                settingsHref={settingsHref(memberId)}
+                            />
+                        )}
+                    </div>
                     <button
                         type="button"
                         className={styles.iconButton}
@@ -259,11 +297,21 @@ export function OtherPayoutModal({ memberId, selfUserId, month, onClose }: Other
                                 </span>
                             </div>
 
+                            <ContractClassificationBanner
+                                contractType={getContractType(data.classification)}
+                                checkStatus={getClassificationCheckStatus(data.classification)}
+                                settingsHref={settingsHref(memberId)}
+                            />
+
                             <PayoutBreakdownSection
                                 rewardAmount={data.summary.estimated_amount}
                                 reimbursementSettled={data.reimbursementBalance.unsettled}
                                 reimbursementCarryOver={data.reimbursementBalance.carry_over_amount ?? 0}
+                                withholdingAmount={withholdingAmount}
+                                isWithholdingApplicable={withholdingApplicable}
                             />
+
+                            <TaxClassificationRationale classification={data.classification} />
 
                             <PayoutCalculationSection
                                 memberId={memberId}

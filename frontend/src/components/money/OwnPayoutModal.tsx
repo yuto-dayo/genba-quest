@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertCircle, CheckCircle2, Clock3, FileText, Loader2, Send, X } from "lucide-react";
 import {
+    fetchMemberTaxClassification,
     fetchMemberInvoiceDrafts,
     fetchMemberReimbursementBalance,
     fetchMyMemberInvoices,
@@ -25,6 +26,18 @@ import { PayoutBreakdownSection } from "./PayoutBreakdownSection";
 import { PayoutCalculationSection } from "./PayoutCalculationSection";
 import { PayoutMovingFactorsSection } from "./PayoutMovingFactorsSection";
 import { PayoutReimbursementSection } from "./PayoutReimbursementSection";
+import { ContractClassificationBanner } from "./ContractClassificationBanner";
+import { InvoiceRegistrationBadge } from "./InvoiceRegistrationBadge";
+import { TaxClassificationRationale } from "./TaxClassificationRationale";
+import {
+    asOfDateFromMonth,
+    calculateWithholdingAmount,
+    getClassificationCheckStatus,
+    getContractType,
+    getInvoiceStatus,
+    isWithholdingApplicable,
+    type PayoutTaxClassification,
+} from "./payoutTaxUtils";
 import styles from "./OwnPayoutModal.module.css";
 
 type InvoiceState = "before_close" | "unissued" | "issued" | "paid";
@@ -45,6 +58,7 @@ interface ModalData {
     preview: PathV33MonthlyPreview | null;
     calculationPreview: PathV32SimpleMonthlyDistributionPreview | null;
     reimbursementBalance: MemberReimbursementBalance;
+    classification: PayoutTaxClassification;
 }
 
 function isAbortError(error: unknown): boolean {
@@ -120,6 +134,10 @@ function pickRevisionDraft(preview: PathV33MonthlyPreview | null): PathV33LevelD
         ?? null;
 }
 
+function settingsHref(memberId: string): string {
+    return `/settings?setting=classification&member=${encodeURIComponent(memberId)}`;
+}
+
 export function OwnPayoutModal({
     selfMemberId,
     selfUserId,
@@ -147,13 +165,15 @@ export function OwnPayoutModal({
         setActionError(null);
 
         try {
-            const [summary, invoiceResponse, draftResponse, preview, calculationPreview, reimbursementBalance] = await Promise.all([
+            const [summary, invoiceResponse, draftResponse, preview, calculationPreview, reimbursementBalance, classificationResponse] = await Promise.all([
                 fetchPathRewardConfirmation(month, selfMemberId, { signal }),
                 fetchMyMemberInvoices({ signal }),
                 fetchMemberInvoiceDrafts({ signal }).catch(() => ({ drafts: [] })),
                 fetchPathV33MonthlyPreview(selfMemberId, month, { signal }).catch(() => null),
                 previewPathV32SimpleMonthlyDistribution(month).catch(() => null),
                 fetchMemberReimbursementBalance(selfMemberId, month, { signal }),
+                fetchMemberTaxClassification(selfMemberId, asOfDateFromMonth(month), { signal })
+                    .catch(() => ({ active: null, history: [] })),
             ]);
 
             setData({
@@ -163,6 +183,7 @@ export function OwnPayoutModal({
                 preview,
                 calculationPreview,
                 reimbursementBalance,
+                classification: classificationResponse.active,
             });
         } catch (err) {
             if (isAbortError(err)) return;
@@ -194,8 +215,15 @@ export function OwnPayoutModal({
     const issueDraft = data ? pickIssueDraft(data.drafts, month, data.summary) : null;
     const revisionDraft = data ? pickRevisionDraft(data.preview) : null;
     const payoutAmount = data
-        ? data.summary.estimated_amount + data.reimbursementBalance.unsettled
+        ? data.summary.estimated_amount
+            + data.reimbursementBalance.unsettled
+            - calculateWithholdingAmount(data.summary.estimated_amount, data.classification)
         : 0;
+    const withholdingAmount = data
+        ? calculateWithholdingAmount(data.summary.estimated_amount, data.classification)
+        : 0;
+    const withholdingApplicable = data ? isWithholdingApplicable(data.classification) : false;
+    const classificationAsOf = useMemo(() => new Date(asOfDateFromMonth(month)), [month]);
 
     const refreshAfterInvoiceChange = useCallback(async (message: string) => {
         await reload();
@@ -234,9 +262,19 @@ export function OwnPayoutModal({
                 onClick={(event) => event.stopPropagation()}
             >
                 <header className={styles.header}>
-                    <h2 id="own-reward-modal-title" className={styles.title}>
-                        {title}
-                    </h2>
+                    <div className={styles.titleGroup}>
+                        <h2 id="own-reward-modal-title" className={styles.title}>
+                            {title}
+                        </h2>
+                        {data && (
+                            <InvoiceRegistrationBadge
+                                status={getInvoiceStatus(data.classification)}
+                                registrationNumber={data.classification?.invoice_registration_number}
+                                asOf={classificationAsOf}
+                                settingsHref={settingsHref(selfMemberId)}
+                            />
+                        )}
+                    </div>
                     <button
                         type="button"
                         className={styles.iconButton}
@@ -281,11 +319,21 @@ export function OwnPayoutModal({
                                 </span>
                             </div>
 
+                            <ContractClassificationBanner
+                                contractType={getContractType(data.classification)}
+                                checkStatus={getClassificationCheckStatus(data.classification)}
+                                settingsHref={settingsHref(selfMemberId)}
+                            />
+
                             <PayoutBreakdownSection
                                 rewardAmount={data.summary.estimated_amount}
                                 reimbursementSettled={data.reimbursementBalance.unsettled}
                                 reimbursementCarryOver={data.reimbursementBalance.carry_over_amount ?? 0}
+                                withholdingAmount={withholdingAmount}
+                                isWithholdingApplicable={withholdingApplicable}
                             />
+
+                            <TaxClassificationRationale classification={data.classification} />
 
                             <PayoutCalculationSection
                                 memberId={selfMemberId}

@@ -16,6 +16,12 @@ import type {
     TeamMemberReimbursementLike,
     TeamMemberRewardLike,
 } from "./MemberCarousel";
+import { InvoiceRegistrationBadge } from "./InvoiceRegistrationBadge";
+import {
+    getContractType,
+    getInvoiceStatus,
+    type PayoutTaxClassification,
+} from "./payoutTaxUtils";
 import styles from "./PayoutHeroCard.module.css";
 
 export type {
@@ -31,6 +37,7 @@ interface PayoutHeroCardProps {
     selectedMemberId: string | null;
     viewMode: "single" | "all";
     pendingDisputeMemberIds?: string[];
+    memberTaxClassifications?: Record<string, PayoutTaxClassification>;
     onSelectMember: (memberId: string | "all") => void;
     onCardTap: (memberId: string) => void;
 }
@@ -213,11 +220,13 @@ export function PayoutAllMembersList({
     members,
     selfMemberId,
     pendingDisputeMemberIds = [],
+    memberTaxClassifications = {},
     onCardTap,
 }: {
     members: PayoutMember[];
     selfMemberId: string | null;
     pendingDisputeMemberIds?: string[];
+    memberTaxClassifications?: Record<string, PayoutTaxClassification>;
     onCardTap: (memberId: string) => void;
 }) {
     const pendingDisputes = new Set(pendingDisputeMemberIds);
@@ -245,6 +254,8 @@ export function PayoutAllMembersList({
                 <tbody>
                     {members.map((member) => {
                         const isSelf = member.member_id === selfMemberId;
+                        const classification = memberTaxClassifications[member.member_id] ?? null;
+                        const isEmployeeLike = getContractType(classification) === "employee_like";
                         return (
                             <tr
                                 key={member.member_id}
@@ -255,10 +266,22 @@ export function PayoutAllMembersList({
                                 aria-label={`${isSelf ? "自分" : member.nickname}の振込予定 ${formatYen(member.payoutAmount)}`}
                             >
                                 <th scope="row">
-                                    {isSelf ? "自分" : member.nickname}
-                                    {pendingDisputes.has(member.member_id) && (
-                                        <span className={styles.disputeBadge}>申立中</span>
-                                    )}
+                                    <span className={styles.nameStack}>
+                                        <span className={styles.nameLine}>
+                                            {isSelf ? "自分" : member.nickname}
+                                            {isEmployeeLike && (
+                                                <span className={styles.taxDot} aria-label="給与扱いリスク" />
+                                            )}
+                                            {pendingDisputes.has(member.member_id) && (
+                                                <span className={styles.disputeBadge}>申立中</span>
+                                            )}
+                                        </span>
+                                        <InvoiceRegistrationBadge
+                                            status={getInvoiceStatus(classification)}
+                                            registrationNumber={classification?.invoice_registration_number}
+                                            size="small"
+                                        />
+                                    </span>
                                 </th>
                                 <td>{member.attendance_days}日</td>
                                 <td>{formatYen(member.rewardAmount)}</td>
@@ -280,6 +303,7 @@ export function PayoutHeroCard({
     selectedMemberId,
     viewMode,
     pendingDisputeMemberIds = [],
+    memberTaxClassifications = {},
     onSelectMember,
     onCardTap,
 }: PayoutHeroCardProps) {
@@ -326,6 +350,7 @@ export function PayoutHeroCard({
                                 members={members}
                                 selfMemberId={selfMemberId}
                                 pendingDisputeMemberIds={pendingDisputeMemberIds}
+                                memberTaxClassifications={memberTaxClassifications}
                                 onCardTap={onCardTap}
                             />
                         </framerMotion.div>
@@ -340,6 +365,25 @@ export function PayoutHeroCard({
                         >
                             {activeMember ? (
                                 <div className={styles.single}>
+                                    {(() => {
+                                        const classification = memberTaxClassifications[activeMember.member_id] ?? null;
+                                        const isEmployeeLike = getContractType(classification) === "employee_like";
+                                        return (
+                                            <div className={styles.taxLine}>
+                                                <InvoiceRegistrationBadge
+                                                    status={getInvoiceStatus(classification)}
+                                                    registrationNumber={classification?.invoice_registration_number}
+                                                    size="small"
+                                                />
+                                                {isEmployeeLike && (
+                                                    <span className={styles.taxRisk}>
+                                                        <span className={styles.taxDot} aria-hidden="true" />
+                                                        契約確認
+                                                    </span>
+                                                )}
+                                            </div>
+                                        );
+                                    })()}
                                     <framerMotion.span
                                         key={`label-${activeMember.member_id}`}
                                         className={styles.heroLabel}

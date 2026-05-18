@@ -8,6 +8,7 @@ import type {
     TeamMemberReimbursementLike,
     TeamMemberRewardLike,
 } from "./MemberCarousel";
+import type { PayoutTaxClassification } from "./payoutTaxUtils";
 
 vi.mock("framer-motion", () => ({
     motion: new Proxy(
@@ -77,6 +78,47 @@ const reimbursementMembers: TeamMemberReimbursementLike[] = [
     },
 ];
 
+const memberTaxClassifications: Record<string, PayoutTaxClassification> = {
+    "member-self": {
+        contract_type: "subcontract",
+        tax_withholding_category: "none",
+        custom_withholding_rate: null,
+        classification_check_status: "verified",
+        classification_check_results: {
+            q1_substitution: true,
+            q2_time_freedom: true,
+            q3_work_autonomy: true,
+            q4_own_tools: true,
+            q5_outcome_liability: true,
+        },
+        classification_notes: null,
+        invoice_registration_status: "registered",
+        invoice_registration_number: "T1234567890123",
+        effective_from: "2026-05-01",
+        decided_by: "admin-user",
+        decided_at: "2026-05-02T00:00:00.000Z",
+    },
+    "member-other": {
+        contract_type: "employee_like",
+        tax_withholding_category: "10.21%",
+        custom_withholding_rate: null,
+        classification_check_status: "review_needed",
+        classification_check_results: {
+            q1_substitution: false,
+            q2_time_freedom: false,
+            q3_work_autonomy: false,
+            q4_own_tools: true,
+            q5_outcome_liability: true,
+        },
+        classification_notes: null,
+        invoice_registration_status: "exempt",
+        invoice_registration_number: null,
+        effective_from: "2026-05-01",
+        decided_by: "admin-user",
+        decided_at: "2026-05-02T00:00:00.000Z",
+    },
+};
+
 function Harness({
     onCardTap = vi.fn(),
 }: {
@@ -92,6 +134,7 @@ function Harness({
             isFinalized={false}
             selectedMemberId={selection.selectedMemberId}
             viewMode={selection.viewMode}
+            memberTaxClassifications={memberTaxClassifications}
             onSelectMember={selection.onSelectMember}
             onCardTap={onCardTap}
         />
@@ -108,6 +151,7 @@ describe("PayoutHeroCard", () => {
         expect(tabs[0]).toHaveAttribute("aria-controls", "payout-hero-content");
 
         expect(screen.getByText("振込予定額")).toBeInTheDocument();
+        expect(screen.getByLabelText("インボイス登録状況 適格")).toBeInTheDocument();
         expect(screen.getByText("¥225,000")).toBeInTheDocument();
         expect(screen.getByText("報酬 ¥192,500 + 立替 ¥32,500")).toBeInTheDocument();
         expect(screen.getByText("20日 · 試算中")).toBeInTheDocument();
@@ -121,6 +165,8 @@ describe("PayoutHeroCard", () => {
 
         expect(screen.getByText("¥220,000")).toBeInTheDocument();
         expect(screen.getByText("報酬 ¥210,000 + 立替 ¥10,000")).toBeInTheDocument();
+        expect(screen.getByLabelText("インボイス登録状況 経過措置 100%")).toBeInTheDocument();
+        expect(screen.getByText("契約確認")).toBeInTheDocument();
 
         fireEvent.click(screen.getByRole("button", { name: "もっと詳しく →" }));
 

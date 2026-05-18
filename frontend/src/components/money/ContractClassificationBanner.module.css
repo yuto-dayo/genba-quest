@@ -1,0 +1,50 @@
+.banner {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--md-sys-spacing-sm);
+    padding: var(--md-sys-spacing-md);
+    border: var(--md-sys-focus-outline-width) solid transparent;
+    border-radius: var(--md-sys-shape-corner-large);
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.warning {
+    border-color: color-mix(in srgb, var(--md-sys-color-warning) 42%, transparent);
+    background: var(--md-sys-color-warning-container);
+    color: var(--md-sys-color-on-warning-container);
+}
+
+.neutral {
+    border-color: var(--md-sys-color-outline-variant);
+    background: var(--md-sys-color-surface-container-low);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.icon {
+    flex: 0 0 auto;
+    margin-block-start: var(--md-sys-spacing-2xs);
+}
+
+.content {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--md-sys-spacing-xs) var(--md-sys-spacing-sm);
+    min-width: 0;
+}
+
+.message {
+    min-width: 0;
+}
+
+.link {
+    color: inherit;
+    font: var(--md-sys-typescale-label-large);
+    text-decoration: underline;
+    text-underline-offset: var(--md-sys-spacing-2xs);
+}
+
+.link:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--md-sys-color-primary) 35%, transparent);
+    outline-offset: var(--md-sys-focus-ring-offset);
+}

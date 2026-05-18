@@ -37,6 +37,7 @@ import {
     batchReviewExpenses,
     fetchNotifications,
     fetchDisputeCorrections,
+    fetchMemberTaxClassification,
     type PLReport,
     type AccountingTransaction,
     type ProposalRecord,
@@ -66,6 +67,10 @@ import { InlineLoader } from "../components/InlineLoader";
 import { MoneyHeroSection } from "../components/money/MoneyHeroSection";
 import { MemberCarousel } from "../components/money/MemberCarousel";
 import { PayoutHeroCard } from "../components/money/PayoutHeroCard";
+import {
+    asOfDateFromMonth,
+    type PayoutTaxClassification,
+} from "../components/money/payoutTaxUtils";
 import { usePayoutSelection } from "../components/money/usePayoutSelection";
 import { CompanySummaryCard } from "../components/money/CompanySummaryCard";
 import { ShieldPopover } from "../components/money/ShieldPopover";
@@ -245,6 +250,7 @@ export function Money() {
     const [monthlyDeductible, setMonthlyDeductible] = useState<MonthlyDeductibleAmount | null>(null);
     const [teamRewardSummary, setTeamRewardSummary] = useState<TeamRewardSummary | null>(null);
     const [reimbursementsSummary, setReimbursementsSummary] = useState<MemberReimbursementsSummary | null>(null);
+    const [payoutTaxClassifications, setPayoutTaxClassifications] = useState<Record<string, PayoutTaxClassification>>({});
     const payoutSelection = usePayoutSelection(teamRewardSummary?.self_member_id ?? null);
     const [moneyHeroLoading, setMoneyHeroLoading] = useState(false);
     const [moneyHeroError, setMoneyHeroError] = useState<string | null>(null);
@@ -510,6 +516,33 @@ export function Money() {
             cancelled = true;
         };
     }, [selectedMonth]);
+
+    useEffect(() => {
+        const memberIds = Array.from(new Set([
+            ...(teamRewardSummary?.members ?? []).map((member) => member.member_id),
+            ...(reimbursementsSummary?.members ?? []).map((member) => member.member_id),
+        ]));
+        if (memberIds.length === 0) {
+            setPayoutTaxClassifications({});
+            return;
+        }
+
+        let cancelled = false;
+        Promise.all(
+            memberIds.map((memberId) =>
+                fetchMemberTaxClassification(memberId, asOfDateFromMonth(selectedMonth))
+                    .then((result) => [memberId, result.active] as const)
+                    .catch(() => [memberId, null] as const),
+            ),
+        ).then((entries) => {
+            if (cancelled) return;
+            setPayoutTaxClassifications(Object.fromEntries(entries));
+        });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [reimbursementsSummary?.members, selectedMonth, teamRewardSummary?.members]);
 
     useEffect(() => {
         let cancelled = false;
@@ -1110,6 +1143,7 @@ export function Money() {
                                 selectedMemberId={payoutSelection.selectedMemberId}
                                 viewMode={payoutSelection.viewMode}
                                 pendingDisputeMemberIds={pendingDisputeMemberIds}
+                                memberTaxClassifications={payoutTaxClassifications}
                                 onSelectMember={payoutSelection.onSelectMember}
                                 onCardTap={handleRewardCardTap}
                             />
