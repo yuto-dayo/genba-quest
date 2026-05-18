@@ -18,7 +18,7 @@
 | frontend/credit-monitoring | `handoff/frontend/credit-monitoring.md` | 2026-05-18 | commit product diff, create PR to master, mention baselin... |
 | frontend/payout-calculation | `handoff/frontend/payout-calculation.md` | 2026-05-18 | Create PR with frontend-only product changes; keep HANDOF... |
 | server/dispute-correction | `handoff/server/dispute-correction.md` | 2026-05-18 | Create PR after commit/push; manual smoke needs local DB ... |
-| frontend/payout-badges | `handoff/frontend/payout-badges.md` | 2026-05-18 | active |
+| frontend/payout-badges | `handoff/frontend/payout-badges.md` | 2026-05-18 | PR #101 created; monitor review/CI |
 
 ## Domain Selection Guide
 
