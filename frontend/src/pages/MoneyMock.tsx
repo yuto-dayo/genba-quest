@@ -29,7 +29,8 @@ interface MemberReward {
   id: string;
   nickname: string;
   amount: number;
-  level: string;
+  level: string | null;
+  levelSource: "history" | "profile" | "unset";
   status: RewardStatus;
   isSelf: boolean;
 }
@@ -62,11 +63,11 @@ interface CustomerInvoice {
 
 // ---------- Mock data ----------
 const MOCK_REWARDS: MemberReward[] = [
-  { id: "self", nickname: "自分", amount: 245000, level: "L3", status: "請求書を出す", isSelf: true },
-  { id: "take", nickname: "タケ", amount: 210000, level: "L3", status: "発行済", isSelf: false },
-  { id: "yama", nickname: "ヤマ", amount: 180000, level: "L2", status: "未発行", isSelf: false },
-  { id: "masa", nickname: "マサ", amount: 220000, level: "L3", status: "支払済", isSelf: false },
-  { id: "naru", nickname: "ナル", amount: 195000, level: "L2", status: "発行済", isSelf: false },
+  { id: "self", nickname: "自分", amount: 245000, level: "L3", levelSource: "history", status: "請求書を出す", isSelf: true },
+  { id: "take", nickname: "タケ", amount: 210000, level: "L3", levelSource: "history", status: "発行済", isSelf: false },
+  { id: "yama", nickname: "ヤマ", amount: 0, level: null, levelSource: "unset", status: "未発行", isSelf: false },
+  { id: "masa", nickname: "マサ", amount: 220000, level: "L3", levelSource: "history", status: "支払済", isSelf: false },
+  { id: "naru", nickname: "ナル", amount: 195000, level: "L2", levelSource: "profile", status: "発行済", isSelf: false },
 ];
 
 const MOCK_REWARDS_BEFORE_CLOSE: MemberReward[] = MOCK_REWARDS.map((r) => ({
@@ -165,6 +166,7 @@ export default function MoneyMock() {
       {/* ① 報酬 */}
       <RewardSection
         rewards={rewards}
+        isFinalized={monthState === "after"}
         shieldOpen={shieldOpen}
         onShieldToggle={() => setShieldOpen((v) => !v)}
         onSelfTap={() => setModal({ kind: "ownReward" })}
@@ -304,12 +306,14 @@ function Header({ monthState }: { monthState: "before" | "after" }) {
 // ============================================================
 function RewardSection({
   rewards,
+  isFinalized,
   shieldOpen,
   onShieldToggle,
   onSelfTap,
   onOtherTap,
 }: {
   rewards: MemberReward[];
+  isFinalized: boolean;
   shieldOpen: boolean;
   onShieldToggle: () => void;
   onSelfTap: () => void;
@@ -343,6 +347,7 @@ function RewardSection({
           <MemberCardReward
             key={r.id}
             reward={r}
+            isFinalized={isFinalized}
             onTap={() => (r.isSelf ? onSelfTap() : onOtherTap(r.id))}
           />
         ))}
@@ -354,9 +359,11 @@ function RewardSection({
 
 function MemberCardReward({
   reward,
+  isFinalized,
   onTap,
 }: {
   reward: MemberReward;
+  isFinalized: boolean;
   onTap: () => void;
 }) {
   const statusClass =
@@ -365,6 +372,9 @@ function MemberCardReward({
       : reward.status === "発行済" || reward.status === "試算中"
       ? styles.cardStatusDraft
       : styles.cardStatusCompleted;
+
+  const showLevel = reward.level !== null && reward.levelSource === "history" && isFinalized;
+  const nameLabel = showLevel ? `${reward.nickname} · ${reward.level}` : reward.nickname;
 
   return (
     <button
@@ -375,7 +385,7 @@ function MemberCardReward({
       aria-label={`${reward.nickname}の報酬 ${fmtYen(reward.amount)} ${reward.status}`}
     >
       <span className={styles.cardName}>
-        {reward.nickname} · {reward.level}
+        {nameLabel}
       </span>
       <span className={styles.cardAmount}>{fmtYenShort(reward.amount)}</span>
       {reward.isSelf && reward.status === "請求書を出す" ? (
@@ -814,7 +824,7 @@ function OtherPayoutModal({
         </p>
         {MOCK_REWARDS.map((r) => (
           <div key={r.id} className={styles.rewardRow}>
-            <span className={styles.rewardRowLabel}>{r.nickname}（{r.level}）</span>
+            <span className={styles.rewardRowLabel}>{r.nickname}（{r.level ?? "-"}）</span>
             <span className={styles.rewardRowValue}>{fmtYen(r.amount)}</span>
           </div>
         ))}

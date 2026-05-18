@@ -5,7 +5,8 @@ import styles from "./MemberCarousel.module.css";
 export interface TeamMemberRewardLike {
     member_id: string;
     nickname: string;
-    level: "L1" | "L2" | "L3" | "L4" | "L5";
+    level: "L1" | "L2" | "L3" | "L4" | "L5" | null;
+    level_source?: "history" | "profile" | "unset";
     attendance_days: number;
     amount: number;
     status: "finalized" | "preview" | "pending";
@@ -114,6 +115,10 @@ export function MemberCarousel(props: MemberCarouselProps) {
                 {orderedMembers.map((member) => {
                     const isSelf = member.member_id === inferredSelfId;
                     const status = rewardStatus(member, props.isFinalized);
+                    const showLevel = member.level !== null && member.level_source === "history" && props.isFinalized;
+                    const subLabel = showLevel
+                        ? `${member.level} / ${member.attendance_days}日`
+                        : `${member.attendance_days}日`;
                     return (
                         <div role="listitem" key={member.member_id}>
                             <MemberCard
@@ -123,7 +128,7 @@ export function MemberCarousel(props: MemberCarouselProps) {
                                 amount={member.amount}
                                 statusLabel={status.label}
                                 statusTone={status.tone}
-                                subLabel={`${member.level} / ${member.attendance_days}日`}
+                                subLabel={subLabel}
                                 ctaLabel={isSelf ? status.ctaLabel : undefined}
                                 onTap={() => {
                                     track({

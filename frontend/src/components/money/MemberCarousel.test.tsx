@@ -29,6 +29,7 @@ describe("MemberCarousel", () => {
                         member_id: "membership-other",
                         nickname: "タケ",
                         level: "L3",
+                        level_source: "history",
                         attendance_days: 18,
                         amount: 210000,
                         status: "finalized",
@@ -39,6 +40,7 @@ describe("MemberCarousel", () => {
                         member_id: "membership-self",
                         nickname: "ユウト",
                         level: "L3",
+                        level_source: "history",
                         attendance_days: 12,
                         amount: 245000,
                         status: "finalized",
@@ -94,5 +96,61 @@ describe("MemberCarousel", () => {
         );
 
         expect(screen.getAllByRole("button")[0]).toHaveAccessibleName(/自分、立替/);
+    });
+
+    it("does not render an L-level label when reward level is null", () => {
+        render(
+            <MemberCarousel
+                mode="reward"
+                selfMemberId="membership-self"
+                isFinalized
+                onCardTap={vi.fn()}
+                onSeeAllTap={vi.fn()}
+                members={[
+                    {
+                        member_id: "membership-self",
+                        nickname: "ユウト",
+                        level: null,
+                        level_source: "unset",
+                        attendance_days: 0,
+                        amount: 0,
+                        status: "preview",
+                        has_invoice: false,
+                        has_paid: false,
+                    },
+                ]}
+            />,
+        );
+
+        expect(screen.getByRole("button", { name: /自分、報酬/ })).toHaveTextContent("0日");
+        expect(screen.queryByText(/L[1-5]/)).not.toBeInTheDocument();
+    });
+
+    it("does not render an L-level label before the month is finalized", () => {
+        render(
+            <MemberCarousel
+                mode="reward"
+                selfMemberId="membership-self"
+                isFinalized={false}
+                onCardTap={vi.fn()}
+                onSeeAllTap={vi.fn()}
+                members={[
+                    {
+                        member_id: "membership-self",
+                        nickname: "ユウト",
+                        level: "L4",
+                        level_source: "history",
+                        attendance_days: 12,
+                        amount: 120000,
+                        status: "preview",
+                        has_invoice: false,
+                        has_paid: false,
+                    },
+                ]}
+            />,
+        );
+
+        expect(screen.getByRole("button", { name: /自分、報酬/ })).toHaveTextContent("12日");
+        expect(screen.queryByText(/L[1-5]/)).not.toBeInTheDocument();
     });
 });

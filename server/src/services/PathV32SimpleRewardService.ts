@@ -21,13 +21,14 @@ export const PATH_V32_LEVEL_WEIGHT_MILLI = {
 } as const;
 
 export type PathV32Level = keyof typeof PATH_V32_LEVEL_WEIGHT_MILLI;
-type LevelSource = "history" | "profile" | "default";
+export type PathV32LevelOrNull = PathV32Level | null;
+export type PathV32LevelSource = "history" | "profile" | "unset";
 
 interface PathV32MemberPreview {
   member_id: string;
   member_name: string;
-  level: PathV32Level;
-  level_source: LevelSource;
+  level: PathV32LevelOrNull;
+  level_source: PathV32LevelSource;
   level_weight_milli: number;
   month_total_days: number;
   confirmed_work_days: number;
@@ -114,7 +115,7 @@ function daysInMonth(month: string): number {
   return new Date(Date.UTC(year, monthPart, 0)).getUTCDate();
 }
 
-function normalizeLevel(value: unknown): PathV32Level | null {
+function normalizeLevel(value: unknown): PathV32LevelOrNull {
   return typeof value === "string" && value in PATH_V32_LEVEL_WEIGHT_MILLI
     ? (value as PathV32Level)
     : null;
@@ -168,9 +169,11 @@ export class PathV32SimpleRewardService {
     const monthlyPool = siteProfitTotal + corrections.pool_adjustment_total;
 
     const membersWithoutShares = activeMembers.map((member) => {
-      const levelSnapshot = levels.get(member.member_id) ?? { level: "L3" as PathV32Level, source: "default" as const };
+      const levelSnapshot = levels.get(member.member_id) ?? { level: null, source: "unset" as const };
       const confirmedWorkDays = workDaysByMember.get(member.member_id)?.size ?? 0;
-      const monthlyWeightNum = PATH_V32_LEVEL_WEIGHT_MILLI[levelSnapshot.level] * confirmedWorkDays;
+      const monthlyWeightNum = levelSnapshot.level !== null
+        ? PATH_V32_LEVEL_WEIGHT_MILLI[levelSnapshot.level] * confirmedWorkDays
+        : 0;
       return {
         member,
         level: levelSnapshot.level,
@@ -190,7 +193,7 @@ export class PathV32SimpleRewardService {
         : memberIds.map(() => 0);
 
     const members = membersWithoutShares.map((member, index) => {
-      const levelWeightMilli = PATH_V32_LEVEL_WEIGHT_MILLI[member.level];
+      const levelWeightMilli = member.level !== null ? PATH_V32_LEVEL_WEIGHT_MILLI[member.level] : 0;
       const correction = corrections.member_corrections.get(member.member.member_id) ?? 0;
       const roundedAmount = roundedAmounts[index] ?? 0;
       return {
@@ -220,6 +223,9 @@ export class PathV32SimpleRewardService {
     });
 
     const warnings: string[] = [];
+    if (membersWithoutShares.some((member) => member.level === null)) {
+      warnings.push("PATH_V32_MEMBER_LEVEL_UNSET");
+    }
     if (totalWeightNum === 0 && monthlyPool > 0) {
       warnings.push("PATH_V32_ZERO_TOTAL_WEIGHT");
     }
@@ -700,8 +706,8 @@ export class PathV32SimpleRewardService {
     return names;
   }
 
-  private async listMemberLevels(month: string): Promise<Map<string, { level: PathV32Level; source: LevelSource }>> {
-    const result = new Map<string, { level: PathV32Level; source: LevelSource }>();
+  private async listMemberLevels(month: string): Promise<Map<string, { level: PathV32Level; source: PathV32LevelSource }>> {
+    const result = new Map<string, { level: PathV32Level; source: PathV32LevelSource }>();
     const historyResult = await supabaseAdmin
       .from("path_member_level_history")
       .select("member_id, level, effective_month")
