@@ -21,6 +21,7 @@ export type ProposalType =
   | 'invoice.create'
   | 'invoice.send'
   | 'invoice.mark_paid'
+  | 'cash_receipt.record'
   // 報酬
   | 'reward.calculate'
   | 'reward.adjust'
