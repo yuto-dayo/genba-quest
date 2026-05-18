@@ -93,13 +93,13 @@ describe("CommunicationRecordSheet", () => {
             />,
         );
 
-        fireEvent.change(screen.getByLabelText("やりとり内容"), {
+        fireEvent.change(screen.getByLabelText("内容"), {
             target: { value: "金額の確認が終わった" },
         });
         fireEvent.click(screen.getByRole("button", { name: "変更" }));
         fireEvent.click(screen.getByRole("button", { name: "別の話として記録" }));
 
-        expect(screen.getByLabelText("やりとり内容")).toHaveValue("金額の確認が終わった");
+        expect(screen.getByLabelText("内容")).toHaveValue("金額の確認が終わった");
     });
 
     it("records a follow-up log without updating metadata when only body changed", async () => {
@@ -116,10 +116,10 @@ describe("CommunicationRecordSheet", () => {
             />,
         );
 
-        fireEvent.change(screen.getByLabelText("やりとり内容"), {
+        fireEvent.change(screen.getByLabelText("内容"), {
             target: { value: "見積を今日中に送ると伝えた" },
         });
-        fireEvent.click(screen.getByRole("button", { name: "記録する" }));
+        fireEvent.click(screen.getByRole("button", { name: "電話として記録" }));
 
         await waitFor(() => {
             expect(addCommunicationLog).toHaveBeenCalledWith(
@@ -149,14 +149,14 @@ describe("CommunicationRecordSheet", () => {
             />,
         );
 
-        fireEvent.change(screen.getByLabelText("やりとり内容"), {
+        fireEvent.change(screen.getByLabelText("内容"), {
             target: { value: "来週に再確認する" },
         });
         fireEvent.click(screen.getByRole("button", { name: /担当と次の動き/ }));
         fireEvent.change(screen.getByLabelText("次にやること"), {
             target: { value: "来週火曜に再確認" },
         });
-        fireEvent.click(screen.getByRole("button", { name: "記録する" }));
+        fireEvent.click(screen.getByRole("button", { name: "電話として記録" }));
 
         await waitFor(() => {
             expect(updateCommunicationConversation).toHaveBeenCalledWith(
@@ -183,14 +183,14 @@ describe("CommunicationRecordSheet", () => {
             />,
         );
 
-        fireEvent.change(screen.getByLabelText("やりとり内容"), {
+        fireEvent.change(screen.getByLabelText("内容"), {
             target: { value: "見積は送った" },
         });
         fireEvent.click(screen.getByRole("button", { name: /担当と次の動き/ }));
         fireEvent.change(screen.getByLabelText("次にやること"), {
             target: { value: "反応待ち" },
         });
-        fireEvent.click(screen.getByRole("button", { name: "記録する" }));
+        fireEvent.click(screen.getByRole("button", { name: "電話として記録" }));
 
         expect(await screen.findByText("連絡は記録しました。担当と次の動きの更新だけ失敗しました。")).toBeInTheDocument();
         expect(screen.getByRole("button", { name: "もう一度更新する" })).toBeInTheDocument();
@@ -216,10 +216,10 @@ describe("CommunicationRecordSheet", () => {
             />,
         );
 
-        fireEvent.change(screen.getByLabelText("やりとり内容"), {
+        fireEvent.change(screen.getByLabelText("内容"), {
             target: { value: "納期を一週間ずらしたい相談が来た" },
         });
-        fireEvent.click(screen.getByRole("button", { name: "記録する" }));
+        fireEvent.click(screen.getByRole("button", { name: "メッセージとして記録" }));
 
         await waitFor(() => {
             expect(createCommunicationConversation).toHaveBeenCalledWith(

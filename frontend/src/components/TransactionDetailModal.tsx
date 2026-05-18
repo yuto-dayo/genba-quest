@@ -29,6 +29,7 @@ interface TransactionDetailModalProps {
     onVoided: () => void | Promise<void>;
     onUpdated: () => void | Promise<void>;
     onStartCorrection: (transaction: AccountingTransaction) => void;
+    readOnly?: boolean;
 }
 
 const kindMeta = {
@@ -106,6 +107,7 @@ export function TransactionDetailModal({
     onVoided,
     onUpdated,
     onStartCorrection,
+    readOnly = false,
 }: TransactionDetailModalProps) {
     const [relatedInvoices, setRelatedInvoices] = useState<AccountingInvoiceListItem[]>([]);
     const [loadingInvoices, setLoadingInvoices] = useState(true);
@@ -208,6 +210,11 @@ export function TransactionDetailModal({
     };
 
     const handleVoid = async () => {
+        if (readOnly) {
+            setActionError("過去月は閲覧専用です。修正は新しい月の逆仕訳で行います。");
+            return;
+        }
+
         if (!voidReason.trim()) {
             setActionError("取消理由を入力してください");
             return;
@@ -414,7 +421,10 @@ export function TransactionDetailModal({
                                                     <button
                                                         type="button"
                                                         className={styles.secondaryButton}
+                                                        disabled={readOnly}
+                                                        aria-disabled={readOnly ? "true" : undefined}
                                                         onClick={() => {
+                                                            if (readOnly) return;
                                                             setCorrectionTarget(invoice);
                                                             setCorrectionMode("document_only");
                                                         }}
@@ -426,7 +436,10 @@ export function TransactionDetailModal({
                                                         <button
                                                             type="button"
                                                             className={styles.secondaryButton}
+                                                            disabled={readOnly}
+                                                            aria-disabled={readOnly ? "true" : undefined}
                                                             onClick={() => {
+                                                                if (readOnly) return;
                                                                 setCorrectionTarget(invoice);
                                                                 setCorrectionMode("supplement");
                                                             }}
@@ -496,6 +509,7 @@ export function TransactionDetailModal({
                                     onChange={(event) => setVoidReason(event.target.value)}
                                     placeholder="例: 請求先を取り違えたため再入力"
                                     rows={3}
+                                    disabled={readOnly}
                                 />
                             </label>
                             <div className={styles.actionRow}>
@@ -503,7 +517,12 @@ export function TransactionDetailModal({
                                     <button
                                         type="button"
                                         className={styles.secondaryButton}
-                                        onClick={() => onStartCorrection(transaction)}
+                                        disabled={readOnly}
+                                        aria-disabled={readOnly ? "true" : undefined}
+                                        onClick={() => {
+                                            if (readOnly) return;
+                                            onStartCorrection(transaction);
+                                        }}
                                     >
                                         <FileText size={16} />
                                         <span>内容をコピーして再入力</span>
@@ -513,7 +532,8 @@ export function TransactionDetailModal({
                                     type="button"
                                     className={styles.primaryDangerButton}
                                     onClick={() => void handleVoid()}
-                                    disabled={!canVoid || submittingVoid}
+                                    disabled={readOnly || !canVoid || submittingVoid}
+                                    aria-disabled={readOnly || !canVoid || submittingVoid ? "true" : undefined}
                                 >
                                     {submittingVoid ? <Loader2 size={16} className={styles.spinning} /> : <Undo2 size={16} />}
                                     <span>{submittingVoid ? "取消中..." : "取消して訂正へ進む"}</span>

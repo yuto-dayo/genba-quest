@@ -121,6 +121,8 @@ interface FloatingActionButtonProps {
     openLabel?: string;
     closeLabel?: string;
     onOpen?: () => void;
+    disabled?: boolean;
+    disabledReason?: string;
 }
 
 export function FloatingActionButton({
@@ -131,6 +133,8 @@ export function FloatingActionButton({
     openLabel = "メニューを開く",
     closeLabel = "メニューを閉じる",
     onOpen,
+    disabled = false,
+    disabledReason,
 }: FloatingActionButtonProps) {
     const isMobile = useIsMobileViewport();
     const supportsDragging = behavior === "draggable" && isMobile;
@@ -329,6 +333,10 @@ export function FloatingActionButton({
     };
 
     const handleFabClick = () => {
+        if (disabled) {
+            return;
+        }
+
         if (fabDragRef.current.suppressClick) {
             fabDragRef.current.suppressClick = false;
             return;
@@ -402,9 +410,14 @@ export function FloatingActionButton({
                                     exit={{ opacity: 0, y: 10, scale: 0.8 }}
                                     transition={{ delay: prefersReducedMotion ? 0 : index * 0.05 }}
                                     onClick={() => {
+                                        if (disabled) {
+                                            return;
+                                        }
                                         item.onClick();
                                         closeMenu();
                                     }}
+                                    disabled={disabled}
+                                    aria-disabled={disabled ? "true" : undefined}
                                 >
                                     <span className={styles.fabMenuLabel}>{item.label}</span>
                                     <span className={styles.fabMenuIcon}>{item.icon}</span>
@@ -430,7 +443,11 @@ export function FloatingActionButton({
                 animate={buttonLabel ? undefined : { rotate: open ? 45 : 0 }}
                 aria-label={open ? closeLabel : openLabel}
                 aria-haspopup="dialog"
+                aria-disabled={disabled ? "true" : undefined}
+                disabled={disabled}
+                title={disabled ? disabledReason : undefined}
                 data-open={open ? "true" : undefined}
+                data-disabled={disabled ? "true" : undefined}
                 data-dragging={fabDragging ? "true" : undefined}
                 data-dock-side={fabDockSide ?? undefined}
                 data-docked={fabDockSide ? "true" : undefined}

@@ -3954,6 +3954,11 @@ export interface PathModuleMonthCloseSummary {
     canonical_reward_runs?: Array<Record<string, unknown>>;
 }
 
+export interface MonthCloseStatus {
+    month: string;
+    status: "open" | "closed";
+}
+
 export interface PathModulePendingProposal {
     id: string;
     type: ProposalType;
@@ -4564,6 +4569,20 @@ export const fetchPathModuleMonthCloseSummary = (month: string) =>
     api<PathModuleMonthCloseSummary>(
         `/api/v1/path/module/month-close-summary?month=${encodeURIComponent(month)}`
     );
+
+export const fetchMonthCloseStatus = (month: string) =>
+    fetchPathModuleMonthCloseSummary(month).then<MonthCloseStatus>((summary) => {
+        const hasClosedEligibleClose =
+            summary.eligible_closes?.some((close) => close.status === "fixed" || close.status === "closed") ?? false;
+        const hasClosedRun = summary.reward_runs.some(
+            (run) => run.status === "executed" || run.status === "closed" || Boolean(run.approved_at),
+        );
+
+        return {
+            month: summary.month || month,
+            status: hasClosedEligibleClose || hasClosedRun ? "closed" : "open",
+        };
+    });
 
 export const fetchPathModulePendingProposals = (limit = 50) =>
     api<{ proposals: PathModulePendingProposal[] }>(

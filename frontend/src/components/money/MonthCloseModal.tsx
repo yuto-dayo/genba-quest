@@ -32,6 +32,7 @@ interface MonthCloseModalProps {
     month: string;
     onClose: () => void;
     onCompleted?: () => Promise<void> | void;
+    readOnly?: boolean;
 }
 
 interface MonthCloseData {
@@ -93,7 +94,7 @@ function statusIcon(status: StepStatus) {
     return <span aria-hidden="true">•</span>;
 }
 
-export function MonthCloseModal({ month, onClose, onCompleted }: MonthCloseModalProps) {
+export function MonthCloseModal({ month, onClose, onCompleted, readOnly = false }: MonthCloseModalProps) {
     const [openedAt] = useState(() => Date.now());
     const [data, setData] = useState<MonthCloseData | null>(null);
     const [loading, setLoading] = useState(true);
@@ -158,7 +159,7 @@ export function MonthCloseModal({ month, onClose, onCompleted }: MonthCloseModal
 
     const hasBlockingObjections = summary.objectionCount > 0;
     const hasStepError = steps.some((step) => step.status === "error");
-    const canSubmit = Boolean(data && !data.alreadyFinalized && !hasBlockingObjections && !submitting && !loading);
+    const canSubmit = Boolean(data && !readOnly && !data.alreadyFinalized && !hasBlockingObjections && !submitting && !loading);
 
     const setStepStatus = useCallback((key: StepKey, status: StepStatus, errorMessage: string | null = null) => {
         setSteps((current) =>
@@ -385,6 +386,7 @@ export function MonthCloseModal({ month, onClose, onCompleted }: MonthCloseModal
                             className={styles.primaryButton}
                             onClick={() => void handleConfirm()}
                             disabled={!canSubmit}
+                            aria-disabled={!canSubmit ? "true" : undefined}
                         >
                             {submitting ? "確定中..." : `${monthLabel}を確定`}
                         </button>

@@ -8,7 +8,9 @@ import {
     Users,
 } from 'lucide-react';
 import { FloatingActionButton } from '../components/FloatingActionButton';
+import { ReadOnlyBanner } from '../components/common/ReadOnlyBanner';
 import { useCalendar } from '../hooks/useCalendar';
+import { usePastMonthGuard } from '../hooks/usePastMonthGuard';
 import { MonthCalendar } from '../components/calendar/MonthCalendar';
 import { DayScheduleBoard } from '../components/calendar/DayScheduleBoard';
 import { CalendarScheduleModal } from '../components/calendar/CalendarScheduleModal';
@@ -589,6 +591,9 @@ export function Calendar() {
     const isLeaveOn = selectedLeaveSchedule !== null;
 
     const monthLabel = `${year}/${String(month).padStart(2, '0')}`;
+    const selectedMonth = `${year}-${String(month).padStart(2, '0')}`;
+    const pastMonthGuard = usePastMonthGuard(selectedMonth);
+    const readOnly = pastMonthGuard.readOnly;
     const yearOptions = useMemo(() => {
         const currentYear = new Date().getFullYear();
         const start = Math.min(currentYear, year) - 3;
@@ -655,6 +660,11 @@ export function Calendar() {
     }, [monthPickerOpen, month, year]);
 
     const submitLeaveRequest = async () => {
+        if (readOnly) {
+            setAvailabilityMessage('過去月は閲覧専用です。修正は新しい月の逆仕訳で行います。');
+            return;
+        }
+
         if (!visibleSelectedDate || isAvailabilitySubmitting) {
             return;
         }
@@ -682,6 +692,11 @@ export function Calendar() {
     };
 
     const clearLeaveRequest = async () => {
+        if (readOnly) {
+            setAvailabilityMessage('過去月は閲覧専用です。修正は新しい月の逆仕訳で行います。');
+            return;
+        }
+
         if (!visibleSelectedDate || !selectedLeaveSchedule || isAvailabilitySubmitting) {
             return;
         }
@@ -709,6 +724,11 @@ export function Calendar() {
     };
 
     const toggleLeave = () => {
+        if (readOnly) {
+            setAvailabilityMessage('過去月は閲覧専用です。修正は新しい月の逆仕訳で行います。');
+            return;
+        }
+
         if (isLeaveOn) {
             void clearLeaveRequest();
         } else {
@@ -728,6 +748,10 @@ export function Calendar() {
         selected: boolean;
         workLabel: string | null;
     }) => {
+        if (readOnly) {
+            return { ok: false, message: '過去月は閲覧専用です。修正は新しい月の逆仕訳で行います。' };
+        }
+
         const busyKey = `${date}:${site.site_id}:${member.id}`;
         const targetSite = visibleSites.find((item) => item.id === site.site_id);
         if (!targetSite) {
@@ -765,6 +789,8 @@ export function Calendar() {
 
     return (
         <div className={styles.container}>
+            {readOnly && <ReadOnlyBanner />}
+
             <section className={styles.mainPanel}>
                 <div className={styles.sectionHeader}>
                     <div className={styles.headerTools}>
@@ -970,7 +996,8 @@ export function Calendar() {
                                     isLeaveOn ? styles.leaveToggleOn : ''
                                 }`}
                                 onClick={toggleLeave}
-                                disabled={isAvailabilitySubmitting}
+                                disabled={readOnly || isAvailabilitySubmitting}
+                                aria-disabled={readOnly || isAvailabilitySubmitting ? 'true' : undefined}
                             >
                                 {isAvailabilitySubmitting
                                     ? '反映中…'
@@ -1019,6 +1046,7 @@ export function Calendar() {
                             busyWorkerKeys={assignmentToggleBusyKeys}
                             onToggleWorker={handleToggleAssignment}
                             onSelectLineItem={handleSelectLineItem}
+                            readOnly={readOnly}
                         />
                     </div>
                 )}
@@ -1028,6 +1056,8 @@ export function Calendar() {
                 behavior="draggable"
                 openLabel="追加メニューを開く"
                 closeLabel="追加メニューを閉じる"
+                disabled={readOnly}
+                disabledReason="過去月は閲覧専用"
                 items={[
                     {
                         id: 'personal-schedule',
@@ -1053,6 +1083,7 @@ export function Calendar() {
                         defaultMemberId={scope === 'personal' ? currentUserId : null}
                         onClose={() => setShowAddModal(false)}
                         onCreated={handleCommitted}
+                        readOnly={readOnly}
                     />
                 )}
             </AnimatePresence>
@@ -1066,6 +1097,7 @@ export function Calendar() {
                             setShowSiteCreateModal(false);
                             await reloadAssignments();
                         }}
+                        readOnly={readOnly}
                     />
                 )}
             </AnimatePresence>

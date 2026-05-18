@@ -141,7 +141,7 @@ describe("split PATH sections", () => {
         fireEvent.click(screen.getByRole("button", { name: /現在 Level/i }));
 
         expect(screen.getByRole("dialog", { name: "L3 の詳細" })).toBeInTheDocument();
-        expect(screen.getByRole("heading", { name: "月末入力メモ" })).toBeInTheDocument();
+        expect(screen.getByRole("heading", { name: "現場入力メモ" })).toBeInTheDocument();
 
         fireEvent.click(screen.getByRole("button", { name: "入力を見直す" }));
         expect(onOpenMonthlyInput).toHaveBeenCalledTimes(1);

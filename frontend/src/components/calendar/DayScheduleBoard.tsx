@@ -23,6 +23,7 @@ interface DayScheduleBoardProps {
     busyWorkerKeys: string[];
     onToggleWorker: (input: AssignmentToggleInput) => Promise<{ ok: boolean; message?: string }>;
     onSelectLineItem: (date: string, siteId: string, lineItemId: string | null) => void;
+    readOnly?: boolean;
 }
 
 function formatDateLabel(dateStr: string): string {
@@ -71,6 +72,7 @@ export function DayScheduleBoard({
     busyWorkerKeys,
     onToggleWorker,
     onSelectLineItem,
+    readOnly = false,
 }: DayScheduleBoardProps) {
     const [message, setMessage] = useState<string | null>(null);
 
@@ -90,6 +92,11 @@ export function DayScheduleBoard({
         selectedLineItem: SiteLineItem | null,
         selected: boolean
     ) => {
+        if (readOnly) {
+            setMessage('過去月は閲覧専用です。修正は新しい月の逆仕訳で行います。');
+            return;
+        }
+
         const workLabel = selectedLineItem ? formatLineItemLabel(selectedLineItem) : null;
         setMessage(null);
         void onToggleWorker({
@@ -177,7 +184,7 @@ export function DayScheduleBoard({
                                                 (worker) => worker.id === member.id
                                             );
                                             const assignedForDate = board.assigned_worker_ids_for_date.includes(member.id);
-                                            const disabled = assignedForDate && !draftWorker && !confirmedHere;
+                                            const disabled = readOnly || (assignedForDate && !draftWorker && !confirmedHere);
                                             const selected = Boolean(draftWorker || confirmedHere);
                                             const busy = busyWorkerKeys.includes(
                                                 `${board.date}:${site.site_id}:${member.id}`
@@ -196,6 +203,7 @@ export function DayScheduleBoard({
                                                         .filter(Boolean)
                                                         .join(' ')}
                                                     disabled={disabled}
+                                                    aria-disabled={disabled ? 'true' : undefined}
                                                     onClick={() => {
                                                         if (busy) {
                                                             return;

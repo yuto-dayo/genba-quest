@@ -12,6 +12,7 @@ interface TeamExpenseSummaryModalProps {
     month: string;
     onClose: () => void;
     onExpenseClicked: (memberId: string) => void;
+    readOnly?: boolean;
 }
 
 function formatYen(amount: number): string {

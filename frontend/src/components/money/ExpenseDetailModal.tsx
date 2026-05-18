@@ -14,6 +14,7 @@ interface ExpenseDetailModalProps {
     selfMemberId: string | null;
     onClose: () => void;
     onExpenseAdded?: () => Promise<void> | void;
+    readOnly?: boolean;
 }
 
 type ReimbursementStatus = "unsubmitted" | "submitted" | "approved" | "reimbursed";
@@ -94,6 +95,7 @@ export function ExpenseDetailModal({
     selfMemberId,
     onClose,
     onExpenseAdded,
+    readOnly = false,
 }: ExpenseDetailModalProps) {
     const [data, setData] = useState<MemberReimbursementBalance | null>(null);
     const [loading, setLoading] = useState(true);
@@ -306,7 +308,12 @@ export function ExpenseDetailModal({
                             <button
                                 type="button"
                                 className={styles.primaryButton}
-                                onClick={() => setExpenseOpen(true)}
+                                onClick={() => {
+                                    if (readOnly) return;
+                                    setExpenseOpen(true);
+                                }}
+                                disabled={readOnly}
+                                aria-disabled={readOnly ? "true" : undefined}
                             >
                                 <Plus size={16} aria-hidden="true" />
                                 経費を追加
@@ -323,6 +330,7 @@ export function ExpenseDetailModal({
                     onSuccess={handleExpenseSuccess}
                     defaultPaidBy="member"
                     defaultClaimantMemberId={memberId}
+                    readOnly={readOnly}
                 />
             )}
         </div>

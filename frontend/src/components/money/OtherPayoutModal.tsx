@@ -21,6 +21,7 @@ interface OtherPayoutModalProps {
     memberId: string;
     month: string;
     onClose: () => void;
+    readOnly?: boolean;
 }
 
 interface TrendPoint {
