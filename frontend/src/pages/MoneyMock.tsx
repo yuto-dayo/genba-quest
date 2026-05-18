@@ -202,10 +202,10 @@ export default function MoneyMock() {
 
       {/* Modals */}
       {modal?.kind === "ownReward" && (
-        <OwnRewardModal monthState={monthState} onClose={closeModal} />
+        <OwnPayoutModal monthState={monthState} onClose={closeModal} />
       )}
       {modal?.kind === "otherReward" && (
-        <OtherRewardModal
+        <OtherPayoutModal
           memberId={modal.memberId}
           isObjectionWindow={monthState === "after"}
           onClose={closeModal}
@@ -699,7 +699,7 @@ function ModalShell({
   );
 }
 
-function OwnRewardModal({
+function OwnPayoutModal({
   monthState,
   onClose,
 }: {
@@ -794,7 +794,7 @@ function OwnRewardModal({
   );
 }
 
-function OtherRewardModal({
+function OtherPayoutModal({
   memberId,
   isObjectionWindow,
   onClose,

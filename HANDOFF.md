@@ -1,10 +1,11 @@
-# Project Handoff Profile / Domain Index - 2026-05-17
+# Project Handoff Profile / Domain Index - 2026-05-18
 
 ## Active Domains
 
 | Domain | File | Last Updated | Status |
 | ------ | ---- | ------------ | ------ |
 | local | `handoff/local.md` | 2026-05-17 | active |
+| frontend/payout-modal-rename | `handoff/frontend/payout-modal-rename.md` | 2026-05-18 | Prepare rename-only commit and PR; note full npm test bas... |
 
 ## Domain Selection Guide
 

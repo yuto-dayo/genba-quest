@@ -63,8 +63,8 @@ import { MoneyHeroSection } from "../components/money/MoneyHeroSection";
 import { MemberCarousel } from "../components/money/MemberCarousel";
 import { CompanySummaryCard } from "../components/money/CompanySummaryCard";
 import { ShieldPopover } from "../components/money/ShieldPopover";
-import { OwnRewardModal } from "../components/money/OwnRewardModal";
-import { OtherRewardModal } from "../components/money/OtherRewardModal";
+import { OwnPayoutModal } from "../components/money/OwnPayoutModal";
+import { OtherPayoutModal } from "../components/money/OtherPayoutModal";
 import { TeamSummaryModal } from "../components/money/TeamSummaryModal";
 import { ExpenseDetailModal } from "../components/money/ExpenseDetailModal";
 import { TeamExpenseSummaryModal } from "../components/money/TeamExpenseSummaryModal";
@@ -466,7 +466,7 @@ export function Money() {
     const [showSalesModal, setShowSalesModal] = useState(false);
     const [showInvoiceModal, setShowInvoiceModal] = useState(false);
     const [invoicePayTarget, setInvoicePayTarget] = useState<InvoicePayTarget | null>(null);
-    const [ownRewardModalOpen, setOwnRewardModalOpen] = useState(false);
+    const [ownPayoutModalOpen, setOwnPayoutModalOpen] = useState(false);
     const [otherRewardMemberId, setOtherRewardMemberId] = useState<string | null>(null);
     const [teamSummaryModalOpen, setTeamSummaryModalOpen] = useState(false);
     const [expenseDetailMemberId, setExpenseDetailMemberId] = useState<string | null>(null);
@@ -674,12 +674,12 @@ export function Money() {
         setSearchParams(next, { replace: true });
     }, [searchParams, setSearchParams]);
 
-    const closeOwnRewardModal = useCallback(() => {
-        setOwnRewardModalOpen(false);
+    const closeOwnPayoutModal = useCallback(() => {
+        setOwnPayoutModalOpen(false);
         clearRewardSearchParams();
     }, [clearRewardSearchParams]);
 
-    const closeOtherRewardModal = useCallback(() => {
+    const closeOtherPayoutModal = useCallback(() => {
         setOtherRewardMemberId(null);
         clearRewardSearchParams();
     }, [clearRewardSearchParams]);
@@ -702,11 +702,11 @@ export function Money() {
 
         if (selfMemberId && targetMemberId === selfMemberId) {
             setOtherRewardMemberId(null);
-            setOwnRewardModalOpen(true);
+            setOwnPayoutModalOpen(true);
             return;
         }
 
-        setOwnRewardModalOpen(false);
+        setOwnPayoutModalOpen(false);
         setOtherRewardMemberId(targetMemberId);
     }, [searchParams, teamRewardSummary?.self_member_id]);
 
@@ -797,7 +797,7 @@ export function Money() {
 
     const handleRewardCardTap = (memberId: string) => {
         if (memberId === teamRewardSummary?.self_member_id) {
-            setOwnRewardModalOpen(true);
+            setOwnPayoutModalOpen(true);
             return;
         }
         setOtherRewardMemberId(memberId);
@@ -1168,12 +1168,12 @@ export function Money() {
                 )}
             </div>
 
-            {ownRewardModalOpen && teamRewardSummary?.self_member_id && (
-                <OwnRewardModal
+            {ownPayoutModalOpen && teamRewardSummary?.self_member_id && (
+                <OwnPayoutModal
                     selfMemberId={teamRewardSummary.self_member_id}
                     selfUserId={selfUserId}
                     month={selectedMonth}
-                    onClose={closeOwnRewardModal}
+                    onClose={closeOwnPayoutModal}
                     onInvoiceChanged={() => {
                         setInvoiceRefreshKey((current) => current + 1);
                         handleMoneyHeroRetry();
@@ -1182,10 +1182,10 @@ export function Money() {
             )}
 
             {otherRewardMemberId && (
-                <OtherRewardModal
+                <OtherPayoutModal
                     memberId={otherRewardMemberId}
                     month={selectedMonth}
-                    onClose={closeOtherRewardModal}
+                    onClose={closeOtherPayoutModal}
                 />
             )}
 

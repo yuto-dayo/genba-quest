@@ -7,7 +7,7 @@ import {
     type PathRewardConfirmationSummary,
     type PathV33MonthlyPreview,
 } from "../../lib/api";
-import { OwnRewardModal } from "./OwnRewardModal";
+import { OwnPayoutModal } from "./OwnPayoutModal";
 
 const fetchMemberInvoiceDrafts = vi.fn();
 const fetchMyMemberInvoices = vi.fn();
@@ -188,7 +188,7 @@ const issuedInvoice: MemberInvoice = {
     updated_at: "2026-05-12T00:00:00.000Z",
 };
 
-describe("OwnRewardModal", () => {
+describe("OwnPayoutModal", () => {
     beforeEach(() => {
         vi.resetAllMocks();
         track.mockClear();
@@ -205,7 +205,7 @@ describe("OwnRewardModal", () => {
             .mockResolvedValueOnce({ invoices: [issuedInvoice] });
 
         render(
-            <OwnRewardModal
+            <OwnPayoutModal
                 selfMemberId="member-self"
                 selfUserId="user-self"
                 month="2026-05"
@@ -237,7 +237,7 @@ describe("OwnRewardModal", () => {
         });
 
         render(
-            <OwnRewardModal
+            <OwnPayoutModal
                 selfMemberId="member-self"
                 selfUserId="user-self"
                 month="2026-05"

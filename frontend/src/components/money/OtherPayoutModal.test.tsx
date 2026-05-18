@@ -7,7 +7,7 @@ import {
     type PathV33TeamFeed,
     type TeamRewardSummary,
 } from "../../lib/api";
-import { OtherRewardModal } from "./OtherRewardModal";
+import { OtherPayoutModal } from "./OtherPayoutModal";
 import { TeamSummaryModal } from "./TeamSummaryModal";
 
 const fetchPathRewardConfirmation = vi.fn();
@@ -43,8 +43,8 @@ vi.mock("../ObjectionSubmitSheet", () => ({
     ) : null,
 }));
 
-vi.mock("./OwnRewardModal", () => ({
-    OwnRewardModal: ({ selfMemberId }: { selfMemberId: string }) => (
+vi.mock("./OwnPayoutModal", () => ({
+    OwnPayoutModal: ({ selfMemberId }: { selfMemberId: string }) => (
         <div role="dialog" aria-label="own reward modal">
             自分の報酬 {selfMemberId}
         </div>
@@ -196,7 +196,7 @@ const teamSummary: TeamRewardSummary = {
     ],
 };
 
-describe("OtherRewardModal", () => {
+describe("OtherPayoutModal", () => {
     beforeEach(() => {
         vi.resetAllMocks();
         fetchPathRewardConfirmation.mockImplementation((targetMonth: string) => Promise.resolve({
@@ -212,7 +212,7 @@ describe("OtherRewardModal", () => {
 
     it("shows another member reward details without invoice state and submits an objection in window", async () => {
         render(
-            <OtherRewardModal
+            <OtherPayoutModal
                 memberId="member-other"
                 month="2026-05"
                 onClose={vi.fn()}
@@ -253,7 +253,7 @@ describe("OtherRewardModal", () => {
         }));
 
         render(
-            <OtherRewardModal
+            <OtherPayoutModal
                 memberId="member-other"
                 month="2026-05"
                 onClose={vi.fn()}
