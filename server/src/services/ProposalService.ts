@@ -133,8 +133,16 @@ const ACCOUNT_CODES = {
   otherExpense: '5900',
 } as const;
 
-const PERSONAL_SCHEDULE_TYPES = ['vacation', 'sick_leave', 'business_trip', 'training'] as const;
+const PERSONAL_SCHEDULE_TYPES = ['event', 'task', 'vacation', 'sick_leave', 'business_trip', 'training'] as const;
 type PersonalScheduleType = typeof PERSONAL_SCHEDULE_TYPES[number];
+const PERSONAL_SCHEDULE_TYPE_LABELS: Record<PersonalScheduleType, string> = {
+  event: '予定',
+  task: 'タスク',
+  vacation: '休み',
+  sick_leave: '病欠',
+  business_trip: '出張',
+  training: '研修',
+};
 const ASSIGNMENT_PAST_DATE_GUARD_TYPES: ReadonlySet<ProposalType> = new Set([
   'assignment.create',
   'assignment.update',
@@ -2041,15 +2049,48 @@ export class ProposalService {
       this.getPayloadString(payload, ['reason', 'note']) ||
       this.getPayloadString(payload, ['description']) ||
       proposal.description;
+    const title =
+      this.getPayloadString(payload, ['title', 'name']) ||
+      PERSONAL_SCHEDULE_TYPE_LABELS[scheduleType];
+    const startTime = this.getPayloadString(payload, ['start_time', 'startTime']);
+    const endTime = this.getPayloadString(payload, ['end_time', 'endTime']);
+    if (Boolean(startTime) !== Boolean(endTime)) {
+      throw new Error('PERSONAL_SCHEDULE_TIME_RANGE_INVALID');
+    }
+    if (startTime && endTime && startDate === endDate && startTime >= endTime) {
+      throw new Error('PERSONAL_SCHEDULE_TIME_RANGE_INVALID');
+    }
+    const address = this.getPayloadString(payload, ['address', 'location', 'place']);
+    const colorCandidate = this.getPayloadString(payload, ['color', 'schedule_color', 'scheduleColor']);
+    const color = colorCandidate && /^#[0-9A-Fa-f]{6}$/.test(colorCandidate) ? colorCandidate.toUpperCase() : null;
+    const blocksAssignment = scheduleType === 'vacation' || scheduleType === 'sick_leave';
+    const rawVisibility =
+      this.getPayloadString(payload, [
+        'visibility',
+        'visibility_scope',
+        'visibilityScope',
+        'display_scope',
+        'displayScope',
+      ])?.toLowerCase() || 'personal';
+    const visibility = blocksAssignment
+      ? 'organization'
+      : ['organization', 'org', 'team', 'public'].includes(rawVisibility)
+        ? 'organization'
+        : 'personal';
 
-    const { data: existing, error: existingError } = await supabaseAdmin
+    let existingQuery = supabaseAdmin
       .from('personal_schedules')
       .select('id, approved')
       .eq('user_id', userId)
       .eq('start_date', startDate)
       .eq('end_date', endDate)
       .eq('type', scheduleType)
-      .maybeSingle();
+      .eq('title', title);
+
+    existingQuery = startTime ? existingQuery.eq('start_time', startTime) : existingQuery.is('start_time', null);
+    existingQuery = endTime ? existingQuery.eq('end_time', endTime) : existingQuery.is('end_time', null);
+
+    const { data: existing, error: existingError } = await existingQuery.maybeSingle();
 
     if (existingError) {
       throw new Error(`Failed to lookup leave request schedule: ${existingError.message}`);
@@ -2062,6 +2103,13 @@ export class ProposalService {
 
       const updatePayload: Record<string, unknown> = {
         approved: true,
+        title,
+        start_time: startTime || null,
+        end_time: endTime || null,
+        address: address || null,
+        color,
+        blocks_assignment: blocksAssignment,
+        visibility,
         updated_at: new Date().toISOString(),
       };
       if (reason) {
@@ -2084,6 +2132,13 @@ export class ProposalService {
       start_date: startDate,
       end_date: endDate,
       type: scheduleType,
+      title,
+      start_time: startTime || null,
+      end_time: endTime || null,
+      address: address || null,
+      color,
+      blocks_assignment: blocksAssignment,
+      visibility,
       approved: true,
       updated_at: new Date().toISOString(),
     };
