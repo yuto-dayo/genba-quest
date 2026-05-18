@@ -1127,6 +1127,44 @@ describe('ProposalService', () => {
       expect(insertChain.insert).toHaveBeenCalled();
     });
 
+    it('event の個人予定も personal_schedules に作成する', async () => {
+      const lookupChain = createChain({ data: null, error: null });
+      const insertChain = createChain({ data: null, error: null });
+      setupMockFromSequence(mockFrom, [lookupChain, insertChain]);
+
+      const eventProposal = makeProposal({
+        type: 'leave.request',
+        payload: {
+          user_id: '11111111-1111-4111-8111-111111111111',
+          start_date: '2026-03-03',
+          end_date: '2026-03-03',
+          schedule_type: 'event',
+          title: '現調',
+          start_time: '09:00',
+          end_time: '10:00',
+          address: '東京都渋谷区渋谷1-2-3',
+          color: '#f97316',
+          visibility: 'personal',
+        },
+      });
+
+      await expect(applyLeaveRequest(eventProposal)).resolves.toBeUndefined();
+
+      expect(insertChain.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'event',
+          title: '現調',
+          start_time: '09:00',
+          end_time: '10:00',
+          address: '東京都渋谷区渋谷1-2-3',
+          color: '#F97316',
+          blocks_assignment: false,
+          visibility: 'personal',
+          approved: true,
+        }),
+      );
+    });
+
     it('unsupported leave_type はスキップする', async () => {
       const leaveProposal = makeProposal({
         type: 'leave.request',

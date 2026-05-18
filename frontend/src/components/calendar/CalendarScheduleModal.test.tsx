@@ -64,6 +64,12 @@ function renderPersonalScheduleModal() {
     );
 }
 
+function renderTimedPersonalScheduleModal() {
+    const result = renderPersonalScheduleModal();
+    fireEvent.click(screen.getByRole('switch'));
+    return result;
+}
+
 function renderAssignmentScheduleModal() {
     return render(
         <CalendarScheduleModal
@@ -103,7 +109,7 @@ describe('CalendarScheduleModal', () => {
     });
 
     it('normalizes a single hour value when finishing time entry', () => {
-        renderPersonalScheduleModal();
+        renderTimedPersonalScheduleModal();
         fireEvent.click(screen.getByRole('button', { name: '開始時刻' }));
         fireEvent.change(screen.getByRole('textbox', { name: '開始時刻の時' }), {
             target: { value: '9' },
@@ -115,7 +121,7 @@ describe('CalendarScheduleModal', () => {
     });
 
     it('accepts compact time input such as 930', () => {
-        renderPersonalScheduleModal();
+        renderTimedPersonalScheduleModal();
         fireEvent.click(screen.getByRole('button', { name: '開始時刻' }));
         fireEvent.change(screen.getByRole('textbox', { name: '開始時刻の時' }), {
             target: { value: '930' },
@@ -128,7 +134,7 @@ describe('CalendarScheduleModal', () => {
     });
 
     it('keeps the typed hour when focus moves to the minute field', () => {
-        renderPersonalScheduleModal();
+        renderTimedPersonalScheduleModal();
         fireEvent.click(screen.getByRole('button', { name: '開始時刻' }));
 
         const hourInput = screen.getByRole('textbox', { name: '開始時刻の時' });
@@ -140,7 +146,7 @@ describe('CalendarScheduleModal', () => {
     });
 
     it('accepts full-width numeric input', () => {
-        renderPersonalScheduleModal();
+        renderTimedPersonalScheduleModal();
         fireEvent.click(screen.getByRole('button', { name: '開始時刻' }));
         fireEvent.change(screen.getByRole('textbox', { name: '開始時刻の時' }), {
             target: { value: '１２' },
@@ -150,7 +156,7 @@ describe('CalendarScheduleModal', () => {
     });
 
     it('shows contextual chips for the selected time part', async () => {
-        renderPersonalScheduleModal();
+        renderTimedPersonalScheduleModal();
         fireEvent.click(screen.getByRole('button', { name: '開始時刻' }));
 
         expect(screen.queryByRole('group', { name: '時を選択' })).not.toBeInTheDocument();
@@ -204,6 +210,7 @@ describe('CalendarScheduleModal', () => {
         expect(screen.getByRole('dialog', { name: '予定色を選択' })).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: '橙を選択' }));
         expect(screen.queryByRole('dialog', { name: '予定色を選択' })).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('switch'));
         fireEvent.click(screen.getByRole('button', { name: '開始時刻' }));
         fireEvent.click(screen.getByRole('button', { name: '09:00' }));
         fireEvent.click(screen.getByRole('button', { name: '完了' }));
@@ -220,6 +227,41 @@ describe('CalendarScheduleModal', () => {
                 }),
             );
         });
+    });
+
+    it('submits an all-day personal schedule with only a title', async () => {
+        renderPersonalScheduleModal();
+
+        fireEvent.change(screen.getByRole('textbox', { name: 'タイトル' }), {
+            target: { value: '役所に行く' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: '予定を入れる' }));
+
+        await waitFor(() => {
+            expect(submitPersonalScheduleProposal).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    title: '役所に行く',
+                    start_date: '2026-04-25',
+                    end_date: '2026-04-25',
+                    start_time: undefined,
+                    end_time: undefined,
+                    schedule_type: 'event',
+                }),
+            );
+        });
+    });
+
+    it('shows a time error when all-day is off and time is missing', async () => {
+        renderPersonalScheduleModal();
+
+        fireEvent.change(screen.getByRole('textbox', { name: 'タイトル' }), {
+            target: { value: '現調' },
+        });
+        fireEvent.click(screen.getByRole('switch'));
+        fireEvent.click(screen.getByRole('button', { name: '予定を入れる' }));
+
+        expect(await screen.findByText('終日をOFFにした場合は、開始と終了の時刻を正しく入力してください。')).toBeInTheDocument();
+        expect(submitPersonalScheduleProposal).not.toHaveBeenCalled();
     });
 
     it('shows dedicated past-date lock message when assignment proposal is locked by API', async () => {

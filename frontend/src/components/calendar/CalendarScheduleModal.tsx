@@ -300,7 +300,7 @@ export function CalendarScheduleModal({
     const [address, setAddress] = useState('');
     const [scheduleType, setScheduleType] = useState<PersonalScheduleType>('event');
     const [title, setTitle] = useState('');
-    const [isAllDay, setIsAllDay] = useState(false);
+    const [isAllDay, setIsAllDay] = useState(true);
     const [activePicker, setActivePicker] = useState<DateTimePickerTarget | null>(null);
     const [calendarMonth, setCalendarMonth] = useState(() => parseDateValue(initialDate) || new Date());
     const [startTime, setStartTime] = useState('');
@@ -440,7 +440,7 @@ export function CalendarScheduleModal({
                     ? '終日をOFFにした場合は、開始と終了の時刻を正しく入力してください。'
                     : null;
 
-    const canSubmitPersonal = !isSubmitting && personalError === null;
+    const canSubmitPersonal = !isSubmitting;
     const canSubmitAssignment =
         !isLoadingOptions &&
         !isSubmitting &&
@@ -738,8 +738,11 @@ export function CalendarScheduleModal({
             return;
         }
 
-        if (!canSubmitPersonal) {
+        if (personalError) {
             setError(personalError);
+            return;
+        }
+        if (isSubmitting) {
             return;
         }
 
