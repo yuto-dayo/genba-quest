@@ -6,7 +6,7 @@
 | ------ | ---- | ------------ | ------ |
 | local | `handoff/local.md` | 2026-05-17 | active |
 | frontend/payout-modal-rename | `handoff/frontend/payout-modal-rename.md` | 2026-05-18 | Prepare rename-only commit and PR; note full npm test bas... |
-| server/level-fallback | `handoff/server/level-fallback.md` | 2026-05-18 | active |
+| server/level-fallback | `handoff/server/level-fallback.md` | 2026-05-18 | Run final validation summary, commit product files only, ... |
 
 ## Domain Selection Guide
 
