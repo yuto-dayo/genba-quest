@@ -43,7 +43,9 @@ export const DEV_AUTH_USERS: DevAuthUser[] = [
 const DEFAULT_PATH_DEV_ORG_ID = "1920a92b-d091-46a9-90c9-9d3a6bcab6a0";
 
 export function isDevAuthMode(): boolean {
-  return process.env.NODE_ENV !== "production" && process.env.DEV_SKIP_AUTH === "true";
+  // Strictly require NODE_ENV=development so staging/test/unset can never
+  // accidentally turn the auth bypass on by setting DEV_SKIP_AUTH=true.
+  return process.env.NODE_ENV === "development" && process.env.DEV_SKIP_AUTH === "true";
 }
 
 export function isHostedSupabaseUrl(value: string | undefined | null): boolean {
