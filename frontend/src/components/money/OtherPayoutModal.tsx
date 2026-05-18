@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertCircle, Loader2, ShieldCheck, X } from "lucide-react";
 import {
+    fetchMemberReimbursementBalance,
     fetchPathRewardConfirmation,
     fetchPathV33MonthlyPreview,
     fetchPathV33TeamFeed,
     submitPathV33Objection,
+    type MemberReimbursementBalance,
     type PathRewardConfirmationSummary,
     type PathV33MonthlyPreview,
     type PathV33TeamFeedTimelineEntry,
@@ -12,6 +14,7 @@ import {
 } from "../../lib/api";
 import { getErrorMessage } from "../../lib/error";
 import { ObjectionSubmitSheet } from "../ObjectionSubmitSheet";
+import { PayoutBreakdownSection } from "./PayoutBreakdownSection";
 import styles from "./OtherPayoutModal.module.css";
 
 interface OtherPayoutModalProps {
@@ -28,6 +31,7 @@ interface TrendPoint {
 interface ModalData {
     summary: PathRewardConfirmationSummary;
     preview: PathV33MonthlyPreview | null;
+    reimbursementBalance: MemberReimbursementBalance;
     trend: TrendPoint[];
     objectionTarget: PathV33TeamFeedTimelineEntry | null;
 }
@@ -53,8 +57,8 @@ function formatMonthLabel(month: string): string {
     const [, monthPart] = month.split("-");
     const numericMonth = Number(monthPart);
     return Number.isFinite(numericMonth) && numericMonth > 0
-        ? `${numericMonth}月分の報酬`
-        : `${month}分の報酬`;
+        ? `${numericMonth}月分の報酬と立替`
+        : `${month}分の報酬と立替`;
 }
 
 function formatShortMonth(month: string): string {
@@ -155,7 +159,10 @@ export function OtherPayoutModal({ memberId, month, onClose }: OtherPayoutModalP
 
         const requestSignal = signal ?? new AbortController().signal;
         try {
-            const summary = await fetchPathRewardConfirmation(month, memberId, { signal: requestSignal });
+            const [summary, reimbursementBalance] = await Promise.all([
+                fetchPathRewardConfirmation(month, memberId, { signal: requestSignal }),
+                fetchMemberReimbursementBalance(memberId, month, { signal: requestSignal }),
+            ]);
             const [preview, feed, trend] = await Promise.all([
                 fetchPathV33MonthlyPreview(memberId, month, { signal: requestSignal }).catch(() => null),
                 fetchPathV33TeamFeed(month).catch(() => null),
@@ -165,6 +172,7 @@ export function OtherPayoutModal({ memberId, month, onClose }: OtherPayoutModalP
             setData({
                 summary,
                 preview,
+                reimbursementBalance,
                 trend,
                 objectionTarget: pickObjectionTarget(
                     memberId,
@@ -228,8 +236,11 @@ export function OtherPayoutModal({ memberId, month, onClose }: OtherPayoutModalP
         }
     }
 
+    const payoutAmount = data
+        ? data.summary.estimated_amount + data.reimbursementBalance.unsettled
+        : 0;
     const title = data
-        ? `${data.summary.member_name}さんの報酬`
+        ? `${data.summary.member_name}さんの${formatMonthLabel(month)}`
         : formatMonthLabel(month);
 
     return (
@@ -287,9 +298,15 @@ export function OtherPayoutModal({ memberId, month, onClose }: OtherPayoutModalP
                                     {formatMonthLabel(month)}
                                 </span>
                                 <span className={styles.rewardMetricValue}>
-                                    {formatYen(data.summary.estimated_amount)}
+                                    {formatYen(payoutAmount)}
                                 </span>
                             </div>
+
+                            <PayoutBreakdownSection
+                                rewardAmount={data.summary.estimated_amount}
+                                reimbursementSettled={data.reimbursementBalance.unsettled}
+                                reimbursementCarryOver={data.reimbursementBalance.carry_over_amount ?? 0}
+                            />
 
                             <p className={styles.privacyNote}>
                                 <ShieldCheck size={18} aria-hidden="true" />

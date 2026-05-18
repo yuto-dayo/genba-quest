@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertCircle, CheckCircle2, Clock3, FileText, Loader2, Send, X } from "lucide-react";
 import {
     fetchMemberInvoiceDrafts,
+    fetchMemberReimbursementBalance,
     fetchMyMemberInvoices,
     fetchPathRewardConfirmation,
     fetchPathV33MonthlyPreview,
     voidMemberInvoice,
+    type MemberReimbursementBalance,
     type MemberInvoice,
     type MemberInvoiceDraft,
     type PathRewardConfirmationSummary,
@@ -16,6 +18,7 @@ import { getErrorMessage } from "../../lib/error";
 import { track } from "../../lib/telemetry";
 import { LevelRevisionSheet } from "../LevelRevisionSheet";
 import { MemberInvoiceIssueModal } from "../MemberInvoiceIssueModal";
+import { PayoutBreakdownSection } from "./PayoutBreakdownSection";
 import styles from "./OwnPayoutModal.module.css";
 
 type InvoiceState = "before_close" | "unissued" | "issued" | "paid";
@@ -33,6 +36,7 @@ interface ModalData {
     invoices: MemberInvoice[];
     drafts: MemberInvoiceDraft[];
     preview: PathV33MonthlyPreview | null;
+    reimbursementBalance: MemberReimbursementBalance;
 }
 
 function isAbortError(error: unknown): boolean {
@@ -51,8 +55,8 @@ function formatMonthLabel(month: string): string {
     const [, monthPart] = month.split("-");
     const numericMonth = Number(monthPart);
     return Number.isFinite(numericMonth) && numericMonth > 0
-        ? `${numericMonth}月分の報酬`
-        : `${month}分の報酬`;
+        ? `${numericMonth}月分の報酬と立替`
+        : `${month}分の報酬と立替`;
 }
 
 function formatPaidDate(invoice: MemberInvoice | null): string {
@@ -138,14 +142,12 @@ export function OwnPayoutModal({
         setActionError(null);
 
         try {
-            const [summary, invoiceResponse] = await Promise.all([
+            const [summary, invoiceResponse, draftResponse, preview, reimbursementBalance] = await Promise.all([
                 fetchPathRewardConfirmation(month, selfMemberId, { signal }),
                 fetchMyMemberInvoices({ signal }),
-            ]);
-
-            const [draftResponse, preview] = await Promise.all([
                 fetchMemberInvoiceDrafts({ signal }).catch(() => ({ drafts: [] })),
                 fetchPathV33MonthlyPreview(selfMemberId, month, { signal }).catch(() => null),
+                fetchMemberReimbursementBalance(selfMemberId, month, { signal }),
             ]);
 
             setData({
@@ -153,6 +155,7 @@ export function OwnPayoutModal({
                 invoices: invoiceResponse.invoices,
                 drafts: draftResponse.drafts,
                 preview,
+                reimbursementBalance,
             });
         } catch (err) {
             if (isAbortError(err)) return;
@@ -183,6 +186,9 @@ export function OwnPayoutModal({
     const invoiceState = data ? deriveInvoiceState(data.summary, activeInvoice) : "before_close";
     const issueDraft = data ? pickIssueDraft(data.drafts, month, data.summary) : null;
     const revisionDraft = data ? pickRevisionDraft(data.preview) : null;
+    const payoutAmount = data
+        ? data.summary.estimated_amount + data.reimbursementBalance.unsettled
+        : 0;
 
     const refreshAfterInvoiceChange = useCallback(async (message: string) => {
         await reload();
@@ -260,9 +266,15 @@ export function OwnPayoutModal({
                             <div className={styles.rewardMetric}>
                                 <span className={styles.rewardMetricLabel}>あなたの報酬</span>
                                 <span className={styles.rewardMetricValue}>
-                                    {formatYen(data.summary.estimated_amount)}
+                                    {formatYen(payoutAmount)}
                                 </span>
                             </div>
+
+                            <PayoutBreakdownSection
+                                rewardAmount={data.summary.estimated_amount}
+                                reimbursementSettled={data.reimbursementBalance.unsettled}
+                                reimbursementCarryOver={data.reimbursementBalance.carry_over_amount ?? 0}
+                            />
 
                             <section className={styles.section} aria-labelledby="own-reward-breakdown">
                                 <h3 id="own-reward-breakdown" className={styles.sectionTitle}>

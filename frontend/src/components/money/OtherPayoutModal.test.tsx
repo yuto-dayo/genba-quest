@@ -2,6 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+    type MemberReimbursementBalance,
     type PathRewardConfirmationSummary,
     type PathV33MonthlyPreview,
     type PathV33TeamFeed,
@@ -10,6 +11,7 @@ import {
 import { OtherPayoutModal } from "./OtherPayoutModal";
 import { TeamSummaryModal } from "./TeamSummaryModal";
 
+const fetchMemberReimbursementBalance = vi.fn();
 const fetchPathRewardConfirmation = vi.fn();
 const fetchPathV33MonthlyPreview = vi.fn();
 const fetchPathV33TeamFeed = vi.fn();
@@ -17,6 +19,7 @@ const fetchTeamRewardSummary = vi.fn();
 const submitPathV33Objection = vi.fn();
 
 vi.mock("../../lib/api", () => ({
+    fetchMemberReimbursementBalance: (...args: unknown[]) => fetchMemberReimbursementBalance(...args),
     fetchPathRewardConfirmation: (...args: unknown[]) => fetchPathRewardConfirmation(...args),
     fetchPathV33MonthlyPreview: (...args: unknown[]) => fetchPathV33MonthlyPreview(...args),
     fetchPathV33TeamFeed: (...args: unknown[]) => fetchPathV33TeamFeed(...args),
@@ -196,6 +199,22 @@ const teamSummary: TeamRewardSummary = {
     ],
 };
 
+const reimbursementBalance: MemberReimbursementBalance = {
+    member_id: "member-other",
+    month: "2026-05",
+    total_advanced: 32500,
+    unsettled: 32500,
+    settled: 0,
+    carry_over_amount: 0,
+    by_status: {
+        unsubmitted: 0,
+        submitted: 0,
+        approved: 32500,
+        reimbursed: 0,
+    },
+    recent_items: [],
+};
+
 describe("OtherPayoutModal", () => {
     beforeEach(() => {
         vi.resetAllMocks();
@@ -204,6 +223,7 @@ describe("OtherPayoutModal", () => {
             month: targetMonth,
             is_objection_window: true,
         }));
+        fetchMemberReimbursementBalance.mockResolvedValue(reimbursementBalance);
         fetchPathV33MonthlyPreview.mockResolvedValue(preview);
         fetchPathV33TeamFeed.mockResolvedValue(feed);
         fetchTeamRewardSummary.mockResolvedValue(teamSummary);
@@ -219,8 +239,12 @@ describe("OtherPayoutModal", () => {
             />,
         );
 
-        expect(await screen.findByText("田中さんの報酬")).toBeInTheDocument();
-        expect(screen.getAllByText("￥245,000").length).toBeGreaterThan(0);
+        expect(await screen.findByText("田中さんの5月分の報酬と立替")).toBeInTheDocument();
+        expect(screen.getAllByText("￥277,500").length).toBeGreaterThan(0);
+        expect(screen.getByText("内訳")).toBeInTheDocument();
+        expect(screen.getByText("対象外")).toBeInTheDocument();
+        expect(screen.getByText("立替戻し")).toBeInTheDocument();
+        expect(screen.getByText("￥32,500")).toBeInTheDocument();
         expect(screen.getByText("L3")).toBeInTheDocument();
         expect(screen.getByText("18日")).toBeInTheDocument();
         expect(screen.getByText("過去3ヶ月推移")).toBeInTheDocument();
@@ -260,7 +284,7 @@ describe("OtherPayoutModal", () => {
             />,
         );
 
-        expect(await screen.findByText("田中さんの報酬")).toBeInTheDocument();
+        expect(await screen.findByText("田中さんの5月分の報酬と立替")).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "異議を申し立てる" })).not.toBeInTheDocument();
         expect(screen.getAllByRole("button", { name: "閉じる" }).length).toBeGreaterThan(0);
     });
@@ -276,7 +300,7 @@ describe("OtherPayoutModal", () => {
 
         expect(await screen.findByRole("button", { name: /田中/ })).toBeInTheDocument();
         fireEvent.click(screen.getByRole("button", { name: /田中/ }));
-        expect(await screen.findByText("田中さんの報酬")).toBeInTheDocument();
+        expect(await screen.findByText("田中さんの5月分の報酬と立替")).toBeInTheDocument();
 
         fireEvent.click(screen.getAllByRole("button", { name: "閉じる" })[0]);
         fireEvent.click(await screen.findByRole("button", { name: /自分/ }));
