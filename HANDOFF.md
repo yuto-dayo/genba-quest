@@ -21,7 +21,7 @@
 | frontend/payout-badges | `handoff/frontend/payout-badges.md` | 2026-05-18 | PR #101 created; monitor review/CI |
 | server/withholding-snapshot | `handoff/server/withholding-snapshot.md` | 2026-05-18 | Stage product files, commit, push, create PR; leave hando... |
 | server/depreciation | `handoff/server/depreciation.md` | 2026-05-18 | Commit, push, create PR; full server npm test and supabas... |
-| server/legal-records | `handoff/server/legal-records.md` | 2026-05-18 | active |
+| server/legal-records | `handoff/server/legal-records.md` | 2026-05-18 | Publish PR-28 to GitHub; CI should cover DB reset because... |
 
 ## Domain Selection Guide
 
