@@ -1646,6 +1646,129 @@ export interface PartnersSummary {
 export const fetchPartnersSummary = (month: string) =>
     api<PartnersSummary>(`/api/v1/accounting/partners/summary?month=${encodeURIComponent(month)}`);
 
+export type CashReceiptVarianceReason =
+    | "fee_deduction"
+    | "overpayment"
+    | "withholding_tax"
+    | "partial_payment"
+    | "unknown";
+
+export interface CashReceiptAllocationInput {
+    invoice_transaction_id: string;
+    allocated_amount: number;
+}
+
+export interface SubmitCashReceiptProposalRequest {
+    client_id: string;
+    received_date: string;
+    received_amount: number;
+    allocations: CashReceiptAllocationInput[];
+    variance_reason: CashReceiptVarianceReason;
+    variance_memo?: string | null;
+    notes?: string | null;
+    bank_txn_ref?: string | null;
+}
+
+export interface CashReceiptAllocation {
+    id: string;
+    receipt_id: string;
+    invoice_transaction_id: string;
+    allocated_amount: number;
+    created_at: string;
+    invoice?: {
+        id: string;
+        kind: string;
+        recorded_date: string;
+        amount_total: number;
+        description?: string | null;
+    } | null;
+}
+
+export interface CashReceiptRecord {
+    id: string;
+    org_id: string;
+    proposal_id: string;
+    client_id: string;
+    received_date: string;
+    received_amount: number;
+    allocated_amount: number;
+    variance_amount?: number | null;
+    variance_reason: CashReceiptVarianceReason | "tax_correction";
+    variance_memo?: string | null;
+    bank_txn_ref?: string | null;
+    snapshot_client_name?: string | null;
+    notes?: string | null;
+    status: "draft" | "pending" | "reconciled" | string;
+    ledger_event_id?: string | null;
+    created_at: string;
+    updated_at?: string | null;
+    allocations: CashReceiptAllocation[];
+    client?: { id: string; name: string } | null;
+    proposal?: ProposalRecord | null;
+}
+
+export interface ClientInvoiceWithReceipts extends AccountingInvoiceListItem {
+    cash_receipts: CashReceiptRecord[];
+}
+
+export const submitCashReceiptProposal = (data: SubmitCashReceiptProposalRequest) =>
+    api<{ proposal: ProposalRecord }>("/api/v1/accounting/cash-receipts", {
+        method: "POST",
+        body: JSON.stringify(data),
+    });
+
+export const fetchCashReceipts = (params?: {
+    client_id?: string;
+    from?: string;
+    to?: string;
+    status?: string;
+}) => {
+    const searchParams = new URLSearchParams();
+    if (params?.client_id) searchParams.append("client_id", params.client_id);
+    if (params?.from) searchParams.append("from", params.from);
+    if (params?.to) searchParams.append("to", params.to);
+    if (params?.status) searchParams.append("status", params.status);
+    const query = searchParams.toString();
+    return api<{ cash_receipts: CashReceiptRecord[] }>(
+        `/api/v1/accounting/cash-receipts${query ? `?${query}` : ""}`,
+    );
+};
+
+function getInvoiceTransactionIds(invoice: AccountingInvoiceListItem): string[] {
+    return Array.from(new Set([
+        invoice.source_transaction?.id,
+        invoice.source_transaction_id,
+        invoice.transaction_id,
+    ].filter((value): value is string => typeof value === "string" && value.length > 0)));
+}
+
+export const fetchClientInvoicesWithReceipts = async (params?: {
+    limit?: number;
+    offset?: number;
+    bucket?: "overdue" | "this_week" | "later" | "draft" | "all";
+    source_transaction_id?: string;
+}): Promise<ClientInvoiceWithReceipts[]> => {
+    const [invoices, receiptResponse] = await Promise.all([
+        fetchInvoices({ bucket: "all", limit: 200, ...params }),
+        fetchCashReceipts(),
+    ]);
+    const receipts = receiptResponse.cash_receipts ?? [];
+
+    return invoices.map((invoice) => {
+        const transactionIds = new Set(getInvoiceTransactionIds(invoice));
+        const cashReceipts = receipts.filter((receipt) =>
+            receipt.allocations?.some((allocation) =>
+                transactionIds.has(allocation.invoice_transaction_id)
+            )
+        );
+
+        return {
+            ...invoice,
+            cash_receipts: cashReceipts,
+        };
+    });
+};
+
 export const scanBusinessCard = (data: {
     file_base64: string;
     mime_type: string;

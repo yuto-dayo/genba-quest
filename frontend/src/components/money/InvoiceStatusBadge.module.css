@@ -1,0 +1,36 @@
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-2xs);
+    min-height: var(--md-sys-spacing-xl);
+    border: 1px solid transparent;
+    border-radius: var(--md-sys-shape-corner-full);
+    padding: 0 var(--md-sys-spacing-sm);
+    font: var(--md-sys-typescale-label-small);
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.awaiting_payment {
+    border-color: var(--money-status-overdue);
+    background: var(--money-status-overdue-container);
+    color: var(--money-status-overdue);
+}
+
+.issued {
+    border-color: var(--md-sys-color-primary);
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
+}
+
+.unissued {
+    border-color: var(--md-sys-color-outline-variant);
+    background: var(--money-status-draft-container);
+    color: var(--money-status-draft);
+}
+
+.paid {
+    border-color: var(--money-status-completed);
+    background: var(--money-status-completed-container);
+    color: var(--money-status-completed);
+}

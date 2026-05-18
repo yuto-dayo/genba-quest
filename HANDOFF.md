@@ -12,6 +12,7 @@
 | server/invoice-registration | `handoff/server/invoice-registration.md` | 2026-05-18 | PR #87 is open; address CI/review, then run Supabase db r... |
 | server/payout-allocation | `handoff/server/payout-allocation.md` | 2026-05-18 | Push branch and create PR |
 | frontend/payout-hero-card | `handoff/frontend/payout-hero-card.md` | 2026-05-18 | Commit changes, create PR with required Human Need Contra... |
+| frontend/cash-receipt-modal | `handoff/frontend/cash-receipt-modal.md` | 2026-05-18 | Commit, push branch, create PR against master |
 
 ## Domain Selection Guide
 
