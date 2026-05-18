@@ -19,6 +19,10 @@ describe('PolicyEngine', () => {
     jest.clearAllMocks();
   });
 
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   // ============================================================
   // evaluateConditions (private, pure function)
   // ============================================================
@@ -346,6 +350,66 @@ describe('PolicyEngine', () => {
 
       const result = await engine.evaluateProposal(proposals.draft);
       expect(result.matched).toBe(false);
+    });
+
+    it('human が今日を除いた未来日の休みを作る場合は自動承認にする', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-05-18T09:00:00+09:00'));
+
+      const result = await engine.evaluateProposal({
+        ...proposals.draft,
+        type: 'leave.request',
+        created_by: actors.human,
+        payload: {
+          start_date: '2026-05-19',
+          end_date: '2026-05-19',
+          schedule_type: 'vacation',
+        },
+      });
+
+      expect(result.policy.name).toBe('leave_future_human_auto_approve');
+      expect(result.autoApprove).toBe(true);
+      expect(result.requiredApprovals).toBe(0);
+      expect(mockFrom).not.toHaveBeenCalled();
+    });
+
+    it('human が今日の休みを作る場合は承認必須にする', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-05-18T09:00:00+09:00'));
+
+      const result = await engine.evaluateProposal({
+        ...proposals.draft,
+        type: 'leave.request',
+        created_by: actors.human,
+        payload: {
+          start_date: '2026-05-18',
+          end_date: '2026-05-18',
+          schedule_type: 'vacation',
+        },
+      });
+
+      expect(result.policy.name).toBe('leave_manual_review_today_or_past');
+      expect(result.autoApprove).toBe(false);
+      expect(result.requiredApprovals).toBe(1);
+      expect(mockFrom).not.toHaveBeenCalled();
+    });
+
+    it('human が過去日の休みを作る場合は承認必須にする', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-05-18T09:00:00+09:00'));
+
+      const result = await engine.evaluateProposal({
+        ...proposals.draft,
+        type: 'leave.request',
+        created_by: actors.human,
+        payload: {
+          start_date: '2026-05-17',
+          end_date: '2026-05-17',
+          schedule_type: 'vacation',
+        },
+      });
+
+      expect(result.policy.name).toBe('leave_manual_review_today_or_past');
+      expect(result.autoApprove).toBe(false);
+      expect(result.requiredApprovals).toBe(1);
+      expect(mockFrom).not.toHaveBeenCalled();
     });
   });
 });

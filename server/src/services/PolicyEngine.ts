@@ -134,6 +134,33 @@ export interface PolicyEvaluationResult {
   requiredApprovers: ApproverSpec[];
 }
 
+function getJstTodayKey(now: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+  const year = parts.find((part) => part.type === 'year')?.value ?? '';
+  const month = parts.find((part) => part.type === 'month')?.value ?? '';
+  const day = parts.find((part) => part.type === 'day')?.value ?? '';
+
+  return `${year}-${month}-${day}`;
+}
+
+function toDateKey(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  return null;
+}
+
 // ============================================================
 // Policy Engine
 // ============================================================
@@ -238,6 +265,11 @@ export class PolicyEngine {
    * ポリシーを評価してProposalに適用
    */
   async evaluateProposal(proposal: Partial<Proposal>): Promise<PolicyEvaluationResult> {
+    const leavePolicy = this.evaluateLeaveRequestPolicy(proposal);
+    if (leavePolicy) {
+      return leavePolicy;
+    }
+
     const policy = await this.getApplicablePolicy(proposal);
 
     if (!policy) {
@@ -449,6 +481,69 @@ export class PolicyEngine {
     }
 
     return 1;
+  }
+
+  private evaluateLeaveRequestPolicy(proposal: Partial<Proposal>): PolicyEvaluationResult | null {
+    if (proposal.type !== 'leave.request') {
+      return null;
+    }
+
+    const manualApprovers: ApproverSpec[] = [{ type: 'any_member' }];
+    const isHumanCreated = proposal.created_by?.type === 'human';
+    const startDate =
+      toDateKey(proposal.payload?.start_date) ||
+      toDateKey(proposal.payload?.startDate) ||
+      toDateKey(proposal.payload?.date);
+    const isFutureDate = typeof startDate === 'string' && startDate > getJstTodayKey();
+
+    if (isHumanCreated && isFutureDate) {
+      return {
+        policy: {
+          id: 'leave_future_human_auto_approve',
+          org_id: this.orgId,
+          name: 'leave_future_human_auto_approve',
+          description: 'Human-created leave requests for future dates are auto-approved.',
+          proposal_type: 'leave.request',
+          conditions: [
+            { field: 'created_by.type', operator: 'eq', value: 'human' },
+            { field: 'payload.start_date', operator: 'gt', value: getJstTodayKey() },
+          ],
+          required_approvers: [],
+          required_count: 0,
+          auto_approve: true,
+          ai_can_approve: false,
+          priority: 100,
+          is_active: true,
+        },
+        matched: true,
+        autoApprove: true,
+        requiredApprovals: 0,
+        aiCanApprove: false,
+        requiredApprovers: [],
+      };
+    }
+
+    return {
+      policy: {
+        id: 'leave_manual_review_today_or_past',
+        org_id: this.orgId,
+        name: 'leave_manual_review_today_or_past',
+        description: 'Leave requests for today, past dates, or non-human creators require review.',
+        proposal_type: 'leave.request',
+        conditions: [],
+        required_approvers: manualApprovers,
+        required_count: 1,
+        auto_approve: false,
+        ai_can_approve: false,
+        priority: 100,
+        is_active: true,
+      },
+      matched: true,
+      autoApprove: false,
+      requiredApprovals: 1,
+      aiCanApprove: false,
+      requiredApprovers: manualApprovers,
+    };
   }
 
   private async countHumanMembers(proposal: Partial<Proposal>): Promise<number> {
