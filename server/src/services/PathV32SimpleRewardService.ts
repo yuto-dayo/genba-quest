@@ -121,7 +121,7 @@ function normalizeLevel(value: unknown): PathV32LevelOrNull {
     : null;
 }
 
-function largestRemainderRound(total: number, rawAmounts: number[]): number[] {
+export function largestRemainderRound(total: number, rawAmounts: number[]): number[] {
   if (rawAmounts.length === 0) {
     return [];
   }
