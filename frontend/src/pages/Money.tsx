@@ -63,11 +63,12 @@ import { ReceivePartnerCard, PayPartnerCard, DonePartnerCard, type PartnerInvoic
 import { InlineLoader } from "../components/InlineLoader";
 import { MoneyHeroSection } from "../components/money/MoneyHeroSection";
 import { MemberCarousel } from "../components/money/MemberCarousel";
+import { PayoutHeroCard } from "../components/money/PayoutHeroCard";
+import { usePayoutSelection } from "../components/money/usePayoutSelection";
 import { CompanySummaryCard } from "../components/money/CompanySummaryCard";
 import { ShieldPopover } from "../components/money/ShieldPopover";
 import { OwnPayoutModal } from "../components/money/OwnPayoutModal";
 import { OtherPayoutModal } from "../components/money/OtherPayoutModal";
-import { TeamSummaryModal } from "../components/money/TeamSummaryModal";
 import { ExpenseDetailModal } from "../components/money/ExpenseDetailModal";
 import { TeamExpenseSummaryModal } from "../components/money/TeamExpenseSummaryModal";
 import { MonthCloseModal } from "../components/money/MonthCloseModal";
@@ -308,6 +309,7 @@ export function Money() {
     const [monthlyDeductible, setMonthlyDeductible] = useState<MonthlyDeductibleAmount | null>(null);
     const [teamRewardSummary, setTeamRewardSummary] = useState<TeamRewardSummary | null>(null);
     const [reimbursementsSummary, setReimbursementsSummary] = useState<MemberReimbursementsSummary | null>(null);
+    const payoutSelection = usePayoutSelection(teamRewardSummary?.self_member_id ?? null);
     const [moneyHeroLoading, setMoneyHeroLoading] = useState(false);
     const [moneyHeroError, setMoneyHeroError] = useState<string | null>(null);
     const [companyTrend, setCompanyTrend] = useState<number[]>([]);
@@ -471,7 +473,6 @@ export function Money() {
     const [invoicePayTarget, setInvoicePayTarget] = useState<InvoicePayTarget | null>(null);
     const [ownPayoutModalOpen, setOwnPayoutModalOpen] = useState(false);
     const [otherRewardMemberId, setOtherRewardMemberId] = useState<string | null>(null);
-    const [teamSummaryModalOpen, setTeamSummaryModalOpen] = useState(false);
     const [expenseDetailMemberId, setExpenseDetailMemberId] = useState<string | null>(null);
     const [teamExpenseSummaryOpen, setTeamExpenseSummaryOpen] = useState(false);
     const [monthCloseModalOpen, setMonthCloseModalOpen] = useState(false);
@@ -1142,7 +1143,7 @@ export function Money() {
                 ) : (
                     <>
                         <MoneyHeroSection
-                            title="① 報酬"
+                            title="① 報酬と立替"
                             shield={
                                 <ShieldPopover
                                     open={shieldOpen}
@@ -1151,13 +1152,15 @@ export function Money() {
                                 />
                             }
                         >
-                            <MemberCarousel
-                                mode="reward"
-                                members={teamRewardSummary?.members ?? []}
+                            <PayoutHeroCard
+                                rewardMembers={teamRewardSummary?.members ?? []}
+                                reimbursementMembers={reimbursementsSummary?.members ?? []}
                                 selfMemberId={teamRewardSummary?.self_member_id ?? null}
                                 isFinalized={teamRewardSummary?.is_finalized ?? false}
+                                selectedMemberId={payoutSelection.selectedMemberId}
+                                viewMode={payoutSelection.viewMode}
+                                onSelectMember={payoutSelection.onSelectMember}
                                 onCardTap={handleRewardCardTap}
-                                onSeeAllTap={() => setTeamSummaryModalOpen(true)}
                             />
                         </MoneyHeroSection>
 
@@ -1211,18 +1214,6 @@ export function Money() {
                     memberId={otherRewardMemberId}
                     month={selectedMonth}
                     onClose={closeOtherPayoutModal}
-                />
-            )}
-
-            {teamSummaryModalOpen && (
-                <TeamSummaryModal
-                    month={selectedMonth}
-                    selfUserId={selfUserId}
-                    onClose={() => setTeamSummaryModalOpen(false)}
-                    onInvoiceChanged={() => {
-                        setInvoiceRefreshKey((current) => current + 1);
-                        handleMoneyHeroRetry();
-                    }}
                 />
             )}
 

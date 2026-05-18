@@ -11,6 +11,7 @@
 | server/cash-receipts | `handoff/server/cash-receipts.md` | 2026-05-18 | commit product files and create PR |
 | server/invoice-registration | `handoff/server/invoice-registration.md` | 2026-05-18 | PR #87 is open; address CI/review, then run Supabase db r... |
 | server/payout-allocation | `handoff/server/payout-allocation.md` | 2026-05-18 | Push branch and create PR |
+| frontend/payout-hero-card | `handoff/frontend/payout-hero-card.md` | 2026-05-18 | active |
 
 ## Domain Selection Guide
 
