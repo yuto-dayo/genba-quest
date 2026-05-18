@@ -2897,6 +2897,7 @@ export interface MemberReimbursementBalance {
     total_advanced: number;
     unsettled: number;
     settled: number;
+    carry_over_amount?: number;
     by_status: {
         unsubmitted: number;
         submitted: number;

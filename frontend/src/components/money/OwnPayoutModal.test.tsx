@@ -4,12 +4,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
     type MemberInvoice,
     type MemberInvoiceDraft,
+    type MemberReimbursementBalance,
     type PathRewardConfirmationSummary,
     type PathV33MonthlyPreview,
 } from "../../lib/api";
 import { OwnPayoutModal } from "./OwnPayoutModal";
 
 const fetchMemberInvoiceDrafts = vi.fn();
+const fetchMemberReimbursementBalance = vi.fn();
 const fetchMyMemberInvoices = vi.fn();
 const fetchPathRewardConfirmation = vi.fn();
 const fetchPathV33MonthlyPreview = vi.fn();
@@ -21,6 +23,7 @@ vi.mock("../../lib/api", async () => {
     return {
         ...actual,
         fetchMemberInvoiceDrafts: (...args: unknown[]) => fetchMemberInvoiceDrafts(...args),
+        fetchMemberReimbursementBalance: (...args: unknown[]) => fetchMemberReimbursementBalance(...args),
         fetchMyMemberInvoices: (...args: unknown[]) => fetchMyMemberInvoices(...args),
         fetchPathRewardConfirmation: (...args: unknown[]) => fetchPathRewardConfirmation(...args),
         fetchPathV33MonthlyPreview: (...args: unknown[]) => fetchPathV33MonthlyPreview(...args),
@@ -188,6 +191,22 @@ const issuedInvoice: MemberInvoice = {
     updated_at: "2026-05-12T00:00:00.000Z",
 };
 
+const reimbursementBalance: MemberReimbursementBalance = {
+    member_id: "member-self",
+    month: "2026-05",
+    total_advanced: 32500,
+    unsettled: 32500,
+    settled: 0,
+    carry_over_amount: 0,
+    by_status: {
+        unsubmitted: 0,
+        submitted: 0,
+        approved: 32500,
+        reimbursed: 0,
+    },
+    recent_items: [],
+};
+
 describe("OwnPayoutModal", () => {
     beforeEach(() => {
         vi.resetAllMocks();
@@ -195,6 +214,7 @@ describe("OwnPayoutModal", () => {
         fetchPathRewardConfirmation.mockResolvedValue(finalizedSummary);
         fetchMyMemberInvoices.mockResolvedValue({ invoices: [] });
         fetchMemberInvoiceDrafts.mockResolvedValue({ drafts: [draft] });
+        fetchMemberReimbursementBalance.mockResolvedValue(reimbursementBalance);
         fetchPathV33MonthlyPreview.mockResolvedValue(preview);
         voidMemberInvoice.mockResolvedValue({ proposal: null, invoice: null });
     });
@@ -214,7 +234,16 @@ describe("OwnPayoutModal", () => {
         );
 
         expect(await screen.findByText("あなたの報酬")).toBeInTheDocument();
-        expect(screen.getByText("￥245,000")).toBeInTheDocument();
+        expect(screen.getAllByText("￥277,500").length).toBeGreaterThan(0);
+        expect(screen.getByText("内訳")).toBeInTheDocument();
+        expect(screen.getByText("売上")).toBeInTheDocument();
+        expect(screen.getByText("報酬")).toBeInTheDocument();
+        expect(screen.getByText("控除")).toBeInTheDocument();
+        expect(screen.getByText("源泉徴収")).toBeInTheDocument();
+        expect(screen.getByText("対象外")).toBeInTheDocument();
+        expect(screen.getByText("立替精算")).toBeInTheDocument();
+        expect(screen.getByText("立替戻し")).toBeInTheDocument();
+        expect(screen.getByText("￥32,500")).toBeInTheDocument();
         expect(screen.getByText("L3")).toBeInTheDocument();
         expect(screen.getByText("18日")).toBeInTheDocument();
 

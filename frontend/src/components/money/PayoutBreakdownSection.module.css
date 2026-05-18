@@ -1,0 +1,67 @@
+.section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--md-sys-spacing-sm);
+}
+
+.title {
+    margin: 0;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-large);
+    letter-spacing: 0;
+}
+
+.tableWrap {
+    overflow-x: auto;
+    border: var(--md-sys-focus-outline-width) solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-large);
+    background: var(--md-sys-color-surface-container-low);
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.table th,
+.table td {
+    padding: var(--md-sys-spacing-sm) var(--md-sys-spacing-md);
+    border-bottom: var(--md-sys-focus-outline-width) solid var(--md-sys-color-outline-variant);
+    text-align: start;
+    vertical-align: middle;
+}
+
+.table thead th {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-medium);
+}
+
+.amount {
+    text-align: end;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.statusText {
+    color: var(--md-sys-color-on-surface-variant);
+    font-variant-numeric: tabular-nums;
+}
+
+.totalLabel,
+.totalAmount {
+    font: var(--md-sys-typescale-title-small);
+}
+
+.totalAmount {
+    text-align: end;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.table tfoot th,
+.table tfoot td {
+    border-bottom: none;
+    background: var(--md-sys-color-surface-container);
+}
