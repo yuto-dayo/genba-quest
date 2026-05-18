@@ -26,6 +26,7 @@
 
 <!-- HANDOFF_SESSION_EVENTS_START -->
 - 2026-05-18 22:30:33 +0900 — started by codex
+- 2026-05-18 22:50:12 +0900 — ended by codex
 <!-- HANDOFF_SESSION_EVENTS_END -->
 
 ---
@@ -125,10 +126,10 @@ cd frontend && npx eslint src/
 
 | Check | Result | Notes |
 | ----- | ------ | ----- |
-| server typecheck | SKIP | not run yet |
-| frontend typecheck | SKIP | not run yet |
-| lint | SKIP | not run yet |
-| test | SKIP | optional |
+| server typecheck | PASS | run by session-end (2026-05-18 22:49) |
+| frontend typecheck | PASS | run by session-end (2026-05-18 22:49) |
+| lint | PASS | frontend eslint src/ at 2026-05-18 22:50 |
+| test | FAIL | server npm test -- --runInBand at 2026-05-18 22:50 |
 
 ---
 
