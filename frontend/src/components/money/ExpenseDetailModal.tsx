@@ -208,7 +208,33 @@ export function ExpenseDetailModal({
                                             <span className={styles.summaryLabel}>精算済</span>
                                             <strong className={styles.summaryValue}>{formatYen(data.settled)}</strong>
                                         </div>
+                                        {Boolean(data.recurring_total) && (
+                                            <div className={styles.summaryItem}>
+                                                <span className={styles.summaryLabel}>うち定期</span>
+                                                <strong className={styles.summaryValue}>{formatYen(data.recurring_total ?? 0)}</strong>
+                                            </div>
+                                        )}
                                     </div>
+
+                                    {data.recurring_items && data.recurring_items.length > 0 && (
+                                        <section className={styles.section} aria-labelledby="recurring-expenses">
+                                            <h3 id="recurring-expenses" className={styles.sectionTitle}>
+                                                定期
+                                            </h3>
+                                            <div className={styles.breakdown}>
+                                                {data.recurring_items.map((item) => (
+                                                    <div key={item.id} className={styles.row}>
+                                                        <span className={styles.rowLabel}>
+                                                            [{item.category}] {item.title}
+                                                        </span>
+                                                        <strong className={styles.rowValue}>
+                                                            {formatYen(item.monthly_amount)}
+                                                        </strong>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </section>
+                                    )}
 
                                     <section className={styles.section} aria-labelledby="expense-status-breakdown">
                                         <h3 id="expense-status-breakdown" className={styles.sectionTitle}>
@@ -239,6 +265,9 @@ export function ExpenseDetailModal({
                                                             <span className={styles.recentMain}>
                                                                 <span className={styles.itemTitle}>
                                                                     {categoryLabel(item.category)}
+                                                                    {item.recurring_expense && (
+                                                                        <span className={styles.recurringBadge}>定期</span>
+                                                                    )}
                                                                 </span>
                                                                 <span className={styles.itemMeta}>
                                                                     {formatDate(item.occurred_on)}

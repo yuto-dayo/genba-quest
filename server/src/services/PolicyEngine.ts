@@ -57,6 +57,9 @@ export type ProposalType =
   | 'invoice.member_void'
   // 税務: 契約区分（外注/給与判定）
   | 'member.classification.update'
+  | 'recurring_expense.create'
+  | 'recurring_expense.update'
+  | 'recurring_expense.end'
   // LUQO評価システム
   | 'luqo.catalog.add'
   | 'luqo.star.achieve'

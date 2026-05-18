@@ -177,6 +177,9 @@ export type ProposalType =
     | "policy.update"
     | "profile.view_request"
     | "member.classification.update"
+    | "recurring_expense.create"
+    | "recurring_expense.update"
+    | "recurring_expense.end"
     | "luqo.catalog.add"
     | "luqo.star.achieve"
     | "luqo.score.update"
@@ -1711,6 +1714,71 @@ export interface OrgContextRecord {
 export const fetchOrgContext = () =>
     api<OrgContextRecord>("/api/v1/org/context");
 
+export type RecurringExpenseCategory =
+    | "車両ローン"
+    | "携帯代"
+    | "月極駐車"
+    | "工具リース"
+    | "事務所家賃"
+    | "保険"
+    | "その他";
+
+export interface RecurringExpenseRecord {
+    id: string;
+    org_id: string;
+    member_id: string;
+    category: RecurringExpenseCategory;
+    title: string;
+    monthly_amount: number | string;
+    effective_from: string;
+    effective_until: string | null;
+    cycle: "monthly" | "quarterly";
+    status: "active" | "paused" | "ended";
+    expense_scope: "overhead" | "stockpile";
+    proposal_id: string | null;
+    created_at: string;
+    created_by: string;
+}
+
+export interface RecurringExpenseDraft {
+    member_user_id?: string;
+    category: RecurringExpenseCategory;
+    title: string;
+    monthly_amount: number;
+    effective_from: string;
+    effective_until?: string | null;
+    expense_scope?: "overhead" | "stockpile";
+}
+
+export interface RecurringExpenseProposalResponse {
+    proposal: ProposalRecord;
+    auto_approved: boolean;
+    auto_executed: boolean;
+}
+
+export const fetchRecurringExpenses = (params?: { includeEnded?: boolean }) => {
+    const query = params?.includeEnded ? "?include_ended=1" : "";
+    return api<{ recurring_expenses: RecurringExpenseRecord[] }>(`/api/v1/recurring-expenses${query}`);
+};
+
+export const createRecurringExpenseProposal = (data: RecurringExpenseDraft) =>
+    api<RecurringExpenseProposalResponse>("/api/v1/recurring-expenses", {
+        method: "POST",
+        body: JSON.stringify(data),
+    });
+
+export const updateRecurringExpenseProposal = (id: string, data: RecurringExpenseDraft) =>
+    api<RecurringExpenseProposalResponse>(`/api/v1/recurring-expenses/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+    });
+
+export const endRecurringExpenseProposal = (id: string, effectiveUntil: string) =>
+    api<RecurringExpenseProposalResponse>(`/api/v1/recurring-expenses/${encodeURIComponent(id)}/end`, {
+        method: "POST",
+        body: JSON.stringify({ effective_until: effectiveUntil }),
+    });
+
 export interface AppEntryMembershipRecord {
     org_id: string;
     org_name: string;
@@ -2647,6 +2715,13 @@ export interface TeamMemberReimbursement {
     settled: number;
     count_pending: number;
     status: "pending" | "in_review" | "none" | "settled";
+    recurring_total?: number;
+    recurring_items?: Array<{
+        id: string;
+        category: RecurringExpenseCategory | string;
+        title: string;
+        monthly_amount: number;
+    }>;
 }
 
 export interface MemberReimbursementsSummary {
@@ -2673,6 +2748,19 @@ export interface MemberReimbursementBalance {
         category: string;
         amount: number;
         reimbursement_status: string;
+        recurring_expense?: {
+            id: string;
+            category: RecurringExpenseCategory | string;
+            title: string;
+            monthly_amount: number;
+        } | null;
+    }>;
+    recurring_total?: number;
+    recurring_items?: Array<{
+        id: string;
+        category: RecurringExpenseCategory | string;
+        title: string;
+        monthly_amount: number;
     }>;
 }
 

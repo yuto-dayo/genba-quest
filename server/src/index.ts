@@ -36,6 +36,7 @@ import profileViewConsentRouter from "./routes/profileViewConsent";
 import memberInvoicesRouter from "./routes/memberInvoices";
 import documentsRouter from "./routes/documents";
 import membersRouter from "./routes/members";
+import recurringExpensesRouter from "./routes/recurring-expenses";
 import { assertDevAuthRemoteSafety } from "./config/devAuthUsers";
 import { requireCronAuth } from "./middleware/cronAuth";
 
@@ -192,6 +193,7 @@ app.use("/api/v1/path/module", pathModuleRouter);
 app.use("/api/v1/focus-items", focusItemsRouter);
 app.use("/api/v1/calendar", calendarRouter);
 app.use("/api/v1/members", membersRouter);
+app.use("/api/v1/recurring-expenses", recurringExpensesRouter);
 app.use("/api/v1", profileViewConsentRouter);
 app.use("/api/v1", memberInvoicesRouter);
 app.use("/api/v1/documents", documentsRouter);
