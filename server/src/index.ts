@@ -113,7 +113,18 @@ app.use(cors({
     allowedHeaders: ["Content-Type", "Authorization", "x-org-id"],
 }));
 
-app.use(express.json({ limit: "10mb" }));
+// Most routes only need small JSON bodies; a couple of upload endpoints
+// accept base64-encoded files and need a larger limit.
+const LARGE_BODY_ROUTES: ReadonlySet<string> = new Set([
+    "/api/v1/sites/clients/scan-business-card",
+    "/api/v1/documents/office-processing-rules",
+]);
+const smallJsonParser = express.json({ limit: "1mb" });
+const largeJsonParser = express.json({ limit: "10mb" });
+app.use((req, res, next) => {
+    const parser = LARGE_BODY_ROUTES.has(req.path) ? largeJsonParser : smallJsonParser;
+    parser(req, res, next);
+});
 
 // リクエストログ
 app.use((req, _res, next) => {
