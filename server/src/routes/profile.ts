@@ -1,8 +1,10 @@
 import { Router, Response } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
+import { requireOrgMembership } from "../middleware/orgMembership";
 import { supabaseAdmin } from "../lib/supabaseClient";
 
 const router = Router();
+router.use(requireOrgMembership("member"));
 
 type EmploymentKind = "employee" | "sole_proprietor" | "helper";
 type AccountType = "ordinary" | "checking";

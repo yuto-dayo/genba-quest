@@ -1,6 +1,7 @@
 import { Request, Router, Response } from "express";
 import { resolveActiveOrgMembership } from "../lib/orgAccess";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
+import { requireOrgMembership } from "../middleware/orgMembership";
 import { validateReportingMonth } from "../lib/reportingMonth";
 import { DeterministicPathReviewer } from "../services/DeterministicPathReviewer";
 import { MonthCloseReminderService } from "../services/MonthCloseReminderService";
@@ -20,6 +21,7 @@ import { PathV33MonthService } from "../services/PathV33MonthService";
 import { assertV22WriteAllowed } from "../lib/pathV31Config";
 
 const router = Router();
+router.use(requireOrgMembership("member"));
 
 const PATH_MODULE_ERROR_STATUS_MAP: Record<string, number> = {
   INVALID_MONTH_FORMAT: 400,

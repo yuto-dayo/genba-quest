@@ -1,9 +1,12 @@
 import { Router, Response } from "express";
 import { resolveActiveOrgMembership } from "../lib/orgAccess";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
+import { requireOrgMembership } from "../middleware/orgMembership";
 import { MemberTaxClassificationService } from "../services/MemberTaxClassificationService";
 
 const router = Router();
+router.use(requireOrgMembership("member"));
+
 const service = new MemberTaxClassificationService();
 
 function handleMembersError(res: Response, error: unknown): void {

@@ -1,5 +1,6 @@
 import { Router, Response } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
+import { requireOrgMembership } from "../middleware/orgMembership";
 import { ProposalService } from "../services/ProposalService";
 import { ActorRef } from "../services/PolicyEngine";
 import { getAIProvider, type AIProviderName } from "../services/aiClient";
@@ -10,6 +11,7 @@ import {
 import { assertV22WriteAllowed } from "../lib/pathV31Config";
 
 const router = Router();
+router.use(requireOrgMembership("member"));
 
 function getOrgId(req: AuthenticatedRequest): string {
   if (!req.orgId) {

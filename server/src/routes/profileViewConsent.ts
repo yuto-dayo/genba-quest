@@ -12,6 +12,7 @@
 
 import { Router, Response } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
+import { requireOrgMembership } from "../middleware/orgMembership";
 import { resolveActiveOrgMembership } from "../lib/orgAccess";
 import { supabaseAdmin } from "../lib/supabaseClient";
 import { ActorRef } from "../services/PolicyEngine";
@@ -23,6 +24,7 @@ import {
 } from "../services/ProfileViewConsentService";
 
 const router = Router();
+router.use(requireOrgMembership("member"));
 
 const MIN_PURPOSE_LENGTH = 4;
 const MAX_PURPOSE_LENGTH = 500;
