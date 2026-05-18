@@ -13,7 +13,7 @@
 | server/payout-allocation | `handoff/server/payout-allocation.md` | 2026-05-18 | Push branch and create PR |
 | frontend/payout-hero-card | `handoff/frontend/payout-hero-card.md` | 2026-05-18 | Commit changes, create PR with required Human Need Contra... |
 | frontend/cash-receipt-modal | `handoff/frontend/cash-receipt-modal.md` | 2026-05-18 | Commit, push branch, create PR against master |
-| frontend/payout-breakdown | `handoff/frontend/payout-breakdown.md` | 2026-05-18 | active |
+| frontend/payout-breakdown | `handoff/frontend/payout-breakdown.md` | 2026-05-18 | Review final diff, commit, push, and open PR against master |
 
 ## Domain Selection Guide
 
