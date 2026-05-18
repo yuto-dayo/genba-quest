@@ -93,6 +93,50 @@
     border-top: 1px solid var(--md-sys-color-outline-variant);
 }
 
+.deductionNote {
+    display: grid;
+    gap: var(--md-sys-spacing-xs);
+    padding: var(--md-sys-spacing-sm);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-medium);
+    background: var(--md-sys-color-surface-container-low);
+}
+
+.deductionNote span {
+    display: grid;
+    gap: var(--md-sys-spacing-2xs);
+    min-width: 0;
+}
+
+.deductionNote small {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-xsmall);
+}
+
+.deductionNote b {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--md-sys-spacing-xs);
+    align-items: baseline;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-large);
+    font-feature-settings: "tnum";
+    font-variant-numeric: tabular-nums;
+}
+
+.deductionNote em {
+    color: var(--md-sys-color-primary);
+    font: var(--md-sys-typescale-label-medium);
+    font-style: normal;
+}
+
+.deductionNote p {
+    margin: 0;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+    line-height: 1.5;
+}
+
 .alerts {
     display: flex;
     flex-wrap: wrap;

@@ -1,3 +1,5 @@
+import type { MonthlyDeductibleAmount } from "../../lib/api";
+import { nextTransitionalRateChange } from "../../lib/transitional-deduction";
 import styles from "./CompanySummaryCard.module.css";
 
 interface CompanySummaryCardProps {
@@ -10,6 +12,7 @@ interface CompanySummaryCardProps {
     sparkline: number[];
     overdueCount: number;
     pendingCount: number;
+    monthlyDeductible?: MonthlyDeductibleAmount | null;
     onOverdueTap: () => void;
     onPendingTap: () => void;
 }
@@ -20,6 +23,9 @@ const formatYen = (amount: number) =>
         currency: "JPY",
         maximumFractionDigits: 0,
     }).format(amount);
+
+const formatPercent = (rate: number) => `${Math.round(rate * 100)}%`;
+const formatDate = (isoDate: string) => isoDate.replace(/-/g, "/");
 
 function buildPoints(values: number[]) {
     const safeValues = values.length > 1 ? values : [0, values[0] ?? 0];
@@ -45,10 +51,14 @@ export function CompanySummaryCard({
     sparkline,
     overdueCount,
     pendingCount,
+    monthlyDeductible,
     onOverdueTap,
     onPendingTap,
 }: CompanySummaryCardProps) {
     const isNegative = profit < 0;
+    const nextRateChange = monthlyDeductible
+        ? nextTransitionalRateChange(`${monthlyDeductible.month}-01`)
+        : null;
 
     return (
         <article className={styles.card} aria-label="会社の月次サマリー">
@@ -91,6 +101,24 @@ export function CompanySummaryCard({
                     <b>{formatYen(workInProgress)}</b>
                 </span>
             </div>
+
+            {monthlyDeductible && (
+                <div className={styles.deductionNote}>
+                    <span>
+                        <small>仕入税額控除可能額</small>
+                        <b>
+                            {formatYen(monthlyDeductible.deductible_amount)}
+                            <em>経過措置 {formatPercent(monthlyDeductible.transitional_rate)}</em>
+                        </b>
+                    </span>
+                    {nextRateChange && (
+                        <p>
+                            {formatDate(nextRateChange.date)} から控除率が {formatPercent(nextRateChange.fromRate)} →{" "}
+                            {formatPercent(nextRateChange.toRate)} に変わります
+                        </p>
+                    )}
+                </div>
+            )}
 
             {(overdueCount > 0 || pendingCount > 0) && (
                 <div className={styles.alerts} aria-label="注意が必要な項目">

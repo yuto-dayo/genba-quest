@@ -11,6 +11,7 @@ const executeProposal = vi.fn();
 const fetchClients = vi.fn();
 const fetchExpenseBuckets = vi.fn();
 const fetchCashflowSummary = vi.fn();
+const fetchMonthlyDeductible = vi.fn();
 const fetchPartnersSummary = vi.fn();
 const fetchPLTrend = vi.fn();
 const fetchPendingApprovals = vi.fn();
@@ -62,6 +63,7 @@ vi.mock("../lib/api", () => ({
     fetchClients: (...args: unknown[]) => fetchClients(...args),
     fetchExpenseBuckets: (...args: unknown[]) => fetchExpenseBuckets(...args),
     fetchCashflowSummary: (...args: unknown[]) => fetchCashflowSummary(...args),
+    fetchMonthlyDeductible: (...args: unknown[]) => fetchMonthlyDeductible(...args),
     fetchPartnersSummary: (...args: unknown[]) => fetchPartnersSummary(...args),
     fetchPLTrend: (...args: unknown[]) => fetchPLTrend(...args),
     fetchPendingApprovals: (...args: unknown[]) => fetchPendingApprovals(...args),
@@ -309,6 +311,15 @@ describe("Money PATH proposal queue", () => {
         fetchExpenseBuckets.mockResolvedValue([]);
         fetchCashflowSummary.mockResolvedValue({
             month: "2026-05", unbilled: 0, awaiting_payment: 0, pay_pending: 0, done: 0,
+        });
+        fetchMonthlyDeductible.mockResolvedValue({
+            month: "2026-05",
+            gross_subject_amount: 0,
+            deductible_amount: 0,
+            effective_deduction_rate: 1,
+            transitional_phase: "pre-introduction",
+            transitional_rate: 1,
+            member_count: 0,
         });
         fetchPartnersSummary.mockResolvedValue({ month: "2026-05", receive: [], pay: [], done: [] });
         fetchPLTrend.mockResolvedValue({ months: [], basis: "legacy" });

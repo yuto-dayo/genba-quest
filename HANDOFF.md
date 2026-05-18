@@ -9,6 +9,7 @@
 | server/level-fallback | `handoff/server/level-fallback.md` | 2026-05-18 | Run final validation summary, commit product files only, ... |
 | server/recurring-expenses | `handoff/server/recurring-expenses.md` | 2026-05-18 | Review PR, then fix existing migration duplicate 20260515... |
 | server/cash-receipts | `handoff/server/cash-receipts.md` | 2026-05-18 | commit product files and create PR |
+| server/invoice-registration | `handoff/server/invoice-registration.md` | 2026-05-18 | PR #87 is open; address CI/review, then run Supabase db r... |
 
 ## Domain Selection Guide
 

@@ -12,6 +12,7 @@ import { buildInvoiceDisplayLineItems } from "../services/InvoiceLineItemsServic
 import { assertActiveClientForOrg } from "../services/ClientDirectoryService";
 import { memberInvoiceService } from "../services/MemberInvoiceService";
 import { invoiceReviewerAssignmentService } from "../services/InvoiceReviewerAssignmentService";
+import { invoiceRegistrationService } from "../services/InvoiceRegistrationService";
 import { electronicDocumentService } from "../services/ElectronicDocumentService";
 import { ProposalService } from "../services/ProposalService";
 import type { ActorRef } from "../services/PolicyEngine";
@@ -5082,6 +5083,38 @@ router.get("/site-cost-transfers/preview", async (req: AuthenticatedRequest, res
             return;
         }
         console.error("[accounting] site cost transfer preview error:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+router.get("/monthly-deductible", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const membership = await resolveActiveOrgMembership(req, "member");
+        const month = typeof req.query.month === "string" ? req.query.month : new Date().toISOString().slice(0, 7);
+        const result = await invoiceRegistrationService.getMonthlyDeductibleAmount({
+            orgId: membership.org_id,
+            month,
+        });
+
+        res.json(result);
+    } catch (err: any) {
+        if (err instanceof Error && err.message === "INVOICE_DEDUCTIBLE_MONTH_INVALID") {
+            res.status(400).json({ error: err.message });
+            return;
+        }
+        if (
+            err instanceof Error &&
+            (
+                err.message === "USER_CONTEXT_REQUIRED" ||
+                err.message === "ORG_ONBOARDING_REQUIRED" ||
+                err.message === "ORG_MEMBERSHIP_REQUIRED" ||
+                err.message === "ORG_ROLE_REQUIRED"
+            )
+        ) {
+            res.status(403).json({ error: err.message });
+            return;
+        }
+        console.error("[accounting] monthly deductible error:", err);
         res.status(500).json({ error: "Internal server error" });
     }
 });

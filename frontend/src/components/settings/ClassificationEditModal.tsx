@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Check, Clock, Loader2, X } from "lucide-react";
+import { AlertTriangle, Check, Clock, ExternalLink, Loader2, X } from "lucide-react";
 import {
     submitClassificationProposal,
     type ClassificationCheckResults,
+    type MemberInvoiceRegistrationStatus,
     type Member,
     type MemberContractType,
     type MemberTaxClassification,
@@ -28,6 +29,34 @@ const emptyChecks: ClassificationCheckResults = {
     q4_own_tools: false,
     q5_outcome_liability: false,
 };
+
+const INVOICE_STATUS_OPTIONS: Array<{ value: MemberInvoiceRegistrationStatus; label: string }> = [
+    { value: "registered", label: "登録済み" },
+    { value: "exempt", label: "免税" },
+    { value: "transitional", label: "経過措置" },
+    { value: "unknown", label: "未確認" },
+];
+
+function normalizeInvoiceNumber(value: string): string {
+    return value.trim().toUpperCase();
+}
+
+function isValidInvoiceNumber(value: string): boolean {
+    return /^T[0-9]{13}$/.test(normalizeInvoiceNumber(value));
+}
+
+function corporateNumberChecksumLooksValid(value: string): boolean | null {
+    const normalized = normalizeInvoiceNumber(value);
+    if (!/^T[0-9]{13}$/.test(normalized)) {
+        return null;
+    }
+
+    const digits = normalized.slice(1);
+    const checkDigit = Number(digits[0]);
+    const baseDigits = digits.slice(1).split("").reverse().map(Number);
+    const weightedSum = baseDigits.reduce((sum, digit, index) => sum + digit * (index % 2 === 0 ? 1 : 2), 0);
+    return checkDigit === 9 - (weightedSum % 9);
+}
 
 function todayIsoDate(): string {
     return new Date().toISOString().slice(0, 10);
@@ -67,6 +96,8 @@ export function ClassificationEditModal({
 }: ClassificationEditModalProps) {
     const [checks, setChecks] = useState<ClassificationCheckResults>(active?.classification_check_results ?? emptyChecks);
     const [notes, setNotes] = useState(active?.classification_notes ?? "");
+    const [invoiceStatus, setInvoiceStatus] = useState<MemberInvoiceRegistrationStatus>(active?.invoice_registration_status ?? "unknown");
+    const [invoiceNumber, setInvoiceNumber] = useState(active?.invoice_registration_number ?? "");
     const [effectiveFrom, setEffectiveFrom] = useState(todayIsoDate());
     const [tab, setTab] = useState<"edit" | "history">("edit");
     const [busy, setBusy] = useState(false);
@@ -76,6 +107,8 @@ export function ClassificationEditModal({
     useEffect(() => {
         setChecks(active?.classification_check_results ?? emptyChecks);
         setNotes(active?.classification_notes ?? "");
+        setInvoiceStatus(active?.invoice_registration_status ?? "unknown");
+        setInvoiceNumber(active?.invoice_registration_number ?? "");
         setEffectiveFrom(todayIsoDate());
         setError(null);
         setMessage(null);
@@ -84,18 +117,31 @@ export function ClassificationEditModal({
     const yesCount = useMemo(() => CHECK_ITEMS.filter((item) => checks[item.key]).length, [checks]);
     const suggestedType = suggestContractType(checks);
     const riskHigh = yesCount <= 2;
+    const normalizedInvoiceNumber = normalizeInvoiceNumber(invoiceNumber);
+    const invoiceNumberValid = !normalizedInvoiceNumber || isValidInvoiceNumber(normalizedInvoiceNumber);
+    const checksumLooksValid = corporateNumberChecksumLooksValid(normalizedInvoiceNumber);
 
     const handleSubmit = async () => {
         try {
             setBusy(true);
             setError(null);
             setMessage(null);
+            if (invoiceStatus === "registered" && !isValidInvoiceNumber(invoiceNumber)) {
+                setError("登録済みの場合は T + 13桁で入力してください。");
+                return;
+            }
+            if (normalizedInvoiceNumber && !invoiceNumberValid) {
+                setError("T番号は T + 13桁で入力してください。");
+                return;
+            }
             await submitClassificationProposal({
                 member_id: member.id,
                 contract_type: suggestedType,
                 tax_withholding_category: "none",
                 classification_check_results: checks,
                 classification_notes: notes,
+                invoice_registration_status: invoiceStatus,
+                invoice_registration_number: normalizedInvoiceNumber || null,
                 effective_from: effectiveFrom,
             });
             setMessage("承認待ちにしました。");
@@ -178,6 +224,61 @@ export function ClassificationEditModal({
                             />
                         </label>
 
+                        <div className={styles.sectionBlock}>
+                            <div className={styles.sectionHeader}>
+                                <span>インボイス登録</span>
+                                <a
+                                    href="https://www.invoice-kohyo.nta.go.jp/"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className={styles.textLink}
+                                >
+                                    公表サイト
+                                    <ExternalLink size={14} />
+                                </a>
+                            </div>
+
+                            <label className={styles.field}>
+                                <span>登録状況</span>
+                                <select
+                                    value={invoiceStatus}
+                                    onChange={(event) => {
+                                        setInvoiceStatus(event.target.value as MemberInvoiceRegistrationStatus);
+                                        setMessage(null);
+                                    }}
+                                >
+                                    {INVOICE_STATUS_OPTIONS.map((option) => (
+                                        <option key={option.value} value={option.value}>
+                                            {option.label}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+
+                            <label className={styles.field}>
+                                <span>T番号</span>
+                                <input
+                                    value={invoiceNumber}
+                                    onChange={(event) => {
+                                        setInvoiceNumber(event.target.value);
+                                        setMessage(null);
+                                    }}
+                                    placeholder="T1234567890123"
+                                    inputMode="text"
+                                    aria-invalid={!invoiceNumberValid}
+                                />
+                            </label>
+                            <p className={invoiceNumberValid ? styles.helperText : styles.error}>
+                                {!normalizedInvoiceNumber
+                                    ? "登録済みの場合だけ入力します。"
+                                    : !invoiceNumberValid
+                                        ? "T + 13桁で入力してください。"
+                                        : checksumLooksValid
+                                            ? "形式と法人番号の検査数字はOKです。"
+                                            : "形式OK。個人事業主番号の可能性もあるため、公表サイトで確認してください。"}
+                            </p>
+                        </div>
+
                         <label className={styles.field}>
                             <span>メモ</span>
                             <textarea
@@ -232,4 +333,3 @@ export function ClassificationEditModal({
         </div>
     );
 }
-

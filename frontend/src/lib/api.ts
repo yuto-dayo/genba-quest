@@ -1152,6 +1152,8 @@ export const fetchMembers = () =>
 export type MemberContractType = "subcontract" | "employee_like" | "undetermined";
 export type TaxWithholdingCategory = "none" | "10.21%" | "custom";
 export type ClassificationCheckStatus = "verified" | "review_needed" | "unset";
+export type MemberInvoiceRegistrationStatus = "registered" | "exempt" | "transitional" | "unknown";
+export type TransitionalPhase = "pre-introduction" | "phase1-80" | "phase2-50" | "phase3-0";
 
 export interface ClassificationCheckResults {
     q1_substitution: boolean;
@@ -1171,6 +1173,8 @@ export interface MemberTaxClassification {
     classification_check_status: ClassificationCheckStatus;
     classification_check_results: ClassificationCheckResults;
     classification_notes: string | null;
+    invoice_registration_status: MemberInvoiceRegistrationStatus;
+    invoice_registration_number: string | null;
     effective_from: string;
     effective_until: string | null;
     decided_by: string;
@@ -1191,7 +1195,26 @@ export interface SubmitClassificationProposalRequest {
     custom_withholding_rate?: number | null;
     classification_check_results: ClassificationCheckResults;
     classification_notes?: string;
+    invoice_registration_status?: MemberInvoiceRegistrationStatus;
+    invoice_registration_number?: string | null;
     effective_from: string;
+}
+
+export interface MemberInvoiceRegistrationStatusResponse {
+    status: MemberInvoiceRegistrationStatus;
+    registration_number: string | null;
+    deduction_rate: number;
+    transitional_phase: TransitionalPhase;
+}
+
+export interface MonthlyDeductibleAmount {
+    month: string;
+    gross_subject_amount: number;
+    deductible_amount: number;
+    effective_deduction_rate: number;
+    transitional_phase: TransitionalPhase;
+    transitional_rate: number;
+    member_count: number;
 }
 
 export const fetchMemberTaxClassification = (memberId: string, asOf?: string, options?: RequestInit) => {
@@ -1202,6 +1225,18 @@ export const fetchMemberTaxClassification = (memberId: string, asOf?: string, op
     const query = params.toString();
     return api<MemberTaxClassificationResponse>(
         `/api/v1/members/${encodeURIComponent(memberId)}/tax-classification${query ? `?${query}` : ""}`,
+        options,
+    );
+};
+
+export const fetchMemberInvoiceStatus = (memberId: string, asOf?: string, options?: RequestInit) => {
+    const params = new URLSearchParams();
+    if (asOf) {
+        params.set("asOf", asOf);
+    }
+    const query = params.toString();
+    return api<MemberInvoiceRegistrationStatusResponse>(
+        `/api/v1/members/${encodeURIComponent(memberId)}/invoice-status${query ? `?${query}` : ""}`,
         options,
     );
 };
@@ -2672,6 +2707,9 @@ export function fetchPL(params?: FetchPLParams & { source?: PLSource }) {
     const query = searchParams.toString();
     return api<PLReport | PLJournalReport | PLCompareReport>(`/api/v1/accounting/pl${query ? `?${query}` : ""}`);
 }
+
+export const fetchMonthlyDeductible = (month: string) =>
+    api<MonthlyDeductibleAmount>(`/api/v1/accounting/monthly-deductible?month=${encodeURIComponent(month)}`);
 
 // キャッシュフローサマリ (PR #10)
 export interface CashflowSummary {
