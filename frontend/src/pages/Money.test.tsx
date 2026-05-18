@@ -83,6 +83,7 @@ vi.mock("../lib/api", () => ({
     rejectProposal: (...args: unknown[]) => rejectProposal(...args),
     reviewExpense: (...args: unknown[]) => reviewExpense(...args),
     searchTransactions: (...args: unknown[]) => searchTransactions(...args),
+    fetchMonthCloseStatus: vi.fn().mockResolvedValue({ month: "2026-05", status: "open" }),
 }));
 
 vi.mock("../lib/pathProposal", () => ({

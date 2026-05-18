@@ -180,6 +180,7 @@ interface SiteFormModalProps {
     initialStartedAt?: string;
     onClose: () => void;
     onSuccess: (created?: Site) => void | Promise<void>;
+    readOnly?: boolean;
 }
 
 export function SiteFormModal({
@@ -188,6 +189,7 @@ export function SiteFormModal({
     initialStartedAt,
     onClose,
     onSuccess,
+    readOnly = false,
 }: SiteFormModalProps) {
     const isEdit = !!site;
 
@@ -464,6 +466,10 @@ export function SiteFormModal({
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (readOnly) {
+            setError("過去月は閲覧専用です。修正は新しい月の逆仕訳で行います。");
+            return;
+        }
         if (!name.trim()) return;
 
         try {
@@ -612,6 +618,11 @@ export function SiteFormModal({
                 )}
 
                 <form className={styles.form} onSubmit={handleSubmit}>
+                    <fieldset
+                        className={styles.readOnlyFieldset}
+                        disabled={readOnly}
+                        aria-disabled={readOnly ? "true" : undefined}
+                    >
                     {!isEdit && (
                         <div className={styles.smartDraftCard}>
                             <div className={styles.smartDraftHeader}>
@@ -1203,6 +1214,8 @@ export function SiteFormModal({
                         </span>
                     </div>
 
+                    </fieldset>
+
                     <div className={styles.formActions}>
                         <button
                             type="button"
@@ -1214,7 +1227,8 @@ export function SiteFormModal({
                         <button
                             type="submit"
                             className={styles.submitButton}
-                            disabled={saving || !name.trim()}
+                            disabled={readOnly || saving || !name.trim()}
+                            aria-disabled={readOnly || saving || !name.trim() ? "true" : undefined}
                         >
                             {saving ? (
                                 <Loader2 size={18} className={styles.spinner} />

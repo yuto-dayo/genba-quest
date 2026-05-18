@@ -21,6 +21,7 @@ interface SalesModalProps {
     initialRecordedDate?: string;
     initialDescription?: string;
     initialItems?: SalesModalInitialItem[];
+    readOnly?: boolean;
 }
 
 interface SalesModalInitialItem {
@@ -94,6 +95,7 @@ export function SalesModal({
     initialRecordedDate,
     initialDescription,
     initialItems,
+    readOnly = false,
 }: SalesModalProps) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -164,6 +166,11 @@ export function SalesModal({
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (readOnly) {
+            setError("過去月は閲覧専用です。修正は新しい月の逆仕訳で行います。");
+            return;
+        }
 
         if (!formData.site_id) {
             setError("現場を選択してください");
@@ -284,6 +291,11 @@ export function SalesModal({
                 )}
 
                 <form className={styles.form} onSubmit={handleSubmit}>
+                    <fieldset
+                        className={styles.readOnlyFieldset}
+                        disabled={readOnly}
+                        aria-disabled={readOnly ? "true" : undefined}
+                    >
                     <div className={styles.formGroup}>
                         <label className={styles.label}>
                             <Building2 size={16} />
@@ -506,12 +518,18 @@ export function SalesModal({
                             />
                         </div>
                     </section>
+                    </fieldset>
 
                     <div className={styles.formActions}>
                         <button type="button" className={styles.cancelButton} onClick={onClose}>
                             キャンセル
                         </button>
-                        <button type="submit" className={styles.submitButton} disabled={loading}>
+                        <button
+                            type="submit"
+                            className={styles.submitButton}
+                            disabled={readOnly || loading}
+                            aria-disabled={readOnly || loading ? "true" : undefined}
+                        >
                             {loading ? (
                                 <Loader2 size={20} className={styles.spinner} />
                             ) : (

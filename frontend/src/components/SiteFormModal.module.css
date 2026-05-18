@@ -84,6 +84,16 @@
     overflow-y: auto;
 }
 
+.readOnlyFieldset {
+    display: flex;
+    flex-direction: column;
+    gap: var(--md-sys-spacing-lg);
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
 .formGroup {
     display: flex;
     flex-direction: column;

@@ -39,6 +39,7 @@ interface CalendarScheduleModalProps {
     defaultMemberId?: string | null;
     onClose: () => void;
     onCreated: () => Promise<void> | void;
+    readOnly?: boolean;
 }
 
 const SCHEDULE_TYPE_LABELS: Record<PersonalScheduleType, string> = {
@@ -286,6 +287,7 @@ export function CalendarScheduleModal({
     defaultMemberId = null,
     onClose,
     onCreated,
+    readOnly = false,
 }: CalendarScheduleModalProps) {
     const [mode, setMode] = useState<ModalMode>(scope === 'personal' ? 'personal' : initialMode ?? 'menu');
     const [sites, setSites] = useState<Site[]>([]);
@@ -442,11 +444,15 @@ export function CalendarScheduleModal({
     const canSubmitAssignment =
         !isLoadingOptions &&
         !isSubmitting &&
+        !readOnly &&
         Boolean(siteId) &&
         Boolean(memberId) &&
         Boolean(date);
 
     const openPersonalForm = () => {
+        if (readOnly) {
+            return;
+        }
         setError(null);
         setMode('personal');
     };
@@ -727,6 +733,11 @@ export function CalendarScheduleModal({
     };
 
     const handleSubmitPersonal = async () => {
+        if (readOnly) {
+            setError('過去月は閲覧専用です。修正は新しい月の逆仕訳で行います。');
+            return;
+        }
+
         if (!canSubmitPersonal) {
             setError(personalError);
             return;
@@ -759,6 +770,11 @@ export function CalendarScheduleModal({
     };
 
     const handleSubmitAssignment = async () => {
+        if (readOnly) {
+            setError('過去月は閲覧専用です。修正は新しい月の逆仕訳で行います。');
+            return;
+        }
+
         if (!selectedSite || !memberId || !date || isSubmitting) {
             return;
         }
@@ -848,6 +864,11 @@ export function CalendarScheduleModal({
                     </div>
                 )}
 
+                <fieldset
+                    className={styles.readOnlyFieldset}
+                    disabled={readOnly}
+                    aria-disabled={readOnly ? 'true' : undefined}
+                >
                 {mode === 'menu' && (
                     <div className={styles.actionMenu}>
                         <button type="button" className={styles.actionButton} onClick={openPersonalForm}>
@@ -1381,6 +1402,7 @@ export function CalendarScheduleModal({
                         )}
                     </>
                 )}
+                </fieldset>
 
                 {mode !== 'menu' && (
                     <footer className={styles.footer}>
@@ -1412,7 +1434,8 @@ export function CalendarScheduleModal({
                             type="button"
                             className={styles.primaryButton}
                             onClick={mode === 'personal' ? handleSubmitPersonal : handleSubmitAssignment}
-                            disabled={mode === 'personal' ? !canSubmitPersonal : !canSubmitAssignment}
+                            disabled={readOnly || (mode === 'personal' ? !canSubmitPersonal : !canSubmitAssignment)}
+                            aria-disabled={readOnly || (mode === 'personal' ? !canSubmitPersonal : !canSubmitAssignment) ? 'true' : undefined}
                         >
                             {isSubmitting ? (
                                 <>

@@ -41,6 +41,7 @@ interface SiteDetailModalProps {
     site: Site;
     onClose: () => void;
     onUpdated: (result?: { site?: Site; message?: string }) => void;
+    readOnly?: boolean;
 }
 
 const formatYen = (amount: number) =>
@@ -50,7 +51,7 @@ const formatYen = (amount: number) =>
         maximumFractionDigits: 0,
     }).format(amount);
 
-export function SiteDetailModal({ site, onClose, onUpdated }: SiteDetailModalProps) {
+export function SiteDetailModal({ site, onClose, onUpdated, readOnly = false }: SiteDetailModalProps) {
     const [searchParams] = useSearchParams();
     const [documents, setDocuments] = useState<SiteDocument[]>([]);
     const [lineItems, setLineItems] = useState<SiteLineItem[]>([]);
@@ -101,6 +102,11 @@ export function SiteDetailModal({ site, onClose, onUpdated }: SiteDetailModalPro
     }, [loadDocuments, site.assigned_users?.length, site.id]);
 
     const handleFileUpload = async (file: File) => {
+        if (readOnly) {
+            setError("過去月は閲覧専用です。修正は新しい月の逆仕訳で行います。");
+            return;
+        }
+
         try {
             setUploading(true);
             setError(null);
@@ -128,6 +134,11 @@ export function SiteDetailModal({ site, onClose, onUpdated }: SiteDetailModalPro
     };
 
     const handleCompleteClick = () => {
+        if (readOnly) {
+            setError("過去月は閲覧専用です。修正は新しい月の逆仕訳で行います。");
+            return;
+        }
+
         setCloseDraftRevenue(site.revenue ?? null);
         if (lineItems.length > 0) {
             setShowCompleteChoice(true);
@@ -162,6 +173,11 @@ export function SiteDetailModal({ site, onClose, onUpdated }: SiteDetailModalPro
     };
 
     const handleDelete = async () => {
+        if (readOnly) {
+            setError("過去月は閲覧専用です。修正は新しい月の逆仕訳で行います。");
+            return;
+        }
+
         if (!deleteReason.trim()) return;
         try {
             setDeleting(true);
@@ -349,7 +365,8 @@ export function SiteDetailModal({ site, onClose, onUpdated }: SiteDetailModalPro
                                     <button
                                         className={styles.uploadButton}
                                         onClick={() => fileInputRef.current?.click()}
-                                        disabled={uploading}
+                                        disabled={readOnly || uploading}
+                                        aria-disabled={readOnly || uploading ? "true" : undefined}
                                     >
                                         {uploading ? (
                                             <Loader2 size={24} />
@@ -364,7 +381,8 @@ export function SiteDetailModal({ site, onClose, onUpdated }: SiteDetailModalPro
                                     <button
                                         className={styles.uploadOnlyButton}
                                         onClick={() => fileInputRef.current?.click()}
-                                        disabled={uploading}
+                                        disabled={readOnly || uploading}
+                                        aria-disabled={readOnly || uploading ? "true" : undefined}
                                     >
                                         {uploading ? (
                                             <Loader2 size={20} />
@@ -382,7 +400,9 @@ export function SiteDetailModal({ site, onClose, onUpdated }: SiteDetailModalPro
                                 accept="image/*,application/pdf"
                                 capture="environment"
                                 className={styles.fileInput}
+                                disabled={readOnly}
                                 onChange={(e) => {
+                                    if (readOnly) return;
                                     const file = e.target.files?.[0];
                                     if (file) handleFileUpload(file);
                                     e.target.value = "";
@@ -414,12 +434,16 @@ export function SiteDetailModal({ site, onClose, onUpdated }: SiteDetailModalPro
                             className={styles.deleteButton}
                             onClick={() => setShowDeleteConfirm(true)}
                             aria-label="削除"
+                            disabled={readOnly}
+                            aria-disabled={readOnly ? "true" : undefined}
                         >
                             <Trash2 size={18} />
                         </button>
                         <button
                             className={styles.editButton}
                             onClick={() => setShowEditModal(true)}
+                            disabled={readOnly}
+                            aria-disabled={readOnly ? "true" : undefined}
                         >
                             <Pencil size={18} />
                             編集
@@ -428,6 +452,8 @@ export function SiteDetailModal({ site, onClose, onUpdated }: SiteDetailModalPro
                             <button
                                 className={styles.completeButton}
                                 onClick={handleCompleteClick}
+                                disabled={readOnly}
+                                aria-disabled={readOnly ? "true" : undefined}
                             >
                                 <CheckCircle2 size={18} />
                                 完了にする
@@ -475,6 +501,7 @@ export function SiteDetailModal({ site, onClose, onUpdated }: SiteDetailModalPro
                                 onChange={(e) => setDeleteReason(e.target.value)}
                                 placeholder="例: 受注キャンセル、重複登録 など"
                                 autoFocus
+                                disabled={readOnly}
                             />
                             <div className={styles.deleteDialogActions}>
                                 <button
@@ -489,7 +516,8 @@ export function SiteDetailModal({ site, onClose, onUpdated }: SiteDetailModalPro
                                 <button
                                     className={styles.confirmDeleteButton}
                                     onClick={handleDelete}
-                                    disabled={deleting || !deleteReason.trim()}
+                                    disabled={readOnly || deleting || !deleteReason.trim()}
+                                    aria-disabled={readOnly || deleting || !deleteReason.trim() ? "true" : undefined}
                                 >
                                     {deleting && <Loader2 size={16} />}
                                     削除する
@@ -523,6 +551,8 @@ export function SiteDetailModal({ site, onClose, onUpdated }: SiteDetailModalPro
                                 <button
                                     className={styles.completeWithSalesButton}
                                     onClick={handleCompleteWithSales}
+                                    disabled={readOnly}
+                                    aria-disabled={readOnly ? "true" : undefined}
                                 >
                                     <TrendingUp size={18} />
                                     売上登録して完了
@@ -530,6 +560,8 @@ export function SiteDetailModal({ site, onClose, onUpdated }: SiteDetailModalPro
                                 <button
                                     className={styles.completeOnlyButton}
                                     onClick={openCloseModal}
+                                    disabled={readOnly}
+                                    aria-disabled={readOnly ? "true" : undefined}
                                 >
                                     そのまま締め入力へ
                                 </button>
@@ -553,6 +585,7 @@ export function SiteDetailModal({ site, onClose, onUpdated }: SiteDetailModalPro
                             unit_price: li.unit_price,
                         }))}
                         initialDescription={site.description}
+                        readOnly={readOnly}
                     />
                 )}
             </AnimatePresence>
@@ -565,6 +598,7 @@ export function SiteDetailModal({ site, onClose, onUpdated }: SiteDetailModalPro
                         initialRecognizedRevenue={closeDraftRevenue}
                         onClose={() => setShowCloseModal(false)}
                         onSuccess={handleCompleteWithCloseSuccess}
+                        readOnly={readOnly}
                     />
                 )}
             </AnimatePresence>
@@ -576,6 +610,7 @@ export function SiteDetailModal({ site, onClose, onUpdated }: SiteDetailModalPro
                         site={site}
                         onClose={() => setShowEditModal(false)}
                         onSuccess={handleEditSuccess}
+                        readOnly={readOnly}
                     />
                 )}
             </AnimatePresence>

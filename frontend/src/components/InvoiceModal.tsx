@@ -34,6 +34,7 @@ import styles from "./InvoiceModal.module.css";
 interface InvoiceModalProps {
     onClose: () => void;
     onCreated: () => void | Promise<void>;
+    readOnly?: boolean;
 }
 
 const statusMeta = {
@@ -98,7 +99,7 @@ function getSiteGroupLabel(transaction: AccountingTransaction): string {
     return transaction.site?.name || "現場未設定";
 }
 
-export function InvoiceModal({ onClose, onCreated }: InvoiceModalProps) {
+export function InvoiceModal({ onClose, onCreated, readOnly = false }: InvoiceModalProps) {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [downloading, setDownloading] = useState(false);
@@ -306,7 +307,8 @@ export function InvoiceModal({ onClose, onCreated }: InvoiceModalProps) {
         && !eligibility.eligible_for_qualified_invoice
     );
     const submitDisabled =
-        loading
+        readOnly
+        || loading
         || downloading
         || loadingCandidates
         || loadingEligibility
@@ -396,6 +398,11 @@ export function InvoiceModal({ onClose, onCreated }: InvoiceModalProps) {
 
     const handleSubmit = async (event: React.FormEvent) => {
         event.preventDefault();
+
+        if (readOnly) {
+            setError("過去月は閲覧専用です。修正は新しい月の逆仕訳で行います。");
+            return;
+        }
 
         if (selectedTransactionIds.length === 0) {
             setError("請求対象の売上を選択してください");
@@ -535,7 +542,12 @@ export function InvoiceModal({ onClose, onCreated }: InvoiceModalProps) {
                     </section>
                 ) : (
                     <form className={styles.form} onSubmit={handleSubmit}>
-                        <section className={styles.hero}>
+                        <fieldset
+                            className={styles.readOnlyFieldset}
+                            disabled={readOnly}
+                            aria-disabled={readOnly ? "true" : undefined}
+                        >
+                            <section className={styles.hero}>
                             <div className={styles.heroHeader}>
                                 <div>
                                     <p className={styles.eyebrow}>Invoice Flow</p>
@@ -590,9 +602,9 @@ export function InvoiceModal({ onClose, onCreated }: InvoiceModalProps) {
                                     )}
                                 </div>
                             )}
-                        </section>
+                            </section>
 
-                        <section className={styles.selectionPanel}>
+                            <section className={styles.selectionPanel}>
                             <div className={styles.sectionHeader}>
                                 <div>
                                     <p className={styles.sectionEyebrow}>Step 1</p>
@@ -656,9 +668,9 @@ export function InvoiceModal({ onClose, onCreated }: InvoiceModalProps) {
                                     />
                                 </div>
                             </div>
-                        </section>
+                            </section>
 
-                        <section className={styles.selectionPanel}>
+                            <section className={styles.selectionPanel}>
                             <div className={styles.sectionHeader}>
                                 <div>
                                     <p className={styles.sectionEyebrow}>Step 2</p>
@@ -742,9 +754,9 @@ export function InvoiceModal({ onClose, onCreated }: InvoiceModalProps) {
                                     })}
                                 </div>
                             )}
-                        </section>
+                            </section>
 
-                        <section className={styles.summaryPanel}>
+                            <section className={styles.summaryPanel}>
                             <div className={styles.sectionHeader}>
                                 <div>
                                     <p className={styles.sectionEyebrow}>Step 3</p>
@@ -864,13 +876,19 @@ export function InvoiceModal({ onClose, onCreated }: InvoiceModalProps) {
                                     rows={3}
                                 />
                             </div>
-                        </section>
+                            </section>
+                        </fieldset>
 
                         <div className={styles.formActions}>
                             <button type="button" className={styles.cancelButton} onClick={onClose}>
                                 キャンセル
                             </button>
-                            <button type="submit" className={styles.submitButton} disabled={submitDisabled}>
+                            <button
+                                type="submit"
+                                className={styles.submitButton}
+                                disabled={submitDisabled}
+                                aria-disabled={submitDisabled ? "true" : undefined}
+                            >
                                 {loading || loadingSettings || downloading ? (
                                     <Loader2 size={20} className={styles.spinner} />
                                 ) : (

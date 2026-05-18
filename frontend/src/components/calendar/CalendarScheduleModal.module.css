@@ -28,6 +28,14 @@
     -webkit-overflow-scrolling: touch;
 }
 
+.readOnlyFieldset {
+    display: contents;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
 .header {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);

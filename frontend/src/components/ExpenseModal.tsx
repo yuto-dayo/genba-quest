@@ -48,6 +48,7 @@ interface ExpenseModalProps {
     initialExpenseItemOther?: string;
     defaultPaidBy?: "org" | "member";
     defaultClaimantMemberId?: string | null;
+    readOnly?: boolean;
 }
 
 type Step = "upload" | "ocr" | "form";
@@ -112,6 +113,7 @@ export function ExpenseModal({
     initialExpenseItemOther = "",
     defaultPaidBy = "org",
     defaultClaimantMemberId = null,
+    readOnly = false,
 }: ExpenseModalProps) {
     const hasPrefilledForm = Boolean(
         initialVendorName
@@ -460,6 +462,11 @@ export function ExpenseModal({
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
+        if (readOnly) {
+            setError("過去月は閲覧専用です。修正は新しい月の逆仕訳で行います。");
+            return;
+        }
+
         if (!formData.amount_total) {
             setError("合計金額は必須です");
             return;
@@ -562,18 +569,20 @@ export function ExpenseModal({
                             type="file"
                             accept="image/*,application/pdf"
                             onChange={(e) => {
+                                if (readOnly) return;
                                 const file = e.target.files?.[0];
                                 if (file) handleFileSelect(file);
                             }}
                             className={styles.fileInput}
+                            disabled={readOnly}
                         />
 
                         {step === "upload" && !loading && (
                             <div
                                 className={styles.dropzone}
-                                onDrop={handleDrop}
+                                onDrop={readOnly ? (e) => e.preventDefault() : handleDrop}
                                 onDragOver={(e) => e.preventDefault()}
-                                onClick={openFilePicker}
+                                onClick={readOnly ? (e) => e.preventDefault() : openFilePicker}
                             >
                                 <Upload size={48} className={styles.dropzoneIcon} />
                                 <p className={styles.dropzoneText}>
@@ -624,6 +633,8 @@ export function ExpenseModal({
                                     type="button"
                                     className={styles.attachButton}
                                     onClick={openFilePicker}
+                                    disabled={readOnly}
+                                    aria-disabled={readOnly ? "true" : undefined}
                                 >
                                     <Camera size={16} />
                                     レシートを添付
@@ -645,6 +656,8 @@ export function ExpenseModal({
                                     className={`${styles.segmentButton} ${formData.paid_by === "org" ? styles.segmentButtonActive : ""}`}
                                     onClick={() => handleInputChange("paid_by", "org")}
                                     aria-pressed={formData.paid_by === "org"}
+                                    disabled={readOnly}
+                                    aria-disabled={readOnly ? "true" : undefined}
                                 >
                                     会社
                                 </button>
@@ -653,6 +666,8 @@ export function ExpenseModal({
                                     className={`${styles.segmentButton} ${formData.paid_by === "member" ? styles.segmentButtonActive : ""}`}
                                     onClick={() => handleInputChange("paid_by", "member")}
                                     aria-pressed={formData.paid_by === "member"}
+                                    disabled={readOnly}
+                                    aria-disabled={readOnly ? "true" : undefined}
                                 >
                                     立替
                                 </button>
@@ -667,7 +682,7 @@ export function ExpenseModal({
                                         className={styles.select}
                                         value={formData.claimant_member_id}
                                         onChange={(e) => handleInputChange("claimant_member_id", e.target.value)}
-                                        disabled={activeMembers.length === 0}
+                                        disabled={readOnly || activeMembers.length === 0}
                                         required
                                     >
                                         <option value="">メンバーを選択</option>
@@ -695,6 +710,7 @@ export function ExpenseModal({
                                         className={styles.select}
                                         value={formData.payment_account}
                                         onChange={(e) => handleInputChange("payment_account", e.target.value)}
+                                        disabled={readOnly}
                                     >
                                         <option value="">未指定</option>
                                         <option value="cash">現金</option>
@@ -719,6 +735,7 @@ export function ExpenseModal({
                                 onMouseEnter={() => handleFieldHover("vendor_name")}
                                 onMouseLeave={() => handleFieldHover(null)}
                                 placeholder="店舗名・会社名"
+                                disabled={readOnly}
                             />
                         </div>
 
@@ -739,6 +756,7 @@ export function ExpenseModal({
                                     }
                                     onMouseEnter={() => handleFieldHover("date")}
                                     onMouseLeave={() => handleFieldHover(null)}
+                                    disabled={readOnly}
                                 />
                             </div>
 
@@ -748,6 +766,7 @@ export function ExpenseModal({
                                     className={styles.select}
                                     value={formData.category}
                                     onChange={(e) => handleInputChange("category", e.target.value)}
+                                    disabled={readOnly}
                                 >
                                     {CATEGORIES.map((cat) => (
                                         <option key={cat.value} value={cat.value}>
@@ -766,6 +785,7 @@ export function ExpenseModal({
                                         className={styles.select}
                                         value={formData.expense_item_code}
                                         onChange={(e) => handleInputChange("expense_item_code", e.target.value)}
+                                        disabled={readOnly}
                                     >
                                         <option value="">選択してください</option>
                                         {MISC_ITEM_OPTIONS.map((option) => (
@@ -788,6 +808,7 @@ export function ExpenseModal({
                                             value={formData.expense_item_other}
                                             onChange={(e) => handleInputChange("expense_item_other", e.target.value)}
                                             placeholder="例: 現場まわりの立替雑費"
+                                            disabled={readOnly}
                                         />
                                     </div>
                                 )}
@@ -834,6 +855,7 @@ export function ExpenseModal({
                                     onMouseEnter={() => handleFieldHover("subtotal")}
                                     onMouseLeave={() => handleFieldHover(null)}
                                     placeholder="0"
+                                    disabled={readOnly}
                                 />
                             </div>
 
@@ -843,6 +865,7 @@ export function ExpenseModal({
                                     className={styles.select}
                                     value={formData.tax_category}
                                     onChange={(e) => handleInputChange("tax_category", e.target.value)}
+                                    disabled={readOnly}
                                 >
                                     {TAX_CATEGORIES.map((taxCategory) => (
                                         <option key={taxCategory.value} value={taxCategory.value}>
@@ -874,7 +897,7 @@ export function ExpenseModal({
                                     onMouseEnter={() => handleFieldHover("tax_amount")}
                                     onMouseLeave={() => handleFieldHover(null)}
                                     placeholder="0"
-                                    disabled={isZeroTaxCategory(formData.tax_category)}
+                                    disabled={readOnly || isZeroTaxCategory(formData.tax_category)}
                                 />
                             </div>
                         </div>
@@ -897,6 +920,7 @@ export function ExpenseModal({
                                 onMouseLeave={() => handleFieldHover(null)}
                                 placeholder="0"
                                 required
+                                disabled={readOnly}
                             />
                         </div>
 
@@ -939,6 +963,7 @@ export function ExpenseModal({
                                         handleInputChange("invoice_number", e.target.value)
                                     }
                                     placeholder="T1234567890123"
+                                    disabled={readOnly}
                                 />
                             </div>
 
@@ -950,6 +975,7 @@ export function ExpenseModal({
                                     onChange={(e) =>
                                         handleInputChange("payment_method", e.target.value)
                                     }
+                                    disabled={readOnly}
                                 >
                                     <option value="cash">現金</option>
                                     <option value="card">カード</option>
@@ -967,6 +993,7 @@ export function ExpenseModal({
                                 onChange={(e) => handleInputChange("description", e.target.value)}
                                 placeholder="メモ（任意）"
                                 rows={2}
+                                disabled={readOnly}
                             />
                         </div>
 
@@ -983,6 +1010,8 @@ export function ExpenseModal({
                                             className={`${styles.scopeChip} ${active ? styles.scopeChipActive : ""}`}
                                             onClick={() => handleScopeChange(option.value)}
                                             aria-pressed={active}
+                                            disabled={readOnly}
+                                            aria-disabled={readOnly ? "true" : undefined}
                                         >
                                             <span className={styles.scopeChipTitle}>{option.title}</span>
                                             <span className={styles.scopeChipHint}>{option.hint}</span>
@@ -1004,6 +1033,7 @@ export function ExpenseModal({
                                     value={formData.site_id}
                                     onChange={(e) => handleInputChange("site_id", e.target.value)}
                                     required
+                                    disabled={readOnly}
                                 >
                                     <option value="">現場を選択してください</option>
                                     {sites.map((site) => (
@@ -1026,7 +1056,8 @@ export function ExpenseModal({
                             <button
                                 type="submit"
                                 className={styles.submitButton}
-                                disabled={loading || !claimantIsOrgMember}
+                                disabled={readOnly || loading || !claimantIsOrgMember}
+                                aria-disabled={readOnly || loading || !claimantIsOrgMember ? "true" : undefined}
                             >
                                 {loading ? (
                                     <Loader2 size={20} className={styles.spinner} />

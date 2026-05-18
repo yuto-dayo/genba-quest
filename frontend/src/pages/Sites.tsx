@@ -6,7 +6,9 @@ import { fetchSites, fetchSite, type Site } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
 import { buildMoneyRewardHref } from "../lib/legacyRouteRedirect";
 import { formatSiteDateRange, formatSiteSchedulePattern } from "../lib/siteSchedule";
+import { usePastMonthGuard } from "../hooks/usePastMonthGuard";
 import { FloatingActionButton } from "../components/FloatingActionButton";
+import { ReadOnlyBanner } from "../components/common/ReadOnlyBanner";
 import { SiteDetailModal } from "../components/SiteDetailModal";
 import { SiteFormModal } from "../components/SiteFormModal";
 import { ClientSettingsModal } from "../components/ClientSettingsModal";
@@ -26,6 +28,9 @@ export function Sites() {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showClientModal, setShowClientModal] = useState(false);
     const requestedSiteId = searchParams.get("site");
+    const selectedMonth = new Date().toISOString().slice(0, 7);
+    const pastMonthGuard = usePastMonthGuard(selectedMonth);
+    const readOnly = pastMonthGuard.readOnly;
 
     const loadData = async () => {
         try {
@@ -138,10 +143,16 @@ export function Sites() {
     };
 
     const openSiteCreate = () => {
+        if (readOnly) {
+            return;
+        }
         setShowCreateModal(true);
     };
 
     const openClientCreate = () => {
+        if (readOnly) {
+            return;
+        }
         setShowClientModal(true);
     };
 
@@ -186,6 +197,8 @@ export function Sites() {
 
     return (
         <div className={styles.container}>
+            {readOnly && <ReadOnlyBanner />}
+
             {/* ヘッダー */}
             <motion.section
                 className={styles.header}
@@ -273,7 +286,9 @@ export function Sites() {
                             {filter !== "completed" && (
                                 <button
                                     className={styles.emptyAddButton}
-                                    onClick={() => setShowCreateModal(true)}
+                                    onClick={openSiteCreate}
+                                    disabled={readOnly}
+                                    aria-disabled={readOnly ? "true" : undefined}
                                 >
                                     <Plus size={18} />
                                     最初の現場を追加
@@ -299,6 +314,8 @@ export function Sites() {
                 behavior="draggable"
                 openLabel="現場登録メニューを開く"
                 closeLabel="現場登録メニューを閉じる"
+                disabled={readOnly}
+                disabledReason="過去月は閲覧専用"
                 items={[
                     { id: "site", label: "新規現場", icon: <Map size={18} />, onClick: openSiteCreate },
                     { id: "client", label: "取引先追加", icon: <Building2 size={18} />, onClick: openClientCreate },
@@ -312,6 +329,7 @@ export function Sites() {
                         site={selectedSite}
                         onClose={closeSiteDetail}
                         onUpdated={handleSiteUpdated}
+                        readOnly={readOnly}
                     />
                 )}
             </AnimatePresence>
@@ -322,6 +340,7 @@ export function Sites() {
                     <SiteFormModal
                         onClose={() => setShowCreateModal(false)}
                         onSuccess={handleCreateSuccess}
+                        readOnly={readOnly}
                     />
                 )}
             </AnimatePresence>

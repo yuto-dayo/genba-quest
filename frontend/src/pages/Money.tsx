@@ -47,6 +47,7 @@ import {
 import { getErrorMessage } from "../lib/error";
 import { supabase } from "../lib/supabase";
 import { track } from "../lib/telemetry";
+import { usePastMonthGuard } from "../hooks/usePastMonthGuard";
 import { ExpenseModal } from "../components/ExpenseModal";
 import { SalesModal } from "../components/SalesModal";
 import { InvoiceModal } from "../components/InvoiceModal";
@@ -70,6 +71,7 @@ import { TeamExpenseSummaryModal } from "../components/money/TeamExpenseSummaryM
 import { MonthCloseModal } from "../components/money/MonthCloseModal";
 import { InvoicePayModal } from "../components/money/InvoicePayModal";
 import { ClientInvoiceList } from "../components/money/ClientInvoiceList";
+import { ReadOnlyBanner } from "../components/common/ReadOnlyBanner";
 import styles from "./Money.module.css";
 
 // 日付フォーマットヘルパー (YYYY/MM/DD)
@@ -229,6 +231,8 @@ export function Money() {
         const now = new Date();
         return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
     });
+    const pastMonthGuard = usePastMonthGuard(selectedMonth);
+    const readOnly = pastMonthGuard.readOnly;
 
     const [pl, setPL] = useState<PLReport | null>(null);
     const [monthlyDeductible, setMonthlyDeductible] = useState<MonthlyDeductibleAmount | null>(null);
@@ -610,6 +614,11 @@ export function Money() {
         action: "approve" | "reject" | "instruct" | "execute",
         payload?: string,
     ) => {
+        if (readOnly) {
+            setProposalError("過去月は閲覧専用です。修正は新しい月の逆仕訳で行います。");
+            return;
+        }
+
         try {
             setProposalActing(true);
             setProposalError(null);
@@ -858,16 +867,25 @@ export function Money() {
     };
 
     const openExpenseModal = (draft: ExpenseCorrectionDraft | null = null) => {
+        if (readOnly) {
+            return;
+        }
         setExpenseDraft(draft);
         setShowExpenseModal(true);
     };
 
     const openSalesModal = (draft: SalesCorrectionDraft | null = null) => {
+        if (readOnly) {
+            return;
+        }
         setSalesDraft(draft);
         setShowSalesModal(true);
     };
 
     const openInvoiceModal = () => {
+        if (readOnly) {
+            return;
+        }
         setShowInvoiceModal(true);
     };
 
@@ -956,6 +974,8 @@ export function Money() {
                     <span>{proposalNotice}</span>
                 </div>
             )}
+
+            {readOnly && <ReadOnlyBanner />}
 
             <div className={styles.moneyHeroShell}>
                 <div className={styles.moneyHeroMonthBar}>
@@ -1058,6 +1078,7 @@ export function Money() {
                     selfMemberId={teamRewardSummary.self_member_id}
                     selfUserId={selfUserId}
                     month={selectedMonth}
+                    readOnly={readOnly}
                     onClose={closeOwnPayoutModal}
                     onInvoiceChanged={() => {
                         setInvoiceRefreshKey((current) => current + 1);
@@ -1070,6 +1091,7 @@ export function Money() {
                 <OtherPayoutModal
                     memberId={otherRewardMemberId}
                     month={selectedMonth}
+                    readOnly={readOnly}
                     onClose={closeOtherPayoutModal}
                 />
             )}
@@ -1079,6 +1101,7 @@ export function Money() {
                     memberId={expenseDetailMemberId}
                     month={selectedMonth}
                     selfMemberId={reimbursementsSummary?.self_member_id ?? null}
+                    readOnly={readOnly}
                     onClose={() => setExpenseDetailMemberId(null)}
                     onExpenseAdded={async () => {
                         await handleMoneyHeroRetry();
@@ -1089,6 +1112,7 @@ export function Money() {
             {teamExpenseSummaryOpen && (
                 <TeamExpenseSummaryModal
                     month={selectedMonth}
+                    readOnly={readOnly}
                     onClose={() => setTeamExpenseSummaryOpen(false)}
                     onExpenseClicked={(memberId) => {
                         setTeamExpenseSummaryOpen(false);
@@ -1100,6 +1124,7 @@ export function Money() {
             {monthCloseModalOpen && targetMonthClosePeriod && (
                 <MonthCloseModal
                     month={targetMonthClosePeriod}
+                    readOnly={readOnly}
                     onClose={closeMonthCloseModal}
                     onCompleted={handleMonthCloseCompleted}
                 />
@@ -1507,6 +1532,7 @@ export function Money() {
                     initialExpenseItemCode={expenseDraft?.expenseItemCode}
                     initialExpenseItemOther={expenseDraft?.expenseItemOther}
                     defaultClaimantMemberId={reimbursementsSummary?.self_member_id ?? null}
+                    readOnly={readOnly}
                 />
                 {showSalesModal && (
                     <SalesModal
@@ -1516,12 +1542,14 @@ export function Money() {
                         initialRecordedDate={salesDraft?.recordedDate}
                         initialDescription={salesDraft?.description}
                         initialItems={salesDraft?.items}
+                        readOnly={readOnly}
                     />
                 )}
                 {showInvoiceModal && (
                     <InvoiceModal
                         onClose={() => setShowInvoiceModal(false)}
                         onCreated={handleInvoiceCreated}
+                        readOnly={readOnly}
                     />
                 )}
                 {showApprovalsModal && (
@@ -1555,6 +1583,7 @@ export function Money() {
                         onVoided={handleTransactionVoided}
                         onUpdated={loadData}
                         onStartCorrection={handleStartCorrection}
+                        readOnly={readOnly}
                     />
                 )}
                 {selectedProposal && (
@@ -1590,6 +1619,8 @@ export function Money() {
                 openLabel="お金の登録メニューを開く"
                 closeLabel="お金の登録メニューを閉じる"
                 onOpen={() => track({ type: "money.fab.clicked", from_tab: activeTab })}
+                disabled={readOnly}
+                disabledReason="過去月は閲覧専用"
                 items={[
                     {
                         id: "expense",

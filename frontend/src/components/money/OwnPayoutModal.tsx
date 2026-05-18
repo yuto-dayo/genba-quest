@@ -29,6 +29,7 @@ interface OwnPayoutModalProps {
     month: string;
     onClose: () => void;
     onInvoiceChanged?: () => Promise<void> | void;
+    readOnly?: boolean;
 }
 
 interface ModalData {
@@ -123,6 +124,7 @@ export function OwnPayoutModal({
     month,
     onClose,
     onInvoiceChanged,
+    readOnly = false,
 }: OwnPayoutModalProps) {
     const [data, setData] = useState<ModalData | null>(null);
     const [loading, setLoading] = useState(true);
@@ -198,6 +200,10 @@ export function OwnPayoutModal({
 
     async function handleVoidConfirm() {
         if (!pendingVoid || voiding) return;
+        if (readOnly) {
+            setActionError("過去月は閲覧専用です。修正は新しい月の逆仕訳で行います。");
+            return;
+        }
         setVoiding(true);
         setActionError(null);
         try {
@@ -371,6 +377,8 @@ export function OwnPayoutModal({
                             <button
                                 type="button"
                                 className={styles.dangerButton}
+                                disabled={readOnly}
+                                aria-disabled={readOnly ? "true" : undefined}
                                 onClick={() => setPendingVoid(activeInvoice)}
                             >
                                 取消
@@ -383,8 +391,10 @@ export function OwnPayoutModal({
                             <button
                                 type="button"
                                 className={styles.primaryButton}
-                                disabled={!revisionDraft}
+                                disabled={readOnly || !revisionDraft}
+                                aria-disabled={readOnly || !revisionDraft ? "true" : undefined}
                                 onClick={() => {
+                                    if (readOnly) return;
                                     setActionError(null);
                                     setRevisionOpen(true);
                                 }}
@@ -396,7 +406,10 @@ export function OwnPayoutModal({
                             <button
                                 type="button"
                                 className={styles.primaryButton}
+                                disabled={readOnly}
+                                aria-disabled={readOnly ? "true" : undefined}
                                 onClick={() => {
+                                    if (readOnly) return;
                                     setActionError(null);
                                     if (!selfUserId) {
                                         setActionError("ログイン情報を確認できませんでした");
@@ -420,6 +433,7 @@ export function OwnPayoutModal({
                 <MemberInvoiceIssueModal
                     draft={activeIssueDraft}
                     selfUserId={selfUserId}
+                    readOnly={readOnly}
                     onClose={() => setActiveIssueDraft(null)}
                     onIssued={() => {
                         setActiveIssueDraft(null);
@@ -468,7 +482,8 @@ export function OwnPayoutModal({
                             <button
                                 type="button"
                                 className={styles.dangerButton}
-                                disabled={voiding}
+                                disabled={readOnly || voiding}
+                                aria-disabled={readOnly || voiding ? "true" : undefined}
                                 onClick={handleVoidConfirm}
                             >
                                 {voiding && <Loader2 size={16} aria-hidden="true" />}

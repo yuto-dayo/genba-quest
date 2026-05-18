@@ -104,6 +104,14 @@ vi.mock("../hooks/useCalendar", () => ({
     }),
 }));
 
+vi.mock("../hooks/usePastMonthGuard", () => ({
+    usePastMonthGuard: () => ({
+        isPast: false,
+        isFinalized: false,
+        readOnly: false,
+    }),
+}));
+
 vi.mock("../lib/api", async () => {
     const actual = await vi.importActual<typeof import("../lib/api")>("../lib/api");
     return {

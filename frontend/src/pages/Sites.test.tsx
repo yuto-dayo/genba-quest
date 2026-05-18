@@ -24,6 +24,7 @@ vi.mock("framer-motion", () => ({
 vi.mock("../lib/api", () => ({
     fetchSites: (...args: unknown[]) => fetchSites(...args),
     fetchSite: (...args: unknown[]) => fetchSite(...args),
+    fetchMonthCloseStatus: vi.fn().mockResolvedValue({ month: "2026-05", status: "open" }),
 }));
 
 vi.mock("../components/FloatingActionButton", () => ({

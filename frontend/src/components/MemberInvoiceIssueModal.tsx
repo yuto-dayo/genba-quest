@@ -15,6 +15,7 @@ interface MemberInvoiceIssueModalProps {
     selfUserId: string;
     onClose: () => void;
     onIssued: () => void;
+    readOnly?: boolean;
 }
 
 type SnapshotState =
@@ -37,6 +38,7 @@ export function MemberInvoiceIssueModal({
     selfUserId,
     onClose,
     onIssued,
+    readOnly = false,
 }: MemberInvoiceIssueModalProps) {
     const [snapshot, setSnapshot] = useState<SnapshotState>({ kind: "loading" });
     const [submitting, setSubmitting] = useState(false);
@@ -70,6 +72,10 @@ export function MemberInvoiceIssueModal({
 
     async function handleIssue() {
         if (submitting) return;
+        if (readOnly) {
+            setSubmitError("過去月は閲覧専用です。修正は新しい月の逆仕訳で行います。");
+            return;
+        }
         setSubmitting(true);
         setSubmitError(null);
         try {
@@ -200,7 +206,12 @@ export function MemberInvoiceIssueModal({
                         className={styles.primaryButton}
                         onClick={handleIssue}
                         disabled={
-                            submitting || snapshot.kind !== "ready" || !bankComplete
+                            readOnly || submitting || snapshot.kind !== "ready" || !bankComplete
+                        }
+                        aria-disabled={
+                            readOnly || submitting || snapshot.kind !== "ready" || !bankComplete
+                                ? "true"
+                                : undefined
                         }
                     >
                         {submitting ? (

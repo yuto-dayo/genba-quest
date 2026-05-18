@@ -20,6 +20,7 @@ interface SiteCompleteWithCloseModalProps {
     initialRecognizedRevenue?: number | null;
     onClose: () => void;
     onSuccess: (result: CompleteSiteWithCloseResult) => void;
+    readOnly?: boolean;
 }
 
 interface SiteDayLogDraftForm {
@@ -129,6 +130,7 @@ export function SiteCompleteWithCloseModal({
     initialRecognizedRevenue,
     onClose,
     onSuccess,
+    readOnly = false,
 }: SiteCompleteWithCloseModalProps) {
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
@@ -209,6 +211,11 @@ export function SiteCompleteWithCloseModal({
     };
 
     const handleSubmit = async () => {
+        if (readOnly) {
+            setError("過去月は閲覧専用です。修正は新しい月の逆仕訳で行います。");
+            return;
+        }
+
         const usingDrafts = selectedDayLogIds.length === 0;
 
         try {
@@ -307,6 +314,7 @@ export function SiteCompleteWithCloseModal({
                                     type="number"
                                     value={form.recognized_revenue}
                                     onChange={(event) => updateField("recognized_revenue", event.target.value)}
+                                    disabled={readOnly}
                                 />
                             </label>
                             <div className={styles.grid}>
@@ -318,6 +326,7 @@ export function SiteCompleteWithCloseModal({
                                             type="number"
                                             value={form[key]}
                                             onChange={(event) => updateField(key, event.target.value)}
+                                            disabled={readOnly}
                                         />
                                     </label>
                                 ))}
@@ -331,6 +340,7 @@ export function SiteCompleteWithCloseModal({
                                             onChange={(event) =>
                                                 updateField("difficulty_band", event.target.value as "S1" | "S2" | "S3")
                                             }
+                                            disabled={readOnly}
                                         >
                                         <option value="S1">S1</option>
                                         <option value="S2">S2</option>
@@ -345,6 +355,7 @@ export function SiteCompleteWithCloseModal({
                                             onChange={(event) =>
                                                 updateField("share_mode", event.target.value as "auto_points" | "fixed_template")
                                             }
+                                            disabled={readOnly}
                                         >
                                         <option value="auto_points">auto_points</option>
                                         <option value="fixed_template">fixed_template</option>
@@ -383,6 +394,7 @@ export function SiteCompleteWithCloseModal({
                                                         event.target.value as PathV31RoleType,
                                                     )
                                                 }
+                                                disabled={readOnly}
                                             >
                                                 <option value="lead">lead</option>
                                                 <option value="solo">solo</option>
@@ -399,6 +411,7 @@ export function SiteCompleteWithCloseModal({
                                                     updateDraft(draft.id, "credited_unit", event.target.value)
                                                 }
                                                 aria-label={`${draft.member_name} unit`}
+                                                disabled={readOnly}
                                             />
                                         </div>
                                     ))}
@@ -418,6 +431,7 @@ export function SiteCompleteWithCloseModal({
                                                     type="checkbox"
                                                     checked={checked}
                                                     onChange={() => handleToggleDayLog(log.id)}
+                                                    disabled={readOnly}
                                                 />
                                                 <div className={styles.logText}>
                                                     <span>{log.date}</span>
@@ -448,7 +462,8 @@ export function SiteCompleteWithCloseModal({
                         type="button"
                         className={styles.primaryButton}
                         onClick={handleSubmit}
-                        disabled={loading || submitting}
+                        disabled={readOnly || loading || submitting}
+                        aria-disabled={readOnly || loading || submitting ? "true" : undefined}
                     >
                         {submitting ? <Loader2 size={18} className={styles.spinner} /> : <CheckCircle2 size={18} />}
                         完了して締め送信
