@@ -15,6 +15,13 @@ import { invoiceReviewerAssignmentService } from "../services/InvoiceReviewerAss
 import { electronicDocumentService } from "../services/ElectronicDocumentService";
 import { ProposalService } from "../services/ProposalService";
 import type { ActorRef } from "../services/PolicyEngine";
+import {
+    CASH_RECEIPT_VARIANCE_REASONS,
+    assertCashReceiptPayload,
+    type CashReceiptAllocationPayload,
+    type CashReceiptRecordPayload,
+    type CashReceiptVarianceReason,
+} from "../services/CashReceiptService";
 import { TaxAccountMappingService, type TaxAccountCategory } from "../services/TaxAccountMappingService";
 import {
     AccountingCommandError,
@@ -257,6 +264,90 @@ function normalizeProposalTypes(value: unknown): string[] | null {
         .map((item) => (typeof item === "string" ? item.trim() : ""))
         .filter(Boolean);
     return normalized.length > 0 ? Array.from(new Set(normalized)) : null;
+}
+
+function normalizeCashReceiptVarianceReason(value: unknown): CashReceiptVarianceReason | null {
+    const normalized = normalizeText(value)?.toLowerCase();
+    if (!normalized) {
+        return null;
+    }
+    return CASH_RECEIPT_VARIANCE_REASONS.includes(normalized as CashReceiptVarianceReason)
+        ? normalized as CashReceiptVarianceReason
+        : null;
+}
+
+function normalizeCashReceiptAllocations(value: unknown): {
+    allocations: CashReceiptAllocationPayload[];
+    error?: string;
+} {
+    if (!Array.isArray(value) || value.length === 0) {
+        return { allocations: [], error: "allocations must be a non-empty array" };
+    }
+
+    const allocations: CashReceiptAllocationPayload[] = [];
+    for (const [index, raw] of value.entries()) {
+        const item = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+        const invoiceTransactionId = normalizeText(item.invoice_transaction_id);
+        const allocatedAmount = parseNumericInput(item.allocated_amount);
+        if (!invoiceTransactionId || !isUuid(invoiceTransactionId)) {
+            return { allocations: [], error: `allocations[${index}].invoice_transaction_id must be a uuid` };
+        }
+        if (allocatedAmount === null || allocatedAmount <= 0) {
+            return { allocations: [], error: `allocations[${index}].allocated_amount must be positive` };
+        }
+        allocations.push({
+            invoice_transaction_id: invoiceTransactionId,
+            allocated_amount: roundMoney(allocatedAmount),
+        });
+    }
+
+    return { allocations };
+}
+
+function normalizeCashReceiptPayload(body: Record<string, unknown>): {
+    payload?: CashReceiptRecordPayload;
+    error?: string;
+} {
+    const clientId = normalizeText(body.client_id);
+    const receivedDate = normalizeText(body.received_date);
+    const receivedAmount = parseNumericInput(body.received_amount);
+    const varianceReason = normalizeCashReceiptVarianceReason(body.variance_reason);
+    const { allocations, error: allocationError } = normalizeCashReceiptAllocations(body.allocations);
+
+    if (!clientId || !isUuid(clientId)) {
+        return { error: "client_id must be a uuid" };
+    }
+    if (!receivedDate || !/^\d{4}-\d{2}-\d{2}$/.test(receivedDate)) {
+        return { error: "received_date must be YYYY-MM-DD" };
+    }
+    if (receivedAmount === null || receivedAmount <= 0) {
+        return { error: "received_amount must be positive" };
+    }
+    if (!varianceReason) {
+        return { error: "variance_reason is invalid" };
+    }
+    if (allocationError) {
+        return { error: allocationError };
+    }
+
+    const payload: CashReceiptRecordPayload = {
+        client_id: clientId,
+        received_date: receivedDate,
+        received_amount: roundMoney(receivedAmount),
+        allocations,
+        variance_reason: varianceReason,
+        bank_txn_ref: normalizeText(body.bank_txn_ref),
+        variance_memo: normalizeText(body.variance_memo),
+        notes: normalizeText(body.notes),
+    };
+
+    try {
+        assertCashReceiptPayload(payload);
+    } catch (err) {
+        return { error: err instanceof Error ? err.message : "cash receipt payload is invalid" };
+    }
+
+    return { payload };
 }
 
 function parseAsOfDate(value: unknown): Date | null {
@@ -2921,6 +3012,282 @@ router.get("/invoice-settings", async (req: AuthenticatedRequest, res: Response)
     } catch (err: any) {
         console.error("Invoice settings get error:", err);
         res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+function statusForCashReceiptError(message: string): number {
+    if (message.includes("duplicate key") || message.includes("uq_cash_receipts_bank_ref")) {
+        return 409;
+    }
+    const code = message.includes(":") ? message.split(":")[0] : message;
+    const statusMap: Record<string, number> = {
+        CLIENT_NOT_FOUND: 404,
+        INVOICE_TRANSACTION_NOT_FOUND: 404,
+        CASH_RECEIPT_NOT_FOUND: 404,
+        ALLOCATIONS_EXCEED_RECEIVED_AMOUNT: 409,
+        CASH_RECEIPT_ALREADY_FULLY_ALLOCATED: 409,
+        CASH_RECEIPT_ALLOCATION_DUPLICATE: 409,
+        APPROVER_NOT_ALLOWED_BY_POLICY: 403,
+        TAX_ACCOUNT_MAPPING_NOT_FOUND: 422,
+        TAX_ACCOUNT_MAPPING_NOT_APPLICABLE: 422,
+        LEDGER_IMBALANCED: 422,
+    };
+    return statusMap[code] ?? 500;
+}
+
+async function fetchCashReceiptAllocations(receiptIds: string[]) {
+    if (receiptIds.length === 0) {
+        return new Map<string, unknown[]>();
+    }
+
+    const { data, error } = await supabaseAdmin
+        .from("cash_receipt_allocations")
+        .select("id,receipt_id,invoice_transaction_id,allocated_amount,created_at,invoice:accounting_transactions(id,kind,recorded_date,amount_total,description)")
+        .in("receipt_id", receiptIds);
+
+    if (error) {
+        throw error;
+    }
+
+    const map = new Map<string, unknown[]>();
+    for (const row of data || []) {
+        const receiptId = String((row as Record<string, unknown>).receipt_id);
+        const list = map.get(receiptId) || [];
+        list.push(row);
+        map.set(receiptId, list);
+    }
+    return map;
+}
+
+router.post("/cash-receipts", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const orgId = req.orgId!;
+        const body = req.body && typeof req.body === "object" ? req.body as Record<string, unknown> : {};
+        const normalized = normalizeCashReceiptPayload(body);
+        if (!normalized.payload) {
+            res.status(400).json({ error: normalized.error || "cash receipt payload is invalid" });
+            return;
+        }
+        const payload = normalized.payload;
+
+        await assertActiveClientForOrg(payload.client_id, orgId);
+
+        if (payload.bank_txn_ref) {
+            const { data: existing, error: existingError } = await supabaseAdmin
+                .from("cash_receipts")
+                .select("id")
+                .eq("org_id", orgId)
+                .eq("bank_txn_ref", payload.bank_txn_ref)
+                .maybeSingle();
+            if (existingError) {
+                throw existingError;
+            }
+            if (existing) {
+                res.status(409).json({ error: "CASH_RECEIPT_BANK_TXN_REF_CONFLICT" });
+                return;
+            }
+        }
+
+        const transactionIds = payload.allocations.map((allocation) => allocation.invoice_transaction_id);
+        const transactions = await getInvoiceTransactionsByIds(transactionIds, orgId);
+        if (transactions.length !== transactionIds.length) {
+            res.status(404).json({ error: "INVOICE_TRANSACTION_NOT_FOUND" });
+            return;
+        }
+        if (transactions.some((transaction) => transaction.client_id !== payload.client_id)) {
+            res.status(400).json({ error: "INVOICE_TRANSACTION_CLIENT_MISMATCH" });
+            return;
+        }
+        if (transactions.some((transaction) => !["sale", "invoice"].includes(transaction.kind))) {
+            res.status(400).json({ error: "Only sale or invoice transactions can be allocated" });
+            return;
+        }
+
+        const proposalService = new ProposalService(orgId);
+        const actor = buildHumanActor(req);
+        const description = `入金記録: ${payload.received_date} ¥${payload.received_amount.toLocaleString()}`;
+        const result = await proposalService.createAndSubmit({
+            type: "cash_receipt.record",
+            payload: {
+                ...payload,
+                description,
+            },
+            description,
+            created_by: actor,
+            org_id: orgId,
+            idempotency_key: payload.bank_txn_ref || null,
+        });
+
+        res.status(201).json(result);
+    } catch (err) {
+        const message = err instanceof Error ? err.message : "UNKNOWN_ERROR";
+        const status = statusForCashReceiptError(message);
+        if (status === 500) {
+            console.error("[accounting] cash receipt create error:", err);
+        }
+        res.status(status).json({ error: status === 500 ? "Internal server error" : message });
+    }
+});
+
+router.get("/cash-receipts", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const orgId = req.orgId!;
+        let query = supabaseAdmin
+            .from("cash_receipts")
+            .select("*,client:clients(id,name),proposal:proposals(id,status,type,description,created_at,executed_at,result_event_id)")
+            .eq("org_id", orgId)
+            .order("received_date", { ascending: false })
+            .order("created_at", { ascending: false });
+
+        const from = normalizeText(req.query.from);
+        const to = normalizeText(req.query.to);
+        const clientId = normalizeText(req.query.client_id);
+        const status = normalizeText(req.query.status);
+
+        if (from) query = query.gte("received_date", from);
+        if (to) query = query.lte("received_date", to);
+        if (clientId && isUuid(clientId)) query = query.eq("client_id", clientId);
+        if (status) query = query.eq("status", status);
+
+        const { data, error } = await query;
+        if (error) {
+            throw error;
+        }
+
+        const rows = data || [];
+        const allocationsByReceipt = await fetchCashReceiptAllocations(rows.map((row: any) => row.id));
+        res.json({
+            cash_receipts: rows.map((row: any) => ({
+                ...row,
+                allocations: allocationsByReceipt.get(row.id) || [],
+            })),
+        });
+    } catch (err) {
+        console.error("[accounting] cash receipts list error:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+router.get("/cash-receipts/:id", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const orgId = req.orgId!;
+        const receiptId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+        if (!isUuid(receiptId)) {
+            res.status(404).json({ error: "CASH_RECEIPT_NOT_FOUND" });
+            return;
+        }
+
+        const { data, error } = await supabaseAdmin
+            .from("cash_receipts")
+            .select("*,client:clients(id,name),proposal:proposals(id,status,type,description,created_at,executed_at,result_event_id),ledger_event:ledger_events(id,event_type,created_at)")
+            .eq("org_id", orgId)
+            .eq("id", receiptId)
+            .maybeSingle();
+
+        if (error) {
+            throw error;
+        }
+        if (!data) {
+            res.status(404).json({ error: "CASH_RECEIPT_NOT_FOUND" });
+            return;
+        }
+
+        const allocationsByReceipt = await fetchCashReceiptAllocations([receiptId]);
+        res.json({
+            cash_receipt: {
+                ...data,
+                allocations: allocationsByReceipt.get(receiptId) || [],
+            },
+        });
+    } catch (err) {
+        console.error("[accounting] cash receipt detail error:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+router.post("/cash-receipts/:id/allocations", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const orgId = req.orgId!;
+        const receiptId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+        if (!isUuid(receiptId)) {
+            res.status(404).json({ error: "CASH_RECEIPT_NOT_FOUND" });
+            return;
+        }
+
+        const body = req.body && typeof req.body === "object" ? req.body as Record<string, unknown> : {};
+        const invoiceTransactionId = normalizeText(body.invoice_transaction_id);
+        const allocatedAmount = parseNumericInput(body.allocated_amount);
+        if (!invoiceTransactionId || !isUuid(invoiceTransactionId)) {
+            res.status(400).json({ error: "invoice_transaction_id must be a uuid" });
+            return;
+        }
+        if (allocatedAmount === null || allocatedAmount <= 0) {
+            res.status(400).json({ error: "allocated_amount must be positive" });
+            return;
+        }
+
+        const { data: receipt, error: receiptError } = await supabaseAdmin
+            .from("cash_receipts")
+            .select("*")
+            .eq("id", receiptId)
+            .eq("org_id", orgId)
+            .maybeSingle();
+        if (receiptError) {
+            throw receiptError;
+        }
+        if (!receipt) {
+            res.status(404).json({ error: "CASH_RECEIPT_NOT_FOUND" });
+            return;
+        }
+
+        const [transaction] = await getInvoiceTransactionsByIds([invoiceTransactionId], orgId);
+        if (!transaction || transaction.client_id !== receipt.client_id) {
+            res.status(404).json({ error: "INVOICE_TRANSACTION_NOT_FOUND" });
+            return;
+        }
+
+        const nextAllocated = roundMoney(Number(receipt.allocated_amount || 0) + allocatedAmount);
+        if (nextAllocated > Number(receipt.received_amount)) {
+            res.status(409).json({ error: "ALLOCATIONS_EXCEED_RECEIVED_AMOUNT" });
+            return;
+        }
+
+        const { data: allocation, error: allocationError } = await supabaseAdmin
+            .from("cash_receipt_allocations")
+            .insert({
+                receipt_id: receiptId,
+                invoice_transaction_id: invoiceTransactionId,
+                allocated_amount: roundMoney(allocatedAmount),
+            })
+            .select()
+            .single();
+
+        if (allocationError) {
+            if (allocationError.message.includes("duplicate key")) {
+                res.status(409).json({ error: "CASH_RECEIPT_ALLOCATION_DUPLICATE" });
+                return;
+            }
+            throw allocationError;
+        }
+
+        const { data: updated, error: updatedError } = await supabaseAdmin
+            .from("cash_receipts")
+            .select("*")
+            .eq("id", receiptId)
+            .eq("org_id", orgId)
+            .single();
+        if (updatedError) {
+            throw updatedError;
+        }
+
+        res.status(201).json({ allocation, cash_receipt: updated });
+    } catch (err) {
+        const message = err instanceof Error ? err.message : "UNKNOWN_ERROR";
+        const status = statusForCashReceiptError(message);
+        if (status === 500) {
+            console.error("[accounting] cash receipt allocation error:", err);
+        }
+        res.status(status).json({ error: status === 500 ? "Internal server error" : message });
     }
 });
 

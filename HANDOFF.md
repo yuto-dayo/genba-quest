@@ -8,6 +8,7 @@
 | frontend/payout-modal-rename | `handoff/frontend/payout-modal-rename.md` | 2026-05-18 | Prepare rename-only commit and PR; note full npm test bas... |
 | server/level-fallback | `handoff/server/level-fallback.md` | 2026-05-18 | Run final validation summary, commit product files only, ... |
 | server/recurring-expenses | `handoff/server/recurring-expenses.md` | 2026-05-18 | Review PR, then fix existing migration duplicate 20260515... |
+| server/cash-receipts | `handoff/server/cash-receipts.md` | 2026-05-18 | commit product files and create PR |
 
 ## Domain Selection Guide
 

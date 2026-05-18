@@ -36,6 +36,7 @@ import {
   memberTaxClassificationService,
 } from "./MemberTaxClassificationService";
 import { RecurringExpenseService } from "./RecurringExpenseService";
+import { CashReceiptService } from "./CashReceiptService";
 
 // ============================================================
 // Types
@@ -204,6 +205,7 @@ export class ProposalService {
   private invoiceReviewerAssignmentService: InvoiceReviewerAssignmentService;
   private memberTaxClassificationService: MemberTaxClassificationService;
   private recurringExpenseService: RecurringExpenseService;
+  private cashReceiptService: CashReceiptService;
 
   constructor(orgId: string) {
     if (!orgId || typeof orgId !== 'string' || orgId.trim() === '') {
@@ -219,6 +221,7 @@ export class ProposalService {
     this.invoiceReviewerAssignmentService = invoiceReviewerAssignmentService;
     this.memberTaxClassificationService = memberTaxClassificationService;
     this.recurringExpenseService = new RecurringExpenseService(orgId);
+    this.cashReceiptService = new CashReceiptService(orgId);
     const fallbackMode = (process.env.PROPOSAL_RPC_FALLBACK_MODE || 'allow').toLowerCase();
     this.disableRpcFallback = ['disabled', 'deny', 'off'].includes(fallbackMode);
   }
@@ -390,8 +393,11 @@ export class ProposalService {
     const proposal = await this.getProposalForApproval(proposalId);
     await this.assertCanApprove(proposal, approver);
 
-    // Phase A-1: 原子RPC を優先試行
-    const atomicResult = await this.tryApproveAtomicRpc(proposalId, approver, reason);
+    // PR-20a: cash_receipt.record has a dedicated atomic RPC because
+    // parent receipt + allocations + ledger entries must commit together.
+    const atomicResult = proposal.type === 'cash_receipt.record'
+      ? await this.tryApproveCashReceiptAtomicRpc(proposalId, approver, reason)
+      : await this.tryApproveAtomicRpc(proposalId, approver, reason);
     if (atomicResult) {
       return atomicResult;
     }
@@ -628,6 +634,85 @@ export class ProposalService {
     }
 
     // 通知を送信（DB関数はアプリ層通知を行わないため）
+    await this.sendApprovalNotifications(result.proposal, result.isFullyApproved, result.autoExecuted);
+
+    return result;
+  }
+
+  private async tryApproveCashReceiptAtomicRpc(
+    proposalId: string,
+    approver: ActorRef,
+    reason?: string,
+  ): Promise<ApprovalResult | null> {
+    const rpcClient = supabaseAdmin as unknown as {
+      rpc?: (
+        fn: string,
+        args?: Record<string, unknown>
+      ) => Promise<{ data: unknown; error: { message?: string } | null }>;
+    };
+
+    if (typeof rpcClient.rpc !== 'function') {
+      return this.fallbackToLegacyFlowOrThrow();
+    }
+
+    const { data, error } = await rpcClient.rpc('rpc_approve_cash_receipt_proposal_atomic', {
+      p_org_id: this.orgId,
+      p_proposal_id: proposalId,
+      p_approver: approver,
+      p_reason: reason || null,
+    });
+
+    if (error) {
+      const message = error.message || '';
+      const functionMissing =
+        message.includes('rpc_approve_cash_receipt_proposal_atomic') &&
+        (message.includes('does not exist') || message.includes('Could not find the function'));
+      if (functionMissing) {
+        return this.fallbackToLegacyFlowOrThrow();
+      }
+
+      const knownErrors = [
+        'PROPOSAL_NOT_FOUND',
+        'PROPOSAL_NOT_IN_PENDING_STATE',
+        'AI_SELF_APPROVAL_PROHIBITED',
+        'CASH_RECEIPT_APPROVER_MUST_BE_HUMAN',
+        'APPROVER_NOT_ALLOWED_BY_POLICY',
+        'ALREADY_APPROVED_BY_THIS_ACTOR',
+        'APPROVAL_COUNT_ALREADY_MET',
+        'CLIENT_NOT_FOUND',
+        'ALLOCATIONS_EXCEED_RECEIVED_AMOUNT',
+        'INVOICE_TRANSACTION_NOT_FOUND',
+        'LEDGER_IMBALANCED',
+        'TAX_ACCOUNT_MAPPING_NOT_FOUND',
+        'TAX_ACCOUNT_MAPPING_NOT_APPLICABLE',
+      ];
+      for (const errCode of knownErrors) {
+        if (message.includes(errCode)) {
+          throw new Error(errCode);
+        }
+      }
+
+      throw new Error(`Failed to approve cash receipt proposal atomically: ${message}`);
+    }
+
+    const result = this.normalizeApproveRpcResult(data);
+    if (!result) {
+      throw new Error('Failed to approve cash receipt proposal atomically: empty result');
+    }
+
+    if (result.isFullyApproved) {
+      await this.recordGovernanceEvent(
+        result.proposal,
+        'governance.proposal.approved',
+        approver,
+        { auto_executed: result.autoExecuted },
+      );
+    }
+
+    if (result.autoExecuted) {
+      await this.handleExecutedProposalSideEffects(result.proposal, approver);
+    }
+
     await this.sendApprovalNotifications(result.proposal, result.isFullyApproved, result.autoExecuted);
 
     return result;
@@ -1000,6 +1085,20 @@ export class ProposalService {
       throw new Error(canExecuteResult.reason || 'EXECUTION_NOT_ALLOWED');
     }
 
+    if (proposal.type === 'cash_receipt.record') {
+      const executedProposal = await this.cashReceiptService.executeCashReceiptRecord(proposal, executor);
+      await this.handleExecutedProposalSideEffects(executedProposal, executor);
+      await this.notifyProposalStatusChange(executedProposal, {
+        title: 'Proposal 実行完了',
+        message: `${executedProposal.description} が実行されました。`,
+        data: {
+          stage: 'executed',
+          result_event_id: executedProposal.result_event_id || null,
+        },
+      });
+      return executedProposal;
+    }
+
     // Phase A-1: DB関数での原子実行を優先
     const atomicallyExecuted = await this.tryExecuteAtomicRpc(proposalId, executor);
     if (atomicallyExecuted) {
@@ -1134,6 +1233,7 @@ export class ProposalService {
       'invoice.create': 'invoice_issued',
       'invoice.send': 'invoice_sent',
       'invoice.mark_paid': 'payment_received',
+      'cash_receipt.record': 'payment_received',
       'reward.calculate': 'reward_calculated',
       'reward.adjust': 'reward_adjusted',
       'skill.achieve': 'skill_achieved',
@@ -2240,6 +2340,10 @@ export class ProposalService {
 
     if (proposal.type === 'recurring_expense.end') {
       return 'governance.recurring_expense.ended';
+    }
+
+    if (proposal.type === 'cash_receipt.record') {
+      return 'finance.cash_receipt.recorded';
     }
 
     return 'governance.proposal.executed';
