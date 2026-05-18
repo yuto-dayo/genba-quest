@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useSearchParams } from "react-router-dom";
 import {
     ArrowLeft,
     BadgeCheck,
@@ -319,6 +320,7 @@ function formatOrgCreateError(error: unknown) {
 }
 
 export function Settings() {
+    const [searchParams] = useSearchParams();
     const [loading, setLoading] = useState(true);
     const [showInvoiceSettingsModal, setShowInvoiceSettingsModal] = useState(false);
     const [showClientModal, setShowClientModal] = useState(false);
@@ -938,6 +940,13 @@ export function Settings() {
     });
 
     const selectedSettingMeta = allSettingItems.find((item) => item.id === selectedSetting);
+
+    useEffect(() => {
+        const setting = searchParams.get("setting");
+        if (setting === "classification" && isCurrentUserAdmin) {
+            setSelectedSetting("classification");
+        }
+    }, [isCurrentUserAdmin, searchParams]);
     const orgCreateDisabled = orgCreateBusy || orgName.trim().length === 0;
 
     const handleCreateOrg = async () => {

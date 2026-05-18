@@ -31,6 +31,14 @@
     border-bottom: var(--md-sys-focus-outline-width) solid var(--md-sys-color-outline-variant);
 }
 
+.titleGroup {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--md-sys-spacing-xs) var(--md-sys-spacing-sm);
+    min-width: 0;
+}
+
 .title,
 .sectionTitle,
 .confirmTitle {

@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
     type MemberReimbursementBalance,
+    type MemberTaxClassification,
     type PathRewardConfirmationSummary,
     type PathV32SimpleMonthlyDistributionPreview,
     type PathV33MonthlyPreview,
@@ -13,6 +14,7 @@ import { OtherPayoutModal } from "./OtherPayoutModal";
 import { TeamSummaryModal } from "./TeamSummaryModal";
 
 const fetchMemberReimbursementBalance = vi.fn();
+const fetchMemberTaxClassification = vi.fn();
 const fetchPathRewardConfirmation = vi.fn();
 const fetchPathV33MonthlyPreview = vi.fn();
 const fetchPathV33TeamFeed = vi.fn();
@@ -22,6 +24,7 @@ const submitPathV33Objection = vi.fn();
 
 vi.mock("../../lib/api", () => ({
     fetchMemberReimbursementBalance: (...args: unknown[]) => fetchMemberReimbursementBalance(...args),
+    fetchMemberTaxClassification: (...args: unknown[]) => fetchMemberTaxClassification(...args),
     fetchPathRewardConfirmation: (...args: unknown[]) => fetchPathRewardConfirmation(...args),
     fetchPathV33MonthlyPreview: (...args: unknown[]) => fetchPathV33MonthlyPreview(...args),
     fetchPathV33TeamFeed: (...args: unknown[]) => fetchPathV33TeamFeed(...args),
@@ -280,6 +283,32 @@ const reimbursementBalance: MemberReimbursementBalance = {
     ],
 };
 
+const subcontractClassification: MemberTaxClassification = {
+    id: "classification-1",
+    org_id: "org-1",
+    member_id: "member-other",
+    contract_type: "subcontract",
+    tax_withholding_category: "none",
+    custom_withholding_rate: null,
+    classification_check_status: "verified",
+    classification_check_results: {
+        q1_substitution: true,
+        q2_time_freedom: true,
+        q3_work_autonomy: true,
+        q4_own_tools: true,
+        q5_outcome_liability: true,
+    },
+    classification_notes: null,
+    invoice_registration_status: "exempt",
+    invoice_registration_number: null,
+    effective_from: "2026-05-01",
+    effective_until: null,
+    decided_by: "admin-user",
+    decided_at: "2026-05-02T00:00:00.000Z",
+    proposal_id: "proposal-tax-1",
+    created_at: "2026-05-02T00:00:00.000Z",
+};
+
 describe("OtherPayoutModal", () => {
     beforeEach(() => {
         vi.resetAllMocks();
@@ -289,6 +318,7 @@ describe("OtherPayoutModal", () => {
             is_objection_window: true,
         }));
         fetchMemberReimbursementBalance.mockResolvedValue(reimbursementBalance);
+        fetchMemberTaxClassification.mockResolvedValue({ active: subcontractClassification, history: [subcontractClassification] });
         fetchPathV33MonthlyPreview.mockResolvedValue(preview);
         fetchPathV33TeamFeed.mockResolvedValue(feed);
         previewPathV32SimpleMonthlyDistribution.mockResolvedValue(calculationPreview);
@@ -306,9 +336,10 @@ describe("OtherPayoutModal", () => {
         );
 
         expect(await screen.findByText("田中さんの5月分の報酬と立替")).toBeInTheDocument();
+        expect(screen.getByLabelText("インボイス登録状況 経過措置 100%")).toBeInTheDocument();
         expect(screen.getAllByText("￥277,500").length).toBeGreaterThan(0);
         expect(screen.getByText("内訳")).toBeInTheDocument();
-        expect(screen.getByText("対象外")).toBeInTheDocument();
+        expect(screen.getAllByText("対象外").length).toBeGreaterThan(0);
         expect(screen.getByText("立替戻し")).toBeInTheDocument();
         expect(screen.getAllByText("￥32,500").length).toBeGreaterThan(0);
         expect(screen.getByText("報酬の計算（持ち分按分）")).toBeInTheDocument();
@@ -321,6 +352,7 @@ describe("OtherPayoutModal", () => {
         expect(screen.getByText("立替の内訳")).toBeInTheDocument();
         expect(screen.getByText("[車両ローン] 軽トラ")).toBeInTheDocument();
         expect(screen.getByText("定期分")).toBeInTheDocument();
+        expect(screen.getByText("税務判定の根拠")).toBeInTheDocument();
         expect(screen.getByText(/L3/)).toBeInTheDocument();
         expect(screen.getByText(/18日/)).toBeInTheDocument();
         expect(screen.queryByText("未発行")).not.toBeInTheDocument();
