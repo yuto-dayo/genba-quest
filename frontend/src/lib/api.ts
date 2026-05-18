@@ -67,6 +67,19 @@ export const api = async <T>(
         } catch {
             // JSON parse failed — use default message
         }
+        if (response.status === 429) {
+            const retryAfterHeader = response.headers.get("Retry-After");
+            const retryAfterSeconds = retryAfterHeader ? Number(retryAfterHeader) : NaN;
+            const error = new Error("RATE_LIMITED") as Error & {
+                status?: number;
+                retryAfterSeconds?: number;
+            };
+            error.status = 429;
+            if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
+                error.retryAfterSeconds = retryAfterSeconds;
+            }
+            throw error;
+        }
         throw new Error(errorMessage);
     }
 
