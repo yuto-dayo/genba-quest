@@ -16,6 +16,7 @@ import partyRouter from "./routes/party";
 import staminaRouter from "./routes/stamina";
 import sherpaRouter from "./routes/sherpa";
 import accountingRouter from "./routes/accounting";
+import payoutRouter from "./routes/payout";
 import webhooksRouter from "./routes/webhooks";
 import proposalsRouter from "./routes/proposals";
 import notificationsRouter from "./routes/notifications";
@@ -122,6 +123,7 @@ app.use(cors({
 // Most routes only need small JSON bodies; a couple of upload endpoints
 // accept base64-encoded files and need a larger limit.
 const LARGE_BODY_ROUTES: ReadonlySet<string> = new Set([
+    "/api/v1/accounting/documents",
     "/api/v1/sites/clients/scan-business-card",
     "/api/v1/documents/office-processing-rules",
 ]);
@@ -178,6 +180,7 @@ app.use("/api/v1/party", partyRouter);
 app.use("/api/v1/stamina", staminaRouter);
 app.use("/api/v1/sherpa", sherpaRouter);
 app.use("/api/v1/accounting", accountingRouter);
+app.use("/api/v1/payout", payoutRouter);
 app.use("/api/v1/proposals", proposalsRouter);
 app.use("/api/v1/notifications", notificationsRouter);
 app.use("/api/v1/principles", principlesRouter);

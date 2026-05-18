@@ -77,7 +77,7 @@ const VALID_PROPOSAL_TYPES: ReadonlySet<string> = new Set<ProposalType>([
   'expense.create', 'expense.update', 'expense.void',
   'income.create', 'income.update',
   'invoice.create', 'invoice.send', 'invoice.mark_paid',
-  'reward.calculate', 'reward.adjust',
+  'reward.calculate', 'reward.adjust', 'reward.dispute_correction',
   'skill.achieve', 'skill.revoke',
   'evaluation.submit', 'evaluation.finalize',
   'assignment.create', 'assignment.update', 'assignment.cancel',
@@ -668,6 +668,8 @@ router.post("/:id/approve", async (req: AuthenticatedRequest, res: Response) => 
       'APPROVER_NOT_ALLOWED_BY_POLICY': { status: 403, message: "Approver is not allowed by policy" },
       'ALREADY_APPROVED_BY_THIS_ACTOR': { status: 400, message: "Already approved by this actor" },
       'APPROVAL_COUNT_ALREADY_MET': { status: 400, message: "Required approval count already met" },
+      'DISPUTE_CORRECTION_APPROVER_MUST_BE_ASSIGNED_REVIEWER': { status: 403, message: "Approver must be the assigned reviewer" },
+      'DISPUTE_CORRECTION_CREATOR_MUST_BE_TARGET': { status: 403, message: "Dispute correction must be filed by the target member" },
       ...CANONICAL_REWARD_GUARD_ERROR_MAP,
     };
 
@@ -843,6 +845,8 @@ router.post("/:id/execute", async (req: AuthenticatedRequest, res: Response) => 
       'INSUFFICIENT_APPROVALS': { status: 400, message: "Insufficient approvals for execution" },
       'POLICY_APPROVER_REQUIREMENTS_NOT_MET': { status: 400, message: "Policy approver requirements not met" },
       'ATOMIC_RPC_REQUIRED': { status: 503, message: "Atomic proposal RPC is required but unavailable" },
+      'DISPUTE_CORRECTION_CREATOR_MUST_BE_TARGET': { status: 403, message: "Dispute correction must be filed by the target member" },
+      'DISPUTE_CORRECTION_KIND_INVALID': { status: 400, message: "Invalid dispute correction kind" },
       ...CANONICAL_REWARD_GUARD_ERROR_MAP,
     };
 

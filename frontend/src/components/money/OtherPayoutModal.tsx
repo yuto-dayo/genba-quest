@@ -16,6 +16,7 @@ import {
 } from "../../lib/api";
 import { getErrorMessage } from "../../lib/error";
 import { ObjectionSubmitSheet } from "../ObjectionSubmitSheet";
+import { DisputeCorrectionModal } from "./DisputeCorrectionModal";
 import { PayoutBreakdownSection } from "./PayoutBreakdownSection";
 import { PayoutCalculationSection } from "./PayoutCalculationSection";
 import { PayoutMovingFactorsSection } from "./PayoutMovingFactorsSection";
@@ -24,6 +25,7 @@ import styles from "./OtherPayoutModal.module.css";
 
 interface OtherPayoutModalProps {
     memberId: string;
+    selfUserId?: string | null;
     month: string;
     onClose: () => void;
     readOnly?: boolean;
@@ -99,7 +101,7 @@ function pickObjectionTarget(
     };
 }
 
-export function OtherPayoutModal({ memberId, month, onClose }: OtherPayoutModalProps) {
+export function OtherPayoutModal({ memberId, selfUserId, month, onClose }: OtherPayoutModalProps) {
     const [data, setData] = useState<ModalData | null>(null);
     const [loading, setLoading] = useState(true);
     const [empty, setEmpty] = useState(false);
@@ -107,6 +109,7 @@ export function OtherPayoutModal({ memberId, month, onClose }: OtherPayoutModalP
     const [notice, setNotice] = useState<string | null>(null);
     const [actionError, setActionError] = useState<string | null>(null);
     const [objectionOpen, setObjectionOpen] = useState(false);
+    const [disputeOpen, setDisputeOpen] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -295,6 +298,21 @@ export function OtherPayoutModal({ memberId, month, onClose }: OtherPayoutModalP
 
                 {!loading && data && (
                     <footer className={styles.actions}>
+                        <button
+                            type="button"
+                            className={styles.secondaryButton}
+                            onClick={() => {
+                                setNotice(null);
+                                setActionError(null);
+                                if (!selfUserId) {
+                                    setActionError("ログイン情報を確認できませんでした");
+                                    return;
+                                }
+                                setDisputeOpen(true);
+                            }}
+                        >
+                            計算がおかしい？
+                        </button>
                         <button type="button" className={styles.secondaryButton} onClick={onClose}>
                             閉じる
                         </button>
@@ -327,6 +345,23 @@ export function OtherPayoutModal({ memberId, month, onClose }: OtherPayoutModalP
                 onClose={() => setObjectionOpen(false)}
                 onSubmit={handleSubmitObjection}
             />
+
+            {disputeOpen && data && selfUserId && (
+                <DisputeCorrectionModal
+                    month={month}
+                    targetMemberId={selfUserId}
+                    rewardMemberId={memberId}
+                    currentRewardAmount={data.summary.estimated_amount}
+                    currentReimbursementAmount={data.reimbursementBalance.unsettled}
+                    currentAttendanceDays={data.preview?.current.total_work_days ?? null}
+                    currentLevel={data.preview?.current.level ?? null}
+                    onClose={() => setDisputeOpen(false)}
+                    onSubmitted={async () => {
+                        setNotice("申立を提出しました");
+                        await reload();
+                    }}
+                />
+            )}
         </div>
     );
 }

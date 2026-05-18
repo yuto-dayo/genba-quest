@@ -20,6 +20,7 @@ import { getErrorMessage } from "../../lib/error";
 import { track } from "../../lib/telemetry";
 import { LevelRevisionSheet } from "../LevelRevisionSheet";
 import { MemberInvoiceIssueModal } from "../MemberInvoiceIssueModal";
+import { DisputeCorrectionModal } from "./DisputeCorrectionModal";
 import { PayoutBreakdownSection } from "./PayoutBreakdownSection";
 import { PayoutCalculationSection } from "./PayoutCalculationSection";
 import { PayoutMovingFactorsSection } from "./PayoutMovingFactorsSection";
@@ -135,6 +136,7 @@ export function OwnPayoutModal({
     const [actionError, setActionError] = useState<string | null>(null);
     const [activeIssueDraft, setActiveIssueDraft] = useState<MemberInvoiceDraft | null>(null);
     const [revisionOpen, setRevisionOpen] = useState(false);
+    const [disputeOpen, setDisputeOpen] = useState(false);
     const [pendingVoid, setPendingVoid] = useState<MemberInvoice | null>(null);
     const [voiding, setVoiding] = useState(false);
 
@@ -315,6 +317,20 @@ export function OwnPayoutModal({
 
                 {!loading && data && (
                     <footer className={styles.actions}>
+                        <button
+                            type="button"
+                            className={styles.secondaryButton}
+                            onClick={() => {
+                                setActionError(null);
+                                if (!selfUserId) {
+                                    setActionError("ログイン情報を確認できませんでした");
+                                    return;
+                                }
+                                setDisputeOpen(true);
+                            }}
+                        >
+                            計算がおかしい？
+                        </button>
                         {invoiceState === "issued" && activeInvoice && (
                             <button
                                 type="button"
@@ -392,6 +408,23 @@ export function OwnPayoutModal({
                     draft={revisionDraft}
                     memberId={selfMemberId}
                     onRevised={() => refreshAfterInvoiceChange("レベル申告を更新しました")}
+                />
+            )}
+
+            {disputeOpen && data && selfUserId && (
+                <DisputeCorrectionModal
+                    month={month}
+                    targetMemberId={selfUserId}
+                    rewardMemberId={selfMemberId}
+                    currentRewardAmount={data.summary.estimated_amount}
+                    currentReimbursementAmount={data.reimbursementBalance.unsettled}
+                    currentAttendanceDays={data.preview?.current.total_work_days ?? null}
+                    currentLevel={data.preview?.current.level ?? null}
+                    onClose={() => setDisputeOpen(false)}
+                    onSubmitted={async () => {
+                        setNotice("申立を提出しました");
+                        await refreshAfterInvoiceChange("申立を提出しました");
+                    }}
                 />
             )}
 

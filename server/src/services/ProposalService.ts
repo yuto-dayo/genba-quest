@@ -38,6 +38,7 @@ import {
 import { RecurringExpenseService } from "./RecurringExpenseService";
 import { CashReceiptService } from "./CashReceiptService";
 import { PayoutSchedulingService } from "./PayoutSchedulingService";
+import { DisputeCorrectionService } from "./DisputeCorrectionService";
 
 // ============================================================
 // Types
@@ -208,6 +209,7 @@ export class ProposalService {
   private recurringExpenseService: RecurringExpenseService;
   private cashReceiptService: CashReceiptService;
   private payoutSchedulingService: PayoutSchedulingService;
+  private disputeCorrectionService: DisputeCorrectionService;
 
   constructor(orgId: string) {
     if (!orgId || typeof orgId !== 'string' || orgId.trim() === '') {
@@ -225,6 +227,7 @@ export class ProposalService {
     this.recurringExpenseService = new RecurringExpenseService(orgId);
     this.cashReceiptService = new CashReceiptService(orgId);
     this.payoutSchedulingService = new PayoutSchedulingService(orgId, this);
+    this.disputeCorrectionService = new DisputeCorrectionService();
     const fallbackMode = (process.env.PROPOSAL_RPC_FALLBACK_MODE || 'allow').toLowerCase();
     this.disableRpcFallback = ['disabled', 'deny', 'off'].includes(fallbackMode);
   }
@@ -396,7 +399,7 @@ export class ProposalService {
     const proposal = await this.getProposalForApproval(proposalId);
     await this.assertCanApprove(proposal, approver);
 
-    if (proposal.type === 'payout.executed') {
+    if (proposal.type === 'payout.executed' || proposal.type === 'reward.dispute_correction') {
       return this.approveFallback(proposal, approver, reason);
     }
 
@@ -544,6 +547,29 @@ export class ProposalService {
       }
       if (invoiceRow.status !== 'issued') {
         throw new Error('MEMBER_INVOICE_NOT_IN_ISSUED_STATE');
+      }
+    }
+
+    if (proposal.type === 'reward.dispute_correction') {
+      if (approver.type !== 'human') {
+        throw new Error('DISPUTE_CORRECTION_APPROVER_MUST_BE_HUMAN');
+      }
+      const targetMemberId =
+        typeof proposal.payload?.target_member_id === 'string'
+          ? proposal.payload.target_member_id
+          : null;
+      if (!targetMemberId) {
+        throw new Error('DISPUTE_CORRECTION_TARGET_MEMBER_MISSING');
+      }
+      if (proposal.created_by.type !== 'human' || proposal.created_by.id !== targetMemberId) {
+        throw new Error('DISPUTE_CORRECTION_CREATOR_MUST_BE_TARGET');
+      }
+      const assignedReviewerId =
+        typeof (proposal as unknown as Record<string, unknown>).assigned_reviewer_id === 'string'
+          ? String((proposal as unknown as Record<string, unknown>).assigned_reviewer_id)
+          : null;
+      if (assignedReviewerId && approver.id !== assignedReviewerId) {
+        throw new Error('DISPUTE_CORRECTION_APPROVER_MUST_BE_ASSIGNED_REVIEWER');
       }
     }
 
@@ -1120,6 +1146,20 @@ export class ProposalService {
       return executedProposal;
     }
 
+    if (proposal.type === 'reward.dispute_correction') {
+      const executedProposal = await this.disputeCorrectionService.executeApprovedProposal(proposal, executor);
+      await this.handleExecutedProposalSideEffects(executedProposal, executor);
+      await this.notifyProposalStatusChange(executedProposal, {
+        title: 'Proposal 実行完了',
+        message: `${executedProposal.description} が実行されました。`,
+        data: {
+          stage: 'executed',
+          result_event_id: executedProposal.result_event_id || null,
+        },
+      });
+      return executedProposal;
+    }
+
     // Phase A-1: DB関数での原子実行を優先
     const atomicallyExecuted = await this.tryExecuteAtomicRpc(proposalId, executor);
     if (atomicallyExecuted) {
@@ -1259,6 +1299,7 @@ export class ProposalService {
       'payout.executed': 'payout.executed',
       'reward.calculate': 'reward_calculated',
       'reward.adjust': 'reward_adjusted',
+      'reward.dispute_correction': 'reward.dispute_correction.adjustment',
       'skill.achieve': 'skill_achieved',
       'skill.revoke': 'skill_revoked',
       'evaluation.finalize': 'evaluation_finalized',
@@ -2386,6 +2427,10 @@ export class ProposalService {
       return 'finance.cash_receipt.recorded';
     }
 
+    if (proposal.type === 'reward.dispute_correction') {
+      return 'finance.reward.dispute_correction.executed';
+    }
+
     if (proposal.type === 'payout.scheduled') {
       return 'finance.payout.scheduled';
     }
@@ -2474,6 +2519,10 @@ export class ProposalService {
     if (proposal.type === 'reward.calculate' || proposal.type === 'reward.adjust') {
       const calculationSystem = proposal.payload?.calculation_system;
       return calculationSystem === 'path_v22' || calculationSystem === 'path_v31' || calculationSystem === 'path_v32_simple';
+    }
+
+    if (proposal.type === 'reward.dispute_correction') {
+      return true;
     }
 
     if (proposal.type === 'reward.pool.adjust' || proposal.type === 'path.level.update') {
