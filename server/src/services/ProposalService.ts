@@ -37,6 +37,7 @@ import {
 } from "./MemberTaxClassificationService";
 import { RecurringExpenseService } from "./RecurringExpenseService";
 import { CashReceiptService } from "./CashReceiptService";
+import { PayoutSchedulingService } from "./PayoutSchedulingService";
 
 // ============================================================
 // Types
@@ -206,6 +207,7 @@ export class ProposalService {
   private memberTaxClassificationService: MemberTaxClassificationService;
   private recurringExpenseService: RecurringExpenseService;
   private cashReceiptService: CashReceiptService;
+  private payoutSchedulingService: PayoutSchedulingService;
 
   constructor(orgId: string) {
     if (!orgId || typeof orgId !== 'string' || orgId.trim() === '') {
@@ -222,6 +224,7 @@ export class ProposalService {
     this.memberTaxClassificationService = memberTaxClassificationService;
     this.recurringExpenseService = new RecurringExpenseService(orgId);
     this.cashReceiptService = new CashReceiptService(orgId);
+    this.payoutSchedulingService = new PayoutSchedulingService(orgId, this);
     const fallbackMode = (process.env.PROPOSAL_RPC_FALLBACK_MODE || 'allow').toLowerCase();
     this.disableRpcFallback = ['disabled', 'deny', 'off'].includes(fallbackMode);
   }
@@ -392,6 +395,10 @@ export class ProposalService {
   ): Promise<ApprovalResult> {
     const proposal = await this.getProposalForApproval(proposalId);
     await this.assertCanApprove(proposal, approver);
+
+    if (proposal.type === 'payout.executed') {
+      return this.approveFallback(proposal, approver, reason);
+    }
 
     // PR-20a: cash_receipt.record has a dedicated atomic RPC because
     // parent receipt + allocations + ledger entries must commit together.
@@ -1099,6 +1106,20 @@ export class ProposalService {
       return executedProposal;
     }
 
+    if (proposal.type === 'payout.executed') {
+      const executedProposal = await this.payoutSchedulingService.executePayoutProposal(proposal, executor);
+      await this.handleExecutedProposalSideEffects(executedProposal, executor);
+      await this.notifyProposalStatusChange(executedProposal, {
+        title: 'Proposal 実行完了',
+        message: `${executedProposal.description} が実行されました。`,
+        data: {
+          stage: 'executed',
+          result_event_id: executedProposal.result_event_id || null,
+        },
+      });
+      return executedProposal;
+    }
+
     // Phase A-1: DB関数での原子実行を優先
     const atomicallyExecuted = await this.tryExecuteAtomicRpc(proposalId, executor);
     if (atomicallyExecuted) {
@@ -1234,6 +1255,8 @@ export class ProposalService {
       'invoice.send': 'invoice_sent',
       'invoice.mark_paid': 'payment_received',
       'cash_receipt.record': 'payment_received',
+      'payout.scheduled': 'payout.scheduled',
+      'payout.executed': 'payout.executed',
       'reward.calculate': 'reward_calculated',
       'reward.adjust': 'reward_adjusted',
       'skill.achieve': 'skill_achieved',
@@ -1287,6 +1310,9 @@ export class ProposalService {
           buildClassificationPayloadFromProposal(proposal),
           event.actor,
         );
+        break;
+      case 'payout.scheduled':
+        await this.payoutSchedulingService.applyScheduledProposal(proposal);
         break;
       case 'site.close.finalize':
       case 'site.close.reopen':
@@ -2236,6 +2262,20 @@ export class ProposalService {
       await this.recurringExpenseService.applyFromExecutedProposal(proposal, actor);
     }
 
+    if (proposal.type === 'cash_receipt.record') {
+      const receiptId =
+        typeof proposal.payload?.cash_receipt_id === 'string'
+          ? proposal.payload.cash_receipt_id
+          : await this.findCashReceiptIdByProposal(proposal.id);
+      if (receiptId) {
+        await this.payoutSchedulingService.onCashReceiptExecuted(receiptId);
+      }
+    }
+
+    if (proposal.type === 'payout.scheduled') {
+      await this.payoutSchedulingService.applyScheduledProposal(proposal);
+    }
+
     // invoice.member_issue: 本人主導の請求書 row を発行する。
     // 振込先 / インボイス番号 / 住所 は payload の snapshot_profile から転記済み。
     // Phase 2-2b: accrual の仕訳 (Dr 外注費 / Cr 未払金) は execute_proposal_atomic RPC が
@@ -2346,6 +2386,14 @@ export class ProposalService {
       return 'finance.cash_receipt.recorded';
     }
 
+    if (proposal.type === 'payout.scheduled') {
+      return 'finance.payout.scheduled';
+    }
+
+    if (proposal.type === 'payout.executed') {
+      return 'finance.payout.executed';
+    }
+
     return 'governance.proposal.executed';
   }
 
@@ -2453,6 +2501,25 @@ export class ProposalService {
       return true;
     }
 
+    if (proposal.type === 'cash_receipt.record' || proposal.type.startsWith('payout.')) {
+      return true;
+    }
+
     return false;
+  }
+
+  private async findCashReceiptIdByProposal(proposalId: string): Promise<string | null> {
+    const { data, error } = await supabaseAdmin
+      .from('cash_receipts')
+      .select('id')
+      .eq('proposal_id', proposalId)
+      .eq('org_id', this.orgId)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to find cash receipt for payout scheduling: ${error.message}`);
+    }
+
+    return typeof data?.id === 'string' ? data.id : null;
   }
 }
