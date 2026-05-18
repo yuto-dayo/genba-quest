@@ -74,6 +74,48 @@ describe("authMiddleware dev auth", () => {
       error: expect.stringContaining("DEV_SKIP_AUTH=true cannot be used with hosted Supabase"),
     });
   });
+
+  it("ignores DEV_SKIP_AUTH when NODE_ENV is staging", async () => {
+    process.env.NODE_ENV = "staging";
+    process.env.DEV_SKIP_AUTH = "true";
+    const req = {
+      headers: { "x-dev-user-key": "yuto" },
+      query: {},
+    } as any;
+    const res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+    } as any;
+    const next = jest.fn();
+
+    await authMiddleware(req, res, next);
+
+    // No bearer token present, so we expect the real-auth branch to
+    // reject the request rather than the dev branch to short-circuit.
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(req.userId).toBeUndefined();
+  });
+
+  it("ignores DEV_SKIP_AUTH when NODE_ENV is test", async () => {
+    process.env.NODE_ENV = "test";
+    process.env.DEV_SKIP_AUTH = "true";
+    const req = {
+      headers: { "x-dev-user-key": "yuto" },
+      query: {},
+    } as any;
+    const res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+    } as any;
+    const next = jest.fn();
+
+    await authMiddleware(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(req.userId).toBeUndefined();
+  });
 });
 
 describe("authMiddleware production auth", () => {
