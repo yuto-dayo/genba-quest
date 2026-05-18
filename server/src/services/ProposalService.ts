@@ -35,6 +35,7 @@ import {
   MemberTaxClassificationService,
   memberTaxClassificationService,
 } from "./MemberTaxClassificationService";
+import { RecurringExpenseService } from "./RecurringExpenseService";
 
 // ============================================================
 // Types
@@ -202,6 +203,7 @@ export class ProposalService {
   private memberInvoiceService: MemberInvoiceService;
   private invoiceReviewerAssignmentService: InvoiceReviewerAssignmentService;
   private memberTaxClassificationService: MemberTaxClassificationService;
+  private recurringExpenseService: RecurringExpenseService;
 
   constructor(orgId: string) {
     if (!orgId || typeof orgId !== 'string' || orgId.trim() === '') {
@@ -216,6 +218,7 @@ export class ProposalService {
     this.memberInvoiceService = memberInvoiceService;
     this.invoiceReviewerAssignmentService = invoiceReviewerAssignmentService;
     this.memberTaxClassificationService = memberTaxClassificationService;
+    this.recurringExpenseService = new RecurringExpenseService(orgId);
     const fallbackMode = (process.env.PROPOSAL_RPC_FALLBACK_MODE || 'allow').toLowerCase();
     this.disableRpcFallback = ['disabled', 'deny', 'off'].includes(fallbackMode);
   }
@@ -1148,6 +1151,9 @@ export class ProposalService {
       'site.close.reopen': 'site.close.reopened',
       'profile.view_request': 'profile.view_granted',
       'member.classification.update': 'member.classification.updated',
+      'recurring_expense.create': 'recurring_expense.create',
+      'recurring_expense.update': 'recurring_expense.update',
+      'recurring_expense.end': 'recurring_expense.end',
     };
     return mapping[type] || 'internal_transfer';
   }
@@ -2122,6 +2128,14 @@ export class ProposalService {
       );
     }
 
+    if (
+      proposal.type === 'recurring_expense.create' ||
+      proposal.type === 'recurring_expense.update' ||
+      proposal.type === 'recurring_expense.end'
+    ) {
+      await this.recurringExpenseService.applyFromExecutedProposal(proposal, actor);
+    }
+
     // invoice.member_issue: 本人主導の請求書 row を発行する。
     // 振込先 / インボイス番号 / 住所 は payload の snapshot_profile から転記済み。
     // Phase 2-2b: accrual の仕訳 (Dr 外注費 / Cr 未払金) は execute_proposal_atomic RPC が
@@ -2214,6 +2228,18 @@ export class ProposalService {
 
     if (proposal.type === 'invoice.member_void') {
       return 'governance.member_invoice.voided';
+    }
+
+    if (proposal.type === 'recurring_expense.create') {
+      return 'governance.recurring_expense.created';
+    }
+
+    if (proposal.type === 'recurring_expense.update') {
+      return 'governance.recurring_expense.updated';
+    }
+
+    if (proposal.type === 'recurring_expense.end') {
+      return 'governance.recurring_expense.ended';
     }
 
     return 'governance.proposal.executed';
@@ -2326,4 +2352,3 @@ export class ProposalService {
     return false;
   }
 }
-

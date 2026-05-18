@@ -110,6 +110,15 @@ type ReimbursementTransactionRow = {
     amount_total: number | string;
     claimant_member_id: string | null;
     reimbursement_status: string | null;
+    recurring_expense_id?: string | null;
+    recurring_expenses?: RecurringExpenseJoin | RecurringExpenseJoin[] | null;
+};
+
+type RecurringExpenseJoin = {
+    id: string;
+    category: string;
+    title: string;
+    monthly_amount: number | string;
 };
 
 type OrgMemberRow = {
@@ -452,6 +461,43 @@ function summarizeReimbursementRows(rows: ReimbursementTransactionRow[]) {
         settled,
         count_pending: countPending,
         by_status: byStatus,
+    };
+}
+
+function readRecurringExpenseJoin(row: ReimbursementTransactionRow): RecurringExpenseJoin | null {
+    const joined = row.recurring_expenses;
+    if (Array.isArray(joined)) {
+        return joined[0] ?? null;
+    }
+    return joined ?? null;
+}
+
+function summarizeRecurringRows(rows: ReimbursementTransactionRow[]) {
+    const recurringById = new Map<string, {
+        id: string;
+        category: string;
+        title: string;
+        monthly_amount: number;
+    }>();
+
+    for (const row of rows) {
+        const recurring = readRecurringExpenseJoin(row);
+        const id = row.recurring_expense_id ?? recurring?.id;
+        if (!id || !recurring) {
+            continue;
+        }
+        recurringById.set(id, {
+            id,
+            category: recurring.category,
+            title: recurring.title,
+            monthly_amount: toWholeYen(recurring.monthly_amount),
+        });
+    }
+
+    const recurringItems = Array.from(recurringById.values());
+    return {
+        recurring_total: recurringItems.reduce((sum, item) => sum + item.monthly_amount, 0),
+        recurring_items: recurringItems,
     };
 }
 
@@ -4821,7 +4867,7 @@ router.get("/member-reimbursements-summary", async (req: AuthenticatedRequest, r
             loadProfileMap(members.map((member) => member.user_id)),
             supabaseAdmin
                 .from("accounting_transactions")
-                .select("id,recorded_date,category,amount_total,claimant_member_id,reimbursement_status")
+                .select("id,recorded_date,category,amount_total,claimant_member_id,reimbursement_status,recurring_expense_id,recurring_expenses(id,category,title,monthly_amount)")
                 .eq("org_id", orgId)
                 .eq("kind", "expense")
                 .eq("paid_by", "member")
@@ -4850,6 +4896,7 @@ router.get("/member-reimbursements-summary", async (req: AuthenticatedRequest, r
             .map((member) => {
                 const rows = rowsByMemberId.get(member.id) ?? [];
                 const summary = summarizeReimbursementRows(rows);
+                const recurring = summarizeRecurringRows(rows);
                 if (summary.total_advanced <= 0) {
                     return null;
                 }
@@ -4861,6 +4908,8 @@ router.get("/member-reimbursements-summary", async (req: AuthenticatedRequest, r
                     settled: summary.settled,
                     count_pending: summary.count_pending,
                     status: resolveReimbursementMemberStatus(summary),
+                    recurring_total: recurring.recurring_total,
+                    recurring_items: recurring.recurring_items,
                     is_self: member.user_id === req.userId || member.id === req.orgMembershipId,
                 };
             })
@@ -4914,7 +4963,7 @@ router.get("/member/:memberId/reimbursement-balance", async (req: AuthenticatedR
 
         const { data, error } = await supabaseAdmin
             .from("accounting_transactions")
-            .select("id,recorded_date,category,amount_total,claimant_member_id,reimbursement_status")
+            .select("id,recorded_date,category,amount_total,claimant_member_id,reimbursement_status,recurring_expense_id,recurring_expenses(id,category,title,monthly_amount)")
             .eq("org_id", orgId)
             .eq("kind", "expense")
             .eq("paid_by", "member")
@@ -4932,6 +4981,7 @@ router.get("/member/:memberId/reimbursement-balance", async (req: AuthenticatedR
 
         const rows = (data ?? []) as ReimbursementTransactionRow[];
         const summary = summarizeReimbursementRows(rows);
+        const recurring = summarizeRecurringRows(rows);
         res.json({
             member_id: memberId,
             month: monthValidation.month,
@@ -4939,12 +4989,17 @@ router.get("/member/:memberId/reimbursement-balance", async (req: AuthenticatedR
             unsettled: summary.unsettled,
             settled: summary.settled,
             by_status: summary.by_status,
+            recurring_total: recurring.recurring_total,
+            recurring_items: recurring.recurring_items,
             recent_items: rows.slice(0, 5).map((row) => ({
                 id: row.id,
                 occurred_on: row.recorded_date,
                 category: row.category ?? "other",
                 amount: toWholeYen(row.amount_total),
                 reimbursement_status: resolveReimbursementStatus(row.reimbursement_status),
+                recurring_expense: row.recurring_expense_id
+                    ? summarizeRecurringRows([row]).recurring_items[0] ?? null
+                    : null,
             })),
         });
     } catch (err: any) {

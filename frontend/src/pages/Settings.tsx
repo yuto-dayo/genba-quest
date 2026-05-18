@@ -12,6 +12,7 @@ import {
     Plus,
     ReceiptText,
     RefreshCw,
+    Repeat2,
     Search,
     Shield,
     ShieldOff,
@@ -62,6 +63,7 @@ import { ClientSettingsModal } from "../components/ClientSettingsModal";
 import { ProfileViewConsentModal } from "../components/ProfileViewConsentModal";
 import { TaxMappingPanel } from "../components/settings/TaxMappingPanel";
 import { ClassificationPanel } from "../components/settings/ClassificationPanel";
+import { RecurringExpensePanel } from "../components/settings/RecurringExpensePanel";
 import styles from "./Settings.module.css";
 
 function getAvatarErrorMessage(error: unknown): string {
@@ -101,6 +103,7 @@ type SettingPanel =
     | "members"
     | "invoice"
     | "clients"
+    | "recurringExpenses"
     | "classification"
     | "electronicDocs"
     | "taxMapping";
@@ -862,6 +865,13 @@ export function Settings() {
             title: "プロフィール",
             summary: `${currentMember ? displayName : "未設定"} / ${profileSummaryDetail}`,
             icon: <Users size={20} />,
+        },
+        {
+            id: "recurringExpenses" as const,
+            group: "個人",
+            title: "定期立替",
+            summary: "車・携帯・保険",
+            icon: <Repeat2 size={20} />,
         },
         {
             id: "invoice" as const,
@@ -2076,6 +2086,14 @@ export function Settings() {
 
                         {selectedSetting === "classification" && isCurrentUserAdmin && (
                             <ClassificationPanel members={members} />
+                        )}
+
+                        {selectedSetting === "recurringExpenses" && (
+                            <RecurringExpensePanel
+                                members={members}
+                                currentUserId={currentMember?.id ?? null}
+                                isAdmin={isCurrentUserAdmin}
+                            />
                         )}
 
                         {selectedSetting === "clients" && (

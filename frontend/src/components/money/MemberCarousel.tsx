@@ -22,6 +22,13 @@ export interface TeamMemberReimbursementLike {
     settled: number;
     count_pending: number;
     status: "pending" | "in_review" | "none" | "settled";
+    recurring_total?: number;
+    recurring_items?: Array<{
+        id: string;
+        category: string;
+        title: string;
+        monthly_amount: number;
+    }>;
 }
 
 type RewardProps = {
@@ -99,6 +106,22 @@ function expenseStatus(status: TeamMemberReimbursementLike["status"]): {
     }
 }
 
+function formatYen(amount: number): string {
+    return new Intl.NumberFormat("ja-JP", {
+        style: "currency",
+        currency: "JPY",
+        maximumFractionDigits: 0,
+    }).format(amount);
+}
+
+function expenseSubLabel(member: TeamMemberReimbursementLike): string {
+    const firstRecurring = member.recurring_items?.[0];
+    if (firstRecurring) {
+        return `[${firstRecurring.category}] ${firstRecurring.title} ${formatYen(firstRecurring.monthly_amount)}`;
+    }
+    return `${member.count_pending}件`;
+}
+
 export function MemberCarousel(props: MemberCarouselProps) {
     if (props.mode === "reward") {
         const orderedMembers = sortRewardMembers(props.members, props.selfMemberId);
@@ -174,7 +197,7 @@ export function MemberCarousel(props: MemberCarouselProps) {
                             amount={member.unsettled || member.total_advanced}
                             statusLabel={status.label}
                             statusTone={status.tone}
-                            subLabel={`${member.count_pending}件`}
+                            subLabel={expenseSubLabel(member)}
                             onTap={() => props.onCardTap(member.member_id)}
                         />
                     </div>

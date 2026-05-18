@@ -126,7 +126,7 @@
 
 .summaryGrid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(calc(var(--md-sys-tap-target-min) * 3), 1fr));
     gap: var(--md-sys-spacing-sm);
 }
 
@@ -223,6 +223,19 @@
     min-height: calc(var(--md-sys-tap-target-min) / 2);
     padding: 0 var(--md-sys-spacing-sm);
     border-radius: var(--md-sys-shape-corner-full);
+    font: var(--md-sys-typescale-label-medium);
+}
+
+.recurringBadge {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    min-height: calc(var(--md-sys-tap-target-min) / 2);
+    margin-inline-start: var(--md-sys-spacing-xs);
+    padding: 0 var(--md-sys-spacing-sm);
+    border-radius: var(--md-sys-shape-corner-full);
+    background: var(--md-sys-color-secondary-container);
+    color: var(--md-sys-color-on-secondary-container);
     font: var(--md-sys-typescale-label-medium);
 }
 

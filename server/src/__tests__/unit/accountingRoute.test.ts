@@ -779,6 +779,8 @@ describe("accounting router", () => {
           settled: 0,
           count_pending: 2,
           status: "in_review",
+          recurring_total: 0,
+          recurring_items: [],
         },
         {
           member_id: "membership-2",
@@ -788,6 +790,8 @@ describe("accounting router", () => {
           settled: 5000,
           count_pending: 0,
           status: "settled",
+          recurring_total: 0,
+          recurring_items: [],
         },
       ],
     });
@@ -847,12 +851,14 @@ describe("accounting router", () => {
         approved: 2000,
         reimbursed: 3000,
       },
+      recurring_total: 0,
+      recurring_items: [],
       recent_items: [
-        { id: "tx-1", occurred_on: `${month}-06`, category: "fuel", amount: 1000, reimbursement_status: "submitted" },
-        { id: "tx-2", occurred_on: `${month}-05`, category: "travel", amount: 2000, reimbursement_status: "approved" },
-        { id: "tx-3", occurred_on: `${month}-04`, category: "material", amount: 3000, reimbursement_status: "reimbursed" },
-        { id: "tx-4", occurred_on: `${month}-03`, category: "other", amount: 4000, reimbursement_status: "unsubmitted" },
-        { id: "tx-5", occurred_on: `${month}-02`, category: "tool", amount: 5000, reimbursement_status: "submitted" },
+        { id: "tx-1", occurred_on: `${month}-06`, category: "fuel", amount: 1000, reimbursement_status: "submitted", recurring_expense: null },
+        { id: "tx-2", occurred_on: `${month}-05`, category: "travel", amount: 2000, reimbursement_status: "approved", recurring_expense: null },
+        { id: "tx-3", occurred_on: `${month}-04`, category: "material", amount: 3000, reimbursement_status: "reimbursed", recurring_expense: null },
+        { id: "tx-4", occurred_on: `${month}-03`, category: "other", amount: 4000, reimbursement_status: "unsubmitted", recurring_expense: null },
+        { id: "tx-5", occurred_on: `${month}-02`, category: "tool", amount: 5000, reimbursement_status: "submitted", recurring_expense: null },
       ],
     });
   });
