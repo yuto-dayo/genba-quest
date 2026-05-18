@@ -21,6 +21,7 @@ const fetchPendingProposals = vi.fn();
 const fetchPL = vi.fn();
 const fetchTeamRewardSummary = vi.fn();
 const fetchMemberReimbursementsSummary = vi.fn();
+const fetchDisputeCorrections = vi.fn();
 const fetchTransactions = vi.fn();
 const fetchPathModuleMonthCloseSummary = vi.fn();
 const fetchPathV33OpenObjections = vi.fn();
@@ -75,6 +76,7 @@ vi.mock("../lib/api", () => ({
     fetchPL: (...args: unknown[]) => fetchPL(...args),
     fetchTeamRewardSummary: (...args: unknown[]) => fetchTeamRewardSummary(...args),
     fetchMemberReimbursementsSummary: (...args: unknown[]) => fetchMemberReimbursementsSummary(...args),
+    fetchDisputeCorrections: (...args: unknown[]) => fetchDisputeCorrections(...args),
     fetchTransactions: (...args: unknown[]) => fetchTransactions(...args),
     fetchPathModuleMonthCloseSummary: (...args: unknown[]) => fetchPathModuleMonthCloseSummary(...args),
     fetchPathV33OpenObjections: (...args: unknown[]) => fetchPathV33OpenObjections(...args),
@@ -352,6 +354,7 @@ describe("Money PATH proposal queue", () => {
             self_member_id: "member-1",
             members: [],
         });
+        fetchDisputeCorrections.mockResolvedValue([]);
         fetchTransactions.mockResolvedValue([]);
         fetchPathModuleMonthCloseSummary.mockResolvedValue({
             month: "2026-05",

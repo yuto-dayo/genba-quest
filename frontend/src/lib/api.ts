@@ -156,6 +156,7 @@ export type ProposalType =
     | "invoice.member_void"
     | "reward.calculate"
     | "reward.adjust"
+    | "reward.dispute_correction"
     | "reward.pool.adjust"
     | "path.level.update"
     | "level.objection"
@@ -3026,6 +3027,79 @@ export const fetchMemberReimbursementBalance = (memberId: string, month: string,
 
 export const fetchTeamRewardSummary = (month: string) =>
     api<TeamRewardSummary>(`/api/v1/path/module/team-reward-summary?month=${encodeURIComponent(month)}`);
+
+export type DisputeCorrectionKind =
+    | "reward_amount"
+    | "reimbursement_missing"
+    | "level_misjudgment"
+    | "attendance_days"
+    | "other";
+
+export interface DisputeCorrectionProposalRequest {
+    target_member_id: string;
+    reward_member_id?: string | null;
+    month: string;
+    correction_kind: DisputeCorrectionKind;
+    from_amount: number;
+    to_amount: number;
+    reason: string;
+    details?: Record<string, unknown>;
+    source_document_ids?: string[];
+}
+
+export interface DisputeCorrectionRecord {
+    proposal_id: string;
+    org_id: string;
+    status: ProposalStatus;
+    description: string;
+    month: string;
+    target_member_id: string;
+    reward_member_id: string | null;
+    correction_kind: DisputeCorrectionKind;
+    from_amount: number | null;
+    to_amount: number | null;
+    delta_amount: number | null;
+    reason: string | null;
+    evidence_document_ids: unknown;
+    assigned_reviewer_id: string | null;
+    assigned_at: string | null;
+    result_event_id: string | null;
+    created_at: string;
+    executed_at: string | null;
+}
+
+export interface DisputeCorrectionSubmitResponse {
+    proposal: ProposalRecord;
+    autoApproved?: boolean;
+    autoExecuted?: boolean;
+}
+
+export const submitDisputeCorrectionProposal = (data: DisputeCorrectionProposalRequest) =>
+    api<DisputeCorrectionSubmitResponse>("/api/v1/payout/dispute-corrections", {
+        method: "POST",
+        body: JSON.stringify(data),
+    });
+
+export const fetchDisputeCorrections = (params: {
+    month?: string;
+    target_member_id?: string;
+    reward_member_id?: string;
+    member_id?: string;
+    status?: ProposalStatus;
+    limit?: number;
+} = {}) => {
+    const searchParams = new URLSearchParams();
+    if (params.month) searchParams.append("month", params.month);
+    if (params.target_member_id) searchParams.append("target_member_id", params.target_member_id);
+    if (params.reward_member_id) searchParams.append("reward_member_id", params.reward_member_id);
+    if (params.member_id) searchParams.append("member_id", params.member_id);
+    if (params.status) searchParams.append("status", params.status);
+    if (params.limit !== undefined) searchParams.append("limit", String(params.limit));
+    const query = searchParams.toString();
+    return api<{ corrections: DisputeCorrectionRecord[] }>(
+        `/api/v1/payout/dispute-corrections${query ? `?${query}` : ""}`,
+    ).then((response) => response.corrections);
+};
 
 // 月次推移 (PR #8)
 export interface PLTrendMonth {

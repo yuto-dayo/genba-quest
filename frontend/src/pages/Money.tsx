@@ -36,6 +36,7 @@ import {
     searchTransactions,
     batchReviewExpenses,
     fetchNotifications,
+    fetchDisputeCorrections,
     type PLReport,
     type AccountingTransaction,
     type ProposalRecord,
@@ -247,6 +248,7 @@ export function Money() {
     const payoutSelection = usePayoutSelection(teamRewardSummary?.self_member_id ?? null);
     const [moneyHeroLoading, setMoneyHeroLoading] = useState(false);
     const [moneyHeroError, setMoneyHeroError] = useState<string | null>(null);
+    const [pendingDisputeMemberIds, setPendingDisputeMemberIds] = useState<string[]>([]);
     const [companyTrend, setCompanyTrend] = useState<number[]>([]);
     const [shieldOpen, setShieldOpen] = useState(false);
     const [transactions, setTransactions] = useState<AccountingTransaction[]>([]);
@@ -484,11 +486,17 @@ export function Money() {
         Promise.all([
             fetchTeamRewardSummary(selectedMonth),
             fetchMemberReimbursementsSummary(selectedMonth),
+            fetchDisputeCorrections({ month: selectedMonth, status: "pending", limit: 100 }).catch(() => []),
         ])
-            .then(([rewardData, reimbursementData]) => {
+            .then(([rewardData, reimbursementData, disputeData]) => {
                 if (cancelled) return;
                 setTeamRewardSummary(rewardData);
                 setReimbursementsSummary(reimbursementData);
+                setPendingDisputeMemberIds(Array.from(new Set(
+                    disputeData
+                        .map((correction) => correction.reward_member_id || correction.target_member_id)
+                        .filter((memberId): memberId is string => Boolean(memberId)),
+                )));
             })
             .catch((err: unknown) => {
                 if (cancelled) return;
@@ -763,10 +771,16 @@ export function Money() {
         Promise.all([
             fetchTeamRewardSummary(selectedMonth),
             fetchMemberReimbursementsSummary(selectedMonth),
+            fetchDisputeCorrections({ month: selectedMonth, status: "pending", limit: 100 }).catch(() => []),
         ])
-            .then(([rewardData, reimbursementData]) => {
+            .then(([rewardData, reimbursementData, disputeData]) => {
                 setTeamRewardSummary(rewardData);
                 setReimbursementsSummary(reimbursementData);
+                setPendingDisputeMemberIds(Array.from(new Set(
+                    disputeData
+                        .map((correction) => correction.reward_member_id || correction.target_member_id)
+                        .filter((memberId): memberId is string => Boolean(memberId)),
+                )));
             })
             .catch((err: unknown) => setMoneyHeroError(getErrorMessage(err)))
             .finally(() => setMoneyHeroLoading(false));
@@ -1095,6 +1109,7 @@ export function Money() {
                                 isFinalized={teamRewardSummary?.is_finalized ?? false}
                                 selectedMemberId={payoutSelection.selectedMemberId}
                                 viewMode={payoutSelection.viewMode}
+                                pendingDisputeMemberIds={pendingDisputeMemberIds}
                                 onSelectMember={payoutSelection.onSelectMember}
                                 onCardTap={handleRewardCardTap}
                             />
@@ -1149,6 +1164,7 @@ export function Money() {
             {otherRewardMemberId && (
                 <OtherPayoutModal
                     memberId={otherRewardMemberId}
+                    selfUserId={selfUserId}
                     month={selectedMonth}
                     readOnly={readOnly}
                     onClose={closeOtherPayoutModal}

@@ -102,12 +102,34 @@
 .meta {
     display: inline-flex;
     align-items: center;
+    gap: var(--md-sys-spacing-xs);
     min-height: calc(var(--md-sys-spacing-xl) + var(--md-sys-spacing-2xs));
     padding: var(--md-sys-spacing-xs) var(--md-sys-spacing-sm);
     border-radius: var(--md-sys-shape-corner-full);
     background: var(--md-sys-color-primary-container);
     color: var(--md-sys-color-on-primary-container);
     font: var(--md-sys-typescale-label-medium);
+}
+
+.inlineBadge,
+.disputeBadge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--md-sys-shape-corner-full);
+    background: var(--money-status-pending-container);
+    color: var(--md-sys-color-on-warning-container);
+    font: var(--md-sys-typescale-label-small);
+    white-space: nowrap;
+}
+
+.inlineBadge {
+    padding: var(--md-sys-spacing-2xs) var(--md-sys-spacing-xs);
+}
+
+.disputeBadge {
+    margin-inline-start: var(--md-sys-spacing-xs);
+    padding: var(--md-sys-spacing-2xs) var(--md-sys-spacing-sm);
 }
 
 .detailButton {

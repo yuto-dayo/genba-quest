@@ -27,6 +27,7 @@ export type ProposalType =
   // 報酬
   | 'reward.calculate'
   | 'reward.adjust'
+  | 'reward.dispute_correction'
   | 'reward.pool.adjust'
   | 'path.level.update'
   | 'level.objection'

@@ -1,0 +1,270 @@
+.scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: var(--md-sys-spacing-md);
+    background: color-mix(in srgb, var(--md-sys-color-scrim) 72%, transparent);
+}
+
+.modal {
+    width: min(100%, calc(var(--md-sys-spacing-2xl) * 11));
+    max-height: calc(100dvh - (var(--md-sys-spacing-md) * 2));
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: var(--md-sys-focus-outline-width) solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-extra-large);
+    background: var(--md-sys-color-surface-container-lowest);
+    box-shadow: var(--md-sys-elevation-level4);
+    color: var(--md-sys-color-on-surface);
+}
+
+.header,
+.actions {
+    display: flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-sm);
+    padding: var(--md-sys-spacing-md) var(--md-sys-spacing-lg);
+}
+
+.header {
+    justify-content: space-between;
+    border-bottom: var(--md-sys-focus-outline-width) solid var(--md-sys-color-outline-variant);
+}
+
+.actions {
+    justify-content: flex-end;
+    border-top: var(--md-sys-focus-outline-width) solid var(--md-sys-color-outline-variant);
+}
+
+.eyebrow,
+.title,
+.sectionTitle,
+.confirmTitle,
+.deltaLine,
+.errorPanel,
+.confirmPanel p {
+    margin: 0;
+    letter-spacing: 0;
+}
+
+.eyebrow {
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-medium);
+}
+
+.title {
+    font: var(--md-sys-typescale-title-large);
+}
+
+.body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--md-sys-spacing-md);
+    padding: var(--md-sys-spacing-lg);
+    overflow-y: auto;
+}
+
+.section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--md-sys-spacing-sm);
+}
+
+.sectionTitle {
+    font: var(--md-sys-typescale-label-large);
+}
+
+.kindGrid,
+.amountGrid {
+    display: grid;
+    gap: var(--md-sys-spacing-sm);
+}
+
+.kindGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.kindOption {
+    min-height: var(--md-sys-tap-target-min);
+    display: flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-sm);
+    padding: var(--md-sys-spacing-sm);
+    border: var(--md-sys-focus-outline-width) solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-large);
+    background: var(--md-sys-color-surface-container-low);
+    cursor: pointer;
+}
+
+.kindOption span {
+    display: flex;
+    flex-direction: column;
+    gap: var(--md-sys-spacing-xs);
+}
+
+.kindOption strong,
+.kindOption small,
+.field span,
+.deltaLine,
+.confirmPanel p {
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.kindOption small,
+.field span {
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.amountGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--md-sys-spacing-xs);
+}
+
+.field input,
+.textarea {
+    min-height: var(--md-sys-tap-target-min);
+    width: 100%;
+    box-sizing: border-box;
+    border: var(--md-sys-focus-outline-width) solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-medium);
+    background: var(--md-sys-color-surface-container-lowest);
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-body-large);
+}
+
+.field input {
+    padding: 0 var(--md-sys-spacing-md);
+    font-variant-numeric: tabular-nums;
+}
+
+.textarea {
+    min-height: calc(var(--md-sys-tap-target-min) * 2);
+    padding: var(--md-sys-spacing-sm) var(--md-sys-spacing-md);
+    resize: vertical;
+}
+
+.deltaLine {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--md-sys-spacing-sm) var(--md-sys-spacing-md);
+    border-radius: var(--md-sys-shape-corner-medium);
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
+}
+
+.deltaLine strong {
+    font-variant-numeric: tabular-nums;
+}
+
+.fileDrop,
+.confirmPanel,
+.errorPanel {
+    display: flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-sm);
+    padding: var(--md-sys-spacing-md);
+    border-radius: var(--md-sys-shape-corner-large);
+}
+
+.fileDrop {
+    min-height: var(--md-sys-tap-target-min);
+    border: var(--md-sys-focus-outline-width) dashed var(--md-sys-color-outline);
+    background: var(--md-sys-color-surface-container-low);
+    color: var(--md-sys-color-on-surface);
+    cursor: pointer;
+}
+
+.fileDrop input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    opacity: 0;
+}
+
+.confirmPanel {
+    align-items: flex-start;
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
+}
+
+.confirmPanel div {
+    display: flex;
+    flex-direction: column;
+    gap: var(--md-sys-spacing-xs);
+}
+
+.errorPanel {
+    background: var(--md-sys-color-error-container);
+    color: var(--md-sys-color-on-error-container);
+    font: var(--md-sys-typescale-body-medium);
+}
+
+.iconButton,
+.secondaryButton,
+.primaryButton {
+    min-height: var(--md-sys-tap-target-min);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--md-sys-spacing-xs);
+    border: var(--md-sys-focus-outline-width) solid transparent;
+    border-radius: var(--md-sys-shape-corner-full);
+    font: var(--md-sys-typescale-label-large);
+    cursor: pointer;
+}
+
+.iconButton {
+    width: var(--md-sys-tap-target-min);
+    background: var(--md-sys-color-surface-container);
+    color: var(--md-sys-color-on-surface-variant);
+}
+
+.secondaryButton,
+.primaryButton {
+    padding: 0 var(--md-sys-spacing-lg);
+}
+
+.secondaryButton {
+    background: var(--md-sys-color-surface-container-low);
+    color: var(--md-sys-color-on-surface);
+}
+
+.primaryButton {
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+}
+
+.iconButton:focus-visible,
+.secondaryButton:focus-visible,
+.primaryButton:focus-visible,
+.kindOption:focus-within,
+.field input:focus-visible,
+.textarea:focus-visible,
+.fileDrop:focus-within {
+    outline: var(--md-sys-focus-outline-width) solid var(--md-sys-color-primary);
+    outline-offset: var(--md-sys-focus-outline-offset);
+}
+
+.secondaryButton:disabled,
+.primaryButton:disabled {
+    opacity: var(--md-sys-state-disabled-opacity);
+    cursor: not-allowed;
+}
+
+@media (max-width: 520px) {
+    .kindGrid,
+    .amountGrid {
+        grid-template-columns: 1fr;
+    }
+}

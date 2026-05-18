@@ -30,6 +30,7 @@ interface PayoutHeroCardProps {
     isFinalized: boolean;
     selectedMemberId: string | null;
     viewMode: "single" | "all";
+    pendingDisputeMemberIds?: string[];
     onSelectMember: (memberId: string | "all") => void;
     onCardTap: (memberId: string) => void;
 }
@@ -211,12 +212,15 @@ export function PayoutMemberChips({
 export function PayoutAllMembersList({
     members,
     selfMemberId,
+    pendingDisputeMemberIds = [],
     onCardTap,
 }: {
     members: PayoutMember[];
     selfMemberId: string | null;
+    pendingDisputeMemberIds?: string[];
     onCardTap: (memberId: string) => void;
 }) {
+    const pendingDisputes = new Set(pendingDisputeMemberIds);
     const handleRowKeyDown = (
         event: KeyboardEvent<HTMLTableRowElement>,
         memberId: string,
@@ -250,7 +254,12 @@ export function PayoutAllMembersList({
                                 onKeyDown={(event) => handleRowKeyDown(event, member.member_id)}
                                 aria-label={`${isSelf ? "自分" : member.nickname}の振込予定 ${formatYen(member.payoutAmount)}`}
                             >
-                                <th scope="row">{isSelf ? "自分" : member.nickname}</th>
+                                <th scope="row">
+                                    {isSelf ? "自分" : member.nickname}
+                                    {pendingDisputes.has(member.member_id) && (
+                                        <span className={styles.disputeBadge}>申立中</span>
+                                    )}
+                                </th>
                                 <td>{member.attendance_days}日</td>
                                 <td>{formatYen(member.rewardAmount)}</td>
                                 <td>{formatYen(member.payoutAmount)}</td>
@@ -270,6 +279,7 @@ export function PayoutHeroCard({
     isFinalized,
     selectedMemberId,
     viewMode,
+    pendingDisputeMemberIds = [],
     onSelectMember,
     onCardTap,
 }: PayoutHeroCardProps) {
@@ -283,6 +293,7 @@ export function PayoutHeroCard({
         : null;
     const contentId = "payout-hero-content";
     const currentStatus = statusLabel(isFinalized);
+    const pendingDisputes = new Set(pendingDisputeMemberIds);
 
     return (
         <div className={styles.card}>
@@ -314,6 +325,7 @@ export function PayoutHeroCard({
                             <PayoutAllMembersList
                                 members={members}
                                 selfMemberId={selfMemberId}
+                                pendingDisputeMemberIds={pendingDisputeMemberIds}
                                 onCardTap={onCardTap}
                             />
                         </framerMotion.div>
@@ -343,6 +355,9 @@ export function PayoutHeroCard({
                                     </div>
                                     <div className={styles.meta}>
                                         {activeMember.attendance_days}日 · {currentStatus}
+                                        {pendingDisputes.has(activeMember.member_id) && (
+                                            <span className={styles.inlineBadge}>申立中</span>
+                                        )}
                                     </div>
                                     <button
                                         type="button"
