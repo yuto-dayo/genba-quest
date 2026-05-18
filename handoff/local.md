@@ -1,31 +1,31 @@
-# Session Handoff - 2026-05-17
+# Session Handoff - 2026-05-19
 
 ## 0. Quick Resume (AI)
 
-- NEXT_CMD: `draft PR 作成、CI green 後 ready 化`
+- NEXT_CMD: `Commit, push branch codex/payout-days-level, create PR, merge after checks permit.`
 - SUCCESS_CRITERIA: `Completed / Remaining / Quality Gate が現セッション内容で更新されている`
 - HOTSET:
-  - `/Users/yutoyoshino/Documents/genba-quest-pr11/handoff/local.md`
-  - `/Users/yutoyoshino/Documents/genba-quest-pr11/docs/DESIGN_PHILOSOPHY.md`
+  - `/Users/yutoyoshino/Documents/genba-quest-payout-days-level/handoff/local.md`
+  - `/Users/yutoyoshino/Documents/genba-quest-payout-days-level/docs/DESIGN_PHILOSOPHY.md`
 - DO_NOT_READ:
   - `docs/DESIGN_PHILOSOPHY.md` (full)
 - VERIFY_FIRST:
   - `sed -n '1,120p' docs/DESIGN_PHILOSOPHY.md`
 - STATE:
-  - Branch: `feat/money-redesign-pr11-fe-partner-invoice-tab`
-  - Uncommitted: `0 files`
+  - Branch: `codex/payout-days-level`
+  - Uncommitted: `5 files`
   - DB migrations: `latest local: none found`
   - Tests: `not run yet`
   - Lint: `not run yet`
 
-  - HEAD: `f3f71d0`
-  - Updated: `2026-05-17T15:39:44+0900`
+  - HEAD: `4955e1d`
+  - Updated: `2026-05-19T08:03:40+0900`
 <!-- L0_END: セッション開始時はここまで読めばOK。L1以降は必要時のみ。 -->
 
 ## Session Events (audit log)
 
 <!-- HANDOFF_SESSION_EVENTS_START -->
-- 2026-05-17 15:24:56 +0900 — started by codex
+- 2026-05-19 08:03:08 +0900 — started by codex
 <!-- HANDOFF_SESSION_EVENTS_END -->
 
 ---
@@ -33,16 +33,16 @@
 ## L1. Session Summary (Compacted)
 
 <!-- HANDOFF_L1_START -->
-- [focus] NEXT_CMD: `draft PR 作成、CI green 後 ready 化`. Source: realtime
-- [H0001] Completed: PR-11 取引先・請求書タブ実装: filter chips, invoice inline, partner drawer, invoice bucket API
-- [H0001] Remaining: draft PR 作成、CI green 後 ready 化
+- [focus] NEXT_CMD: `Commit, push branch codex/payout-days-level, create PR, merge after checks permit.`. Source: realtime
+- [H0001] Completed: Prepared payout evidence visibility fix for publish: PayoutCalculationSection displays 稼働日数 and レベル as dedicated always-visible calculation rows for own/other payout modals.
+- [H0001] Remaining: Commit, push branch codex/payout-days-level, create PR, merge after checks permit.
 <!-- HANDOFF_L1_END -->
 
 ## L2. Project Continuity (Compacted)
 
 ### Decisions
 <!-- HANDOFF_L2_DECISIONS_START -->
-- [H0001] Auto-captured decision: PR-11 取引先・請求書タブ実装: filter chips, invoice inline, partner drawer, invoice bucket API
+- [H0001] Auto-captured decision: Prepared payout evidence visibility fix for publish: PayoutCalculationSection displays 稼働日数 and レベル as dedicated always-visible calculation rows for own/other payout modals.
 <!-- HANDOFF_L2_DECISIONS_END -->
 
 ### Landmines
@@ -52,7 +52,7 @@
 
 ### Open Threads
 <!-- HANDOFF_L2_THREADS_START -->
-- [H0001] draft PR 作成、CI green 後 ready 化
+- [H0001] Commit, push branch codex/payout-days-level, create PR, merge after checks permit.
 <!-- HANDOFF_L2_THREADS_END -->
 
 ### Compaction State
@@ -70,11 +70,11 @@
 
 ```text
 Agent: 未定（Claude Code / Codex）
-Branch: feat/money-redesign-pr11-fe-partner-invoice-tab
+Branch: codex/payout-days-level
 Phase: A-0/A-1
 ```
 
-> [carryover] Working tree was dirty at session start (1 files). Prior session may have unfinished work — verify NEXT_CMD before executing.
+> [carryover] Working tree was dirty at session start (6 files). Prior session may have unfinished work — verify NEXT_CMD before executing.
 
 1. `docs/DESIGN_PHILOSOPHY.md` の冒頭を確認
 2. このファイルを更新しながら実装を進める
@@ -90,19 +90,23 @@ Phase: A-0/A-1
 
 ## 3. Completed
 
-- [x] PR-11 取引先・請求書タブ実装: filter chips, invoice inline, partner drawer, invoice bucket API
+- [x] Prepared payout evidence visibility fix for publish: PayoutCalculationSection displays 稼働日数 and レベル as dedicated always-visible calculation rows for own/other payout modals.
 ---
 
 ## 4. Remaining（優先順位順）
 
-- [ ] **P0**: draft PR 作成、CI green 後 ready 化
+- [ ] **P0**: Commit, push branch codex/payout-days-level, create PR, merge after checks permit.
 ---
 
 ## 5. Changed Files
 
 | File | What Changed |
 | ---- | ------------ |
-| `(not recorded)` | No file list provided (use --file "path - semantic description") |
+| `/Users/yutoyoshino/Documents/genba-quest-payout-days-level/frontend/src/components/money/OtherPayoutModal.test.tsx` | assert work days and level are visible |
+| `/Users/yutoyoshino/Documents/genba-quest-payout-days-level/frontend/src/components/money/OwnPayoutModal.test.tsx` | assert work days and level are visible |
+| `/Users/yutoyoshino/Documents/genba-quest-payout-days-level/frontend/src/components/money/OtherPayoutModal.tsx` | remove finalized-only prop |
+| `/Users/yutoyoshino/Documents/genba-quest-payout-days-level/frontend/src/components/money/OwnPayoutModal.tsx` | remove finalized-only prop |
+| `/Users/yutoyoshino/Documents/genba-quest-payout-days-level/frontend/src/components/money/PayoutCalculationSection.tsx` | show work days and level as calculation evidence |
 ---
 
 ## 6. Locked Files（編集中 - 他エージェント触らない）
@@ -149,18 +153,22 @@ cd frontend && npx eslint src/
 
 ## 11. Incremental Updates
 
-### 2026-05-17 15:39:44 +0900
+### 2026-05-19 08:03:40 +0900
 
 - Entry-ID: `H0001`
 - Completed:
-  - [x] PR-11 取引先・請求書タブ実装: filter chips, invoice inline, partner drawer, invoice bucket API
+  - [x] Prepared payout evidence visibility fix for publish: PayoutCalculationSection displays 稼働日数 and レベル as dedicated always-visible calculation rows for own/other payout modals.
 - Remaining:
-  - [ ] draft PR 作成、CI green 後 ready 化
+  - [ ] Commit, push branch codex/payout-days-level, create PR, merge after checks permit.
 - Changed Files:
-  - No file list provided (use --file "path - semantic description")
+  - `/Users/yutoyoshino/Documents/genba-quest-payout-days-level/frontend/src/components/money/PayoutCalculationSection.tsx` - show work days and level as calculation evidence
+  - `/Users/yutoyoshino/Documents/genba-quest-payout-days-level/frontend/src/components/money/OwnPayoutModal.tsx` - remove finalized-only prop
+  - `/Users/yutoyoshino/Documents/genba-quest-payout-days-level/frontend/src/components/money/OtherPayoutModal.tsx` - remove finalized-only prop
+  - `/Users/yutoyoshino/Documents/genba-quest-payout-days-level/frontend/src/components/money/OwnPayoutModal.test.tsx` - assert work days and level are visible
+  - `/Users/yutoyoshino/Documents/genba-quest-payout-days-level/frontend/src/components/money/OtherPayoutModal.test.tsx` - assert work days and level are visible
 - Working Context:
-  - Auto-captured decision: PR-11 取引先・請求書タブ実装: filter chips, invoice inline, partner drawer, invoice bucket API
+  - Auto-captured decision: Prepared payout evidence visibility fix for publish: PayoutCalculationSection displays 稼働日数 and レベル as dedicated always-visible calculation rows for own/other payout modals.
 - Validation:
-  - `frontend tsc/lint/component tests passed; server tsc/accounting route tests passed; Playwright mocked /money 375px/1280px/reduced-motion verified`
+  - `frontend npm test -- OwnPayoutModal.test.tsx OtherPayoutModal.test.tsx => PASS; frontend npm run typecheck => PASS; frontend npm run lint -- payout modal files => PASS`
 - Landmines:
   - No new landmines reported in this chunk.

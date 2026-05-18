@@ -339,7 +339,6 @@ export function OwnPayoutModal({
                                 memberId={selfMemberId}
                                 summary={data.summary}
                                 preview={data.calculationPreview}
-                                isFinalized={data.summary.status === "確定済み"}
                                 subjectLabel="あなた"
                             />
 

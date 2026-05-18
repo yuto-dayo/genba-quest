@@ -344,6 +344,10 @@ describe("OtherPayoutModal", () => {
         expect(screen.getAllByText("￥32,500").length).toBeGreaterThan(0);
         expect(screen.getByText("報酬の計算（持ち分按分）")).toBeInTheDocument();
         expect(screen.getByText("配るお金")).toBeInTheDocument();
+        expect(screen.getByText("稼働日数")).toBeInTheDocument();
+        expect(screen.getByText("18日")).toBeInTheDocument();
+        expect(screen.getByText("レベル")).toBeInTheDocument();
+        expect(screen.getByText("L3")).toBeInTheDocument();
         expect(screen.getByText("田中さんの持ち分")).toBeInTheDocument();
         expect(screen.getByText("田中さんの取り分 %")).toBeInTheDocument();
         expect(screen.getByText("報酬の素")).toBeInTheDocument();
@@ -353,8 +357,6 @@ describe("OtherPayoutModal", () => {
         expect(screen.getByText("[車両ローン] 軽トラ")).toBeInTheDocument();
         expect(screen.getByText("定期分")).toBeInTheDocument();
         expect(screen.getByText("税務判定の根拠")).toBeInTheDocument();
-        expect(screen.getByText(/L3/)).toBeInTheDocument();
-        expect(screen.getByText(/18日/)).toBeInTheDocument();
         expect(screen.queryByText("未発行")).not.toBeInTheDocument();
         expect(screen.queryByText("発行中")).not.toBeInTheDocument();
 
