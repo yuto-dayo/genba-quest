@@ -20,6 +20,7 @@ import {
     Trash2,
     UserPlus,
     Users,
+    Landmark,
 } from "lucide-react";
 import {
     bootstrapOrg,
@@ -65,6 +66,7 @@ import { ProfileViewConsentModal } from "../components/ProfileViewConsentModal";
 import { TaxMappingPanel } from "../components/settings/TaxMappingPanel";
 import { ClassificationPanel } from "../components/settings/ClassificationPanel";
 import { RecurringExpensePanel } from "../components/settings/RecurringExpensePanel";
+import { DepreciablePanel } from "../components/settings/DepreciablePanel";
 import styles from "./Settings.module.css";
 
 function getAvatarErrorMessage(error: unknown): string {
@@ -106,6 +108,7 @@ type SettingPanel =
     | "clients"
     | "recurringExpenses"
     | "classification"
+    | "depreciableAssets"
     | "electronicDocs"
     | "taxMapping";
 
@@ -920,6 +923,13 @@ export function Settings() {
                     title: "契約区分管理",
                     summary: "外注 / 給与寄り",
                     icon: <BadgeCheck size={20} />,
+                },
+                {
+                    id: "depreciableAssets" as const,
+                    group: "組織",
+                    title: "減価償却資産",
+                    summary: "年300万円枠 / 月次償却",
+                    icon: <Landmark size={20} />,
                 },
                 {
                     id: "taxMapping" as const,
@@ -2103,6 +2113,10 @@ export function Settings() {
                                 currentUserId={currentMember?.id ?? null}
                                 isAdmin={isCurrentUserAdmin}
                             />
+                        )}
+
+                        {selectedSetting === "depreciableAssets" && isCurrentUserAdmin && (
+                            <DepreciablePanel />
                         )}
 
                         {selectedSetting === "clients" && (

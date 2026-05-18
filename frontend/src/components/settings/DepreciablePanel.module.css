@@ -1,0 +1,122 @@
+.panel {
+    display: grid;
+    gap: var(--md-sys-spacing-md);
+}
+
+.header,
+.limitTop,
+.limitMeta,
+.assetRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--md-sys-spacing-sm);
+}
+
+.header h3 {
+    margin: 0;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-title-medium);
+    letter-spacing: 0;
+}
+
+.header p,
+.limitTop span,
+.limitMeta,
+.assetRow small,
+.empty {
+    margin: 0;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-body-small);
+}
+
+.iconButton {
+    display: inline-grid;
+    place-items: center;
+    width: var(--md-sys-tap-target-min);
+    height: var(--md-sys-tap-target-min);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-full);
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
+    cursor: pointer;
+}
+
+.limitPanel,
+.assetRow {
+    padding: var(--md-sys-spacing-sm);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-medium);
+    background: var(--md-sys-color-surface-container-low);
+}
+
+.limitPanel {
+    display: grid;
+    gap: var(--md-sys-spacing-xs);
+}
+
+.limitTop strong,
+.assetRow b {
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-large);
+    font-feature-settings: "tnum";
+    font-variant-numeric: tabular-nums;
+}
+
+.progressTrack {
+    height: var(--md-sys-spacing-xs);
+    overflow: hidden;
+    border-radius: var(--md-sys-shape-corner-full);
+    background: var(--md-sys-color-surface-container-high);
+}
+
+.progressTrack span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--md-sys-color-primary);
+}
+
+.assetList {
+    display: grid;
+    gap: var(--md-sys-spacing-xs);
+}
+
+.assetRow span {
+    display: grid;
+    gap: var(--md-sys-spacing-2xs);
+    min-width: 0;
+}
+
+.assetRow strong {
+    overflow-wrap: anywhere;
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-label-large);
+}
+
+.amountGroup {
+    text-align: right;
+}
+
+.error {
+    display: flex;
+    align-items: center;
+    gap: var(--md-sys-spacing-xs);
+    color: var(--money-status-overdue);
+    font: var(--md-sys-typescale-body-small);
+}
+
+.empty {
+    padding: var(--md-sys-spacing-md);
+    text-align: center;
+}
+
+.spinner {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
